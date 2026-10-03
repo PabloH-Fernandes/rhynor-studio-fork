@@ -21,6 +21,9 @@ export interface CharLook {
   accessory: Accessory;
 }
 
+/** animações curtas: espreguiçar (fim de turno) e comemorar (fim de tarefa) */
+export type CharAnim = "stretch" | "cheer";
+
 export interface CharPose {
   dir: Dir;
   walking: boolean;
@@ -31,6 +34,41 @@ export interface CharPose {
   /** pra cada personagem não animar sincronizado */
   phase: number;
   alpha?: number;
+  anim?: CharAnim;
+  /** progresso da animação, 0..1 */
+  animT: number;
+  /** prefers-reduced-motion: anima só os braços, sem pulo */
+  reducedMotion?: boolean;
+}
+
+/** baixo (normal), diagonal, mãos juntas sobre a cabeça (espreguiçar) e punho erguido (comemorar) */
+type ArmPose = "down" | "diag" | "up" | "fist";
+
+/** 5 quadros do espreguiçar: baixo → diagonal → acima (segura) → diagonal → baixo */
+function stretchArms(t: number): ArmPose {
+  if (t < 0.12 || t >= 0.9) return "down";
+  if (t < 0.26 || t >= 0.76) return "diag";
+  return "up";
+}
+
+const CHEER_HOPS = 2;
+
+/** um pulinho por metade: agacha, sobe até 4px, desce e agacha de novo ao pousar */
+function hop(t: number): { lift: number; air: boolean } {
+  const k = (t * CHEER_HOPS) % 1;
+  if (k < 0.2 || k >= 0.85) return { lift: 1, air: false };
+  const a = (k - 0.2) / 0.65;
+  return { lift: -Math.round(Math.sin(a * Math.PI) * 4), air: true };
+}
+
+/**
+ * Deslocamento vertical do corpo (px, negativo = pra cima) causado pela animação.
+ * O motor usa o mesmo valor pra subir o nome/balão junto com a cabeça.
+ */
+export function animLift(anim: CharAnim | undefined, t: number, reducedMotion = false): number {
+  if (!anim || reducedMotion) return 0;
+  if (anim === "stretch") return stretchArms(t) === "up" ? -1 : 0;
+  return hop(t).lift;
 }
 
 type Part = [x: number, y: number, w: number, h: number, color: string];
@@ -46,7 +84,9 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, x: number, y: numbe
   const walkFrame = pose.walking ? Math.floor((pose.t + pose.phase) / 140) % 4 : 0;
   const step = walkFrame === 1 ? 1 : walkFrame === 3 ? -1 : 0;
   const bob = pose.walking && walkFrame % 2 === 1 ? -1 : 0;
-  const by = Math.round(y + bob + (pose.sitting ? 2 : 0));
+  const animT = Math.min(1, Math.max(0, pose.animT));
+  const lift = animLift(pose.anim, animT, pose.reducedMotion);
+  const by = Math.round(y + bob + (pose.sitting ? 2 : 0) + lift);
   const bx = Math.round(x);
   const side = pose.dir === "left" || pose.dir === "right";
   const flip = pose.dir === "left" ? -1 : 1;
@@ -130,8 +170,67 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, x: number, y: numbe
     if (u.trim === "manga") parts.push([ax, ay + (u.kind === "polo" ? 1 : 2), 2, 1, u.accent]);
     if (wrist && look.accessory === "relogio") parts.push([ax, ay + len - 1, 2, 1, palette.props.watch]);
   };
+  // braços erguidos ficam por cima do cabelo (segundo passe de desenho)
+  const over: Part[] = [];
+  const polo = u.kind === "polo";
+  /**
+   * s = -1 braço da esquerda (da tela), 1 da direita; o da direita leva o relógio.
+   * Os segmentos são escritos pro lado esquerdo e espelhados: coluna x (largura 2) → -x - 2.
+   */
+  const pushArm = (s: -1 | 1, p: ArmPose) => {
+    const wrist = s > 0;
+    if (p === "down") {
+      const base = s < 0 ? bx - 6 : bx + 4;
+      arm(base, ty + 1, 6, wrist);
+      parts.push([base, ty + 7, 2, 2, look.skin]);
+      return;
+    }
+    const seg = (dx: number, dy: number, h: number, color: string) =>
+      over.push([bx + (s < 0 ? dx : -dx - 2), ty + dy, 2, h, color]);
+    // a manga cobre do ombro ao cotovelo; na polo o antebraço é pele; no paletó, punho branco
+    const forearm = polo ? look.skin : u.shirtShade;
+    const cuff = tailored ? inner : wrist && look.accessory === "relogio" ? palette.props.watch : forearm;
+    if (p === "diag") {
+      // em escada pra fora e pra cima: ombro, antebraço, mão
+      seg(-7, -1, 3, u.shirtShade);
+      seg(-8, -4, 3, forearm);
+      seg(-8, -4, 1, cuff);
+      seg(-9, -6, 2, look.skin);
+    } else if (p === "fist") {
+      // punho erguido reto, por fora da cabeça, passando um pouco do topo
+      seg(-7, -5, 6, u.shirtShade);
+      seg(-7, -9, 4, forearm);
+      seg(-7, -9, 1, cuff);
+      seg(-7, -12, 3, look.skin);
+    } else {
+      // espreguiçando: braços abertos em V por fora da cabeça, mãos 2x2 lá em cima
+      seg(-7, -5, 6, u.shirtShade);
+      seg(-7, -9, 4, forearm);
+      seg(-7, -9, 1, cuff);
+      seg(-6, -11, 2, look.skin);
+    }
+  };
+
   const swing = pose.walking ? step : 0;
-  if (pose.typing) {
+  if (pose.anim) {
+    let left: ArmPose = "down";
+    let right: ArmPose = "down";
+    if (pose.anim === "stretch") {
+      left = right = stretchArms(animT);
+    } else if (pose.reducedMotion) {
+      // sem pulo: só ergue os braços uma vez
+      left = right = animT < 0.15 || animT >= 0.85 ? "diag" : "fist";
+    } else {
+      // no ar um braço vai lá em cima e o outro fica na diagonal, alternando a cada pulo
+      const { air } = hop(animT);
+      const second = animT * CHEER_HOPS >= 1;
+      left = air && !second ? "fist" : "diag";
+      right = air && second ? "fist" : "diag";
+      if (animT >= 0.95) left = right = "down";
+    }
+    pushArm(-1, left);
+    pushArm(1, right);
+  } else if (pose.typing) {
     const k = Math.floor((pose.t + pose.phase) / 110) % 2;
     arm(bx - 6, ty + 1, 5, false);
     arm(bx + 4, ty + 1, 5, true);
@@ -159,14 +258,24 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, x: number, y: numbe
   ctx.save();
   ctx.globalAlpha = alpha;
   if (!pose.sitting) {
+    // a sombra fica no chão; com o corpo no ar ela encolhe e achata
     const gy = Math.round(y);
+    const s = lift < 0 ? Math.min(3, -lift) : 0;
     ctx.fillStyle = palette.props.shadow;
-    ctx.fillRect(bx - 6, gy, 12, 1);
-    ctx.fillRect(bx - 4, gy - 1, 8, 3);
+    ctx.fillRect(bx - 6 + s, gy, 12 - 2 * s, 1);
+    if (s) ctx.fillRect(bx - 4 + s, gy - 1, 8 - 2 * s, 2);
+    else ctx.fillRect(bx - 4, gy - 1, 8, 3);
   }
   ctx.fillStyle = theme.colors.outline;
   for (const [px, py, w, h] of parts) ctx.fillRect(px - 1, py - 1, w + 2, h + 2);
   for (const [px, py, w, h, color] of parts) {
+    ctx.fillStyle = color;
+    ctx.fillRect(px, py, w, h);
+  }
+  // braços erguidos num segundo passe, com contorno próprio: 1px escuro separa braço e cabelo
+  ctx.fillStyle = theme.colors.outline;
+  for (const [px, py, w, h] of over) ctx.fillRect(px - 1, py - 1, w + 2, h + 2);
+  for (const [px, py, w, h, color] of over) {
     ctx.fillStyle = color;
     ctx.fillRect(px, py, w, h);
   }

@@ -4,6 +4,7 @@
 import type { Agent } from "../../../shared/types";
 import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor } from "../theme";
 import { fill, line } from "./decor";
+import { isReducedMotion } from "./motion";
 import {
   AISLE_Y,
   COFFEE_SPOTS,
@@ -29,12 +30,33 @@ import {
   type Point,
   type Spot,
 } from "./map";
-import { HAIR_STYLE_COUNT, drawCharacter, hashString, type Accessory, type CharLook, type Dir } from "./sprites";
+import {
+  HAIR_STYLE_COUNT,
+  animLift,
+  drawCharacter,
+  hashString,
+  type Accessory,
+  type CharAnim,
+  type CharLook,
+  type Dir,
+} from "./sprites";
 
 const SPEED = 3.4; // tiles por segundo
 const COFFEE_AFTER_MS = 15_000; // ocioso por esse tempo → vai tomar café
 const BUBBLE_MS = 3800;
 const CHAT_MS = 4500;
+const STRETCH_MS = 1600;
+const CHEER_MS = 1300;
+/** com prefers-reduced-motion as duas viram um gesto curto de braços */
+const REDUCED_ANIM_MS = 700;
+const CONFETTI_COUNT = 8;
+const CONFETTI_AT_MS = 150; // sai no primeiro impulso do pulo
+const CONFETTI_LIFE_MS = 800;
+const CONFETTI_GRAVITY = 0.00012; // px/ms²
+
+
+/** status em que o agente está "na tarefa" (vale espreguiçar/comemorar ao sair dele) */
+const BUSY = new Set<Agent["status"]>(["trabalhando", "pensando", "esperando"]);
 
 /** aparência fixa de cada papel (tabela de uniformes); o que não está aqui sai do hash do id */
 const ROLE_LOOK: Record<string, { hairStyle: number; accessory?: Accessory }> = {
@@ -81,6 +103,9 @@ interface Visual {
   leaving: boolean;
   fade: number; // 1 → 0 ao sair pela porta
   chat?: { text: string; until: number };
+  anim?: { kind: CharAnim; start: number; until: number };
+  /** parado (sem andar) até esse instante; usado pra comemorar antes de ir embora */
+  holdUntil?: number;
 }
 
 interface Envelope {
@@ -121,9 +146,26 @@ export class OfficeEngine {
       v = this.create(agent, fromSnapshot);
       this.visuals.set(agent.id, v);
     }
+    const prev = v.agent.status;
+    const seated = v.at.id === v.home.id && v.at.sitting && !v.path.length && !v.leaving;
     if (agent.activity !== v.agent.activity) v.activityAt = now;
-    if (agent.status === "ocioso" && v.agent.status !== "ocioso") v.idleSince = now;
+    if (agent.status === "ocioso" && prev !== "ocioso") v.idleSince = now;
     if (agent.status !== "ocioso") v.idleSince = Infinity;
+    // o snapshot inicial (create) chega com prev === status, então não anima
+    if (seated && agent.status !== prev) {
+      const short = isReducedMotion();
+      if (agent.status === "ocioso" && BUSY.has(prev)) {
+        // fim de turno (ex.: Stop do líder): espreguiça na cadeira
+        v.anim = { kind: "stretch", start: now, until: now + (short ? REDUCED_ANIM_MS : STRETCH_MS) };
+      } else if (agent.status === "saindo" && BUSY.has(prev)) {
+        // fim de tarefa (SubagentStop): comemora e só depois vai pra porta
+        const until = now + (short ? REDUCED_ANIM_MS : CHEER_MS);
+        v.anim = { kind: "cheer", start: now, until };
+        v.holdUntil = until;
+      } else if (v.anim?.kind === "stretch") {
+        v.anim = undefined; // voltou ao trabalho no meio do espreguiçar
+      }
+    }
     v.agent = agent;
     if (agent.status === "saindo") this.startLeaving(v);
   }
@@ -178,7 +220,8 @@ export class OfficeEngine {
   }
 
   private startLeaving(v: Visual) {
-    if (v.leaving) return;
+    // comemorando: o update chama de novo quando o holdUntil passar
+    if (v.leaving || v.holdUntil !== undefined) return;
     v.leaving = true;
     this.goTo(v, DOOR_SPOT);
   }
@@ -207,6 +250,14 @@ export class OfficeEngine {
     const busyCoffee = new Set([...this.visuals.values()].filter((v) => v.target.id.startsWith("cafe:")).map((v) => v.target.id));
 
     for (const v of this.visuals.values()) {
+      if (v.anim && now >= v.anim.until) v.anim = undefined;
+      if (v.holdUntil !== undefined) {
+        if (now < v.holdUntil) continue; // comemorando: fica parado na mesa
+        // o hold só é criado na ida pra "saindo"; a saída que ficou adiada acontece agora
+        v.holdUntil = undefined;
+        this.startLeaving(v);
+      }
+
       // decide o destino
       if (!v.leaving) {
         const wantsCoffee = v.agent.status === "ocioso" && now - v.idleSince > COFFEE_AFTER_MS;
@@ -293,6 +344,7 @@ export class OfficeEngine {
             waiting: !!seated && seated.agent.status === "esperando",
             occupantName: occupant?.agent.name,
             t: now,
+            reducedMotion: isReducedMotion(),
           }),
       });
     }
@@ -315,33 +367,81 @@ export class OfficeEngine {
     for (const v of visuals) this.drawOverlay(ctx, v, now);
   }
 
+  /** animação em curso (só parado, no próprio lugar) e o progresso 0..1 */
+  private animOf(v: Visual, now: number): { kind: CharAnim; t: number } | undefined {
+    const a = v.anim;
+    if (!a || v.path.length || now >= a.until) return undefined;
+    return { kind: a.kind, t: (now - a.start) / (a.until - a.start) };
+  }
+
+  /**
+   * Pose de desenho. Pra comemorar o personagem levanta da cadeira (atrás da mesa) e pula:
+   * a mesa cobre pernas e sombra, e o tronco aparece mais acima do tampo a cada pulo.
+   */
+  private poseOf(v: Visual, now: number) {
+    const anim = this.animOf(v, now);
+    const seated = v.at.sitting && !v.path.length;
+    const sitting = seated && !(anim?.kind === "cheer" && !isReducedMotion());
+    const lift = animLift(anim?.kind, anim?.t ?? 0, isReducedMotion());
+    return { anim, seated, sitting, lift };
+  }
+
   private drawVisual(ctx: CanvasRenderingContext2D, v: Visual, now: number) {
-    const sitting = v.at.sitting && !v.path.length;
+    const { anim, seated, sitting } = this.poseOf(v, now);
     const x = v.x * TILE;
     const y = v.y * TILE;
     const selected = this.selectedId === v.agent.id;
-    if ((selected || this.hoverId === v.agent.id) && !sitting) {
+    if ((selected || this.hoverId === v.agent.id) && !seated) {
       selectionRing(ctx, x, y, selected ? palette.navy900 : palette.navy500);
     }
     drawCharacter(ctx, x, y, v.look, {
       dir: v.dir,
       walking: v.path.length > 0,
       sitting,
-      typing: sitting && v.agent.status === "trabalhando",
+      typing: !anim && sitting && v.agent.status === "trabalhando",
       t: now,
       phase: v.phase,
       alpha: v.fade,
+      anim: anim?.kind,
+      animT: anim?.t ?? 0,
+      reducedMotion: isReducedMotion(),
     });
   }
 
-  private headPoint(v: Visual): Point {
-    const sitting = v.at.sitting && !v.path.length;
-    return { x: v.x * TILE, y: v.y * TILE - (sitting ? 22 : 24) };
+  private headPoint(v: Visual, now: number): Point {
+    const { sitting, lift } = this.poseOf(v, now);
+    return { x: v.x * TILE, y: v.y * TILE - (sitting ? 22 : 24) + lift };
+  }
+
+  /** confete do comemorar: sai de cima da cabeça, cai com gravidade e some em ~800ms */
+  private drawConfetti(ctx: CanvasRenderingContext2D, v: Visual, now: number) {
+    const a = v.anim;
+    if (!a || a.kind !== "cheer" || isReducedMotion() || v.path.length) return;
+    const age = now - a.start - CONFETTI_AT_MS;
+    if (age < 0 || age > CONFETTI_LIFE_MS) return;
+    // origem fixa no mundo (não acompanha o pulo): acima da cabeça de quem está em pé
+    const ox = v.x * TILE;
+    const oy = v.y * TILE - 26;
+    const colors = [palette.navy900, palette.navy500, roleColor(v.agent.role)];
+    const seed = hashString(`${v.agent.id}:${Math.round(a.start)}`);
+    ctx.save();
+    ctx.globalAlpha = age > CONFETTI_LIFE_MS - 200 ? (CONFETTI_LIFE_MS - age) / 200 : 1;
+    for (let i = 0; i < CONFETTI_COUNT; i++) {
+      const r = (seed >>> (i * 3)) & 7; // 0..7 por partícula
+      // leque pra cima, de -150° a -30°, com velocidades variadas (px/ms)
+      const ang = (-150 + (120 * (i + r / 8)) / CONFETTI_COUNT) * (Math.PI / 180);
+      const sp = 0.04 + r * 0.004;
+      const px = Math.round(ox + Math.cos(ang) * sp * age);
+      const py = Math.round(oy + Math.sin(ang) * sp * age + 0.5 * CONFETTI_GRAVITY * age * age);
+      // 2x2 pra aparecer sobre o piso e os balões claros
+      fill(ctx, px, py, 2, 2, colors[i % colors.length]);
+    }
+    ctx.restore();
   }
 
   private drawOverlay(ctx: CanvasRenderingContext2D, v: Visual, now: number) {
     if (v.fade <= 0.05) return;
-    const head = this.headPoint(v);
+    const head = this.headPoint(v, now);
     const selected = this.selectedId === v.agent.id || this.hoverId === v.agent.id;
     const status = v.agent.status;
     let top = head.y - 2;
@@ -349,10 +449,11 @@ export class OfficeEngine {
     // ícone de status
     if (status === "esperando" && !v.leaving) {
       // selo marinho com borda e "!" laranja; a borda pisca entre laranja e branco
-      const b = Math.round(Math.sin(now / 150) * 1.5);
+      // (com reduced-motion: parado e com a borda laranja fixa)
+      const b = isReducedMotion() ? 0 : Math.round(Math.sin(now / 150) * 1.5);
       const sx = Math.round(head.x - 5);
       const sy = Math.round(top - 13 + b);
-      const ring = Math.floor(now / 400) % 2 ? palette.white : palette.signal.waiting;
+      const ring = !isReducedMotion() && Math.floor(now / 400) % 2 ? palette.white : palette.signal.waiting;
       roundBox(ctx, sx, sy, 10, 12, ring, palette.navy950);
       ctx.fillStyle = palette.navy900;
       ctx.fillRect(sx + 2, sy + 2, 6, 8);
@@ -402,6 +503,9 @@ export class OfficeEngine {
       ctx.fillStyle = palette.white;
       ctx.fillText(name, lx + 5, top);
     }
+
+    // confete por cima do balão
+    this.drawConfetti(ctx, v, now);
   }
 
   private drawEnvelope(ctx: CanvasRenderingContext2D, e: Envelope, now: number) {
@@ -410,8 +514,8 @@ export class OfficeEngine {
     if (!a || !b) return;
     const p = Math.min(1, (now - e.start) / 1200);
     const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-    const ha = this.headPoint(a);
-    const hb = this.headPoint(b);
+    const ha = this.headPoint(a, now);
+    const hb = this.headPoint(b, now);
     const x = ha.x + (hb.x - ha.x) * ease;
     const y = ha.y + (hb.y - ha.y) * ease - Math.sin(ease * Math.PI) * 26;
     // envelope branco com contorno marinho, aba em 1px e lacre navy900

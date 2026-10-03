@@ -525,7 +525,11 @@ export const PROPS: Prop[] = [
 ];
 
 /** Mesa de trabalho com computador e plaquinha. `occupantName` vai na plaquinha das mesas de convidado. */
-export function drawDesk(ctx: Ctx, d: Desk, opts: { active: boolean; waiting: boolean; occupantName?: string; t: number }) {
+export function drawDesk(
+  ctx: Ctx,
+  d: Desk,
+  opts: { active: boolean; waiting: boolean; occupantName?: string; t: number; reducedMotion?: boolean },
+) {
   const c = theme.colors;
   const wTiles = d.big ? 3.6 : 2.75;
   const w = px(wTiles);
@@ -565,7 +569,8 @@ export function drawDesk(ctx: Ctx, d: Desk, opts: { active: boolean; waiting: bo
       rect(ctx, mx + 2 + ((i + scroll) % 2) * 2, my + 2 + i * 2, len, 1, colors[(i + scroll) % colors.length]);
     }
   } else if (opts.waiting) {
-    if (Math.floor(opts.t / 400) % 2 === 0) rect(ctx, mx + 6, my + 2, 2, 5, palette.signal.waiting);
+    // com reduced-motion o "!" fica sempre aceso
+    if (opts.reducedMotion || Math.floor(opts.t / 400) % 2 === 0) rect(ctx, mx + 6, my + 2, 2, 5, palette.signal.waiting);
     rect(ctx, mx + 6, my + 8, 2, 1, palette.signal.waiting);
   }
   rect(ctx, mx + 5, my + 12, 3, 2, palette.gray700);
