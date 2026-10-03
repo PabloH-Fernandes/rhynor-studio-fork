@@ -62,6 +62,15 @@ export const palette = {
   night: {
     cityWindow: "#FFD27A",
     star: "#DCE6FF",
+    moon: "#F4F0DC",
+    /** nuvem à noite (um pouco mais clara que o céu) */
+    cloud: "#2A3B66",
+    /** prédios, obra e guindaste escurecem em direção a esta cor */
+    shade: "#0A1A3C",
+    /** cores das luzes no lightmap (somadas com 'lighter', vezes a força da noite) */
+    monitorLight: "#4FA8FF",
+    warmLight: "#FFC27A",
+    ceilingLight: "#FFE0B0",
   },
   /** objetos pequenos dos personagens */
   props: {
@@ -75,6 +84,8 @@ export const palette = {
     wallJoint: "#D8DEE7",
     cloudFar: "#E8F3FB",
     cloudShade: "#D6E8F6",
+    /** nuvem no amanhecer/entardecer (misturada pela força do "dusk") */
+    cloudDusk: "#F7B4A2",
     craneLightOff: "#6E2A36",
     paintingSky: "#CFE3F5",
     paintingHaze: "#E4EFF9",

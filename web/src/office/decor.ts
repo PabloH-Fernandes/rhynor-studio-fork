@@ -5,6 +5,7 @@
 
 import { navyAlpha, palette } from "../theme";
 import { AG_LETTERS, drawBitmap } from "./agMark";
+import { isReducedMotion } from "./motion";
 
 type Ctx = CanvasRenderingContext2D;
 const P = palette;
@@ -58,7 +59,7 @@ export function disc(ctx: Ctx, cx: number, cy: number, r: number, color: string)
   }
 }
 
-function hexToRgb(hex: string): [number, number, number] {
+export function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
@@ -86,11 +87,47 @@ export interface SkyColors {
   bottom: string;
 }
 
-/** céu de dia usado enquanto a interpolação pela hora real não chega (etapa 6) */
+/** céu de dia (hora 9): padrão quando ninguém passa a luz do momento */
 export const DAY_SKY: SkyColors = (() => {
   const key = P.sky.find((s) => s.hour === 9) ?? P.sky[0];
   return { top: key.top, bottom: key.bottom };
 })();
+
+/** luz do momento vista pela janela (vem de daylight.ts) */
+export interface WindowLight {
+  sky: SkyColors;
+  /** 0 = dia, 1 = noite fechada */
+  night: number;
+  /** 0..1: amanhecer/entardecer (nuvens rosadas) */
+  dusk: number;
+  stars: boolean;
+}
+
+export const DAY_LIGHT: WindowLight = { sky: DAY_SKY, night: 0, dusk: 0, stars: false };
+
+/**
+ * mix com memo (t quantizado em 1/32): o cenário das janelas chama isso centenas de vezes
+ * por quadro com as mesmas cores, e a força da noite só muda devagar.
+ */
+const mixMemo = new Map<string, string>();
+function mixQ(a: string, b: string, t: number): string {
+  const q = Math.max(0, Math.min(32, Math.round(t * 32)));
+  if (q === 0) return a;
+  if (q === 32) return b;
+  const key = `${a}${b}${q}`;
+  let v = mixMemo.get(key);
+  if (v === undefined) {
+    v = mix(a, b, q / 32);
+    if (mixMemo.size > 4000) mixMemo.clear();
+    mixMemo.set(key, v);
+  }
+  return v;
+}
+
+/** escurece uma cor do cenário de fora em direção ao marinho da noite */
+const shade = (c: string, k: number) => mixQ(c, P.night.shade, k);
+
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 export interface Rect {
   x: number;
@@ -105,40 +142,96 @@ export function drawSky(ctx: Ctx, r: Rect, sky: SkyColors) {
   for (let i = 0; i < bands; i++) {
     const y0 = Math.floor((i * r.h) / bands);
     const y1 = Math.floor(((i + 1) * r.h) / bands);
-    fill(ctx, r.x, r.y + y0, r.w, y1 - y0, mix(sky.top, sky.bottom, i / (bands - 1)));
+    fill(ctx, r.x, r.y + y0, r.w, y1 - y0, mixQ(sky.top, sky.bottom, i / (bands - 1)));
   }
+}
+
+/** estrelas de 1px na metade de cima do vidro; algumas piscam (paradas com reduced-motion) */
+function drawStars(ctx: Ctx, r: Rect, t: number, light: WindowLight) {
+  // aparecem aos poucos conforme escurece
+  const k = clamp01((light.night - 0.55) / 0.35);
+  const still = isReducedMotion();
+  for (let i = 0; i < 7; i++) {
+    const h = hash(r.x * 13 + i * 7 + 3);
+    const x = r.x + 1 + (h % (r.w - 2));
+    const y = r.y + 1 + ((h >>> 8) % Math.max(1, Math.floor(r.h * 0.5)));
+    const bright = (h >>> 4) % 3 === 0;
+    let a = bright ? 1 : 0.6;
+    if (!still) {
+      const period = 900 + ((h >>> 16) % 1400);
+      if (Math.floor((t + (h % 5000)) / period) % 5 === 0) a *= 0.35; // pisca
+    }
+    fill(ctx, x, y, 1, 1, mixQ(light.sky.top, P.night.star, a * k));
+  }
+}
+
+/** lua crescente 5x5 em pixel */
+const MOON = [".###.", "###..", "##...", "###..", ".###."];
+
+function drawMoon(ctx: Ctx, x: number, y: number, light: WindowLight) {
+  const k = clamp01((light.night - 0.4) / 0.4);
+  if (k <= 0) return;
+  const c = mixQ(light.sky.top, P.night.moon, k);
+  const glow = mixQ(light.sky.top, P.night.moon, k * 0.18);
+  // halo de 1px bem fraco em volta
+  fill(ctx, x + 1, y - 1, 3, 1, glow);
+  fill(ctx, x - 1, y + 1, 1, 3, glow);
+  fill(ctx, x + 1, y + 5, 3, 1, glow);
+  MOON.forEach((row, dy) => {
+    for (let dx = 0; dx < row.length; dx++) if (row[dx] === "#") fill(ctx, x + dx, y + dy, 1, 1, c);
+  });
 }
 
 /**
  * Nuvens em 2 camadas com parallax. As posições estão em coordenadas da parede inteira,
  * então a mesma nuvem atravessa uma janela e depois a seguinte.
+ * No amanhecer/entardecer ficam rosadas; à noite, azuladas e escuras.
  */
-function drawClouds(ctx: Ctx, r: Rect, t: number) {
+function drawClouds(ctx: Ctx, r: Rect, t: number, light: WindowLight) {
+  const tint = (c: string) => mixQ(mixQ(c, P.decor.cloudDusk, light.dusk * 0.6), P.night.cloud, light.night * 0.85);
+  const far = tint(P.decor.cloudFar);
+  const body = tint(P.white);
+  const under = tint(P.decor.cloudShade);
   const span = 512 + 60;
   // camada do fundo: pequena, lenta, um pouco azulada
   for (let i = 0; i < 6; i++) {
     const h = hash(i + 11);
     const x = Math.floor(((h % span) + t / 900) % span) - 30;
     const y = r.y + 2 + (h % 7);
-    fill(ctx, x, y, 9, 2, P.decor.cloudFar);
-    fill(ctx, x + 2, y - 1, 4, 1, P.decor.cloudFar);
+    fill(ctx, x, y, 9, 2, far);
+    fill(ctx, x + 2, y - 1, 4, 1, far);
   }
   // camada da frente: maior, mais rápida, branca com sombra embaixo
   for (let i = 0; i < 5; i++) {
     const h = hash(i + 101);
     const x = Math.floor(((h % span) + t / 380) % span) - 30;
     const y = r.y + 4 + (h % 9);
-    fill(ctx, x + 1, y + 3, 15, 1, P.decor.cloudShade);
-    fill(ctx, x, y + 1, 17, 2, P.white);
-    fill(ctx, x + 3, y, 9, 1, P.white);
-    fill(ctx, x + 5, y - 1, 5, 1, P.white);
+    fill(ctx, x + 1, y + 3, 15, 1, under);
+    fill(ctx, x, y + 1, 17, 2, body);
+    fill(ctx, x + 3, y, 9, 1, body);
+    fill(ctx, x + 5, y - 1, 5, 1, body);
   }
 }
 
-/** prédios ao fundo, sorteados de forma fixa por `seed` */
-function drawSkyline(ctx: Ctx, r: Rect, seed: number, groundY: number, nearLayer: boolean) {
-  const far = mix(P.navy500, DAY_SKY.bottom, nearLayer ? 0.55 : 0.68);
-  const near = mix(P.navy500, DAY_SKY.bottom, 0.25);
+/**
+ * Janelinha acesa da cidade à noite: sorteio fixo por posição; 1 em cada 4 é "dinâmica"
+ * e sorteia de novo a cada ~20 s (cada uma com sua fase, então trocam poucas por vez).
+ */
+function cityWindowLit(id: number, t: number, ratio: number): boolean {
+  const dynamic = id % 4 === 0;
+  // com reduced-motion as janelas não trocam
+  const epoch = dynamic && !isReducedMotion() ? Math.floor((t + ((id >>> 8) % 20_000)) / 20_000) : 0;
+  return hash(id + epoch * 7919) % 100 < ratio;
+}
+
+/** prédios ao fundo, sorteados de forma fixa por `seed`; à noite escurecem e acendem janelas */
+function drawSkyline(ctx: Ctx, r: Rect, seed: number, groundY: number, nearLayer: boolean, t: number, light: WindowLight) {
+  const n = light.night;
+  const haze = 1 - n * 0.6; // à noite a névoa do céu pesa menos e o prédio vira silhueta
+  const far = mixQ(mixQ(P.navy500, P.navy850, n), light.sky.bottom, (nearLayer ? 0.55 : 0.68) * haze);
+  const near = mixQ(mixQ(P.navy500, P.navy900, n), light.sky.bottom, 0.25 * haze);
+  const lit = mixQ(far, P.night.cityWindow, clamp01((n - 0.3) / 0.4));
+  const showLit = n > 0.3;
   let x = r.x - 2;
   let i = 0;
   while (x < r.x + r.w) {
@@ -146,6 +239,10 @@ function drawSkyline(ctx: Ctx, r: Rect, seed: number, groundY: number, nearLayer
     const w = 5 + (h % 5);
     const bh = 5 + ((h >>> 4) % 9);
     fill(ctx, x, groundY - bh, w, bh, far);
+    // uma ou outra luz acesa nos prédios do fundo
+    if (showLit && (h >>> 12) % 3 === 0 && bh > 3) {
+      fill(ctx, x + 1 + ((h >>> 14) % (w - 2)), groundY - bh + 1 + ((h >>> 18) % (bh - 2)), 1, 1, lit);
+    }
     x += w + ((h >>> 8) % 2);
     i++;
   }
@@ -157,9 +254,12 @@ function drawSkyline(ctx: Ctx, r: Rect, seed: number, groundY: number, nearLayer
     const bh = 3 + ((h >>> 5) % 7);
     if (nearLayer && (h >>> 9) % 3 !== 0) {
       fill(ctx, x, groundY - bh, w, bh, near);
-      // janelinhas claras de dia
+      // janelinhas: claras de dia, algumas acesas (amarelas) à noite
       for (let wy = groundY - bh + 1; wy < groundY - 1; wy += 2) {
-        for (let wx = x + 1; wx < x + w - 1; wx += 2) fill(ctx, wx, wy, 1, 1, far);
+        for (let wx = x + 1; wx < x + w - 1; wx += 2) {
+          const on = showLit && cityWindowLit(hash(seed * 977 + wx * 131 + wy * 17), t, 34);
+          fill(ctx, wx, wy, 1, 1, on ? lit : shade(far, n * 0.3));
+        }
       }
     }
     x += w + 3;
@@ -168,14 +268,14 @@ function drawSkyline(ctx: Ctx, r: Rect, seed: number, groundY: number, nearLayer
 }
 
 /** chão do canteiro: faixa de terra/concreto e, opcionalmente, tapume branco com faixa marinho */
-function drawGround(ctx: Ctx, r: Rect, tapume: boolean) {
+function drawGround(ctx: Ctx, r: Rect, tapume: boolean, n: number) {
   const gy = r.y + r.h - 2;
-  fill(ctx, r.x, gy, r.w, 1, P.gray300);
-  fill(ctx, r.x, gy + 1, r.w, 1, P.gray400);
+  fill(ctx, r.x, gy, r.w, 1, shade(P.gray300, n * 0.75));
+  fill(ctx, r.x, gy + 1, r.w, 1, shade(P.gray400, n * 0.75));
   if (tapume) {
-    fill(ctx, r.x, gy - 3, r.w, 3, P.gray50);
+    fill(ctx, r.x, gy - 3, r.w, 3, shade(P.gray50, n * 0.7));
     fill(ctx, r.x, gy - 1, r.w, 1, P.navy900);
-    for (let x = r.x + 3; x < r.x + r.w; x += 7) fill(ctx, x, gy - 3, 1, 2, P.gray200);
+    for (let x = r.x + 3; x < r.x + r.w; x += 7) fill(ctx, x, gy - 3, 1, 2, shade(P.gray200, n * 0.7));
   }
 }
 
@@ -184,17 +284,18 @@ function drawGround(ctx: Ctx, r: Rect, tapume: boolean) {
 /**
  * Guindaste de torre: torre treliçada, lança que "gira" (o comprimento visível encolhe
  * pelo cosseno, ciclo de ~20 s), carrinho com gancho e carga subindo e descendo,
- * e a luz vermelha piscando no topo.
+ * e a luz vermelha piscando no topo (com halo à noite).
  */
-function drawCrane(ctx: Ctx, r: Rect, mastX: number, t: number, phase: number) {
-  const steel = P.navy700;
-  const steelDark = P.navy800;
+function drawCrane(ctx: Ctx, r: Rect, mastX: number, t: number, phase: number, n: number) {
+  // à noite vira silhueta escura contra a base clara do céu
+  const steel = mixQ(P.navy700, P.navy950, n * 0.75);
+  const steelDark = mixQ(P.navy800, P.navy950, n * 0.75);
   const groundY = r.y + r.h - 2;
   const mastTop = r.y + 9;
   const cx = mastX + 1; // eixo da torre
 
   // base de concreto
-  fill(ctx, mastX - 2, groundY - 2, 7, 2, P.gray500);
+  fill(ctx, mastX - 2, groundY - 2, 7, 2, shade(P.gray500, n * 0.6));
   // torre treliçada (3px: dois montantes + travessas alternadas)
   fill(ctx, mastX, mastTop, 1, groundY - 2 - mastTop, steel);
   fill(ctx, mastX + 2, mastTop, 1, groundY - 2 - mastTop, steel);
@@ -209,7 +310,7 @@ function drawCrane(ctx: Ctx, r: Rect, mastX: number, t: number, phase: number) {
 
   // contra-lança com contrapeso
   line(ctx, cx, jibY, counterEnd, jibY, steel);
-  fill(ctx, counterEnd - 1, jibY + 1, 3, 2, P.gray600);
+  fill(ctx, counterEnd - 1, jibY + 1, 3, 2, shade(P.gray600, n * 0.6));
   // lança (1px cheia + treliça pontilhada embaixo)
   line(ctx, cx, jibY, jibEnd, jibY, steel);
   const dir = jibEnd >= cx ? 1 : -1;
@@ -219,22 +320,32 @@ function drawCrane(ctx: Ctx, r: Rect, mastX: number, t: number, phase: number) {
   fill(ctx, cx, apexY, 1, jibY - apexY, steel);
   line(ctx, cx, apexY, cx + Math.round(11 * c), jibY, steelDark);
   line(ctx, cx, apexY, counterEnd, jibY, steelDark);
-  // cabine do operador
-  fill(ctx, mastX - 1, mastTop, 4, 3, P.gray50);
-  fill(ctx, mastX + (c >= 0 ? 2 : -1), mastTop + 1, 1, 1, P.navy600);
+  // cabine do operador (à noite com a janelinha acesa)
+  fill(ctx, mastX - 1, mastTop, 4, 3, shade(P.gray50, n * 0.7));
+  fill(ctx, mastX + (c >= 0 ? 2 : -1), mastTop + 1, 1, 1, n > 0.5 ? P.night.cityWindow : P.navy600);
 
   // carrinho + cabo + gancho com carga
   const along = 0.55 + 0.3 * Math.sin(t / 7_000 + phase);
   const tx = cx + Math.round(17 * c * along);
   const lift = (1 - Math.cos((t / 11_000) * Math.PI * 2 + phase)) / 2; // 0 em cima, 1 embaixo
   const hookY = jibY + 3 + Math.round(lift * (groundY - 7 - (jibY + 3)));
-  fill(ctx, tx - 1, jibY + 1, 3, 1, P.gray600);
-  fill(ctx, tx, jibY + 2, 1, hookY - (jibY + 2), P.gray800);
-  fill(ctx, tx - 2, hookY, 5, 2, P.gray400); // feixe de vigas
-  fill(ctx, tx - 2, hookY + 1, 5, 1, P.gray500);
+  fill(ctx, tx - 1, jibY + 1, 3, 1, shade(P.gray600, n * 0.6));
+  fill(ctx, tx, jibY + 2, 1, hookY - (jibY + 2), shade(P.gray800, n * 0.4));
+  fill(ctx, tx - 2, hookY, 5, 2, shade(P.gray400, n * 0.6)); // feixe de vigas
+  fill(ctx, tx - 2, hookY + 1, 5, 1, shade(P.gray500, n * 0.6));
+  // à noite, refletor de trabalho aceso no carrinho
+  if (n > 0.5) fill(ctx, tx, jibY + 1, 1, 1, P.night.cityWindow);
 
-  // luz de sinalização no topo (vermelha, pisca)
-  const on = Math.floor((t + phase * 1000) / 650) % 2 === 0;
+  // luz de sinalização no topo (vermelha, pisca); à noite ganha um halo em cruz
+  // com reduced-motion fica acesa, sem piscar
+  const on = isReducedMotion() || Math.floor((t + phase * 1000) / 650) % 2 === 0;
+  if (on && n > 0.3) {
+    ctx.fillStyle = `rgba(255, 77, 77, ${(0.5 * n).toFixed(2)})`;
+    ctx.fillRect(cx - 1, apexY - 1, 1, 1);
+    ctx.fillRect(cx + 1, apexY - 1, 1, 1);
+    ctx.fillRect(cx, apexY - 2, 1, 1);
+    ctx.fillRect(cx, apexY, 1, 1);
+  }
   fill(ctx, cx, apexY - 1, 1, 1, on ? P.signal.craneLight : P.decor.craneLightOff);
 }
 
@@ -243,10 +354,13 @@ function drawCrane(ctx: Ctx, r: Rect, mastX: number, t: number, phase: number) {
 /**
  * Prédio em obra: andares prontos embaixo, tela de proteção no meio e só
  * pilares com ferragem em cima. `variant` muda proporção e detalhes.
+ * À noite o concreto escurece e algumas janelas dos andares prontos acendem.
  */
-function drawConstruction(ctx: Ctx, r: Rect, variant: 0 | 1, t: number) {
-  const concrete = P.gray300;
-  const concreteShade = P.gray500;
+function drawConstruction(ctx: Ctx, r: Rect, variant: 0 | 1, t: number, n: number) {
+  const k = n * 0.65;
+  const concrete = shade(P.gray300, k);
+  const concreteShade = shade(P.gray500, k);
+  const rebar = shade(P.gray600, k);
   const groundY = r.y + r.h - 5; // em cima do tapume
   const floorH = variant === 0 ? 5 : 4;
   const floors = variant === 0 ? 4 : 5;
@@ -254,6 +368,7 @@ function drawConstruction(ctx: Ctx, r: Rect, variant: 0 | 1, t: number) {
   const bx = variant === 0 ? r.x + 5 : r.x + 17;
   const pillarStep = variant === 0 ? 7 : 8;
   const top = groundY - floors * floorH;
+  const winDark = shade(P.navy500, n * 0.6);
 
   for (let f = 0; f < floors; f++) {
     const fy = groundY - (f + 1) * floorH; // laje do andar f (em cima)
@@ -261,8 +376,11 @@ function drawConstruction(ctx: Ctx, r: Rect, variant: 0 | 1, t: number) {
     const screened = !done && f < floors - 1;
     if (done) {
       // fechado: alvenaria clara com janelas
-      fill(ctx, bx, fy + 1, bw, floorH - 1, P.gray150);
-      for (let wx = bx + 2; wx < bx + bw - 2; wx += 4) fill(ctx, wx, fy + 2, 2, floorH - 3, P.navy500);
+      fill(ctx, bx, fy + 1, bw, floorH - 1, shade(P.gray150, k));
+      for (let wx = bx + 2; wx < bx + bw - 2; wx += 4) {
+        const on = n > 0.5 && cityWindowLit(hash(r.x * 71 + wx * 13 + f * 5), t, 40);
+        fill(ctx, wx, fy + 2, 2, floorH - 3, on ? P.night.cityWindow : winDark);
+      }
     }
     // pilares
     for (let px = bx; px <= bx + bw - 1; px += pillarStep) fill(ctx, px, fy + 1, 1, floorH - 1, concreteShade);
@@ -271,7 +389,8 @@ function drawConstruction(ctx: Ctx, r: Rect, variant: 0 | 1, t: number) {
       // tela de proteção marinho translúcida com trama de 2px
       ctx.fillStyle = navyAlpha(0.6);
       ctx.fillRect(bx, fy + 1, bw, floorH - 1);
-      for (let sx = bx + (f % 2); sx < bx + bw; sx += 2) fill(ctx, sx, fy + 1 + (sx % 2), 1, 1, "rgba(255,255,255,0.25)");
+      const weave = `rgba(255,255,255,${(0.25 * (1 - n * 0.6)).toFixed(2)})`;
+      for (let sx = bx + (f % 2); sx < bx + bw; sx += 2) fill(ctx, sx, fy + 1 + (sx % 2), 1, 1, weave);
     }
     // laje
     const slabW = f === floors - 1 ? Math.ceil(bw * (variant === 0 ? 0.6 : 0.7)) : bw;
@@ -280,48 +399,53 @@ function drawConstruction(ctx: Ctx, r: Rect, variant: 0 | 1, t: number) {
     fill(ctx, slabX, fy + 1, slabW, 1, concreteShade);
   }
   // ferragem saindo dos pilares do último andar
-  for (let px = bx; px <= bx + bw - 1; px += pillarStep) fill(ctx, px, top - 2, 1, 2, P.gray600);
-  fill(ctx, bx + bw - 1, top - 2, 1, 2, P.gray600);
+  for (let px = bx; px <= bx + bw - 1; px += pillarStep) fill(ctx, px, top - 2, 1, 2, rebar);
+  fill(ctx, bx + bw - 1, top - 2, 1, 2, rebar);
 
   if (variant === 0) {
     // elevador de obra (cremalheira) do lado direito, subindo e descendo
     const mx = bx + bw + 3;
-    fill(ctx, mx, top - 1, 1, groundY - top + 1, P.gray600);
-    for (let y = top; y < groundY; y += 3) fill(ctx, mx - 1, y, 1, 1, P.gray500);
-    const k = (1 - Math.cos((t / 9_000) * Math.PI * 2)) / 2;
-    const cy = top + Math.round(k * (groundY - top - 4));
-    fill(ctx, mx + 1, cy, 3, 3, P.gray50);
-    fill(ctx, mx + 2, cy + 1, 1, 1, P.navy600);
+    fill(ctx, mx, top - 1, 1, groundY - top + 1, rebar);
+    for (let y = top; y < groundY; y += 3) fill(ctx, mx - 1, y, 1, 1, concreteShade);
+    const kk = (1 - Math.cos((t / 9_000) * Math.PI * 2)) / 2;
+    const cy = top + Math.round(kk * (groundY - top - 4));
+    fill(ctx, mx + 1, cy, 3, 3, shade(P.gray50, k));
+    fill(ctx, mx + 2, cy + 1, 1, 1, n > 0.5 ? P.night.cityWindow : P.navy600);
   } else {
     // andaime treliçado do lado esquerdo
     const sx = bx - 4;
+    const scaffold = shade(P.gray400, k);
     for (let y = top; y < groundY; y += floorH) {
-      fill(ctx, sx, y, 3, 1, P.gray500);
-      line(ctx, sx, y + 1, sx + 2, y + floorH - 1, P.gray400);
+      fill(ctx, sx, y, 3, 1, concreteShade);
+      line(ctx, sx, y + 1, sx + 2, y + floorH - 1, scaffold);
     }
-    fill(ctx, sx, top, 1, groundY - top, P.gray500);
-    fill(ctx, sx + 2, top, 1, groundY - top, P.gray500);
+    fill(ctx, sx, top, 1, groundY - top, concreteShade);
+    fill(ctx, sx + 2, top, 1, groundY - top, concreteShade);
     // bandeirinha marinho no topo
-    fill(ctx, bx + bw - 1, top - 6, 1, 4, P.gray600);
+    fill(ctx, bx + bw - 1, top - 6, 1, 4, rebar);
     fill(ctx, bx + bw, top - 6, 3, 2, P.navy900);
   }
 }
 
 // ---------------------------------------------------------------- vistas
 
-export type WindowView =
-  | { kind: "crane"; mast: number; phase: number }
-  | { kind: "construction"; variant: 0 | 1 };
+export type WindowView = ({ kind: "crane"; mast: number; phase: number } | { kind: "construction"; variant: 0 | 1 }) & {
+  /** posição da lua no vidro (só uma janela tem lua) */
+  moon?: { x: number; y: number };
+};
 
-/** conteúdo do vidro (já recortado pelo chamador): céu, nuvens, cidade e a obra */
-export function drawWindowView(ctx: Ctx, glass: Rect, view: WindowView, t: number, sky: SkyColors = DAY_SKY) {
-  drawSky(ctx, glass, sky);
-  drawClouds(ctx, glass, t);
+/** conteúdo do vidro (já recortado pelo chamador): céu, estrelas, lua, nuvens, cidade e a obra */
+export function drawWindowView(ctx: Ctx, glass: Rect, view: WindowView, t: number, light: WindowLight = DAY_LIGHT) {
+  const n = light.night;
+  drawSky(ctx, glass, light.sky);
+  if (light.stars) drawStars(ctx, glass, t, light);
+  if (view.moon) drawMoon(ctx, glass.x + view.moon.x, glass.y + view.moon.y, light);
+  drawClouds(ctx, glass, t, light);
   const site = view.kind === "construction";
-  drawSkyline(ctx, glass, glass.x, glass.y + glass.h - (site ? 5 : 2), !site);
-  drawGround(ctx, glass, site);
-  if (view.kind === "crane") drawCrane(ctx, glass, glass.x + view.mast, t, view.phase);
-  else drawConstruction(ctx, glass, view.variant, t);
+  drawSkyline(ctx, glass, glass.x, glass.y + glass.h - (site ? 5 : 2), !site, t, light);
+  drawGround(ctx, glass, site, n);
+  if (view.kind === "crane") drawCrane(ctx, glass, glass.x + view.mast, t, view.phase, n);
+  else drawConstruction(ctx, glass, view.variant, t, n);
 }
 
 // ===================================================================== quadros e estante

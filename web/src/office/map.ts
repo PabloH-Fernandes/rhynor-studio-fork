@@ -24,6 +24,8 @@ import {
   line,
   mix,
   oval,
+  type Rect,
+  type WindowLight,
   type WindowView,
 } from "./decor";
 
@@ -128,7 +130,7 @@ function rect(ctx: Ctx, x: number, y: number, w: number, h: number, color: strin
 /** placas de porcelanato: 32x32 px (2x2 tiles), alternando 2 tons, com juntas de 1px */
 const FLOOR_SLAB = 32;
 
-export function drawFloor(ctx: Ctx, t: number) {
+export function drawFloor(ctx: Ctx, t: number, light?: WindowLight) {
   const c = theme.colors;
   const top = WALL_ROWS * TILE;
   for (let y = top; y < H; y += FLOOR_SLAB) {
@@ -168,7 +170,7 @@ export function drawFloor(ctx: Ctx, t: number) {
   drawWall(ctx);
 
   // janelas com céu, nuvens e obra (guindaste girando, prédio subindo)
-  for (const win of WINDOWS) drawWindow(ctx, win.x, win.view, t);
+  for (const win of WINDOWS) drawWindow(ctx, win.x, win.view, t, light);
 
   // porta (entrada à esquerda, madeira quente) + capacho marinho
   rect(ctx, 0, px(AISLE_Y) - 20, 5, 40, c.woodShade);
@@ -194,11 +196,28 @@ const WINDOWS: { x: number; view: WindowView }[] = [
   { x: 4, view: { kind: "crane", mast: 10, phase: 0 } },
   { x: 54, view: { kind: "construction", variant: 0 } },
   { x: 414, view: { kind: "construction", variant: 1 } },
-  { x: 464, view: { kind: "crane", mast: 27, phase: 2.4 } },
+  { x: 464, view: { kind: "crane", mast: 27, phase: 2.4, moon: { x: 4, y: 3 } } },
 ];
 const WIN_W = 44;
 const WIN_Y = 4;
 const WIN_H = 30;
+
+/** vidro de cada janela (px base) */
+export const WINDOW_GLASS: Rect[] = WINDOWS.map((w) => ({ x: w.x + 2, y: WIN_Y + 2, w: WIN_W - 4, h: WIN_H - 4 }));
+
+/** os 4 vidros de cada janela, sem a cruz branca: o lightmap deixa só eles com as cores do céu */
+export const WINDOW_PANES: Rect[] = WINDOW_GLASS.flatMap((g) => {
+  const midX = g.x + g.w / 2 - 1;
+  const midY = g.y + g.h / 2 - 1;
+  const lw = midX - g.x;
+  const th = midY - g.y;
+  return [
+    { x: g.x, y: g.y, w: lw, h: th },
+    { x: midX + 2, y: g.y, w: g.x + g.w - midX - 2, h: th },
+    { x: g.x, y: midY + 2, w: lw, h: g.y + g.h - midY - 2 },
+    { x: midX + 2, y: midY + 2, w: g.x + g.w - midX - 2, h: g.y + g.h - midY - 2 },
+  ];
+});
 
 function drawWall(ctx: Ctx) {
   const c = theme.colors;
@@ -226,7 +245,7 @@ function drawWall(ctx: Ctx) {
   ctx.fillRect(0, WALL_H, W, 1);
 }
 
-function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number) {
+function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number, light?: WindowLight) {
   const glass = { x: x + 2, y: WIN_Y + 2, w: WIN_W - 4, h: WIN_H - 4 };
   // moldura branca com contorno cinza (destaca da parede clara)
   rect(ctx, x - 1, WIN_Y - 1, WIN_W + 2, WIN_H + 2, palette.gray300);
@@ -236,9 +255,10 @@ function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number) {
   ctx.beginPath();
   ctx.rect(glass.x, glass.y, glass.w, glass.h);
   ctx.clip();
-  drawWindowView(ctx, glass, view, t);
+  drawWindowView(ctx, glass, view, t, light);
   // reflexos diagonais de 1px, bem fracos
-  const glint = "rgba(255,255,255,0.22)";
+  // (à noite mais fracos, pra não riscarem o céu escuro)
+  const glint = `rgba(255,255,255,${(0.22 * (1 - 0.6 * (light?.night ?? 0))).toFixed(2)})`;
   line(ctx, glass.x + 3, glass.y + 9, glass.x + 11, glass.y + 1, glint);
   line(ctx, glass.x + 6, glass.y + 9, glass.x + 14, glass.y + 1, glint);
   line(ctx, glass.x + 24, glass.y + 23, glass.x + 33, glass.y + 14, glint);
@@ -265,6 +285,8 @@ function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number) {
 
 /** placa: contorno 1px (204–307 x 5–39) e a logo 100x33 dentro, 1px de folga marinho nas laterais */
 export const SIGN = { x: 204, y: 5, w: 104, h: 35 } as const;
+/** x das duas arandelas em cima da placa (também são luzes no lightmap) */
+export const SIGN_LAMP_X = [SIGN.x + 20, SIGN.x + SIGN.w - 21] as const;
 const LOGO_W = 100;
 const LOGO_H = 33;
 /** cache do bake por imagem e k; canvas null = o bake falhou (não tenta de novo a cada quadro) */
@@ -320,12 +342,33 @@ export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
   ]) rect(ctx, sx, sy, 1, 1, palette.gray500);
 
   // duas arandelas em cima da placa, iluminando pra baixo
-  for (const ax of [x + 20, x + w - 21]) {
+  for (const ax of SIGN_LAMP_X) {
     rect(ctx, ax - 1, 0, 3, 1, palette.gray400);
     rect(ctx, ax, 1, 1, 1, palette.gray500);
     rect(ctx, ax - 1, 2, 3, 1, palette.navy800);
     rect(ctx, ax - 2, 3, 5, 1, palette.navy900);
     rect(ctx, ax - 1, 4, 3, 1, palette.white);
+  }
+}
+
+/**
+ * Brilho da placa à noite: soma a logo de novo por cima (o chamador põe "lighter" e o alpha),
+ * pra ela continuar legível depois do multiply do lightmap.
+ */
+export function drawSignGlow(ctx: Ctx, logo: HTMLImageElement | null) {
+  const { x, y, w, h } = SIGN;
+  const m = ctx.getTransform();
+  const k = Math.max(1, Math.round(m.a));
+  const baked = logo && logo.complete && logo.naturalWidth > 0 ? bakedLogo(logo, k) : null;
+  if (baked) {
+    const lx = x + (w - LOGO_W) / 2;
+    const ly = y + 1;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(baked, Math.round(lx * m.a + m.e), Math.round(ly * m.d + m.f));
+    ctx.restore();
+  } else {
+    drawBitmap(ctx, AG_LETTERS, x + (w - 28) / 2, y + (h - 16) / 2, theme.colors.signText, 2);
   }
 }
 
@@ -358,12 +401,12 @@ export function drawClock(ctx: Ctx, now: Date) {
   rect(ctx, cx, cy, 1, 1, theme.colors.outline);
 }
 
+/** quadro branco (px base); o lightmap mantém ele claro em qualquer hora */
+export const BOARD = { x: 318, y: 6, w: 56, h: 30 } as const;
+
 /** Quadro branco com contadores ao vivo. */
 export function drawBoard(ctx: Ctx, counts: { working: number; waiting: number; total: number }) {
-  const x = 318;
-  const y = 6;
-  const w = 56;
-  const h = 30;
+  const { x, y, w, h } = BOARD;
   rect(ctx, x + 1, y + h, w, 1, "rgba(2,11,28,0.18)");
   rect(ctx, x + w, y + 1, 1, h, "rgba(2,11,28,0.18)");
   rect(ctx, x, y, w, h, palette.gray400); // moldura de alumínio
@@ -490,6 +533,15 @@ export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean) {
   rect(ctx, x + 66, y - 28, 3, 7, F.waterLight);
 }
 
+/** balcão da recepção (x, y da base e largura); tem arandela própria à noite */
+export const RECEPTION = { x: 24, y: 285, w: 60 } as const;
+
+/** luminária de piso (x do poste, y da base) */
+export const FLOOR_LAMP: Point = { x: 110, y: 102 };
+
+/** centro da cafeteira (px base), luz quente quando alguém está no café */
+export const COFFEE_MACHINE: Point = { x: px(26.6) + 18, y: px(16.1) - 8 };
+
 /** Peça de mobília fixa: `y` é a linha da base, usada na ordenação por profundidade. */
 export interface Prop {
   y: number;
@@ -507,7 +559,7 @@ export const PROPS: Prop[] = [
   // cima à esquerda: sofá marinho, mesinha de centro e luminária de piso
   { y: 104, draw: (ctx) => drawSofa(ctx, 24, 104, 48, 2, SOFA_NAVY, { pillow: true }) },
   { y: 100, draw: (ctx) => drawCoffeeTable(ctx, 78, 100) },
-  { y: 102, draw: (ctx) => drawFloorLamp(ctx, 110, 102) },
+  { y: FLOOR_LAMP.y, draw: (ctx) => drawFloorLamp(ctx, FLOOR_LAMP.x, FLOOR_LAMP.y) },
   // cima à direita: multifuncional, cabideiro com capacetes e poltrona
   { y: 100, draw: (ctx, t) => drawPrinter(ctx, 300, 100, t) },
   { y: 100, draw: (ctx) => drawCoatRack(ctx, 350, 100) },
@@ -516,7 +568,7 @@ export const PROPS: Prop[] = [
   { y: 236, draw: (ctx) => drawPlant(ctx, 296, 236) },
   // embaixo: recepção ao lado da porta, sofá de espera e plantas
   { y: 286, draw: (ctx) => drawPlant(ctx, 12, 286) },
-  { y: 285, draw: (ctx) => drawReception(ctx, 24, 285, 60) },
+  { y: RECEPTION.y, draw: (ctx) => drawReception(ctx, RECEPTION.x, RECEPTION.y, RECEPTION.w) },
   { y: 286, draw: (ctx) => drawPlant(ctx, 98, 286) },
   { y: 285, draw: (ctx) => drawSofa(ctx, 110, 285, 56, 2, SOFA_GRAY, { tall: false }) },
   { y: 286, draw: (ctx) => drawPlant(ctx, 262, 286) },
@@ -555,8 +607,7 @@ export function drawDesk(
   rect(ctx, px(d.cx) - 6, top + depth - 6, 12, 2, palette.gray500);
 
   // monitor (à direita, virado "pra câmera" — licença poética de escritório pixel), moldura marinho
-  const mx = px(d.cx) + 8;
-  const my = top - 12;
+  const { x: mx, y: my } = monitorScreen(d);
   rect(ctx, mx - 2, my - 2, 17, 15, c.outline);
   rect(ctx, mx - 1, my - 1, 15, 13, palette.navy800);
   rect(ctx, mx, my, 13, 11, opts.active ? palette.navy950 : opts.waiting ? palette.navy900 : palette.gray800);
@@ -592,6 +643,11 @@ export function drawDesk(
   rect(ctx, px(d.cx) - tw / 2, plateY, tw, 6, color);
   ctx.fillStyle = palette.navy950;
   ctx.fillText(label, px(d.cx), plateY + 3.3, w - 8);
+}
+
+/** tela do monitor de uma mesa (px base); o lightmap usa pra luz e brilho */
+export function monitorScreen(d: Desk): Rect {
+  return { x: px(d.cx) + 8, y: px(d.cy + 0.55) - 12, w: 13, h: 11 };
 }
 
 /** Cadeira atrás da mesa (desenhada antes do personagem). */

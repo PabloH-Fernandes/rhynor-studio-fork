@@ -4,6 +4,7 @@
 import type { Agent } from "../../../shared/types";
 import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor } from "../theme";
 import { fill, line } from "./decor";
+import { Lightmap, clockDate, windowLight, type LightScene } from "./daylight";
 import { isReducedMotion } from "./motion";
 import {
   AISLE_Y,
@@ -25,6 +26,8 @@ import {
   drawFloor,
   drawMeetingTable,
   drawSign,
+  drawSignGlow,
+  monitorScreen,
   route,
   type Desk,
   type Point,
@@ -119,6 +122,7 @@ export class OfficeEngine {
   private visuals = new Map<string, Visual>();
   private envelopes: Envelope[] = [];
   private logo: HTMLImageElement | null = null;
+  private lightmap = new Lightmap();
   selectedId: string | null = null;
   hoverId: string | null = null;
   onSelect?: (id: string | null) => void;
@@ -313,12 +317,26 @@ export class OfficeEngine {
 
   render(ctx: CanvasRenderingContext2D, now: number) {
     ctx.imageSmoothingEnabled = false;
-    drawFloor(ctx, now);
+    const visuals = [...this.visuals.values()];
+    const seatedAt = new Map<string, Visual>();
+    for (const v of visuals) if (v.at.sitting && !v.path.length && v.deskId && v.at.id === v.home.id) seatedAt.set(v.deskId, v);
+    const coffeeBusy = visuals.some((v) => v.at.id.startsWith("cafe:") && !v.path.length);
+
+    // luz do momento (hora real ou ?hora=) e o mapa de luz, refeito ~4x por segundo
+    const scene: LightScene = { activeScreens: [], waitingScreens: [], coffeeBusy };
+    for (const d of DESKS) {
+      const st = seatedAt.get(d.id)?.agent.status;
+      if (st === "trabalhando" || st === "pensando") scene.activeScreens.push(monitorScreen(d));
+      else if (st === "esperando") scene.waitingScreens.push(monitorScreen(d));
+    }
+    this.lightmap.refresh(now, scene);
+    const daylight = this.lightmap.daylight;
+
+    drawFloor(ctx, now, windowLight(daylight));
     drawDecor(ctx);
     drawSign(ctx, this.logo);
-    drawClock(ctx, new Date());
+    drawClock(ctx, clockDate());
 
-    const visuals = [...this.visuals.values()];
     const active = visuals.filter((v) => !v.leaving);
     drawBoard(ctx, {
       total: active.length,
@@ -328,11 +346,9 @@ export class OfficeEngine {
 
     // objetos com profundidade, desenhados de cima pra baixo
     const items: { y: number; draw: () => void }[] = [];
-    const seatedAt = new Map<string, Visual>();
-    for (const v of visuals) if (v.at.sitting && !v.path.length && v.deskId && v.at.id === v.home.id) seatedAt.set(v.deskId, v);
 
     for (const d of DESKS) {
-      const occupant = [...this.visuals.values()].find((v) => v.deskId === d.id && !v.leaving);
+      const occupant = visuals.find((v) => v.deskId === d.id && !v.leaving);
       const seated = seatedAt.get(d.id);
       const deskTop = (d.cy + 0.55) * TILE;
       items.push({ y: (d.cy + 0.85) * TILE - 1, draw: () => drawChair(ctx, d, roleColor(d.role === "convidado" ? "convidado" : d.role)) });
@@ -349,7 +365,7 @@ export class OfficeEngine {
       });
     }
     items.push({ y: 11.2 * TILE + 10, draw: () => drawMeetingTable(ctx) });
-    items.push({ y: 16.1 * TILE, draw: () => drawCoffeeCorner(ctx, now, visuals.some((v) => v.at.id.startsWith("cafe:") && !v.path.length)) });
+    items.push({ y: 16.1 * TILE, draw: () => drawCoffeeCorner(ctx, now, coffeeBusy) });
     for (const p of PROPS) items.push({ y: p.y, draw: () => p.draw(ctx, now) });
 
     for (const v of visuals) {
@@ -362,9 +378,27 @@ export class OfficeEngine {
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
 
+    // iluminação: escurece cenário e personagens; o que vem depois (envelopes, "!", balões,
+    // nomes, confete) fica fora do multiply e continua legível à noite
+    this.lightmap.apply(ctx);
+    this.drawEmissive(ctx, scene, daylight.night);
+
     // camada de cima: envelopes e balões
     for (const e of this.envelopes) this.drawEnvelope(ctx, e, now);
     for (const v of visuals) this.drawOverlay(ctx, v, now);
+  }
+
+  /** brilho leve ("lighter") nas telas ligadas e na logo da placa, por cima do multiply */
+  private drawEmissive(ctx: CanvasRenderingContext2D, scene: LightScene, night: number) {
+    if (night <= 0.05) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.16 * night;
+    ctx.fillStyle = palette.night.monitorLight;
+    for (const r of scene.activeScreens) ctx.fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+    ctx.globalAlpha = 0.3 * night;
+    drawSignGlow(ctx, this.logo);
+    ctx.restore();
   }
 
   /** animação em curso (só parado, no próprio lugar) e o progresso 0..1 */
