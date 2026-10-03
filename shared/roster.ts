@@ -14,10 +14,8 @@ export type Destaque =
   | "cracha-visitante"; // convidados
 
 /**
- * Estilos de cabelo. Os 7 primeiros são os que web/src/office/sprites.ts já desenha
- * (o índice em HAIR_STYLE_INDEX é o `hairStyle` de lá). "chanel" e "trancas" ganham
- * desenho próprio na etapa 3; até lá caem no estilo existente mais parecido
- * (chanel → curto, trancas → comprido).
+ * Estilos de cabelo desenhados em web/src/office/sprites.ts
+ * (o índice em HAIR_STYLE_INDEX é o `hairStyle` de lá).
  */
 export type EstiloCabelo =
   | "curto"
@@ -108,7 +106,7 @@ export const ACESSORIOS: readonly Acessorio[] = [
   "barba",
 ];
 
-/** estilo → `hairStyle` desenhado hoje em sprites.ts (0 curto ... 6 franja lateral) */
+/** estilo → `hairStyle` desenhado em sprites.ts (0 curto ... 6 franja lateral, 7 chanel, 8 trancas) */
 export const HAIR_STYLE_INDEX: Record<EstiloCabelo, number> = {
   curto: 0,
   comprido: 1,
@@ -117,8 +115,8 @@ export const HAIR_STYLE_INDEX: Record<EstiloCabelo, number> = {
   "rabo-de-cavalo": 4,
   cacheado: 5,
   "franja-lateral": 6,
-  chanel: 0, // provisório até a etapa 3
-  trancas: 1, // provisório até a etapa 3
+  chanel: 7,
+  trancas: 8,
 };
 
 export interface Swatch {

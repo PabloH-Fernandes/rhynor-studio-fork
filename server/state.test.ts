@@ -118,6 +118,13 @@ test("evento atrasado de um agent_id aposentado não cria ninguém", () => {
   assert.equal(byId("ag:testador")!.status, "ocioso");
 });
 
+test("líder criado por evento de subagente já aparece coordenando (não fica chegando)", () => {
+  start("a1", "dev");
+  const lead = byId(`s:${S1}`)!;
+  assert.equal(lead.status, "pensando");
+  assert.equal(lead.activity, "Coordenando o time");
+});
+
 test("SessionEnd tira todos da sessão e só dela", () => {
   hook("SessionStart");
   start("a1", "dev");

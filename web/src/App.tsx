@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import type { Agent, AgentStatus, FeedItem } from "../../shared/types";
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
+import { SpriteGallery } from "./SpriteGallery";
+import { GALLERY_ENABLED } from "./office/gallery";
 import { roleColor, theme } from "./theme";
 import { useOffice } from "./useOffice";
 
@@ -52,8 +54,12 @@ export default function App() {
   return (
     <div className="app">
       <main className="stage">
-        <OfficeCanvas ref={officeRef} agents={list} roster={roster} selectedId={selectedId} onSelect={setSelectedId} />
-        {list.length === 0 && conn === "online" && (
+        {GALLERY_ENABLED ? (
+          <SpriteGallery roster={roster} />
+        ) : (
+          <OfficeCanvas ref={officeRef} agents={list} roster={roster} selectedId={selectedId} onSelect={setSelectedId} />
+        )}
+        {!GALLERY_ENABLED && list.length === 0 && conn === "online" && (
           <div className="empty">
             <p className="empty-title">Escritório vazio</p>
             <p>Abra o Claude Code em qualquer projeto (com os hooks instalados) e o time aparece aqui.</p>

@@ -1,7 +1,7 @@
 // Motor do escritório: guarda a posição de cada personagem, decide pra onde ele vai
 // (mesa, café, reunião, porta), anda pelos caminhos e desenha tudo no canvas.
 
-import type { AGzinho, Agent, Roster } from "../../../shared/types";
+import type { AGzinho, Acessorio, Agent, Roster } from "../../../shared/types";
 import { HAIR_STYLE_INDEX, agzinhoDoPapel } from "../../../shared/roster";
 import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
 import { fill, line } from "./decor";
@@ -34,15 +34,19 @@ import {
   type Point,
   type Spot,
 } from "./map";
+import { clearSpriteCache } from "./spriteCache";
 import {
   HAIR_STYLE_COUNT,
+  HEAD_TOP_SIT,
+  HEAD_TOP_STAND,
+  HIT_BOX,
   animLift,
   drawCharacter,
   hashString,
-  type Accessory,
   type CharAnim,
   type CharLook,
   type Dir,
+  type Mood,
 } from "./sprites";
 
 const SPEED = 3.4; // tiles por segundo
@@ -62,19 +66,20 @@ const CONFETTI_GRAVITY = 0.00012; // px/ms²
 /** status em que o agente está "na tarefa" (vale espreguiçar ao ficar de boa) */
 const BUSY = new Set<Agent["status"]>(["trabalhando", "pensando", "esperando"]);
 
+/** sobrancelha: sobe esperando, inclina pensando */
+const MOOD: Partial<Record<Agent["status"], Mood>> = { esperando: "esperando", pensando: "pensando" };
+
 /** aparência fixa de cada papel (tabela de uniformes); o que não está aqui sai do hash do id */
-const ROLE_LOOK: Record<string, { hairStyle: number; accessory?: Accessory }> = {
-  lider: { hairStyle: 6, accessory: "relogio" },
-  planejador: { hairStyle: 3, accessory: "nenhum" },
-  revisor: { hairStyle: 0, accessory: "oculos" },
+const ROLE_LOOK: Record<string, { hairStyle: number; accessories?: Acessorio[] }> = {
+  lider: { hairStyle: 6, accessories: ["relogio"] },
+  planejador: { hairStyle: 3, accessories: [] },
+  revisor: { hairStyle: 0, accessories: ["oculos"] },
   pesquisador: { hairStyle: 2 }, // óculos por hash
-  testador: { hairStyle: 4, accessory: "relogio" },
-  dev: { hairStyle: 5, accessory: "headset" },
-  documentador: { hairStyle: 1, accessory: "lapis" },
+  testador: { hairStyle: 4, accessories: ["relogio"] },
+  dev: { hairStyle: 5, accessories: ["headset"] },
+  documentador: { hairStyle: 1, accessories: ["lapis"] },
 };
-const GUEST_ACCESSORIES: Accessory[] = ["nenhum", "nenhum", "barba", "oculos"];
-/** acessórios do elenco que os sprites de hoje já desenham (um por boneco, o primeiro da lista) */
-const DRAWN_ACCESSORIES = new Set<string>(["oculos", "headset", "lapis", "barba", "relogio"] satisfies Accessory[]);
+const GUEST_ACCESSORIES: Acessorio[][] = [[], [], ["barba"], ["oculos"]];
 
 /** Aparência do AGzinho do elenco; sem elenco ou visitante extra, a de sempre (papel + hash do id). */
 function lookFor(agent: Agent, roster: Roster | null): CharLook {
@@ -82,27 +87,30 @@ function lookFor(agent: Agent, roster: Roster | null): CharLook {
   return ag ? lookOfAgzinho(ag) : lookByHash(agent, hashString(agent.id));
 }
 
-function lookOfAgzinho(ag: AGzinho): CharLook {
+/** aparência de um AGzinho do elenco: todos os acessórios, cada um na sua camada */
+export function lookOfAgzinho(ag: AGzinho): CharLook {
   return {
     uniform: uniformForAgzinho(ag),
     skin: ag.pele,
     hair: ag.cabelo.cor,
     hairStyle: HAIR_STYLE_INDEX[ag.cabelo.estilo] ?? 0,
-    accessory: (ag.acessorios.find((a) => DRAWN_ACCESSORIES.has(a)) as Accessory | undefined) ?? "nenhum",
+    accessories: [...ag.acessorios],
+    feminine: ag.genero === "feminino",
   };
 }
 
 function lookByHash(agent: Agent, h: number): CharLook {
   const fixed = Object.hasOwn(ROLE_LOOK, agent.role) ? ROLE_LOOK[agent.role] : undefined;
-  const accessory: Accessory =
-    fixed?.accessory ??
-    (agent.role === "pesquisador" ? ((h >>> 13) % 2 ? "oculos" : "nenhum") : GUEST_ACCESSORIES[(h >>> 13) % GUEST_ACCESSORIES.length]);
+  const accessories: Acessorio[] =
+    fixed?.accessories ??
+    (agent.role === "pesquisador" ? ((h >>> 13) % 2 ? ["oculos"] : []) : GUEST_ACCESSORIES[(h >>> 13) % GUEST_ACCESSORIES.length]);
   return {
     uniform: uniformFor(agent.role),
     skin: SKINS[h % SKINS.length],
     hair: HAIRS[(h >>> 4) % HAIRS.length],
     hairStyle: fixed?.hairStyle ?? (h >>> 9) % HAIR_STYLE_COUNT,
-    accessory,
+    accessories,
+    feminine: false,
   };
 }
 
@@ -120,6 +128,8 @@ interface Visual {
   deskId?: string;
   look: CharLook;
   phase: number;
+  /** semente do piscar (hash do id) */
+  seed: number;
   idleSince: number;
   activityAt: number;
   leaving: boolean;
@@ -162,6 +172,7 @@ export class OfficeEngine {
   set roster(roster: Roster | null) {
     if (roster === this.rosterData) return;
     this.rosterData = roster;
+    clearSpriteCache();
     for (const v of this.visuals.values()) v.look = lookFor(v.agent, roster);
   }
 
@@ -240,6 +251,7 @@ export class OfficeEngine {
       deskId,
       look: lookFor(agent, this.rosterData),
       phase: h % 1000,
+      seed: h,
       idleSince: agent.status === "ocioso" ? performance.now() : Infinity,
       activityAt: performance.now(),
       leaving: false,
@@ -471,7 +483,9 @@ export class OfficeEngine {
       typing: !anim && sitting && v.agent.status === "trabalhando",
       t: now,
       phase: v.phase,
+      seed: v.seed,
       alpha: v.fade,
+      mood: MOOD[v.agent.status],
       anim: anim?.kind,
       animT: anim?.t ?? 0,
       reducedMotion: isReducedMotion(),
@@ -480,7 +494,7 @@ export class OfficeEngine {
 
   private headPoint(v: Visual, now: number): Point {
     const { sitting, lift } = this.poseOf(v, now);
-    return { x: v.x * TILE, y: v.y * TILE - (sitting ? 22 : 24) + lift };
+    return { x: v.x * TILE, y: v.y * TILE + (sitting ? HEAD_TOP_SIT : HEAD_TOP_STAND) + lift };
   }
 
   /** confete do comemorar: sai de cima da cabeça, cai com gravidade e some em ~800ms */
@@ -491,7 +505,7 @@ export class OfficeEngine {
     if (age < 0 || age > CONFETTI_LIFE_MS) return;
     // origem fixa no mundo (não acompanha o pulo): acima da cabeça de quem está em pé
     const ox = v.x * TILE;
-    const oy = v.y * TILE - 26;
+    const oy = v.y * TILE + HEAD_TOP_STAND - 2;
     const colors = [palette.navy900, palette.navy500, roleColor(v.agent.role)];
     const seed = hashString(`${v.agent.id}:${Math.round(a.start)}`);
     ctx.save();
@@ -540,9 +554,9 @@ export class OfficeEngine {
       top -= 6;
     } else if (v.at.id.startsWith("cafe:") && !v.path.length) {
       ctx.fillStyle = palette.white;
-      ctx.fillRect(Math.round(head.x + 5), Math.round(top + 10), 4, 4);
+      ctx.fillRect(Math.round(head.x + 8), Math.round(top + 10), 4, 4);
       ctx.fillStyle = "rgba(255,255,255,0.6)";
-      ctx.fillRect(Math.round(head.x + 6), Math.round(top + 6 - (Math.floor(now / 300) % 2)), 1, 3);
+      ctx.fillRect(Math.round(head.x + 9), Math.round(top + 6 - (Math.floor(now / 300) % 2)), 1, 3);
     }
 
     // balão: mensagem de chat > atividade recente > selecionado > esperando
@@ -606,7 +620,7 @@ export class OfficeEngine {
       if (v.leaving) continue;
       const x = v.x * TILE;
       const y = v.y * TILE;
-      if (bx >= x - 8 && bx <= x + 8 && by >= y - 26 && by <= y + 3) {
+      if (bx >= x + HIT_BOX.left && bx <= x + HIT_BOX.right && by >= y + HIT_BOX.top && by <= y + HIT_BOX.bottom) {
         if (!best || y > best.y) best = { id: v.agent.id, y };
       }
     }
@@ -630,7 +644,7 @@ function roundBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
   ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
 }
 
-/** anel de seleção em pixel (oval 17x7) no chão, embaixo do personagem */
+/** anel de seleção em pixel (oval 17x7, da largura da HIT_BOX) no chão, embaixo do personagem */
 function selectionRing(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
   x = Math.round(x);
   y = Math.round(y);

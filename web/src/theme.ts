@@ -80,6 +80,15 @@ export const palette = {
     pencilTip: "#3A4250",
     watch: "#CDD5E0",
     shadow: "rgba(2, 11, 28, 0.28)",
+    /** bochecha: rosa misturado com a pele (nunca o laranja de "te esperando") */
+    blush: "#F07C9A",
+    /** capacete de obra amarelo (amarelo, não laranja) */
+    helmetYellow: "#F2C200",
+    /** colete refletivo: lima com faixas prata */
+    vest: "#D7E84A",
+    vestStripe: "#E1E6EE",
+    /** raquete de ping-pong */
+    paddle: "#D9444F",
   },
   /** cenário da parede: juntas, nuvens, quadros e rolos de projeto */
   decor: {

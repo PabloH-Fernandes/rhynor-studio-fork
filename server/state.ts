@@ -471,6 +471,9 @@ export class OfficeState {
     cwd?: string,
   ): { agent: Agent; returning: boolean } {
     const lead = this.ensureLeader({ hook_event_name: "", session_id: sessionId, cwd });
+    // líder criado por evento de subagente (servidor aberto com a sessão em andamento): ele está
+    // coordenando, não chegando; sem isso ficava "chegando" até ter um evento próprio
+    if (lead.status === "chegando") this.update(lead, "pensando", "Coordenando o time");
     const ag = this.candidates(agentType, false).find((a) => this.freeForSubagent(a.key, sessionId));
     const id = ag ? subagentId(ag.key) : `ag:extra:${hookId}`;
     const now = this.now();

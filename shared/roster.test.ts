@@ -3,7 +3,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_ROSTER, DESTAQUES_PERMITIDOS, mergeWithDefaults, validateRoster, type AGzinho, type Roster } from "./roster.ts";
+import {
+  DEFAULT_ROSTER,
+  DESTAQUES_PERMITIDOS,
+  ESTILOS_CABELO,
+  HAIR_STYLE_INDEX,
+  mergeWithDefaults,
+  validateRoster,
+  type AGzinho,
+  type Roster,
+} from "./roster.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -32,6 +41,11 @@ test("o elenco padrão tem 12 AGzinhos com chaves e matrículas únicas, 6 F e 6
   assert.equal(new Set(list.map((a) => a.matricula)).size, 12);
   assert.equal(list.filter((a) => a.genero === "feminino").length, 6);
   assert.equal(list.filter((a) => a.genero === "masculino").length, 6);
+});
+
+test("cada estilo de cabelo tem um desenho próprio (índices 0..8 sem repetir)", () => {
+  const idx = ESTILOS_CABELO.map((e) => HAIR_STYLE_INDEX[e]);
+  assert.deepEqual([...idx].sort((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
 test("terno fora do líder é rejeitado", () => {
