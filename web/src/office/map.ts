@@ -2,7 +2,18 @@
 // Tudo em "tiles" (1 tile = 16 px na resolução base). Pra mudar o layout,
 // mexa em DESKS, OVERFLOW_SPOTS e COFFEE_SPOTS.
 
-import { palette, theme, roleColor } from "../theme";
+import { navyAlpha, palette, theme, roleColor } from "../theme";
+import { AG_LETTERS, drawBitmap } from "./agMark";
+import {
+  bakeLogo,
+  disc,
+  drawBridgePainting,
+  drawTowerPainting,
+  drawRollShelf,
+  drawWindowView,
+  line,
+  type WindowView,
+} from "./decor";
 
 export const TILE = 16;
 export const COLS = 32;
@@ -123,13 +134,10 @@ export function drawFloor(ctx: Ctx, t: number) {
   rect(ctx, 0, px(AISLE_Y) - 6, px(26.4), 12, "#6d5a49");
   rect(ctx, 0, px(AISLE_Y) - 5, px(26.4), 10, "#7d6855");
 
-  // parede de cima
-  rect(ctx, 0, 0, W, WALL_ROWS * TILE, c.wall);
-  rect(ctx, 0, WALL_ROWS * TILE - 10, W, 6, c.wallShade);
-  rect(ctx, 0, WALL_ROWS * TILE - 4, W, 4, c.baseboard);
+  drawWall(ctx);
 
-  // janelas com céu e nuvens andando
-  for (const wx of [1, 5, 24.5, 28.5]) drawWindow(ctx, px(wx), 7, t);
+  // janelas com céu, nuvens e obra (guindaste girando, prédio subindo)
+  for (const win of WINDOWS) drawWindow(ctx, win.x, win.view, t);
 
   // porta (entrada à esquerda)
   rect(ctx, 0, px(AISLE_Y) - 20, 5, 40, c.woodShade);
@@ -138,116 +146,217 @@ export function drawFloor(ctx: Ctx, t: number) {
   rect(ctx, 6, px(AISLE_Y) - 13, 8, 26, "#6d5a49");
 }
 
-function drawWindow(ctx: Ctx, x: number, y: number, t: number) {
-  const w = 52;
-  const h = 26;
-  rect(ctx, x - 2, y - 2, w + 4, h + 4, "#f7f3ea");
-  const grd = ctx.createLinearGradient(0, y, 0, y + h);
-  grd.addColorStop(0, "#7cc4f0");
-  grd.addColorStop(1, "#c8e9fb");
-  ctx.fillStyle = grd;
-  ctx.fillRect(x, y, w, h);
-  // nuvens
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x, y, w, h);
-  ctx.clip();
-  const drift = ((t / 400 + x) % (w + 30)) - 20;
-  rect(ctx, x + drift, y + 6, 14, 4, "#ffffff");
-  rect(ctx, x + drift + 3, y + 4, 8, 2, "#ffffff");
-  const drift2 = ((t / 650 + x * 3) % (w + 30)) - 20;
-  rect(ctx, x + drift2, y + 15, 10, 3, "#f3fbff");
-  // prédios ao fundo
-  for (let i = 0; i < 5; i++) rect(ctx, x + i * 11, y + h - 6 - ((i * 7 + x) % 6), 9, 12, "#9fb7c8");
-  ctx.restore();
-  rect(ctx, x + w / 2 - 1, y, 2, h, "#f7f3ea");
-  rect(ctx, x, y + h / 2 - 1, w, 2, "#f7f3ea");
+// ------------------------------------------------------------------ parede
+// Layout da parede (px base, da esquerda pra direita, sem sobreposição):
+//   janela 4–48 · janela 54–98 · quadro da ponte 106–130 · estante de rolos 136–160 ·
+//   relógio ~166–186 · placa da recepção 204–308 · quadro branco 318–374 ·
+//   quadro da torre 382–406 · janela 414–458 · janela 464–508
+
+const WALL_H = WALL_ROWS * TILE; // 48
+/** friso branco (1px) e lambril marinho embaixo dele, até o chão */
+const TRIM_Y = 39;
+
+/** janelas: x da moldura externa (44 px de largura) e o que se vê pelo vidro */
+const WINDOWS: { x: number; view: WindowView }[] = [
+  { x: 4, view: { kind: "crane", mast: 10, phase: 0 } },
+  { x: 54, view: { kind: "construction", variant: 0 } },
+  { x: 414, view: { kind: "construction", variant: 1 } },
+  { x: 464, view: { kind: "crane", mast: 27, phase: 2.4 } },
+];
+const WIN_W = 44;
+const WIN_Y = 4;
+const WIN_H = 30;
+
+function drawWall(ctx: Ctx) {
+  const c = theme.colors;
+  // placas da parede com juntas sutis (fiadas desencontradas)
+  rect(ctx, 0, 0, W, TRIM_Y, c.wall);
+  for (const [jy, off] of [
+    [12, 0],
+    [25, 32],
+  ]) {
+    rect(ctx, 0, jy, W, 1, c.wallJoint);
+    const rowTop = jy === 12 ? 0 : 13;
+    for (let x = off; x < W; x += 64) rect(ctx, x, rowTop, 1, 12, c.wallJoint);
+  }
+  for (let x = 16; x < W; x += 64) rect(ctx, x, 26, 1, TRIM_Y - 26, c.wallJoint);
+  // friso + lambril marinho
+  rect(ctx, 0, TRIM_Y, W, 1, c.trim);
+  rect(ctx, 0, TRIM_Y + 1, W, 1, c.wainscotTop);
+  rect(ctx, 0, TRIM_Y + 2, W, WALL_H - TRIM_Y - 2, c.wainscot);
+  for (let x = 24; x < W; x += 48) rect(ctx, x, TRIM_Y + 3, 1, WALL_H - TRIM_Y - 4, c.wainscotTop);
+  rect(ctx, 0, WALL_H - 1, W, 1, palette.navy950);
+  // sombra da parede no chão (azulada, some em 3 linhas)
+  ctx.fillStyle = c.wallShadow;
+  ctx.fillRect(0, WALL_H, W, 3);
+  ctx.fillRect(0, WALL_H, W, 2);
+  ctx.fillRect(0, WALL_H, W, 1);
 }
 
-/** Placa com a logo ou o nome do escritório, centralizada na parede. */
+function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number) {
+  const glass = { x: x + 2, y: WIN_Y + 2, w: WIN_W - 4, h: WIN_H - 4 };
+  // moldura branca com contorno cinza (destaca da parede clara)
+  rect(ctx, x - 1, WIN_Y - 1, WIN_W + 2, WIN_H + 2, palette.gray300);
+  rect(ctx, x, WIN_Y, WIN_W, WIN_H, palette.white);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(glass.x, glass.y, glass.w, glass.h);
+  ctx.clip();
+  drawWindowView(ctx, glass, view, t);
+  // reflexos diagonais de 1px, bem fracos
+  const glint = "rgba(255,255,255,0.22)";
+  line(ctx, glass.x + 3, glass.y + 9, glass.x + 11, glass.y + 1, glint);
+  line(ctx, glass.x + 6, glass.y + 9, glass.x + 14, glass.y + 1, glint);
+  line(ctx, glass.x + 24, glass.y + 23, glass.x + 33, glass.y + 14, glint);
+  ctx.restore();
+
+  // sombra interna da moldura (topo e esquerda)
+  rect(ctx, glass.x, glass.y, glass.w, 1, navyAlpha(0.18));
+  rect(ctx, glass.x, glass.y + 1, 1, glass.h - 1, navyAlpha(0.18));
+  // divisão em cruz
+  const midX = glass.x + glass.w / 2 - 1;
+  const midY = glass.y + glass.h / 2 - 1;
+  rect(ctx, midX, glass.y, 2, glass.h, palette.white);
+  rect(ctx, glass.x, midY, glass.w, 2, palette.white);
+  rect(ctx, midX, midY + 2, 2, 1, palette.gray200);
+  // peitoril claro, um pouco mais largo que a janela
+  const sillY = WIN_Y + WIN_H;
+  rect(ctx, x - 2, sillY, WIN_W + 4, 1, palette.white);
+  rect(ctx, x - 2, sillY + 1, WIN_W + 4, 1, palette.gray50);
+  rect(ctx, x - 2, sillY + 2, WIN_W + 4, 1, palette.gray300);
+  rect(ctx, x - 1, sillY + 3, WIN_W + 2, 1, navyAlpha(0.14));
+}
+
+// ------------------------------------------------------------------ placa da recepção
+
+/** placa: contorno 1px (204–307 x 5–39) e a logo 100x33 dentro, 1px de folga marinho nas laterais */
+const SIGN = { x: 204, y: 5, w: 104, h: 35 };
+const LOGO_W = 100;
+const LOGO_H = 33;
+/** cache do bake por imagem e k; canvas null = o bake falhou (não tenta de novo a cada quadro) */
+let logoBake: { src: HTMLImageElement; k: number; canvas: HTMLCanvasElement | null } | null = null;
+
+function bakedLogo(img: HTMLImageElement, k: number): HTMLCanvasElement | null {
+  if (logoBake && logoBake.src === img && logoBake.k === k) return logoBake.canvas;
+  let canvas: HTMLCanvasElement | null = null;
+  try {
+    // o PNG da logo tem 1px branco na primeira e na última linha: fica de fora
+    const crop = { sx: 0, sy: 1, sw: img.naturalWidth, sh: img.naturalHeight - 2 };
+    canvas = bakeLogo(img, LOGO_W, LOGO_H, k, crop);
+  } catch {
+    canvas = null;
+  }
+  logoBake = { src: img, k, canvas };
+  return canvas;
+}
+
+/** Placa da recepção com a logo em pixels duros (ou "AG" em pixel se a imagem não carregar). */
 export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
   const c = theme.colors;
-  const w = 112;
-  const h = 30;
-  const x = W / 2 - w / 2;
-  const y = 7;
-  rect(ctx, x - 2, y - 2, w + 4, h + 4, c.outline);
-  rect(ctx, x, y, w, h, c.sign);
-  rect(ctx, x, y + h - 3, w, 3, roleColor("lider"));
-  if (logo && logo.complete && logo.naturalWidth > 0) {
-    const scale = Math.min((w - 10) / logo.naturalWidth, (h - 9) / logo.naturalHeight);
-    const lw = logo.naturalWidth * scale;
-    const lh = logo.naturalHeight * scale;
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(logo, x + (w - lw) / 2, y + (h - 3 - lh) / 2, lw, lh);
+  const { x, y, w, h } = SIGN;
+  // sombra de 1px na parede
+  rect(ctx, x + 1, y + h, w, 1, "rgba(2,11,28,0.25)");
+  rect(ctx, x + w, y + 1, 1, h, "rgba(2,11,28,0.25)");
+  rect(ctx, x, y, w, h, c.outline);
+  rect(ctx, x + 1, y + 1, w - 2, h - 2, c.sign);
+
+  // escala inteira atual do canvas (o render roda com setTransform(k))
+  const m = ctx.getTransform();
+  const k = Math.max(1, Math.round(m.a));
+  const ready = logo && logo.complete && logo.naturalWidth > 0;
+  const baked = ready ? bakedLogo(logo, k) : null;
+  const lx = x + (w - LOGO_W) / 2;
+  const ly = y + 1;
+  if (baked) {
+    // desenha 1:1 em pixels de dispositivo, sem suavização
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(baked, Math.round(lx * m.a + m.e), Math.round(ly * m.d + m.f));
+    ctx.restore();
   } else {
-    ctx.fillStyle = c.signText;
-    ctx.font = `11px "Press Start 2P", monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const name = theme.officeName.length > 22 ? theme.officeName.slice(0, 21) + "…" : theme.officeName;
-    ctx.font = name.length > 14 ? `6px "Press Start 2P", monospace` : `8px "Press Start 2P", monospace`;
-    ctx.fillText(name, W / 2, y + h / 2 - 1);
+    drawBitmap(ctx, AG_LETTERS, x + (w - 28) / 2, y + (h - 16) / 2, c.signText, 2);
+  }
+  // parafusos nos cantos
+  for (const [sx, sy] of [
+    [x + 2, y + 2],
+    [x + w - 3, y + 2],
+    [x + 2, y + h - 3],
+    [x + w - 3, y + h - 3],
+  ]) rect(ctx, sx, sy, 1, 1, palette.gray500);
+
+  // duas arandelas em cima da placa, iluminando pra baixo
+  for (const ax of [x + 20, x + w - 21]) {
+    rect(ctx, ax - 1, 0, 3, 1, palette.gray400);
+    rect(ctx, ax, 1, 1, 1, palette.gray500);
+    rect(ctx, ax - 1, 2, 3, 1, palette.navy800);
+    rect(ctx, ax - 2, 3, 5, 1, palette.navy900);
+    rect(ctx, ax - 1, 4, 3, 1, palette.white);
   }
 }
 
-/** Relógio de parede com a hora real. */
+/** Relógio de parede com a hora real (disco em pixel, ponteiros de 1px). */
 export function drawClock(ctx: Ctx, now: Date) {
-  const cx = 187;
-  const cy = 22;
-  ctx.fillStyle = theme.colors.outline;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#fbf8f0";
-  ctx.beginPath();
-  ctx.arc(cx, cy, 8.5, 0, Math.PI * 2);
-  ctx.fill();
-  const hand = (angle: number, len: number, width: number, color: string) => {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.sin(angle) * len, cy - Math.cos(angle) * len);
-    ctx.stroke();
-  };
+  const cx = 176;
+  const cy = 21;
+  rect(ctx, cx - 8, cy + 11, 18, 1, "rgba(2,11,28,0.18)"); // sombra
+  disc(ctx, cx, cy, 10, theme.colors.outline);
+  disc(ctx, cx, cy, 9, palette.navy800);
+  disc(ctx, cx, cy, 8, palette.white);
+  // marcas das 12, 3, 6 e 9 + as outras horas em cinza
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const mx = cx + Math.round(Math.sin(a) * 7);
+    const my = cy - Math.round(Math.cos(a) * 7);
+    rect(ctx, mx, my, 1, 1, i % 3 === 0 ? palette.navy900 : palette.gray300);
+  }
+  const hand = (angle: number, len: number, color: string) =>
+    line(ctx, cx, cy, cx + Math.round(Math.sin(angle) * len), cy - Math.round(Math.cos(angle) * len), color);
   const h = now.getHours() % 12;
   const m = now.getMinutes();
   const s = now.getSeconds();
-  hand(((h + m / 60) / 12) * Math.PI * 2, 4.5, 1.6, "#22283a");
-  hand(((m + s / 60) / 60) * Math.PI * 2, 6.5, 1.1, "#22283a");
-  hand((s / 60) * Math.PI * 2, 7, 0.5, "#d64561");
+  const ha = ((h + m / 60) / 12) * Math.PI * 2;
+  hand(ha, 4, palette.navy900);
+  // ponteiro das horas mais grosso: segunda linha ao lado
+  line(ctx, cx + 1, cy, cx + 1 + Math.round(Math.sin(ha) * 3), cy - Math.round(Math.cos(ha) * 3), palette.navy900);
+  hand(((m + s / 60) / 60) * Math.PI * 2, 6, palette.navy900);
+  hand((s / 60) * Math.PI * 2, 6, palette.signal.alert);
+  rect(ctx, cx, cy, 1, 1, theme.colors.outline);
 }
 
 /** Quadro branco com contadores ao vivo. */
 export function drawBoard(ctx: Ctx, counts: { working: number; waiting: number; total: number }) {
-  const x = 321;
-  const y = 8;
-  rect(ctx, x - 2, y - 2, 60, 30, "#9aa0ab");
-  rect(ctx, x, y, 56, 26, "#fbfbf8");
+  const x = 318;
+  const y = 6;
+  const w = 56;
+  const h = 30;
+  rect(ctx, x + 1, y + h, w, 1, "rgba(2,11,28,0.18)");
+  rect(ctx, x + w, y + 1, 1, h, "rgba(2,11,28,0.18)");
+  rect(ctx, x, y, w, h, palette.gray400); // moldura de alumínio
+  rect(ctx, x, y, w, 1, palette.gray300);
+  rect(ctx, x + 2, y + 2, w - 4, h - 4, palette.white);
+  rect(ctx, x + 2, y + 2, w - 4, 1, palette.gray50);
+  // bandeja com pincéis
+  rect(ctx, x + 6, y + h, 22, 2, palette.gray500);
+  rect(ctx, x + 9, y + h - 1, 5, 1, palette.navy600);
+  rect(ctx, x + 16, y + h - 1, 5, 1, palette.signal.alert);
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.font = `8px VT323, monospace`;
-  ctx.fillStyle = "#2b70ab";
-  ctx.fillText(`TIME: ${counts.total}`, x + 3, y + 2);
-  ctx.fillStyle = "#237a54";
-  ctx.fillText(`FAZENDO: ${counts.working}`, x + 3, y + 10);
-  ctx.fillStyle = counts.waiting ? "#d64561" : "#8a8f9c";
-  ctx.fillText(`ESPERA: ${counts.waiting}`, x + 3, y + 18);
+  ctx.fillStyle = palette.navy900;
+  ctx.fillText(`TIME: ${counts.total}`, x + 5, y + 3);
+  ctx.fillStyle = palette.navy700;
+  ctx.fillText(`FAZENDO: ${counts.working}`, x + 5, y + 11);
+  ctx.fillStyle = counts.waiting ? palette.signal.waitingInk : palette.gray400;
+  ctx.fillText(`ESPERA: ${counts.waiting}`, x + 5, y + 19);
 }
 
+/** Quadros e estante da parede (estáticos). */
 export function drawDecor(ctx: Ctx) {
-  // estante à esquerda da placa
-  const bx = 147;
-  rect(ctx, bx, 10, 28, 36, theme.colors.woodShade);
-  rect(ctx, bx + 2, 12, 24, 32, "#5a3b24");
-  const books = ["#d64561", "#3a8fd6", "#f2c14e", "#2f9e6d", "#7a5af5", "#e0703a"];
-  for (let s = 0; s < 3; s++) {
-    rect(ctx, bx + 2, 21 + s * 11, 24, 2, theme.colors.woodShade);
-    for (let b = 0; b < 5; b++) rect(ctx, bx + 3 + b * 4.5, 13 + s * 11, 3, 8, books[(b + s * 2) % books.length]);
-  }
+  drawBridgePainting(ctx, 106, 9);
+  drawRollShelf(ctx, 136, 9, 24, 39);
+  drawTowerPainting(ctx, 382, 9);
 }
 
 /** Mesa de reunião redonda (objeto com profundidade: desenhado ordenado por y). */

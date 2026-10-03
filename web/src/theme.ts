@@ -70,9 +70,22 @@ export const palette = {
     watch: "#CDD5E0",
     shadow: "rgba(2, 11, 28, 0.28)",
   },
+  /** cenário da parede: juntas, nuvens, quadros e rolos de projeto */
+  decor: {
+    wallJoint: "#D8DEE7",
+    cloudFar: "#E8F3FB",
+    cloudShade: "#D6E8F6",
+    craneLightOff: "#6E2A36",
+    paintingSky: "#CFE3F5",
+    paintingHaze: "#E4EFF9",
+    blueprint: "#BFD6F0",
+  },
 } as const;
 
 export type Palette = typeof palette;
+
+/** navy850 (#0E2A57) com alpha: sombras azuladas e tela de proteção */
+export const navyAlpha = (a: number) => `rgba(14, 42, 87, ${a})`;
 
 /** polo e camisa levam a logo AG no peito; blazer e terno abrem em V mostrando a camisa (inner) */
 export type UniformKind = "polo" | "camisa" | "blazer" | "terno";
@@ -104,7 +117,10 @@ export interface Uniform {
 export interface Theme {
   officeName: string;
   subtitle: string;
-  /** caminho de uma imagem em web/public (ex.: "/logo.png"). Vazio = usa o nome escrito na placa */
+  /**
+   * caminho de uma imagem em web/public (ex.: "/logo.png"), reduzida para pixels duros
+   * (só marinho e branco) na placa da recepção. Vazio ou falha ao carregar = "AG" em pixel.
+   */
   logoUrl: string;
   colors: {
     floorA: string;
@@ -113,8 +129,15 @@ export interface Theme {
     rug: string;
     rugBorder: string;
     wall: string;
-    wallShade: string;
-    baseboard: string;
+    /** juntas sutis das placas da parede */
+    wallJoint: string;
+    /** lambril marinho (faixa de baixo da parede) e a borda de cima dele */
+    wainscot: string;
+    wainscotTop: string;
+    /** friso de 1px entre a parede e o lambril */
+    trim: string;
+    /** sombra da parede no chão (azulada, com alpha) */
+    wallShadow: string;
     wood: string;
     woodShade: string;
     woodLight: string;
@@ -178,7 +201,7 @@ const blazer = (shirt: string, shirtShade: string, accent: string, pants: string
 export const theme: Theme = {
   officeName: "Escritório de IA",
   subtitle: "Andrade Gutierrez · time de agentes",
-  logoUrl: "", // ex.: "/logo.png"
+  logoUrl: "/logo-ag-horizontal.png",
 
   colors: {
     floorA: "#c9a77c",
@@ -186,14 +209,17 @@ export const theme: Theme = {
     floorLine: "#a9855c",
     rug: "#3f5f7a",
     rugBorder: "#2e4659",
-    wall: "#e9e2d4",
-    wallShade: "#d6cbb7",
-    baseboard: "#8a6a4a",
+    wall: palette.gray100,
+    wallJoint: palette.decor.wallJoint,
+    wainscot: palette.navy900,
+    wainscotTop: palette.navy800,
+    trim: palette.white,
+    wallShadow: navyAlpha(0.16),
     wood: "#8b5e3c",
     woodShade: "#6b452a",
     woodLight: "#a87650",
-    sign: "#22283a",
-    signText: "#f4f1e8",
+    sign: palette.navy900,
+    signText: palette.white,
     outline: palette.navy950,
   },
 
