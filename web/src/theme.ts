@@ -6,7 +6,7 @@
 //  dos uniformes pra bater com o manual de marca.
 // =====================================================================
 
-import { HAIR_COLORS, SKIN_TONES } from "../../shared/roster";
+import { HAIR_COLORS, SKIN_TONES, type AGzinho } from "../../shared/roster";
 
 /**
  * Paleta da identidade AG (marinho + branco). Fonte única dos HEX:
@@ -302,6 +302,32 @@ export const theme: Theme = {
 
 export const uniformFor = (role: string) => theme.uniforms[role] ?? theme.uniforms.convidado;
 export const roleColor = (role: string) => theme.roleColors[role] ?? theme.roleColors.convidado;
+
+/**
+ * Uniforme de um AGzinho do elenco: a roupa dele com o cordão na cor dele. Gola, faixa e
+ * lenço seguem o uniforme do papel quando a peça é a mesma; o destaque troca o detalhe
+ * (gravata dourada, blazer cinza, crachá de visitante).
+ */
+export function uniformForAgzinho(ag: AGzinho): Uniform {
+  const base = theme.uniforms[ag.papel];
+  const trim = base?.kind === ag.roupa ? base.trim : undefined;
+  const accent = ag.cordao;
+  let u: Uniform;
+  switch (ag.roupa) {
+    case "terno":
+      u = { ...theme.uniforms.lider, accent, tie: ag.destaque === "gravata-dourada" ? ROLE_COLORS.lider : P.navy900 };
+      break;
+    case "blazer":
+      u = ag.destaque === "blazer-cinza" ? blazer(P.gray600, P.gray700, accent, P.navy800) : blazer(P.navy700, P.navy800, accent, P.gray700);
+      break;
+    case "camisa":
+      u = camisa(accent, trim ?? "gola");
+      break;
+    default:
+      u = polo(accent, trim ?? (ag.papel === "convidado" ? undefined : "gola"));
+  }
+  return ag.destaque === "cracha-visitante" ? { ...u, visitor: true } : u;
+}
 
 /** tons de pele e cabelo, sorteados de forma fixa pelo id do agente (a lista mora em shared/roster.ts) */
 export const SKINS: readonly string[] = SKIN_TONES.map((t) => t.hex);

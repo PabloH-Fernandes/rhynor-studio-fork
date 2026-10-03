@@ -9,7 +9,7 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
   trabalhando: "trabalhando",
   pensando: "pensando",
   esperando: "te esperando",
-  ocioso: "livre",
+  ocioso: "de boa",
   saindo: "saindo",
 };
 

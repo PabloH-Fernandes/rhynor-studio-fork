@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { DEFAULT_ROSTER, type Roster } from "../shared/roster.ts";
-import { loadRoster, saveRoster } from "./roster.ts";
+import { flushRosterSaves, loadRoster, saveRoster } from "./roster.ts";
 
 let dir: string;
 let file: string;
@@ -16,7 +16,8 @@ beforeEach(() => {
   console.warn = () => {}; // os avisos de saneamento são esperados aqui
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await flushRosterSaves(); // o load saneado regrava o arquivo em segundo plano
   console.warn = warn;
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -98,4 +99,38 @@ test(".tmp antigo de outro processo é limpo no load", () => {
     fs.readdirSync(dir).filter((n) => n.endsWith(".tmp")),
     [],
   );
+});
+
+test("depois de sanear, o arquivo é regravado e o próximo load não cria outro backup", async () => {
+  fs.writeFileSync(file, JSON.stringify(withChange((r) => (r.agzinhos.find((a) => a.key === "dev")!.roupa = "terno"))));
+  const r = loadRoster(file);
+  await flushRosterSaves();
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), r);
+  assert.deepEqual(loadRoster(file), r);
+  assert.equal(backups().length, 1);
+});
+
+test("JSON quebrado também é regravado com o padrão (um backup só)", async () => {
+  fs.writeFileSync(file, "{");
+  loadRoster(file);
+  await flushRosterSaves();
+  assert.deepEqual(loadRoster(file), DEFAULT_ROSTER);
+  assert.equal(backups().length, 1);
+});
+
+test("matrícula repetida entre AGzinhos do padrão: os dois voltam ao padrão e o extra fica", () => {
+  const extra = { ...structuredClone(DEFAULT_ROSTER.agzinhos[1]), key: "planejador-2", variacaoDe: "planejador", matricula: "AG-0013" };
+  const salvo = withChange((r) => {
+    const dev = r.agzinhos.find((a) => a.key === "dev")!;
+    dev.matricula = "AG-0005"; // a do testador
+    dev.nome = "Bia Editada";
+    r.agzinhos.find((a) => a.key === "testador")!.nome = "Rafa Editado";
+    r.agzinhos.push(extra);
+  });
+  fs.writeFileSync(file, JSON.stringify(salvo));
+  const r = loadRoster(file);
+  const pick = (k: string) => r.agzinhos.find((a) => a.key === k);
+  assert.deepEqual(pick("dev"), DEFAULT_ROSTER.agzinhos.find((a) => a.key === "dev"));
+  assert.deepEqual(pick("testador"), DEFAULT_ROSTER.agzinhos.find((a) => a.key === "testador"));
+  assert.ok(pick("planejador-2"), "o extra válido não devia sair");
 });

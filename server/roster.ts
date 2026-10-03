@@ -20,7 +20,8 @@ const RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
 /**
  * Lê o elenco salvo, completa com os padrões e saneia AGzinho por AGzinho: o inválido volta
  * ao seu padrão e o extra inválido sai. Se precisou sanear (ou o JSON estava quebrado), guarda
- * uma cópia do arquivo em agzinhos.invalido-<data>.json antes. Nunca lança.
+ * uma cópia do arquivo em agzinhos.invalido-<data>.json e grava o elenco saneado no lugar
+ * (em segundo plano), para não gerar um backup novo a cada reinício. Nunca lança.
  */
 export function loadRoster(file = ROSTER_FILE): Roster {
   cleanupTmp(path.dirname(file));
@@ -37,15 +38,24 @@ export function loadRoster(file = ROSTER_FILE): Roster {
   } catch {
     const copia = backup(file);
     console.warn(`[roster] ${file} não é um JSON válido, usando o elenco padrão${copia ? ` (cópia em ${copia})` : ""}`);
-    return structuredClone(DEFAULT_ROSTER);
+    const roster = structuredClone(DEFAULT_ROSTER);
+    if (copia) rewrite(roster, file);
+    return roster;
   }
 
   const { roster, notas } = sanitize(parsed);
   if (notas.length) {
     const copia = backup(file);
     console.warn(`[roster] ${file} foi saneado${copia ? ` (cópia do original em ${copia})` : ""}:\n  - ${notas.join("\n  - ")}`);
+    // sem a cópia do original não sobrescreve: o arquivo fica como está para você conferir
+    if (copia) rewrite(roster, file);
   }
   return roster;
+}
+
+/** grava o elenco saneado sem segurar o boot; uma falha só vira aviso */
+function rewrite(roster: Roster, file: string) {
+  saveRoster(roster, file).catch((err) => console.warn(`[roster] não consegui regravar ${file} saneado:`, err));
 }
 
 /** Mescla com os padrões e conserta o que for preciso; `notas` diz o que mudou. */
@@ -69,6 +79,14 @@ export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
     notas.push(`${a.key}: ${def ? "voltou ao padrão" : "removido"} (${erros.join("; ")})`);
     if (def) agzinhos.push(structuredClone(def));
   });
+
+  // matrícula repetida entre AGzinhos do padrão: os envolvidos voltam ao padrão antes de mexer nos extras
+  const doPadrao = agzinhos.filter((a) => defaults.has(a.key));
+  for (const [i, a] of agzinhos.entries()) {
+    if (!defaults.has(a.key) || !doPadrao.some((b) => b !== a && b.matricula === a.matricula)) continue;
+    notas.push(`${a.key}: voltou ao padrão (matrícula ${a.matricula} repetida em outro AGzinho do padrão)`);
+    agzinhos[i] = structuredClone(defaults.get(a.key)!);
+  }
 
   // conflitos entre AGzinhos (key ou matrícula repetida, variação órfã): os extras saem, do último para o primeiro
   let result = validateRoster({ ...merged, agzinhos });
@@ -108,6 +126,11 @@ export function saveRoster(roster: Roster, file = ROSTER_FILE): Promise<void> {
   const run = chain.then(() => writeAtomic(file, JSON.stringify(roster, null, 2) + "\n"));
   chain = run.catch(() => undefined); // uma falha não trava as próximas
   return run;
+}
+
+/** Resolve quando todas as gravações pedidas até agora terminaram (com sucesso ou não). */
+export function flushRosterSaves(): Promise<void> {
+  return chain.then(() => undefined);
 }
 
 async function writeAtomic(file: string, data: string) {

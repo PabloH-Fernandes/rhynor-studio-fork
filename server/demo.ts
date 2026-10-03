@@ -1,12 +1,35 @@
 // Simulação: dispara eventos falsos no mesmo formato dos hooks do Claude Code,
 // pra você ver o escritório funcionando sem precisar abrir uma sessão real.
+// Os timers ficam guardados para o "Limpar" (cancelDemo) parar tudo de verdade.
 
 import type { HookInput, OfficeState } from "./state.ts";
 
 type Step = [delayMs: number, input: Omit<HookInput, "session_id" | "cwd">];
 
+const timers = new Set<NodeJS.Timeout>();
+let activeSession: string | null = null;
+
+/** Para a simulação em andamento (nenhum evento dela chega depois). Devolve a sessão dela, se havia. */
+export function cancelDemo(): string | null {
+  for (const t of timers) clearTimeout(t);
+  timers.clear();
+  const session = activeSession;
+  activeSession = null;
+  return session;
+}
+
+function schedule(ms: number, fn: () => void) {
+  const t = setTimeout(() => {
+    timers.delete(t);
+    fn();
+  }, ms);
+  timers.add(t);
+}
+
 export function runDemo(state: OfficeState) {
+  cancelDemo();
   const session_id = `demo-${Date.now().toString(36)}`;
+  activeSession = session_id;
   const cwd = "/home/pablo/projetos/portal-chamados";
   let tid = 0;
   const tool = (name: string, input: Record<string, any>, agent?: [string, string]): Step[1] => ({
@@ -25,7 +48,7 @@ export function runDemo(state: OfficeState) {
     hook_event_name: "PreToolUse",
     tool_name: "Agent",
     tool_input: { subagent_type: type, description },
-    tool_use_id: `demo-spawn-${type}`,
+    tool_use_id: `${session_id}-spawn-${type}`,
   });
   const start = (a: [string, string]): Step[1] => ({ hook_event_name: "SubagentStart", agent_id: a[0], agent_type: a[1] });
   const stop = (a: [string, string]): Step[1] => ({ hook_event_name: "SubagentStop", agent_id: a[0], agent_type: a[1] });
@@ -93,9 +116,12 @@ export function runDemo(state: OfficeState) {
   let at = 0;
   for (const [delay, input] of steps) {
     at += delay;
-    setTimeout(() => state.handleHook({ ...input, session_id, cwd } as HookInput), at);
+    schedule(at, () => state.handleHook({ ...input, session_id, cwd } as HookInput));
   }
-  // encerra a sessão de demo um tempo depois
-  setTimeout(() => state.handleHook({ hook_event_name: "SessionEnd", session_id, cwd }), at + 20_000);
+  // encerra a sessão de demo um tempo depois (até lá o time fica de boa no escritório)
+  schedule(at + 20_000, () => {
+    activeSession = null;
+    state.handleHook({ hook_event_name: "SessionEnd", session_id, cwd });
+  });
   return { session_id, durationMs: at };
 }

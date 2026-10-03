@@ -599,6 +599,8 @@ export function mergeWithDefaults(parcial: unknown): Roster {
     return { ...semDestaque, ...s, cabelo } as AGzinho;
   });
   agzinhos.push(...saved.values());
+  // convidado salvo sem destaque (elenco antigo ou editado à mão): ganha o crachá de visitante
+  for (const a of agzinhos) if (a.papel === "convidado" && a.destaque === undefined) a.destaque = "cracha-visitante";
 
   return {
     versao: 1,

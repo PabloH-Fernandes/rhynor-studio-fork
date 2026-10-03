@@ -1,9 +1,9 @@
 // Motor do escritório: guarda a posição de cada personagem, decide pra onde ele vai
 // (mesa, café, reunião, porta), anda pelos caminhos e desenha tudo no canvas.
 
-import type { Agent, Roster } from "../../../shared/types";
-import { agzinhoDoPapel } from "../../../shared/roster";
-import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor } from "../theme";
+import type { AGzinho, Agent, Roster } from "../../../shared/types";
+import { HAIR_STYLE_INDEX, agzinhoDoPapel } from "../../../shared/roster";
+import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
 import { fill, line } from "./decor";
 import { Lightmap, clockDate, windowLight, type LightScene } from "./daylight";
 import { isReducedMotion } from "./motion";
@@ -46,7 +46,7 @@ import {
 } from "./sprites";
 
 const SPEED = 3.4; // tiles por segundo
-const COFFEE_AFTER_MS = 15_000; // ocioso por esse tempo → vai tomar café
+const COFFEE_AFTER_MS = 15_000; // ocioso por esse tempo → vai tomar café (provisório até o agendador da etapa 4)
 const BUBBLE_MS = 3800;
 const CHAT_MS = 4500;
 const STRETCH_MS = 1600;
@@ -59,7 +59,7 @@ const CONFETTI_LIFE_MS = 800;
 const CONFETTI_GRAVITY = 0.00012; // px/ms²
 
 
-/** status em que o agente está "na tarefa" (vale espreguiçar/comemorar ao sair dele) */
+/** status em que o agente está "na tarefa" (vale espreguiçar ao ficar de boa) */
 const BUSY = new Set<Agent["status"]>(["trabalhando", "pensando", "esperando"]);
 
 /** aparência fixa de cada papel (tabela de uniformes); o que não está aqui sai do hash do id */
@@ -73,8 +73,26 @@ const ROLE_LOOK: Record<string, { hairStyle: number; accessory?: Accessory }> = 
   documentador: { hairStyle: 1, accessory: "lapis" },
 };
 const GUEST_ACCESSORIES: Accessory[] = ["nenhum", "nenhum", "barba", "oculos"];
+/** acessórios do elenco que os sprites de hoje já desenham (um por boneco, o primeiro da lista) */
+const DRAWN_ACCESSORIES = new Set<string>(["oculos", "headset", "lapis", "barba", "relogio"] satisfies Accessory[]);
 
-function lookFor(agent: Agent, h: number): CharLook {
+/** Aparência do AGzinho do elenco; sem elenco ou visitante extra, a de sempre (papel + hash do id). */
+function lookFor(agent: Agent, roster: Roster | null): CharLook {
+  const ag = agent.agzinho ? roster?.agzinhos.find((a) => a.key === agent.agzinho) : undefined;
+  return ag ? lookOfAgzinho(ag) : lookByHash(agent, hashString(agent.id));
+}
+
+function lookOfAgzinho(ag: AGzinho): CharLook {
+  return {
+    uniform: uniformForAgzinho(ag),
+    skin: ag.pele,
+    hair: ag.cabelo.cor,
+    hairStyle: HAIR_STYLE_INDEX[ag.cabelo.estilo] ?? 0,
+    accessory: (ag.acessorios.find((a) => DRAWN_ACCESSORIES.has(a)) as Accessory | undefined) ?? "nenhum",
+  };
+}
+
+function lookByHash(agent: Agent, h: number): CharLook {
   const fixed = Object.hasOwn(ROLE_LOOK, agent.role) ? ROLE_LOOK[agent.role] : undefined;
   const accessory: Accessory =
     fixed?.accessory ??
@@ -108,8 +126,6 @@ interface Visual {
   fade: number; // 1 → 0 ao sair pela porta
   chat?: { text: string; until: number };
   anim?: { kind: CharAnim; start: number; until: number };
-  /** parado (sem andar) até esse instante; usado pra comemorar antes de ir embora */
-  holdUntil?: number;
 }
 
 interface Envelope {
@@ -124,8 +140,7 @@ export class OfficeEngine {
   private envelopes: Envelope[] = [];
   private logo: HTMLImageElement | null = null;
   private lightmap = new Lightmap();
-  /** elenco vindo do servidor; null até o primeiro snapshot */
-  roster: Roster | null = null;
+  private rosterData: Roster | null = null;
   selectedId: string | null = null;
   hoverId: string | null = null;
   onSelect?: (id: string | null) => void;
@@ -136,6 +151,18 @@ export class OfficeEngine {
       img.src = theme.logoUrl;
       this.logo = img;
     }
+  }
+
+  /** elenco vindo do servidor; null até o primeiro snapshot */
+  get roster(): Roster | null {
+    return this.rosterData;
+  }
+
+  /** elenco novo (PUT no vestiário): os bonecos na tela trocam de aparência na hora */
+  set roster(roster: Roster | null) {
+    if (roster === this.rosterData) return;
+    this.rosterData = roster;
+    for (const v of this.visuals.values()) v.look = lookFor(v.agent, roster);
   }
 
   // ------------------------------------------------------------ dados do servidor
@@ -154,21 +181,27 @@ export class OfficeEngine {
       this.visuals.set(agent.id, v);
     }
     const prev = v.agent.status;
+    const delivered = agent.tasksDone !== v.agent.tasksDone && agent.tasksDone > 0;
+    if (agent.agzinho !== v.agent.agzinho) v.look = lookFor(agent, this.rosterData);
+    if (agent.role !== v.agent.role && !v.leaving) {
+      // trocou de papel (ex.: líder da simulação cede o Guto à sessão real): muda de mesa
+      const { spot, deskId } = this.claimHome(agent);
+      v.home = spot;
+      v.deskId = deskId;
+    }
     const seated = v.at.id === v.home.id && v.at.sitting && !v.path.length && !v.leaving;
     if (agent.activity !== v.agent.activity) v.activityAt = now;
     if (agent.status === "ocioso" && prev !== "ocioso") v.idleSince = now;
     if (agent.status !== "ocioso") v.idleSince = Infinity;
     // o snapshot inicial (create) chega com prev === status, então não anima
-    if (seated && agent.status !== prev) {
-      const short = isReducedMotion();
+    const short = isReducedMotion();
+    if (seated && delivered && agent.status !== "saindo") {
+      // entregou o trabalho (SubagentStop): comemora na mesa e fica no escritório
+      v.anim = { kind: "cheer", start: now, until: now + (short ? REDUCED_ANIM_MS : CHEER_MS) };
+    } else if (seated && agent.status !== prev) {
       if (agent.status === "ocioso" && BUSY.has(prev)) {
         // fim de turno (ex.: Stop do líder): espreguiça na cadeira
         v.anim = { kind: "stretch", start: now, until: now + (short ? REDUCED_ANIM_MS : STRETCH_MS) };
-      } else if (agent.status === "saindo" && BUSY.has(prev)) {
-        // fim de tarefa (SubagentStop): comemora e só depois vai pra porta
-        const until = now + (short ? REDUCED_ANIM_MS : CHEER_MS);
-        v.anim = { kind: "cheer", start: now, until };
-        v.holdUntil = until;
       } else if (v.anim?.kind === "stretch") {
         v.anim = undefined; // voltou ao trabalho no meio do espreguiçar
       }
@@ -205,7 +238,7 @@ export class OfficeEngine {
       target: spot,
       home: spot,
       deskId,
-      look: lookFor(agent, h),
+      look: lookFor(agent, this.rosterData),
       phase: h % 1000,
       idleSince: agent.status === "ocioso" ? performance.now() : Infinity,
       activityAt: performance.now(),
@@ -227,8 +260,7 @@ export class OfficeEngine {
   }
 
   private startLeaving(v: Visual) {
-    // comemorando: o update chama de novo quando o holdUntil passar
-    if (v.leaving || v.holdUntil !== undefined) return;
+    if (v.leaving) return;
     v.leaving = true;
     this.goTo(v, DOOR_SPOT);
   }
@@ -258,12 +290,6 @@ export class OfficeEngine {
 
     for (const v of this.visuals.values()) {
       if (v.anim && now >= v.anim.until) v.anim = undefined;
-      if (v.holdUntil !== undefined) {
-        if (now < v.holdUntil) continue; // comemorando: fica parado na mesa
-        // o hold só é criado na ida pra "saindo"; a saída que ficou adiada acontece agora
-        v.holdUntil = undefined;
-        this.startLeaving(v);
-      }
 
       // decide o destino
       if (!v.leaving) {
@@ -361,8 +387,8 @@ export class OfficeEngine {
           drawDesk(ctx, d, {
             active: !!seated && (seated.agent.status === "trabalhando" || seated.agent.status === "pensando"),
             waiting: !!seated && seated.agent.status === "esperando",
-            occupantName: occupant?.agent.name,
-            nickname: this.roster ? agzinhoDoPapel(this.roster, d.role)?.apelido : undefined,
+            occupantName: occupant ? this.nicknameOf(occupant.agent) : undefined,
+            nickname: this.rosterData ? agzinhoDoPapel(this.rosterData, d.role)?.apelido : undefined,
             t: now,
             reducedMotion: isReducedMotion(),
           }),
@@ -390,6 +416,12 @@ export class OfficeEngine {
     // camada de cima: envelopes e balões
     for (const e of this.envelopes) this.drawEnvelope(ctx, e, now);
     for (const v of visuals) this.drawOverlay(ctx, v, now);
+  }
+
+  /** apelido do AGzinho (plaquinha da mesa de convidado); visitante extra usa o nome */
+  private nicknameOf(agent: Agent): string {
+    const ag = agent.agzinho ? this.rosterData?.agzinhos.find((a) => a.key === agent.agzinho) : undefined;
+    return ag?.apelido ?? agent.name;
   }
 
   /** brilho leve ("lighter") nas telas ligadas e na logo da placa, por cima do multiply */

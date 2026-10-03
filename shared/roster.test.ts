@@ -167,3 +167,19 @@ test("data/agzinhos.example.json é igual ao DEFAULT_ROSTER", () => {
   const example = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "agzinhos.example.json"), "utf8"));
   assert.deepEqual(example, DEFAULT_ROSTER);
 });
+
+test("mergeWithDefaults põe o crachá de visitante no convidado salvo sem destaque", () => {
+  const semDestaque = (key: string, extra: Partial<AGzinho> = {}) => {
+    const a: Partial<AGzinho> = { ...structuredClone(DEFAULT_ROSTER.agzinhos.find((x) => x.key === key)!), ...extra };
+    delete a.destaque;
+    return a;
+  };
+  const merged = mergeWithDefaults({
+    versao: 1,
+    atualizadoEm: "2026-10-03T12:00:00.000Z",
+    agzinhos: [semDestaque("explore"), semDestaque("curinga", { key: "visita", matricula: "AG-0099", agentTypes: ["x"] })],
+  });
+  assert.equal(merged.agzinhos.find((a) => a.key === "explore")!.destaque, "cracha-visitante");
+  assert.equal(merged.agzinhos.find((a) => a.key === "visita")!.destaque, "cracha-visitante");
+  assert.equal(validateRoster(merged).ok, true);
+});

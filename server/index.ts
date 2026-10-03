@@ -7,8 +7,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
-import { OfficeState } from "./state.ts";
-import { runDemo } from "./demo.ts";
+import { DEFAULT_SESSION_TIMEOUT_MIN, OfficeState } from "./state.ts";
+import { cancelDemo, runDemo } from "./demo.ts";
 import { loadRoster, saveRoster } from "./roster.ts";
 import { DEFAULT_ROSTER, mergeWithDefaults, validateRoster } from "../shared/roster.ts";
 
@@ -18,7 +18,10 @@ const HOST = "127.0.0.1";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = path.join(ROOT, "web", "dist");
 
-const state = new OfficeState();
+/** minutos sem nenhum evento até a sessão ser encerrada (terminal fechado à força, sem SessionEnd) */
+const SESSION_TIMEOUT_MIN = parseTimeoutMin(process.env.AG_SESSION_TIMEOUT_MIN);
+
+const state = new OfficeState({ sessionTimeoutMs: SESSION_TIMEOUT_MIN * 60_000 });
 state.setRoster(loadRoster());
 const app = express();
 // cada rota com o próprio limite: eventos de hook podem ser grandes, o elenco não
@@ -82,11 +85,15 @@ app.put("/api/roster", rosterJson, async (req, res) => {
 });
 
 app.post("/api/demo", (_req, res) => {
+  // uma simulação por vez: a anterior para e a sessão dela vai embora
+  const anterior = cancelDemo();
+  if (anterior) state.endSession(anterior, "Saiu (simulação reiniciada)");
   const info = runDemo(state);
   res.json({ ok: true, ...info });
 });
 
 app.post("/api/reset", (_req, res) => {
+  cancelDemo(); // senão a simulação em andamento volta a encher o escritório
   state.reset();
   res.json({ ok: true });
 });
@@ -126,5 +133,15 @@ server.listen(PORT, HOST, () => {
   const hasUi = fs.existsSync(DIST);
   console.log(`\n🏢 AG Pocket rodando`);
   console.log(`   Hooks → http://${HOST}:${PORT}/api/hook`);
-  console.log(hasUi ? `   Tela  → http://${HOST}:${PORT}\n` : `   Tela  → http://localhost:5173 (npm run dev)\n`);
+  console.log(hasUi ? `   Tela  → http://${HOST}:${PORT}` : `   Tela  → http://localhost:5173 (npm run dev)`);
+  console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (AG_SESSION_TIMEOUT_MIN)\n`);
 });
+
+/** AG_SESSION_TIMEOUT_MIN: minutos (> 0); vazio usa o padrão, inválido avisa e usa o padrão */
+function parseTimeoutMin(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return DEFAULT_SESSION_TIMEOUT_MIN;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return n;
+  console.warn(`[config] AG_SESSION_TIMEOUT_MIN="${raw}" inválido, usando ${DEFAULT_SESSION_TIMEOUT_MIN} min`);
+  return DEFAULT_SESSION_TIMEOUT_MIN;
+}
