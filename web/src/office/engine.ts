@@ -2,7 +2,7 @@
 // (mesa, café, reunião, porta), anda pelos caminhos e desenha tudo no canvas.
 
 import type { Agent } from "../../../shared/types";
-import { HAIRS, SKINS, roleColor, theme, uniformFor } from "../theme";
+import { HAIRS, SKINS, palette, roleColor, theme, uniformFor } from "../theme";
 import {
   AISLE_Y,
   COFFEE_SPOTS,
@@ -28,12 +28,38 @@ import {
   type Point,
   type Spot,
 } from "./map";
-import { drawCharacter, hashString, type CharLook, type Dir } from "./sprites";
+import { HAIR_STYLE_COUNT, drawCharacter, hashString, type Accessory, type CharLook, type Dir } from "./sprites";
 
 const SPEED = 3.4; // tiles por segundo
 const COFFEE_AFTER_MS = 15_000; // ocioso por esse tempo → vai tomar café
 const BUBBLE_MS = 3800;
 const CHAT_MS = 4500;
+
+/** aparência fixa de cada papel (tabela de uniformes); o que não está aqui sai do hash do id */
+const ROLE_LOOK: Record<string, { hairStyle: number; accessory?: Accessory }> = {
+  lider: { hairStyle: 6, accessory: "relogio" },
+  planejador: { hairStyle: 3, accessory: "nenhum" },
+  revisor: { hairStyle: 0, accessory: "oculos" },
+  pesquisador: { hairStyle: 2 }, // óculos por hash
+  testador: { hairStyle: 4, accessory: "relogio" },
+  dev: { hairStyle: 5, accessory: "headset" },
+  documentador: { hairStyle: 1, accessory: "lapis" },
+};
+const GUEST_ACCESSORIES: Accessory[] = ["nenhum", "nenhum", "barba", "oculos"];
+
+function lookFor(agent: Agent, h: number): CharLook {
+  const fixed = Object.hasOwn(ROLE_LOOK, agent.role) ? ROLE_LOOK[agent.role] : undefined;
+  const accessory: Accessory =
+    fixed?.accessory ??
+    (agent.role === "pesquisador" ? ((h >>> 13) % 2 ? "oculos" : "nenhum") : GUEST_ACCESSORIES[(h >>> 13) % GUEST_ACCESSORIES.length]);
+  return {
+    uniform: uniformFor(agent.role),
+    skin: SKINS[h % SKINS.length],
+    hair: HAIRS[(h >>> 4) % HAIRS.length],
+    hairStyle: fixed?.hairStyle ?? (h >>> 9) % HAIR_STYLE_COUNT,
+    accessory,
+  };
+}
 
 interface Visual {
   agent: Agent;
@@ -129,13 +155,7 @@ export class OfficeEngine {
       target: spot,
       home: spot,
       deskId,
-      look: {
-        uniform: uniformFor(agent.role),
-        skin: SKINS[h % SKINS.length],
-        hair: HAIRS[(h >>> 4) % HAIRS.length],
-        hairStyle: (h >>> 9) % 4,
-        leader: agent.role === "lider",
-      },
+      look: lookFor(agent, h),
       phase: h % 1000,
       idleSince: agent.status === "ocioso" ? performance.now() : Infinity,
       activityAt: performance.now(),
@@ -338,12 +358,18 @@ export class OfficeEngine {
 
     // ícone de status
     if (status === "esperando" && !v.leaving) {
-      const b = Math.sin(now / 150) * 1.5;
-      roundBox(ctx, head.x - 4, top - 11 + b, 8, 10, "#f2c14e", "#1d1a24");
-      ctx.fillStyle = "#1d1a24";
-      ctx.fillRect(Math.round(head.x - 1), Math.round(top - 9 + b), 2, 4);
-      ctx.fillRect(Math.round(head.x - 1), Math.round(top - 4 + b), 2, 1.5);
-      top -= 12;
+      // selo marinho com borda e "!" laranja; a borda pisca entre laranja e branco
+      const b = Math.round(Math.sin(now / 150) * 1.5);
+      const sx = Math.round(head.x - 5);
+      const sy = Math.round(top - 13 + b);
+      const ring = Math.floor(now / 400) % 2 ? palette.white : palette.signal.waiting;
+      roundBox(ctx, sx, sy, 10, 12, ring, palette.navy950);
+      ctx.fillStyle = palette.navy900;
+      ctx.fillRect(sx + 2, sy + 2, 6, 8);
+      ctx.fillStyle = palette.signal.waiting;
+      ctx.fillRect(sx + 4, sy + 3, 2, 4);
+      ctx.fillRect(sx + 4, sy + 8, 2, 1);
+      top -= 14;
     } else if (status === "pensando" && !v.path.length) {
       const k = Math.floor(now / 300) % 4;
       for (let i = 0; i < 3; i++) {

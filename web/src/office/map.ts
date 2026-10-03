@@ -2,7 +2,7 @@
 // Tudo em "tiles" (1 tile = 16 px na resolução base). Pra mudar o layout,
 // mexa em DESKS, OVERFLOW_SPOTS e COFFEE_SPOTS.
 
-import { theme, roleColor } from "../theme";
+import { palette, theme, roleColor } from "../theme";
 
 export const TILE = 16;
 export const COLS = 32;
@@ -349,18 +349,18 @@ export function drawDesk(ctx: Ctx, d: Desk, opts: { active: boolean; waiting: bo
   const mx = px(d.cx) + 8;
   const my = top - 12;
   rect(ctx, mx - 1, my - 1, 15, 13, c.outline);
-  rect(ctx, mx, my, 13, 11, opts.active ? "#0f2a22" : opts.waiting ? "#3a2a10" : "#1c2230");
+  rect(ctx, mx, my, 13, 11, opts.active ? "#0f2a22" : opts.waiting ? palette.navy900 : "#1c2230");
   if (opts.active) {
     // linhas de código "rolando"
     const scroll = Math.floor(opts.t / 180);
     const colors = ["#3fbf86", "#5aaef0", "#f2c14e", "#ef5f7b", "#c8d0dc"];
     for (let i = 0; i < 4; i++) {
       const len = 3 + ((i * 5 + scroll * 3) % 7);
-      rect(ctx, mx + 2 + ((i + scroll) % 2) * 2, my + 2 + i * 2.2, len, 1.4, colors[(i + scroll) % colors.length]);
+      rect(ctx, mx + 2 + ((i + scroll) % 2) * 2, my + 2 + i * 2, len, 1, colors[(i + scroll) % colors.length]);
     }
   } else if (opts.waiting) {
-    if (Math.floor(opts.t / 400) % 2 === 0) rect(ctx, mx + 6, my + 2, 2, 5, "#f2c14e");
-    rect(ctx, mx + 6, my + 8, 2, 1, "#f2c14e");
+    if (Math.floor(opts.t / 400) % 2 === 0) rect(ctx, mx + 6, my + 2, 2, 5, palette.signal.waiting);
+    rect(ctx, mx + 6, my + 8, 2, 1, palette.signal.waiting);
   }
   rect(ctx, mx + 5, my + 11, 3, 3, "#3a3f4d");
   rect(ctx, mx + 2, my + 13, 9, 2, "#3a3f4d");
