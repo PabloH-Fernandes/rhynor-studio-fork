@@ -74,9 +74,12 @@ export default function App() {
 
       <aside className="panel">
         <header className="panel-head">
-          <div>
-            <h1>{theme.officeName}</h1>
-            <p className="sub">{theme.subtitle}</p>
+          <div className="brand">
+            <img className="brand-mark" src="/logo-ag-simbolo.png" alt="Andrade Gutierrez" width={36} height={36} />
+            <div>
+              <h1>{theme.officeName}</h1>
+              <p className="sub">{theme.subtitle}</p>
+            </div>
           </div>
           <span className={`conn conn-${conn}`} title={`Servidor ${conn}`}>
             <i /> {conn}
