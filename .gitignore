@@ -1,3 +1,7 @@
 node_modules/
 web/dist/
 *.backup-*
+.playwright-mcp/
+# elenco salvo pelo servidor (o exemplo versionado é o padrão)
+data/*
+!data/agzinhos.example.json

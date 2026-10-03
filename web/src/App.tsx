@@ -24,7 +24,7 @@ const KIND_ICON: Record<FeedItem["kind"], string> = {
 
 export default function App() {
   const officeRef = useRef<OfficeHandle>(null);
-  const { agents, feed, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const { agents, feed, roster, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -52,7 +52,7 @@ export default function App() {
   return (
     <div className="app">
       <main className="stage">
-        <OfficeCanvas ref={officeRef} agents={list} selectedId={selectedId} onSelect={setSelectedId} />
+        <OfficeCanvas ref={officeRef} agents={list} roster={roster} selectedId={selectedId} onSelect={setSelectedId} />
         {list.length === 0 && conn === "online" && (
           <div className="empty">
             <p className="empty-title">Escritório vazio</p>
@@ -75,7 +75,7 @@ export default function App() {
       <aside className="panel">
         <header className="panel-head">
           <div className="brand">
-            <img className="brand-mark" src="/logo-ag-simbolo.png" alt="Andrade Gutierrez" width={36} height={36} />
+            <img className="brand-mark" src="/favicon-agpocket.svg" alt="" width={36} height={36} />
             <div>
               <h1>{theme.officeName}</h1>
               <p className="sub">{theme.subtitle}</p>

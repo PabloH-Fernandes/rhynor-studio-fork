@@ -6,6 +6,8 @@
 //  dos uniformes pra bater com o manual de marca.
 // =====================================================================
 
+import { HAIR_COLORS, SKIN_TONES } from "../../shared/roster";
+
 /**
  * Paleta da identidade AG (marinho + branco). Fonte única dos HEX:
  * as variáveis CSS em styles.css (:root) espelham estes valores — manter em sincronia.
@@ -239,8 +241,8 @@ const blazer = (shirt: string, shirtShade: string, accent: string, pants: string
 });
 
 export const theme: Theme = {
-  officeName: "Escritório de IA",
-  subtitle: "Andrade Gutierrez · time de agentes",
+  officeName: "AG Pocket",
+  subtitle: "Andrade Gutierrez · AGzinhos",
   logoUrl: "/logo-ag-horizontal.png",
 
   colors: {
@@ -301,18 +303,6 @@ export const theme: Theme = {
 export const uniformFor = (role: string) => theme.uniforms[role] ?? theme.uniforms.convidado;
 export const roleColor = (role: string) => theme.roleColors[role] ?? theme.roleColors.convidado;
 
-/** tons de pele e cabelo, sorteados de forma fixa pelo id do agente */
-export const SKINS = ["#f1c9a5", "#e0ac84", "#c68b62", "#a86f4c", "#7d5038", "#5c3a28"];
-export const HAIRS = [
-  "#2a1d17",
-  "#4a3021",
-  "#7a4b2a",
-  "#c58a4a",
-  "#e2c27a",
-  "#1c1c1c",
-  "#8c8c8c",
-  "#6b2f2f",
-  "#B8BCC4", // grisalho
-  "#8A3B1F", // ruivo
-  "#D9B46A", // loiro
-];
+/** tons de pele e cabelo, sorteados de forma fixa pelo id do agente (a lista mora em shared/roster.ts) */
+export const SKINS: readonly string[] = SKIN_TONES.map((t) => t.hex);
+export const HAIRS: readonly string[] = HAIR_COLORS.map((c) => c.hex);

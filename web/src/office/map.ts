@@ -580,7 +580,7 @@ export const PROPS: Prop[] = [
 export function drawDesk(
   ctx: Ctx,
   d: Desk,
-  opts: { active: boolean; waiting: boolean; occupantName?: string; t: number; reducedMotion?: boolean },
+  opts: { active: boolean; waiting: boolean; occupantName?: string; nickname?: string; t: number; reducedMotion?: boolean },
 ) {
   const c = theme.colors;
   const wTiles = d.big ? 3.6 : 2.75;
@@ -632,17 +632,82 @@ export function drawDesk(
   rect(ctx, x + 10, top + 3, 8, 5, palette.white);
   rect(ctx, x + 11, top + 5, 5, 1, palette.gray300);
 
-  // plaquinha
-  const label = d.role === "convidado" ? (opts.occupantName ?? "LIVRE").toUpperCase() : theme.deskLabels[d.role] ?? d.role.toUpperCase();
+  // plaquinha: apelido do AGzinho da mesa (elenco); sem elenco, o nome do setor
+  const label =
+    d.role === "convidado"
+      ? (opts.occupantName ?? "LIVRE").toUpperCase()
+      : (opts.nickname || theme.deskLabels[d.role] || d.role).toLocaleUpperCase("pt-BR");
   const color = roleColor(d.role === "convidado" ? "convidado" : d.role);
   ctx.font = `5px "Press Start 2P", monospace`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const tw = Math.min(ctx.measureText(label).width + 6, w - 4);
-  const plateY = top + depth + 2;
-  rect(ctx, px(d.cx) - tw / 2, plateY, tw, 6, color);
-  ctx.fillStyle = palette.navy950;
-  ctx.fillText(label, px(d.cx), plateY + 3.3, w - 8);
+  const plain = stripAccents(label);
+  const tw = Math.min(ctx.measureText(plain).width + 6, w - 4);
+  // 7px de altura: 1px de cima fica para os acentos (LÚCIA, TOMÁS)
+  const plateY = top + depth + 1;
+  rect(ctx, px(d.cx) - tw / 2, plateY, tw, 7, color);
+  fillPlateText(ctx, label, px(d.cx), plateY + 4.3, w - 8, palette.navy950);
+}
+
+const MARK_ACUTE = "\u0301";
+const MARK_GRAVE = "\u0300";
+const MARK_CIRCUMFLEX = "\u0302";
+const MARK_TILDE = "\u0303";
+const MARK_CEDILLA = "\u0327";
+
+function stripAccents(s: string) {
+  return s.normalize("NFD").replace(/\p{M}/gu, "");
+}
+
+/**
+ * Texto da plaquinha. A Press Start 2P espreme as maiúsculas acentuadas na mesma célula
+ * e, a 5px, "Ú" vira um "ú". Então escreve a letra sem acento e desenha o acento à mão
+ * logo acima (ou a cedilha logo abaixo). Usa textAlign center e textBaseline middle.
+ */
+function fillPlateText(ctx: Ctx, label: string, cx: number, cy: number, maxW: number, color: string) {
+  let base = "";
+  const marks: { at: number; mark: string }[] = [];
+  for (const ch of label.normalize("NFD")) {
+    if (/\p{M}/u.test(ch)) marks.push({ at: base.length - 1, mark: ch });
+    else base += ch;
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(base, cx, cy, maxW);
+  if (!marks.length) return;
+
+  const full = ctx.measureText(base).width;
+  const k = full > maxW ? maxW / full : 1; // fillText comprime quando passa do maxW
+  const left = cx - (full * k) / 2;
+  const top = cy - 2.5; // topo da letra de 5px
+  for (const { at, mark } of marks) {
+    if (at < 0) continue;
+    const x0 = left + ctx.measureText(base.slice(0, at)).width * k;
+    const mid = x0 + (ctx.measureText(base[at]).width * k) / 2 - 0.4; // a célula tem 1px de respiro à direita
+    switch (mark) {
+      case MARK_ACUTE:
+        ctx.fillRect(mid - 0.25, top - 0.75, 1, 0.5);
+        ctx.fillRect(mid + 0.25, top - 1.25, 1, 0.5);
+        break;
+      case MARK_GRAVE:
+        ctx.fillRect(mid - 0.75, top - 1.25, 1, 0.5);
+        ctx.fillRect(mid - 0.25, top - 0.75, 1, 0.5);
+        break;
+      case MARK_CIRCUMFLEX:
+        ctx.fillRect(mid - 1, top - 0.75, 0.75, 0.5);
+        ctx.fillRect(mid - 0.375, top - 1.25, 0.75, 0.5);
+        ctx.fillRect(mid + 0.25, top - 0.75, 0.75, 0.5);
+        break;
+      case MARK_TILDE:
+        ctx.fillRect(mid - 1.25, top - 0.75, 0.75, 0.5);
+        ctx.fillRect(mid - 0.5, top - 1.25, 1, 0.5);
+        ctx.fillRect(mid + 0.5, top - 0.75, 0.75, 0.5);
+        ctx.fillRect(mid + 1.25, top - 1.25, 0.5, 0.5);
+        break;
+      case MARK_CEDILLA:
+        ctx.fillRect(mid - 0.25, top + 5, 0.75, 1);
+        break;
+    }
+  }
 }
 
 /** tela do monitor de uma mesa (px base); o lightmap usa pra luz e brilho */

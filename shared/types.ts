@@ -1,5 +1,10 @@
 // Tipos compartilhados entre o servidor e o frontend.
 
+import type { Roster } from "./roster.ts";
+
+// só os tipos; valores (DEFAULT_ROSTER, validateRoster...) vêm direto de shared/roster
+export type { Acessorio, AGzinho, Destaque, EstiloCabelo, Genero, Roster, RosterResult, Roupa, Swatch } from "./roster.ts";
+
 export type AgentStatus =
   | "chegando" // andando da porta até a mesa
   | "trabalhando" // usando alguma ferramenta
@@ -37,9 +42,11 @@ export interface FeedItem {
 }
 
 export type ServerMessage =
-  | { type: "snapshot"; agents: Agent[]; feed: FeedItem[] }
+  | { type: "snapshot"; agents: Agent[]; feed: FeedItem[]; roster: Roster }
   | { type: "agent"; agent: Agent }
   | { type: "remove"; id: string }
   | { type: "feed"; item: FeedItem }
   /** um agente mandou mensagem pra outro (agent teams / SendMessage) */
-  | { type: "chat"; fromId: string; toId: string; text: string };
+  | { type: "chat"; fromId: string; toId: string; text: string }
+  /** o elenco mudou (PUT /api/roster) */
+  | { type: "roster"; roster: Roster };

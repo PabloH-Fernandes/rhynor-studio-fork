@@ -11,7 +11,8 @@
     "install-hooks": "node scripts/install-hooks.mjs",
     "uninstall-hooks": "node scripts/install-hooks.mjs --remove",
     "install-agents": "node scripts/install-agents.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"server/**/*.test.ts\" \"shared/**/*.test.ts\""
   },
   "dependencies": {
     "express": "^4.21.2",

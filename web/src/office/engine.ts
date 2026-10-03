@@ -1,7 +1,8 @@
 // Motor do escritório: guarda a posição de cada personagem, decide pra onde ele vai
 // (mesa, café, reunião, porta), anda pelos caminhos e desenha tudo no canvas.
 
-import type { Agent } from "../../../shared/types";
+import type { Agent, Roster } from "../../../shared/types";
+import { agzinhoDoPapel } from "../../../shared/roster";
 import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor } from "../theme";
 import { fill, line } from "./decor";
 import { Lightmap, clockDate, windowLight, type LightScene } from "./daylight";
@@ -123,6 +124,8 @@ export class OfficeEngine {
   private envelopes: Envelope[] = [];
   private logo: HTMLImageElement | null = null;
   private lightmap = new Lightmap();
+  /** elenco vindo do servidor; null até o primeiro snapshot */
+  roster: Roster | null = null;
   selectedId: string | null = null;
   hoverId: string | null = null;
   onSelect?: (id: string | null) => void;
@@ -359,6 +362,7 @@ export class OfficeEngine {
             active: !!seated && (seated.agent.status === "trabalhando" || seated.agent.status === "pensando"),
             waiting: !!seated && seated.agent.status === "esperando",
             occupantName: occupant?.agent.name,
+            nickname: this.roster ? agzinhoDoPapel(this.roster, d.role)?.apelido : undefined,
             t: now,
             reducedMotion: isReducedMotion(),
           }),

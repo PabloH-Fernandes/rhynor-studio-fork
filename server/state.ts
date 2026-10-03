@@ -3,6 +3,7 @@
 
 import path from "node:path";
 import type { Agent, AgentStatus, FeedItem, ServerMessage } from "../shared/types.ts";
+import { DEFAULT_ROSTER, type Roster } from "../shared/roster.ts";
 
 /** Formato (parcial) do JSON que o Claude Code manda no stdin de cada hook. */
 export interface HookInput {
@@ -54,6 +55,7 @@ export class OfficeState {
   private listeners = new Set<Listener>();
   private pending = new Map<string, PendingSpawn>(); // tool_use_id -> spawn ainda sem SubagentStart
   private removalTimers = new Map<string, NodeJS.Timeout>();
+  private roster: Roster = structuredClone(DEFAULT_ROSTER);
 
   constructor() {
     // limpeza de agentes "fantasma" (ex.: terminal fechado à força)
@@ -66,7 +68,21 @@ export class OfficeState {
   }
 
   snapshot(): ServerMessage {
-    return { type: "snapshot", agents: [...this.agents.values()], feed: this.feed.slice(-60) };
+    return { type: "snapshot", agents: [...this.agents.values()], feed: this.feed.slice(-60), roster: this.roster };
+  }
+
+  getRoster(): Roster {
+    return this.roster;
+  }
+
+  /**
+   * Troca o elenco e avisa as telas. Por enquanto só guarda e reemite os agentes vivos;
+   * o mapeamento agente → AGzinho entra na etapa 2.
+   */
+  setRoster(roster: Roster) {
+    this.roster = roster;
+    this.emit({ type: "roster", roster });
+    for (const agent of this.agents.values()) this.emit({ type: "agent", agent });
   }
 
   /** Apaga tudo (usado pelo botão de reset da tela). */

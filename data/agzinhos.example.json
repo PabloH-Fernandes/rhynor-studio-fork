@@ -1,0 +1,336 @@
+{
+  "versao": 1,
+  "atualizadoEm": "2026-10-03T00:00:00.000Z",
+  "agzinhos": [
+    {
+      "key": "lider",
+      "papel": "lider",
+      "nome": "Augusto Vilela",
+      "apelido": "GUTO",
+      "cargo": "Líder",
+      "genero": "masculino",
+      "pele": "#c68b62",
+      "cabelo": {
+        "estilo": "franja-lateral",
+        "cor": "#B8BCC4"
+      },
+      "roupa": "terno",
+      "destaque": "gravata-dourada",
+      "acessorios": [
+        "relogio"
+      ],
+      "cordao": "#F2C14E",
+      "matricula": "AG-0001",
+      "personalidade": "calmo, decidido, gentil",
+      "falas": [
+        "Bora alinhar rapidinho?",
+        "Bom trabalho, time!",
+        "Quem pega essa?",
+        "Café e foco, pessoal."
+      ]
+    },
+    {
+      "key": "planejador",
+      "papel": "planejador",
+      "nome": "Marina Toledo",
+      "apelido": "MARINA",
+      "cargo": "Planejadora",
+      "genero": "feminino",
+      "pele": "#f1c9a5",
+      "cabelo": {
+        "estilo": "coque",
+        "cor": "#4a3021"
+      },
+      "roupa": "blazer",
+      "acessorios": [
+        "prancheta"
+      ],
+      "cordao": "#9B82FF",
+      "matricula": "AG-0002",
+      "personalidade": "organizada, metódica, otimista",
+      "falas": [
+        "Já anotei no quadro!",
+        "Passo a passo, gente.",
+        "Prazo tá folgado.",
+        "Cada coisa no lugar."
+      ]
+    },
+    {
+      "key": "pesquisador",
+      "papel": "pesquisador",
+      "nome": "Caio Nogueira",
+      "apelido": "CAIO",
+      "cargo": "Pesquisador",
+      "genero": "masculino",
+      "pele": "#a86f4c",
+      "cabelo": {
+        "estilo": "cacheado",
+        "cor": "#1c1c1c"
+      },
+      "roupa": "polo",
+      "acessorios": [
+        "oculos"
+      ],
+      "cordao": "#E2BD3C",
+      "matricula": "AG-0003",
+      "personalidade": "curioso, detalhista, falante",
+      "falas": [
+        "Li um artigo ótimo!",
+        "Tem doc pra tudo, viu?",
+        "Sabia que tem versão nova?",
+        "Deixa eu conferir isso."
+      ]
+    },
+    {
+      "key": "dev",
+      "papel": "dev",
+      "nome": "Beatriz Lima",
+      "apelido": "BIA",
+      "cargo": "Desenvolvedora",
+      "genero": "feminino",
+      "pele": "#7d5038",
+      "cabelo": {
+        "estilo": "trancas",
+        "cor": "#1c1c1c"
+      },
+      "roupa": "camisa",
+      "acessorios": [
+        "headset"
+      ],
+      "cordao": "#3FBF86",
+      "matricula": "AG-0004",
+      "personalidade": "focada, criativa, bem-humorada",
+      "falas": [
+        "Compilou de primeira!",
+        "Só mais um commit...",
+        "Quem mexeu no meu CSS?",
+        "Tá rodando aqui!"
+      ]
+    },
+    {
+      "key": "testador",
+      "papel": "testador",
+      "nome": "Rafael Mendes",
+      "apelido": "RAFA",
+      "cargo": "Testador",
+      "genero": "masculino",
+      "pele": "#e0ac84",
+      "cabelo": {
+        "estilo": "curto",
+        "cor": "#7a4b2a"
+      },
+      "roupa": "polo",
+      "acessorios": [
+        "relogio"
+      ],
+      "cordao": "#2EC4B6",
+      "matricula": "AG-0005",
+      "personalidade": "cuidadoso, paciente, cético",
+      "falas": [
+        "Rodei 3 vezes, passou.",
+        "E se clicar duas vezes?",
+        "Achei um caso de borda.",
+        "Confia, mas testa."
+      ]
+    },
+    {
+      "key": "revisor",
+      "papel": "revisor",
+      "nome": "Lúcia Ferraz",
+      "apelido": "LÚCIA",
+      "cargo": "Revisora",
+      "genero": "feminino",
+      "pele": "#5c3a28",
+      "cabelo": {
+        "estilo": "chanel",
+        "cor": "#2a1d17"
+      },
+      "roupa": "blazer",
+      "destaque": "blazer-cinza",
+      "acessorios": [
+        "oculos"
+      ],
+      "cordao": "#EF5F7B",
+      "matricula": "AG-0006",
+      "personalidade": "criteriosa, sincera, gentil",
+      "falas": [
+        "Ficou bem legível!",
+        "Só um detalhezinho...",
+        "Esse nome tá ótimo.",
+        "Aprovado com carinho."
+      ]
+    },
+    {
+      "key": "documentador",
+      "papel": "documentador",
+      "nome": "Davi Sampaio",
+      "apelido": "DAVI",
+      "cargo": "Documentador",
+      "genero": "masculino",
+      "pele": "#f1c9a5",
+      "cabelo": {
+        "estilo": "raspado",
+        "cor": "#4a3021"
+      },
+      "roupa": "camisa",
+      "acessorios": [
+        "lapis",
+        "barba"
+      ],
+      "cordao": "#5AAEF0",
+      "matricula": "AG-0007",
+      "personalidade": "didático, calmo, caprichoso",
+      "falas": [
+        "Já tá no README!",
+        "Um exemplo ajuda, né?",
+        "Escrevi bem simples.",
+        "Faltou só um print."
+      ]
+    },
+    {
+      "key": "dev-2",
+      "papel": "dev",
+      "variacaoDe": "dev",
+      "nome": "Yasmin Okada",
+      "apelido": "YASMIN",
+      "cargo": "Desenvolvedora",
+      "genero": "feminino",
+      "pele": "#f1c9a5",
+      "cabelo": {
+        "estilo": "comprido",
+        "cor": "#1c1c1c"
+      },
+      "roupa": "polo",
+      "acessorios": [
+        "headset"
+      ],
+      "cordao": "#A6D854",
+      "matricula": "AG-0008",
+      "personalidade": "animada, rápida, prática",
+      "falas": [
+        "Pareando com a Bia!",
+        "Testa aí no seu PC?",
+        "Subi a correção já.",
+        "Bora que dá tempo!"
+      ]
+    },
+    {
+      "key": "pesquisador-2",
+      "papel": "pesquisador",
+      "variacaoDe": "pesquisador",
+      "nome": "Tomás Ribeiro",
+      "apelido": "TOMÁS",
+      "cargo": "Pesquisador",
+      "genero": "masculino",
+      "pele": "#5c3a28",
+      "cabelo": {
+        "estilo": "curto",
+        "cor": "#1c1c1c"
+      },
+      "roupa": "camisa",
+      "acessorios": [
+        "prancheta"
+      ],
+      "cordao": "#D98FD3",
+      "matricula": "AG-0009",
+      "personalidade": "tranquilo, observador, nerd",
+      "falas": [
+        "Achei a fonte original!",
+        "Anotei 3 referências.",
+        "Vale ler o changelog.",
+        "Hmm, interessante..."
+      ]
+    },
+    {
+      "key": "explore",
+      "papel": "convidado",
+      "agentTypes": [
+        "explore"
+      ],
+      "nome": "Iara Campos",
+      "apelido": "IARA",
+      "cargo": "Exploradora",
+      "genero": "feminino",
+      "pele": "#a86f4c",
+      "cabelo": {
+        "estilo": "rabo-de-cavalo",
+        "cor": "#6b2f2f"
+      },
+      "roupa": "polo",
+      "destaque": "cracha-visitante",
+      "acessorios": [
+        "capacete-branco"
+      ],
+      "cordao": "#B7A58C",
+      "matricula": "AG-0010",
+      "personalidade": "aventureira, rápida, sorridente",
+      "falas": [
+        "Já vasculhei tudo!",
+        "Achei na pasta src/",
+        "Mapa do projeto pronto.",
+        "Partiu explorar!"
+      ]
+    },
+    {
+      "key": "general-purpose",
+      "papel": "convidado",
+      "agentTypes": [
+        "general-purpose"
+      ],
+      "nome": "Jorge Batista",
+      "apelido": "JORGE",
+      "cargo": "Generalista",
+      "genero": "masculino",
+      "pele": "#c68b62",
+      "cabelo": {
+        "estilo": "raspado",
+        "cor": "#B8BCC4"
+      },
+      "roupa": "camisa",
+      "destaque": "cracha-visitante",
+      "acessorios": [
+        "colete"
+      ],
+      "cordao": "#A3A8B5",
+      "matricula": "AG-0011",
+      "personalidade": "prestativo, versátil, tranquilo",
+      "falas": [
+        "Precisa de mão aí?",
+        "Faço o que precisar!",
+        "Deixa comigo.",
+        "Já já fica pronto."
+      ]
+    },
+    {
+      "key": "curinga",
+      "papel": "convidado",
+      "agentTypes": [
+        "plan",
+        "*"
+      ],
+      "nome": "Sofia Arruda",
+      "apelido": "SOFIA",
+      "cargo": "Consultora",
+      "genero": "feminino",
+      "pele": "#e0ac84",
+      "cabelo": {
+        "estilo": "comprido",
+        "cor": "#c58a4a"
+      },
+      "roupa": "polo",
+      "destaque": "cracha-visitante",
+      "acessorios": [
+        "caneca"
+      ],
+      "cordao": "#8A9A5B",
+      "matricula": "AG-0012",
+      "personalidade": "gentil, estratégica, curiosa",
+      "falas": [
+        "Posso dar uma ideia?",
+        "Visitando o time hoje!",
+        "Que escritório lindo!",
+        "Gostei desse plano."
+      ]
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const API = `http://localhost:${process.env.PORT ?? 4747}`;
+// 127.0.0.1 e não localhost: no Windows o localhost pode resolver para ::1 e o servidor só ouve IPv4
+const API = `http://127.0.0.1:${process.env.PORT ?? 4747}`;
 
 export default defineConfig({
   root: "web",
