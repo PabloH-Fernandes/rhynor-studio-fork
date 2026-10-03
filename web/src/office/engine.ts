@@ -2,14 +2,16 @@
 // (mesa, café, reunião, porta), anda pelos caminhos e desenha tudo no canvas.
 
 import type { Agent } from "../../../shared/types";
-import { HAIRS, SKINS, palette, roleColor, theme, uniformFor } from "../theme";
+import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor } from "../theme";
+import { fill, line } from "./decor";
 import {
   AISLE_Y,
   COFFEE_SPOTS,
   DESKS,
   DOOR_SPOT,
-  H,
   OVERFLOW_SPOTS,
+  PROPS,
+  SIGN,
   TILE,
   W,
   deskSpot,
@@ -21,7 +23,6 @@ import {
   drawDesk,
   drawFloor,
   drawMeetingTable,
-  drawPlant,
   drawSign,
   route,
   type Desk,
@@ -297,14 +298,7 @@ export class OfficeEngine {
     }
     items.push({ y: 11.2 * TILE + 10, draw: () => drawMeetingTable(ctx) });
     items.push({ y: 16.1 * TILE, draw: () => drawCoffeeCorner(ctx, now, visuals.some((v) => v.at.id.startsWith("cafe:") && !v.path.length)) });
-    for (const [x, y, big] of [
-      [8, 62, true],
-      [W - 10, 62, true],
-      [8, H - 4, false],
-      [19.4 * TILE, 15 * TILE - 4, false],
-    ] as [number, number, boolean][]) {
-      items.push({ y, draw: () => drawPlant(ctx, x, y, big) });
-    }
+    for (const p of PROPS) items.push({ y: p.y, draw: () => p.draw(ctx, now) });
 
     for (const v of visuals) {
       items.push({
@@ -327,11 +321,7 @@ export class OfficeEngine {
     const y = v.y * TILE;
     const selected = this.selectedId === v.agent.id;
     if ((selected || this.hoverId === v.agent.id) && !sitting) {
-      ctx.strokeStyle = selected ? "#f2c14e" : "rgba(255,255,255,0.7)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.ellipse(x, y, 8, 3, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      selectionRing(ctx, x, y, selected ? palette.navy900 : palette.navy500);
     }
     drawCharacter(ctx, x, y, v.look, {
       dir: v.dir,
@@ -373,12 +363,12 @@ export class OfficeEngine {
     } else if (status === "pensando" && !v.path.length) {
       const k = Math.floor(now / 300) % 4;
       for (let i = 0; i < 3; i++) {
-        ctx.fillStyle = i < k ? "#ffffff" : "rgba(255,255,255,0.35)";
+        ctx.fillStyle = i < k ? palette.white : "rgba(255,255,255,0.35)";
         ctx.fillRect(Math.round(head.x - 5 + i * 4), Math.round(top - 4), 2, 2);
       }
       top -= 6;
     } else if (v.at.id.startsWith("cafe:") && !v.path.length) {
-      ctx.fillStyle = "#f4f1e8";
+      ctx.fillStyle = palette.white;
       ctx.fillRect(Math.round(head.x + 5), Math.round(top + 10), 4, 4);
       ctx.fillStyle = "rgba(255,255,255,0.6)";
       ctx.fillRect(Math.round(head.x + 6), Math.round(top + 6 - (Math.floor(now / 300) % 2)), 1, 3);
@@ -386,27 +376,31 @@ export class OfficeEngine {
 
     // balão: mensagem de chat > atividade recente > selecionado > esperando
     let text: string | null = null;
-    let color = "#ffffff";
+    let color: string = palette.white;
     if (v.chat && now < v.chat.until) {
       text = v.chat.text;
-      color = "#fff6d6";
+      color = palette.navy100;
     } else if (!v.leaving && (now - v.activityAt < BUBBLE_MS || selected || status === "esperando")) {
       text = v.agent.activity;
     }
 
     if (text) {
-      drawBubble(ctx, head.x, top, text, color);
+      drawBubble(ctx, head.x, top, head.y, text, color);
     } else {
       // só o nome
       ctx.font = `7px VT323, monospace`;
-      ctx.textAlign = "center";
+      ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
       const name = v.agent.name;
-      const w = ctx.measureText(name).width + 4;
-      ctx.fillStyle = "rgba(20,18,28,0.55)";
-      ctx.fillRect(Math.round(head.x - w / 2), Math.round(top - 7), Math.round(w), 7);
-      ctx.fillStyle = roleColor(v.agent.role);
-      ctx.fillText(name, head.x, top);
+      // quadradinho 2x2 na cor do papel antes do nome (+3 px na largura)
+      const w = Math.round(ctx.measureText(name).width + 7);
+      const lx = Math.round(head.x - w / 2);
+      const ly = Math.round(top - 7);
+      ctx.fillStyle = inkAlpha(0.7);
+      ctx.fillRect(lx, ly, w, 7);
+      fill(ctx, lx + 2, ly + 3, 2, 2, roleColor(v.agent.role));
+      ctx.fillStyle = palette.white;
+      ctx.fillText(name, lx + 5, top);
     }
   }
 
@@ -420,19 +414,14 @@ export class OfficeEngine {
     const hb = this.headPoint(b);
     const x = ha.x + (hb.x - ha.x) * ease;
     const y = ha.y + (hb.y - ha.y) * ease - Math.sin(ease * Math.PI) * 26;
-    ctx.fillStyle = "#1d1a24";
-    ctx.fillRect(Math.round(x - 6), Math.round(y - 4), 12, 9);
-    ctx.fillStyle = "#fbf8f0";
-    ctx.fillRect(Math.round(x - 5), Math.round(y - 3), 10, 7);
-    ctx.fillStyle = "#d64561";
-    ctx.fillRect(Math.round(x - 1), Math.round(y), 2, 2);
-    ctx.strokeStyle = "#8a8f9c";
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    ctx.moveTo(x - 5, y - 3);
-    ctx.lineTo(x, y + 1);
-    ctx.lineTo(x + 5, y - 3);
-    ctx.stroke();
+    // envelope branco com contorno marinho, aba em 1px e lacre navy900
+    const ex = Math.round(x - 6);
+    const ey = Math.round(y - 4);
+    fill(ctx, ex, ey, 12, 9, palette.navy900);
+    fill(ctx, ex + 1, ey + 1, 10, 7, palette.white);
+    line(ctx, ex + 1, ey + 1, ex + 5, ey + 4, palette.navy300);
+    line(ctx, ex + 10, ey + 1, ex + 6, ey + 4, palette.navy300);
+    fill(ctx, ex + 5, ey + 4, 2, 2, palette.navy900);
   }
 
   // ------------------------------------------------------------ interação
@@ -467,7 +456,28 @@ function roundBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
   ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
 }
 
-function drawBubble(ctx: CanvasRenderingContext2D, cx: number, bottom: number, text: string, fill: string) {
+/** anel de seleção em pixel (oval 17x7) no chão, embaixo do personagem */
+function selectionRing(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
+  x = Math.round(x);
+  y = Math.round(y);
+  fill(ctx, x - 5, y - 3, 11, 1, color);
+  fill(ctx, x - 7, y - 2, 2, 1, color);
+  fill(ctx, x + 6, y - 2, 2, 1, color);
+  fill(ctx, x - 8, y - 1, 1, 3, color);
+  fill(ctx, x + 8, y - 1, 1, 3, color);
+  fill(ctx, x - 7, y + 2, 2, 1, color);
+  fill(ctx, x + 6, y + 2, 2, 1, color);
+  fill(ctx, x - 5, y + 3, 11, 1, color);
+}
+
+const BUBBLE_INK = palette.navy900;
+const BUBBLE_BORDER = palette.navy950;
+
+/**
+ * Balão de fala acima da cabeça. Se ele cairia em cima da placa da logo (líder sentado ou
+ * andando perto dela), vai pro lado da cabeça, logo abaixo da placa, com o rabinho virado pra ela.
+ */
+function drawBubble(ctx: CanvasRenderingContext2D, cx: number, bottom: number, headY: number, text: string, bg: string) {
   ctx.font = `8px VT323, monospace`;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
@@ -478,18 +488,39 @@ function drawBubble(ctx: CanvasRenderingContext2D, cx: number, bottom: number, t
   const h = lines.length * 8 + 4;
   let x = Math.round(cx - w / 2);
   x = Math.max(2, Math.min(W - w - 2, x));
-  const y = Math.round(bottom - h - 4);
-  roundBox(ctx, x, y, w, h, fill, "#1d1a24");
-  // rabinho
-  const tx = Math.round(Math.max(x + 3, Math.min(x + w - 6, cx - 2)));
-  ctx.fillStyle = "#1d1a24";
-  ctx.fillRect(tx, y + h - 1, 5, 2);
-  ctx.fillRect(tx + 1, y + h + 1, 3, 1);
-  ctx.fillRect(tx + 2, y + h + 2, 1, 1);
-  ctx.fillStyle = fill;
-  ctx.fillRect(tx + 1, y + h - 1, 3, 1);
-  ctx.fillRect(tx + 2, y + h, 1, 1);
-  ctx.fillStyle = "#1d1a24";
+  let y = Math.round(bottom - h - 4);
+  const signBottom = SIGN.y + SIGN.h;
+  const overSign = y < signBottom && x < SIGN.x + SIGN.w && x + w > SIGN.x;
+  if (overSign) {
+    // ao lado: à esquerda da cabeça (ou à direita, se não couber), centrado na altura do rosto
+    const left = cx - 10 - w >= 2;
+    x = Math.round(left ? cx - 10 - w : cx + 10);
+    y = Math.max(signBottom + 1, Math.round(headY + 2 - h / 2));
+    roundBox(ctx, x, y, w, h, bg, BUBBLE_BORDER);
+    const ty = Math.round(Math.max(y + 2, Math.min(y + h - 7, headY)));
+    // rabinho lateral apontando pra cabeça
+    const ex = left ? x + w - 1 : x;
+    const s = left ? 1 : -1;
+    ctx.fillStyle = BUBBLE_BORDER;
+    ctx.fillRect(left ? ex : ex - 1, ty, 2, 5);
+    ctx.fillRect(ex + 2 * s, ty + 1, 1, 3);
+    ctx.fillRect(ex + 3 * s, ty + 2, 1, 1);
+    ctx.fillStyle = bg;
+    ctx.fillRect(ex, ty + 1, 1, 3);
+    ctx.fillRect(ex + s, ty + 2, 1, 1);
+  } else {
+    roundBox(ctx, x, y, w, h, bg, BUBBLE_BORDER);
+    // rabinho
+    const tx = Math.round(Math.max(x + 3, Math.min(x + w - 6, cx - 2)));
+    ctx.fillStyle = BUBBLE_BORDER;
+    ctx.fillRect(tx, y + h - 1, 5, 2);
+    ctx.fillRect(tx + 1, y + h + 1, 3, 1);
+    ctx.fillRect(tx + 2, y + h + 2, 1, 1);
+    ctx.fillStyle = bg;
+    ctx.fillRect(tx + 1, y + h - 1, 3, 1);
+    ctx.fillRect(tx + 2, y + h, 1, 1);
+  }
+  ctx.fillStyle = BUBBLE_INK;
   lines.forEach((l, i) => ctx.fillText(l, x + 4, y + 6 + i * 8));
 }
 

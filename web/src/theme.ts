@@ -16,7 +16,7 @@ export const palette = {
   suit: "#0A1428", // terno do líder
   navy900: "#051733", // marca: placa, painel, lambril
   navy850: "#0E2A57", // polo marinho
-  navy800: "#0B2550", // cards, calças, frente das mesas
+  navy800: "#0B2550", // cards, calças, filete do tampo e moldura dos monitores
   navy700: "#163768", // blazer do planejador, tapete
   navy600: "#2A4F86", // botão secundário, bordas
   navy600Hover: "#35609C", // hover do botão secundário
@@ -79,6 +79,32 @@ export const palette = {
     paintingSky: "#CFE3F5",
     paintingHaze: "#E4EFF9",
     blueprint: "#BFD6F0",
+    /** base verde da maquete na mesa de reunião */
+    maquette: "#6FA06A",
+    maquetteShade: "#5A8756",
+  },
+  /** piso de porcelanato cinza-azulado */
+  floor: {
+    tileA: "#D9DEE6",
+    tileB: "#CFD5DE",
+    joint: "#BAC2CE",
+  },
+  /** mobília: tampo claro, madeira quente (só em detalhes), plantas e água do bebedouro */
+  furniture: {
+    /** tampo claro das mesas (carvalho claro) */
+    oakLight: "#F0E2C8",
+    oak: "#E2CCA6",
+    oakShade: "#C7A97E",
+    /** madeira quente da porta e da mesa de reunião */
+    wood: "#8B5E3C",
+    woodShade: "#6B452A",
+    woodLight: "#A87650",
+    woodDark: "#3A2A1E",
+    leafDark: "#2F6B45",
+    leaf: "#3F8A55",
+    leafLight: "#66B26E",
+    water: "#8FD0F5",
+    waterLight: "#C4E8FB",
   },
 } as const;
 
@@ -86,6 +112,9 @@ export type Palette = typeof palette;
 
 /** navy850 (#0E2A57) com alpha: sombras azuladas e tela de proteção */
 export const navyAlpha = (a: number) => `rgba(14, 42, 87, ${a})`;
+
+/** navy950 (#020B1C) com alpha: fundo da etiqueta de nome */
+export const inkAlpha = (a: number) => `rgba(2, 11, 28, ${a})`;
 
 /** polo e camisa levam a logo AG no peito; blazer e terno abrem em V mostrando a camisa (inner) */
 export type UniformKind = "polo" | "camisa" | "blazer" | "terno";
@@ -204,20 +233,20 @@ export const theme: Theme = {
   logoUrl: "/logo-ag-horizontal.png",
 
   colors: {
-    floorA: "#c9a77c",
-    floorB: "#bf9c70",
-    floorLine: "#a9855c",
-    rug: "#3f5f7a",
-    rugBorder: "#2e4659",
+    floorA: palette.floor.tileA,
+    floorB: palette.floor.tileB,
+    floorLine: palette.floor.joint,
+    rug: palette.navy100,
+    rugBorder: palette.navy900,
     wall: palette.gray100,
     wallJoint: palette.decor.wallJoint,
     wainscot: palette.navy900,
     wainscotTop: palette.navy800,
     trim: palette.white,
     wallShadow: navyAlpha(0.16),
-    wood: "#8b5e3c",
-    woodShade: "#6b452a",
-    woodLight: "#a87650",
+    wood: palette.furniture.wood,
+    woodShade: palette.furniture.woodShade,
+    woodLight: palette.furniture.woodLight,
     sign: palette.navy900,
     signText: palette.white,
     outline: palette.navy950,
