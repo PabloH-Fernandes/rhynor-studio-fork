@@ -27,11 +27,13 @@ interface Props {
   onClose: () => void;
   /** abre o vestiário pra esse AGzinho (key do elenco); sem handler o botão fica desabilitado */
   onPersonalizar?: (key: string) => void;
-  /** muda a cada seleção feita no canvas: no layout empilhado a página rola até o crachá */
-  revelar?: number;
+  /** seleção feita no canvas: no layout empilhado a página rola até o crachá */
+  revelar?: boolean;
+  /** avisa que o pedido de revelar já foi atendido */
+  onRevelado?: () => void;
 }
 
-export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPersonalizar, revelar = 0 }: Props) {
+export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPersonalizar, revelar = false, onRevelado }: Props) {
   const titleId = useId();
   const ag = agzinhoOf(agent, roster);
   const visitante = !ag;
@@ -75,10 +77,13 @@ export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPerso
   }, [close]);
 
   // Layout empilhado: clicou no boneco no canvas, a página rola até o crachá (lá embaixo do escritório).
+  // O pedido é consumido (onRevelado): reabrir o crachá depois pelo painel não rola de novo.
   useEffect(() => {
-    if (!revelar || !window.matchMedia(STACKED_QUERY).matches) return;
+    if (!revelar) return;
+    onRevelado?.();
+    if (!window.matchMedia(STACKED_QUERY).matches) return;
     sectionRef.current?.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
-  }, [revelar]);
+  }, [revelar, onRevelado]);
 
   // No desktop o painel rola sozinho e o crachá nasce abaixo da lista do time: traz pra vista dentro
   // do painel, rolando só o necessário (a linha selecionada fica visível sempre que cabe junto).
@@ -222,7 +227,7 @@ function Retrato({ agent, roster, nome }: { agent: Agent; roster: Roster | null;
 }
 
 /** devicePixelRatio que acompanha zoom do navegador e troca de monitor */
-function useDevicePixelRatio() {
+export function useDevicePixelRatio() {
   const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
   useEffect(() => {
     const mq = window.matchMedia(`(resolution: ${dpr}dppx)`);

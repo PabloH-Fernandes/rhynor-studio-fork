@@ -4,7 +4,11 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  ACESSORIOS,
+  CAMADA_DO_ACESSORIO,
+  CARGOS,
   DEFAULT_ROSTER,
+  cargoDe,
   DESTAQUES_PERMITIDOS,
   ESTILOS_CABELO,
   HAIR_STYLE_INDEX,
@@ -196,4 +200,27 @@ test("mergeWithDefaults põe o crachá de visitante no convidado salvo sem desta
   assert.equal(merged.agzinhos.find((a) => a.key === "explore")!.destaque, "cracha-visitante");
   assert.equal(merged.agzinhos.find((a) => a.key === "visita")!.destaque, "cracha-visitante");
   assert.equal(validateRoster(merged).ok, true);
+});
+
+test("o cargo do padrão combina com o gênero (cargoDe)", () => {
+  for (const a of DEFAULT_ROSTER.agzinhos) assert.equal(cargoDe(a.papel, a.genero, a.cargo), a.cargo, a.key);
+  assert.equal(cargoDe("dev", "masculino", "Desenvolvedora"), "Desenvolvedor");
+  assert.equal(cargoDe("convidado", "masculino", "Exploradora"), "Explorador");
+  assert.equal(cargoDe("convidado", "feminino", "Generalista"), "Generalista");
+  assert.equal(cargoDe("lider", "feminino", "Líder"), "Líder");
+  assert.equal(cargoDe("convidado", "feminino", "Astronauta"), "Astronauta");
+  assert.ok(Object.keys(CARGOS).includes("documentador"));
+});
+
+test("emoji no nome ou no apelido é rejeitado", () => {
+  expectError(withChange("dev", (a) => (a.nome = "Bia 🚀")), /\(dev\)\.nome: sem emoji/);
+  expectError(withChange("dev", (a) => (a.apelido = "BIA🙂")), /\(dev\)\.apelido: sem emoji/);
+});
+
+test("no máximo 1 acessório por camada; barba (pelos) convive com óculos", () => {
+  expectError(withChange("dev", (a) => (a.acessorios = ["headset", "capacete-amarelo"])), /no máximo 1 acessório na camada cabeca/);
+  expectError(withChange("planejador", (a) => (a.acessorios = ["prancheta", "caneca"])), /camada mao/);
+  assert.ok(validateRoster(withChange("documentador", (a) => (a.acessorios = ["lapis", "barba", "oculos"]))).ok);
+  for (const a of ACESSORIOS) assert.ok(CAMADA_DO_ACESSORIO[a], a);
+  assert.equal(CAMADA_DO_ACESSORIO.barba, "pelos");
 });

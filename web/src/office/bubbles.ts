@@ -3,7 +3,22 @@
 // encosta nos já colocados nem nas zonas proibidas (placa, quadro, plaquinhas das mesas).
 // Lógica pura (sem canvas): o motor mede os textos e desenha. Testes em bubbles.test.ts.
 
+import type { AgentStatus } from "../../../shared/types";
 import type { Rect } from "./decor";
+
+/** activities de quem só está livre: em balão, um "De boa" em cada mesa só poluía a cena */
+const ATIVIDADES_DE_BOA = new Set(["De boa", "Livre, esperando tarefa"]);
+
+/**
+ * Se a activity do servidor pode virar balão de trabalho (o motor ainda exige que seja recente
+ * ou que o agente esteja selecionado). Trabalhando, pensando, esperando, chegando e saindo sempre
+ * podem. O ocioso só quando é o líder ("Terminou, esperando você" é um aviso pra você) ou quando
+ * a activity diz algo além de "estou livre".
+ */
+export function mostraBalaoDeTrabalho(status: AgentStatus, activity: string, lider: boolean): boolean {
+  if (status !== "ocioso") return true;
+  return lider || !ATIVIDADES_DE_BOA.has(activity);
+}
 
 export type BubbleSide = "above" | "left" | "right";
 

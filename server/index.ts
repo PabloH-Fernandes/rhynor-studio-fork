@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 import { DEFAULT_SESSION_TIMEOUT_MIN, OfficeState } from "./state.ts";
 import { cancelDemo, runDemo } from "./demo.ts";
-import { loadRoster, saveRoster } from "./roster.ts";
-import { DEFAULT_ROSTER, mergeWithDefaults, validateRoster } from "../shared/roster.ts";
+import { aplicarPut, loadRoster, saveRoster } from "./roster.ts";
+import { DEFAULT_ROSTER } from "../shared/roster.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
@@ -61,14 +61,9 @@ app.get("/api/roster", (_req, res) => {
 });
 
 app.put("/api/roster", rosterJson, async (req, res) => {
-  const body: unknown = req.body;
-  if (typeof body !== "object" || body === null || Array.isArray(body) || !Array.isArray((body as { agzinhos?: unknown }).agzinhos)) {
-    res.status(400).json({ ok: false, erros: ["o elenco precisa ser um objeto com a lista agzinhos"] });
-    return;
-  }
-  // normaliza igual ao load (completa com os padrões e descarta campos desconhecidos),
-  // então o que fica salvo é o mesmo que volta depois de reiniciar
-  const checked = validateRoster(mergeWithDefaults({ ...body, atualizadoEm: new Date().toISOString() }));
+  // parte do elenco atual e só aceita os campos editáveis (papel, cargo, cordão, matrícula e falas
+  // não mudam por aqui); o atualizadoEm sempre avança, pra os navegadores saberem qual é o mais novo
+  const checked = aplicarPut(state.getRoster(), req.body);
   if (!checked.ok) {
     res.status(400).json({ ok: false, erros: checked.erros });
     return;

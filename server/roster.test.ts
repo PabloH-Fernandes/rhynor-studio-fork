@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { DEFAULT_ROSTER, type Roster } from "../shared/roster.ts";
-import { flushRosterSaves, loadRoster, saveRoster } from "./roster.ts";
+import { aplicarPut, flushRosterSaves, loadRoster, saveRoster } from "./roster.ts";
 
 let dir: string;
 let file: string;
@@ -133,4 +133,69 @@ test("matrícula repetida entre AGzinhos do padrão: os dois voltam ao padrão e
   assert.deepEqual(pick("dev"), DEFAULT_ROSTER.agzinhos.find((a) => a.key === "dev"));
   assert.deepEqual(pick("testador"), DEFAULT_ROSTER.agzinhos.find((a) => a.key === "testador"));
   assert.ok(pick("planejador-2"), "o extra válido não devia sair");
+});
+
+// ---------------------------------------------------------------- PUT /api/roster (aplicarPut)
+
+const corpo = (change: (r: Roster) => void = () => {}) => withChange(change);
+
+test("PUT: aplica só os campos editáveis e mantém papel, cordão, matrícula e falas", () => {
+  const r = aplicarPut(
+    DEFAULT_ROSTER,
+    corpo((c) => {
+      const bia = c.agzinhos.find((a) => a.key === "dev")!;
+      bia.apelido = "BEA";
+      bia.acessorios = ["capacete-branco"];
+      bia.papel = "lider";
+      bia.cordao = "#123456";
+      bia.matricula = "AG-9999";
+      bia.cargo = "Chefona";
+      bia.falas = ["x", "y", "z"];
+    }),
+  );
+  assert.ok(r.ok, !r.ok ? r.erros.join(" | ") : "");
+  const bia = r.roster.agzinhos.find((a) => a.key === "dev")!;
+  const padrao = DEFAULT_ROSTER.agzinhos.find((a) => a.key === "dev")!;
+  assert.equal(bia.apelido, "BEA");
+  assert.deepEqual(bia.acessorios, ["capacete-branco"]);
+  assert.deepEqual([bia.papel, bia.cordao, bia.matricula, bia.cargo, bia.falas], [padrao.papel, padrao.cordao, padrao.matricula, padrao.cargo, padrao.falas]);
+});
+
+test("PUT: o cargo acompanha o gênero", () => {
+  const r = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.agzinhos.find((a) => a.key === "dev")!.genero = "masculino")));
+  assert.ok(r.ok);
+  assert.equal(r.roster.agzinhos.find((a) => a.key === "dev")!.cargo, "Desenvolvedor");
+});
+
+test("PUT: lista vazia, key desconhecida, faltando ou repetida dão erro", () => {
+  assert.equal(aplicarPut(DEFAULT_ROSTER, { agzinhos: [] }).ok, false);
+  assert.equal(aplicarPut(DEFAULT_ROSTER, { nada: 1 }).ok, false);
+  const extra = corpo((c) => c.agzinhos.push({ ...structuredClone(c.agzinhos[0]), key: "novo", matricula: "AG-0099" }));
+  const r1 = aplicarPut(DEFAULT_ROSTER, extra);
+  assert.ok(!r1.ok && r1.erros.some((e) => /key desconhecida: novo/.test(e)));
+  const r2 = aplicarPut(DEFAULT_ROSTER, corpo((c) => c.agzinhos.pop()));
+  assert.ok(!r2.ok && r2.erros.some((e) => /faltou o AGzinho curinga/.test(e)));
+  const r3 = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.agzinhos[1] = structuredClone(c.agzinhos[0]))));
+  assert.ok(!r3.ok && r3.erros.some((e) => /key repetida: lider/.test(e)));
+});
+
+test("PUT: valores inválidos nos campos editáveis são recusados", () => {
+  const r = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.agzinhos[0].roupa = "polo")));
+  assert.equal(r.ok, false);
+  const r2 = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.agzinhos[3].acessorios = ["headset", "capacete-amarelo"])));
+  assert.ok(!r2.ok && r2.erros.some((e) => /no máximo 1 acessório na camada cabeca/.test(e)));
+});
+
+test("PUT: atualizadoEm sempre avança, mesmo com relógio igual", () => {
+  const agora = new Date(DEFAULT_ROSTER.atualizadoEm);
+  const r = aplicarPut(DEFAULT_ROSTER, corpo(), agora);
+  assert.ok(r.ok);
+  assert.ok(Date.parse(r.roster.atualizadoEm) > Date.parse(DEFAULT_ROSTER.atualizadoEm));
+});
+
+test("load: elenco antigo com 2 acessórios na mesma camada fica com o primeiro", () => {
+  fs.writeFileSync(file, JSON.stringify(withChange((r) => (r.agzinhos[3].acessorios = ["headset", "capacete-branco", "relogio"]))));
+  const r = loadRoster(file);
+  assert.deepEqual(r.agzinhos[3].acessorios, ["headset", "relogio"]);
+  assert.equal(r.agzinhos[3].apelido, "BIA");
 });

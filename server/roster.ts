@@ -7,7 +7,17 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_ROSTER, agzinhoErrors, mergeWithDefaults, validateRoster, type AGzinho, type Roster } from "../shared/roster.ts";
+import {
+  CAMADA_DO_ACESSORIO,
+  DEFAULT_ROSTER,
+  agzinhoErrors,
+  aplicarEditaveis,
+  mergeWithDefaults,
+  validateRoster,
+  type AGzinho,
+  type Roster,
+  type RosterResult,
+} from "../shared/roster.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DATA_DIR = path.join(ROOT, "data");
@@ -70,6 +80,21 @@ export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
   if (parsed.atualizadoEm !== undefined && Number.isNaN(Date.parse(String(parsed.atualizadoEm)))) notas.push("atualizadoEm inválido; usando a data padrão");
 
   const merged = mergeWithDefaults(parsed);
+  // elenco de antes da regra de 1 acessório por camada: fica o primeiro de cada camada
+  for (const a of merged.agzinhos) {
+    if (!Array.isArray(a.acessorios)) continue;
+    const vistas = new Set<string>();
+    const fica = a.acessorios.filter((x) => {
+      const c = Object.hasOwn(CAMADA_DO_ACESSORIO, x) ? CAMADA_DO_ACESSORIO[x] : undefined;
+      if (!c) return true; // desconhecido: a validação aponta
+      if (vistas.has(c)) return false;
+      vistas.add(c);
+      return true;
+    });
+    if (fica.length === a.acessorios.length) continue;
+    notas.push(`${a.key}: ficou 1 acessório por camada (saiu ${a.acessorios.filter((x) => !fica.includes(x)).join(", ")})`);
+    a.acessorios = fica;
+  }
   const defaults = new Map(DEFAULT_ROSTER.agzinhos.map((a) => [a.key, a]));
   const agzinhos: AGzinho[] = [];
   merged.agzinhos.forEach((a, i) => {
@@ -103,6 +128,32 @@ export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
     return { roster: structuredClone(DEFAULT_ROSTER), notas };
   }
   return { roster: result.roster, notas };
+}
+
+/**
+ * Corpo do PUT /api/roster sobre o elenco atual do servidor. Cada AGzinho do corpo parte do atual
+ * com a mesma key e só traz os CAMPOS_EDITAVEIS; papel, cargo (que segue o gênero), cordão,
+ * matrícula, key e falas ficam como estão. O corpo tem de trazer exatamente as keys do elenco
+ * atual: key desconhecida, faltando ou repetida é recusada (lista vazia também).
+ */
+export function aplicarPut(atual: Roster, corpo: unknown, agora = new Date()): RosterResult {
+  const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+  if (!isObj(corpo) || !Array.isArray(corpo.agzinhos)) return { ok: false, erros: ["o elenco precisa ser um objeto com a lista agzinhos"] };
+  const erros: string[] = [];
+  const vindos = new Map<string, Record<string, unknown>>();
+  corpo.agzinhos.forEach((a, i) => {
+    if (!isObj(a) || typeof a.key !== "string") return void erros.push(`agzinhos[${i}]: precisa ter a key do AGzinho`);
+    if (vindos.has(a.key)) return void erros.push(`key repetida: ${a.key}`);
+    vindos.set(a.key, a);
+  });
+  const conhecidas = new Set(atual.agzinhos.map((a) => a.key));
+  for (const k of vindos.keys()) if (!conhecidas.has(k)) erros.push(`key desconhecida: ${k} (o vestiário não cria AGzinhos)`);
+  for (const k of conhecidas) if (!vindos.has(k)) erros.push(`faltou o AGzinho ${k} (mande o elenco inteiro)`);
+  if (erros.length) return { ok: false, erros };
+  const agzinhos = atual.agzinhos.map((a) => aplicarEditaveis(a, vindos.get(a.key)!));
+  // sempre depois do atual, mesmo com dois PUTs no mesmo milissegundo
+  const quando = Math.max(agora.getTime(), (Date.parse(atual.atualizadoEm) || 0) + 1);
+  return validateRoster({ versao: 1, atualizadoEm: new Date(quando).toISOString(), agzinhos });
 }
 
 /** Copia o arquivo para <nome>.invalido-<data>.json na mesma pasta; devolve o caminho ou null. */

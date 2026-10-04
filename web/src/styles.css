@@ -13,6 +13,7 @@
   --navy-100: #d5dfee;
   --feed-time: #6f86ab; /* 5,2:1 sobre --bg */
   --waiting: #ff8a00; /* exclusivo de "te esperando" */
+  --focus: var(--white); /* anel de foco; nas superfícies claras vira marinho */
   --waiting-pulse-bg: #10305f; /* fundo do alerta no pico do pulse */
   --green: #3fbf86;
   --red: #ef5f7b;
@@ -52,8 +53,25 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--waiting);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* superfícies claras (cartão do crachá, espelho do provador): foco marinho */
+.cracha-cartao,
+.provador-espelho {
+  --focus: var(--bg-2);
+}
+
+/* faixa marinho do crachá (botão ×): de volta ao branco */
+.cracha-faixa {
+  --focus: var(--white);
+}
+
+/* com o vestiário aberto a página de trás não rola */
+html.vest-aberto,
+html.vest-aberto body {
+  overflow: hidden;
 }
 
 /*
@@ -290,6 +308,7 @@ h2 {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -310,17 +329,18 @@ h2 {
   transition: transform 0.08s, background-color 0.15s, border-color 0.15s;
 }
 
-.btn:hover:not(:disabled) {
+.btn:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--navy-600-hover);
   border-color: var(--navy-600-hover);
 }
 
-.btn:active:not(:disabled) {
+.btn:active:not(:disabled, [aria-disabled="true"]) {
   transform: translateY(1px);
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.3);
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn[aria-disabled="true"] {
   opacity: 0.5;
   cursor: default;
 }
@@ -331,7 +351,7 @@ h2 {
   color: var(--bg-2);
 }
 
-.btn.primary:hover:not(:disabled) {
+.btn.primary:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--navy-100);
   border-color: var(--navy-100);
 }
@@ -344,7 +364,7 @@ h2 {
   box-shadow: none;
 }
 
-.btn.ghost:hover:not(:disabled) {
+.btn.ghost:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--bg-3);
   border-color: var(--navy-100);
 }
@@ -612,14 +632,8 @@ h2 {
   transition: background-color 0.15s, border-color 0.15s;
 }
 
-/* o laranja é só de "te esperando" (e dá 2,3:1 no branco): no cartão o foco é marinho */
-.cracha-cartao :focus-visible {
-  outline-color: var(--bg-2);
-}
-
-/* × sobre a faixa marinho */
-.cracha-cartao .cracha-fechar:focus-visible {
-  outline-color: var(--white);
+/* × sobre a faixa marinho: o anel fica dentro do botão */
+.cracha-fechar:focus-visible {
   outline-offset: -3px;
 }
 
@@ -682,7 +696,6 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
-/* uma linha por dado: "Rótulo: valor" */
 /* visitante extra: selo no lugar da matrícula e uma tarja cinza sob a faixa */
 .cracha-selo {
   margin: 10px 0 0;
@@ -702,6 +715,7 @@ h2 {
   box-shadow: inset 0 -4px 0 var(--cordao-visitante);
 }
 
+/* uma linha por dado: "Rótulo: valor" */
 .cracha-dados {
   display: flex;
   flex-direction: column;
@@ -845,6 +859,725 @@ h2 {
 
 .kind-message .icon {
   color: var(--red);
+}
+
+/* ---------------------------------------------------------------- vestiário */
+
+/* o botão do painel ocupa a linha de baixo inteira */
+.actions .btn-vestiario {
+  flex: 1 1 100%;
+}
+
+.vest {
+  width: min(1120px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--navy-500);
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--text);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.vest[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.vest::backdrop {
+  background: rgba(2, 11, 28, 0.78); /* --bg a 78% */
+}
+
+.vest-topo {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 16px 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.vest-topo > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.vest-titulo {
+  margin: 0 0 6px;
+  font-family: var(--pixel);
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.vest-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vest-x {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--white);
+  font: 400 24px/1 var(--sans);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.vest-x:hover {
+  background: var(--navy-600);
+  border-color: var(--navy-500);
+}
+
+.vest-corpo {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr) 320px;
+  min-height: 96px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- elenco à esquerda */
+
+.vest-elenco {
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.vest-elenco ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+
+.vest-pessoa {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--navy-100);
+  font: 600 13px/1.2 var(--sans);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.vest-pessoa:hover {
+  background: var(--bg-3);
+}
+
+.vest-pessoa[aria-current="true"] {
+  border-color: var(--white);
+  background: var(--bg-3);
+  color: var(--white);
+}
+
+.vest-mini {
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--photo-bg);
+  image-rendering: pixelated;
+}
+
+.vest-pessoa-nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* alteração não salva: bolinha azul (o laranja é de "te esperando") */
+.vest-pessoa-sujo {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+/* ---- formulário */
+
+.vest-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding: 18px 20px 24px;
+}
+
+.vest-quem {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: -18px -20px 0;
+  padding: 12px 20px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.vest-quem-cargo {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.vest-campos-texto {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.vest-texto {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 6px 8px;
+}
+
+.vest-texto label {
+  grid-column: 1 / -1;
+  color: var(--navy-100);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vest-texto input {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--navy-500);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 16px/1.3 var(--sans);
+}
+
+.vest-texto input:focus-visible {
+  outline-offset: 1px;
+  border-color: var(--white);
+}
+
+.vest-texto .vest-caixa-alta,
+.vest-pessoa-nome {
+  text-transform: uppercase;
+}
+
+.vest-texto input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+
+.vest-contador {
+  grid-column: 2;
+  grid-row: 3;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vest-texto .vest-erro-campo {
+  grid-column: 1;
+  grid-row: 3;
+  margin: 0;
+}
+
+.vest-erro-campo {
+  margin: 6px 0 0;
+  color: var(--red);
+  font-size: 13px;
+}
+
+.vest-grupo {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vest-grupo > legend,
+.vest-legenda {
+  margin: 0 0 8px;
+  padding: 0;
+  color: var(--navy-100);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* opção de texto: o radio fica invisível por cima e o rótulo vira a etiqueta */
+.vest-chip {
+  position: relative;
+  display: inline-flex;
+}
+
+.vest-chip input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.vest-chip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--muted); /* 3:1 ou mais sobre o fundo do modal e do chip */
+  border-radius: 4px;
+  background: var(--bg-3);
+  color: var(--navy-100);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.vest-chip:hover span {
+  border-color: var(--navy-100);
+}
+
+.vest-chip input:checked + span {
+  border-color: var(--white);
+  background: var(--navy-600);
+  color: var(--white);
+  font-weight: 600;
+  box-shadow: inset 0 -3px 0 var(--white);
+}
+
+.vest-chip input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.vest-amostras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* amostra de cor: o próprio radio, quadrado como um pixel grande */
+.vest-amostra {
+  appearance: none;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  border: 2px solid var(--navy-500);
+  border-radius: 4px;
+  background: var(--amostra);
+  cursor: pointer;
+}
+
+.vest-amostra:hover {
+  border-color: var(--navy-100);
+}
+
+.vest-amostra:checked {
+  border-color: var(--bg-2);
+  box-shadow:
+    0 0 0 2px var(--white),
+    inset 0 0 0 2px var(--white);
+}
+
+.vest-amostra:focus-visible {
+  outline-offset: 4px;
+}
+
+.vest-fixo {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px dashed var(--navy-500);
+  border-radius: 4px;
+  color: var(--navy-100);
+  font-size: 13px;
+}
+
+.vest-acessorios {
+  display: grid;
+  gap: 10px;
+}
+
+/* camada: rótulo à esquerda (a legend flutua pra sair da borda do fieldset) e as opções ao lado */
+.vest-camada {
+  display: flow-root;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vest-camada legend {
+  float: left;
+  width: 64px;
+  padding: 9px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vest-camada .vest-chips {
+  margin-left: 72px;
+}
+
+.vest-fixos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.vest-fixos > div {
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.vest-fixos dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.vest-fixos dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.vest-cordao {
+  flex-shrink: 0;
+  width: 10px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--cordao);
+  box-shadow: 0 0 0 1px var(--white);
+}
+
+.vest-conflito {
+  padding: 10px 12px;
+  border: 1px solid var(--blue);
+  border-radius: 4px;
+  background: var(--bg-3);
+}
+
+.vest-conflito p,
+.vest-confirma p {
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.vest-linha-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vest-linha-botoes .btn {
+  flex: 0 0 auto;
+}
+
+/* ---- provador: um espelho claro, com o fundo da foto do crachá */
+
+.vest-provador {
+  border-left: 1px solid var(--line);
+  padding: 18px 16px;
+}
+
+.provador {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.provador-espelho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px 8px;
+  width: 100%;
+  padding: 12px 6px 0;
+  border: 2px solid var(--navy-100);
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(to bottom, var(--photo-bg) 0 88%, var(--navy-100) 88%);
+}
+
+.provador-corpo {
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* a foto do crachá presa no espelho, ao lado do boneco */
+.provador-foto {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 4px 2px;
+  border: 1px solid var(--navy-500);
+  border-radius: 2px;
+  background: var(--white);
+  line-height: 0;
+}
+
+.provador-foto canvas {
+  display: block;
+  background: var(--photo-bg);
+  image-rendering: pixelated;
+}
+
+.provador-foto-legenda {
+  margin-top: 3px;
+  color: var(--badge-ink-soft);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.provador-giro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provador .provador-seta {
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+}
+
+.provador-dir {
+  min-width: 112px;
+  color: var(--navy-100);
+  font-size: 13px;
+  text-align: center;
+}
+
+.provador .provador-pausa {
+  font-size: 12px;
+}
+
+/* ---- rodapé */
+
+.vest-rodape {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 45dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+}
+
+.vest-erros {
+  flex-shrink: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--red);
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 13px;
+}
+
+.vest-erros p {
+  margin: 0 0 4px;
+}
+
+.vest-erros ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--red);
+}
+
+.vest-erro-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.vest-confirma {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--white);
+  border-radius: 4px;
+  background: var(--bg-3);
+}
+
+.vest-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.vest-acoes-esq,
+.vest-acoes-dir {
+  display: flex;
+  gap: 8px;
+}
+
+.vest-acoes .btn {
+  flex: 0 0 auto;
+}
+
+.vest-acoes .btn.primary {
+  min-width: 112px;
+}
+
+.vest-estado {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+@media (max-height: 560px) {
+  .vest-topo {
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+
+  .vest-sub {
+    display: none;
+  }
+}
+
+@media (max-width: 1080px) {
+  .vest-corpo {
+    grid-template-columns: 148px minmax(0, 1fr) 296px;
+  }
+}
+
+@media (max-width: 900px) {
+  .vest {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .vest-corpo {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* o elenco vira uma faixa que rola de lado */
+  .vest-elenco {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .vest-elenco ul {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .vest-elenco li {
+    flex-shrink: 0;
+  }
+
+  .vest-pessoa {
+    flex-direction: column;
+    gap: 4px;
+    width: 64px;
+    padding: 4px 6px;
+  }
+
+  .vest-pessoa-sujo {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+  }
+
+  .vest-pessoa-nome {
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .vest-provador {
+    order: 1;
+    border-left: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .vest-form {
+    order: 2;
+    padding: 16px;
+  }
+
+  .vest-quem {
+    margin: -16px -16px 0;
+    padding: 10px 16px 8px;
+  }
+
+  .vest-campos-texto,
+  .vest-fixos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vest-camada legend {
+    float: none;
+    width: auto;
+    padding: 0;
+    margin-bottom: 4px;
+  }
+
+  .vest-camada .vest-chips {
+    margin-left: 0;
+  }
+
+  .vest-acoes-esq,
+  .vest-acoes-dir {
+    flex: 1 1 100%;
+  }
+
+  .vest-acoes-esq .btn,
+  .vest-acoes-dir .btn {
+    flex: 1 1 0;
+  }
+
+  .vest-estado {
+    order: -1;
+    flex-basis: 100%;
+    text-align: left;
+  }
 }
 
 /* ---------------------------------------------------------------- responsivo */

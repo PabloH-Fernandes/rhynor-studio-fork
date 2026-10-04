@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Agent, AgentStatus, FeedItem } from "../../shared/types";
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
 import { Cracha } from "./components/Cracha";
+import { Vestiario } from "./components/Vestiario";
+import { agzinhoOf } from "./office/engine";
 import { SpriteGallery } from "./SpriteGallery";
 import { GALLERY_ENABLED } from "./office/gallery";
 import { roleColor, theme } from "./theme";
@@ -30,13 +32,17 @@ export default function App() {
   const { agents, feed, roster, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  /** sobe a cada seleção feita no canvas: no layout empilhado o crachá rola pra vista */
-  const [revelar, setRevelar] = useState(0);
+  /** agente clicado no canvas cujo crachá deve rolar pra vista (layout empilhado); o crachá consome */
+  const [revelarId, setRevelarId] = useState<string | null>(null);
+  const revelado = useCallback(() => setRevelarId(null), []);
   const restLabel = useCallback((id: string) => officeRef.current?.restLabel(id) ?? null, []);
   const closeCracha = useCallback(() => setSelectedId(null), []);
+  /** key do AGzinho aberto no vestiário (null = fechado) */
+  const [vestiarioPara, setVestiarioPara] = useState<string | null>(null);
+  const closeVestiario = useCallback(() => setVestiarioPara(null), []);
   const selectFromCanvas = useCallback((id: string | null) => {
     setSelectedId(id);
-    if (id) setRevelar((n) => n + 1);
+    if (id) setRevelarId(id);
   }, []);
 
   const list = useMemo(() => Object.values(agents), [agents]);
@@ -120,6 +126,14 @@ export default function App() {
           <button className="btn ghost" disabled={busy || conn !== "online"} onClick={() => call("/api/reset")}>
             Limpar
           </button>
+          <button
+            className="btn ghost btn-vestiario"
+            aria-haspopup="dialog"
+            disabled={!roster}
+            onClick={() => roster && setVestiarioPara((selected && agzinhoOf(selected, roster)?.key) || roster.agzinhos[0].key)}
+          >
+            Vestiário
+          </button>
         </div>
 
         <section>
@@ -141,7 +155,9 @@ export default function App() {
             statusLabel={STATUS_LABEL[selected.status]}
             restLabel={restLabel}
             onClose={closeCracha}
-            revelar={revelar}
+            onPersonalizar={setVestiarioPara}
+            revelar={revelarId === selected.id}
+            onRevelado={revelado}
           />
         )}
 
@@ -164,6 +180,8 @@ export default function App() {
           </ol>
         </section>
       </aside>
+
+      {vestiarioPara && roster && <Vestiario roster={roster} inicial={vestiarioPara} onClose={closeVestiario} />}
     </div>
   );
 }

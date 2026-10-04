@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Rect } from "./decor";
-import { inside, overlaps, placeBubbles, type BubbleReq, type FloatReq } from "./bubbles";
+import { inside, mostraBalaoDeTrabalho, overlaps, placeBubbles, type BubbleReq, type FloatReq } from "./bubbles";
 
 const BOUNDS: Rect = { x: 1, y: 1, w: 574, h: 286 };
 
@@ -149,5 +149,25 @@ describe("placeBubbles", () => {
     const q = placeBubbles([req], [top, left], BOUNDS, [], [head]).placed.get("a");
     assert.equal(q?.side, "right");
     assert.ok(overlaps(q!.rect, head));
+  });
+});
+
+describe("balão de trabalho", () => {
+  it("ocioso livre (\"De boa\", \"Livre, esperando tarefa\") não mostra", () => {
+    assert.equal(mostraBalaoDeTrabalho("ocioso", "De boa", false), false);
+    assert.equal(mostraBalaoDeTrabalho("ocioso", "Livre, esperando tarefa", false), false);
+  });
+
+  it("líder ocioso mostra o aviso (\"Terminou, esperando você\")", () => {
+    assert.equal(mostraBalaoDeTrabalho("ocioso", "Terminou, esperando você", true), true);
+    assert.equal(mostraBalaoDeTrabalho("ocioso", "De boa", true), true);
+  });
+
+  it("ocioso com activity que diz algo além de livre mostra", () => {
+    assert.equal(mostraBalaoDeTrabalho("ocioso", "Esperando seu próximo pedido", false), true);
+  });
+
+  it("trabalhando, pensando, esperando, chegando e saindo mostram", () => {
+    for (const s of ["trabalhando", "pensando", "esperando", "chegando", "saindo"] as const) assert.equal(mostraBalaoDeTrabalho(s, "De boa", false), true, s);
   });
 });

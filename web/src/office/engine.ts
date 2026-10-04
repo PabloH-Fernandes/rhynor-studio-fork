@@ -7,7 +7,7 @@ import { HAIR_STYLE_INDEX, agzinhoDoPapel } from "../../../shared/roster";
 import { HAIRS, SKINS, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
 import { AreaLayer, bakeCount, bakeDrawing, drawBaked, type Baked } from "./bake";
 import { RestScheduler, type RallyFrame, type RestActor, type RestMover, type RestPose } from "./activities";
-import { placeBubbles, type BubbleReq, type FloatReq, type Placement } from "./bubbles";
+import { mostraBalaoDeTrabalho, placeBubbles, type BubbleReq, type FloatReq, type Placement } from "./bubbles";
 import {
   NAME_FONT,
   NAME_SHIFTS,
@@ -972,17 +972,19 @@ export class OfficeEngine {
 
   /**
    * Qual balão o personagem mostra: pedido de permissão > chat (envelope) > atividade recente >
-   * fala do papo (só enquanto está no papo) > atividade de quem está selecionado.
+   * fala do papo (só enquanto está no papo) > atividade de quem está selecionado. O ocioso só livre
+   * ("De boa") não tem balão de trabalho, só as falas do descanso e o nome (mostraBalaoDeTrabalho).
    */
   private bubbleOf(v: Visual, now: number, selected: boolean): { text: string; style: BubbleStyle; priority: number } | null {
     const status = v.agent.status;
     if (!v.leaving && status === "esperando") return { text: v.agent.activity, style: "trabalho", priority: PRI.waiting };
     if (v.chat && now < v.chat.until) return { text: v.chat.text, style: "chat", priority: PRI.chat };
     if (v.leaving) return null;
-    if (now - v.activityAt < BUBBLE_MS) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
+    const trabalho = mostraBalaoDeTrabalho(status, v.agent.activity, !v.agent.parentId);
+    if (trabalho && now - v.activityAt < BUBBLE_MS) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
     const line = this.restBubbles.get(v.agent.id);
     if (line && now < line.until && this.rest.kind(v.agent.id) === "papo") return { text: line.text, style: "descanso", priority: PRI.rest };
-    if (selected) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
+    if (selected && trabalho) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
     return null;
   }
 

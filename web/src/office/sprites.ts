@@ -5,11 +5,11 @@
 // Proporção chibi: cabeça 12x10, tronco 7 e pernas 4 (uns 24 px com o cabelo).
 // Cada quadro é desenhado uma vez num canvas pequeno (spriteCache) e depois só copiado.
 
-import type { Acessorio } from "../../../shared/roster";
+import { CAMADA_DO_ACESSORIO, type Acessorio, type Camada } from "../../../shared/roster";
 import type { Uniform } from "../theme";
 import { palette, theme } from "../theme";
 import { AG_CHEST, bitmapRuns } from "./agMark";
-import { SPRITE_OX, SPRITE_OY, cachedSprite } from "./spriteCache";
+import { SPRITE_H, SPRITE_OX, SPRITE_OY, SPRITE_W, cachedSprite } from "./spriteCache";
 
 // ------------------------------------------------------------------ cores
 
@@ -296,7 +296,11 @@ export function lookKey(look: CharLook): string {
 
 // ------------------------------------------------------------------ desenho com cache
 
-export function drawCharacter(ctx: CanvasRenderingContext2D, x: number, y: number, look: CharLook, pose: CharPose) {
+/**
+ * Desenha o boneco com o ponto entre os pés em (x, y). `usarCache = false` desenha direto, sem
+ * guardar o quadro: é o que o vestiário usa pra pré-visualizar um visual ainda não salvo.
+ */
+export function drawCharacter(ctx: CanvasRenderingContext2D, x: number, y: number, look: CharLook, pose: CharPose, usarCache = true) {
   const f = frameOf(pose);
   const lift = animLift(pose.anim, Math.min(1, Math.max(0, pose.animT)), pose.reducedMotion);
   const bx = Math.round(x);
@@ -313,7 +317,9 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, x: number, y: numbe
     if (s) ctx.fillRect(bx - 4 + s, gy - 1, 8 - 2 * s, 2);
     else ctx.fillRect(bx - 4, gy - 1, 8, 3);
   }
-  const sprite = cachedSprite(`${lookKey(look)}|${f.dir}|${frameKey(f)}`, (c) => renderSprite(c, SPRITE_OX, SPRITE_OY, look, f));
+  const sprite = usarCache
+    ? cachedSprite(`${lookKey(look)}|${f.dir}|${frameKey(f)}`, (c) => renderSprite(c, SPRITE_OX, SPRITE_OY, look, f))
+    : null;
   if (sprite) ctx.drawImage(sprite, bx - SPRITE_OX, by - SPRITE_OY);
   else renderSprite(ctx, bx, by, look, f);
   ctx.restore();
@@ -337,15 +343,15 @@ const PORTRAIT_FRAME: SpriteFrame = {
 
 /**
  * Retrato pro crachá: busto (cabeça e peito com o crachá) de frente, fundo transparente
- * e pixel duro, ampliado `escala` vezes a partir de (x, y).
+ * e pixel duro, ampliado `escala` vezes a partir de (x, y). `usarCache = false`: desenha num
+ * canvas temporário e não guarda nada (pré-visualização do vestiário).
  */
-export function drawPortrait(ctx: CanvasRenderingContext2D, look: CharLook, escala: number, x = 0, y = 0) {
+export function drawPortrait(ctx: CanvasRenderingContext2D, look: CharLook, escala: number, x = 0, y = 0, usarCache = true) {
   const s = Math.max(1, Math.round(escala));
   // sem os objetos de mão (prancheta, caneca): no recorte do busto viravam um pedaço solto
   const bust: CharLook = { ...look, accessories: look.accessories.filter((x) => ACCESSORIES[x].camada !== "mao") };
-  const sprite = cachedSprite(`${lookKey(look)}|retrato|${frameKey(PORTRAIT_FRAME)}`, (c) =>
-    renderSprite(c, SPRITE_OX, SPRITE_OY, bust, PORTRAIT_FRAME),
-  );
+  const paint = (c: CanvasRenderingContext2D) => renderSprite(c, SPRITE_OX, SPRITE_OY, bust, PORTRAIT_FRAME);
+  const sprite = usarCache ? cachedSprite(`${lookKey(look)}|retrato|${frameKey(PORTRAIT_FRAME)}`, paint) : freshSprite(paint);
   if (!sprite) return;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
@@ -369,7 +375,8 @@ interface Slot {
   used?: boolean;
 }
 
-export type AccessoryLayer = "cabeca" | "rosto" | "tronco" | "mao" | "pulso";
+/** camada de cada acessório: vem de CAMADA_DO_ACESSORIO (shared/roster.ts) */
+export type AccessoryLayer = Camada;
 
 export interface AccessoryCtx {
   look: CharLook;
@@ -388,18 +395,21 @@ export interface AccessoryCtx {
   slot?: Slot;
 }
 
-export interface AccessoryDef {
-  camada: AccessoryLayer;
+/** como desenhar um acessório; a camada vem do mapa compartilhado */
+interface AccessoryDraw {
   /** camada "mao": lado preferido (-1 esquerda da tela, 1 direita) */
   prefer?: -1 | 1;
   draw(c: AccessoryCtx): void;
 }
 
+export interface AccessoryDef extends AccessoryDraw {
+  camada: AccessoryLayer;
+}
+
 const HELMETS = new Set<Acessorio>(["capacete-branco", "capacete-amarelo"]);
 
-function helmet(color: string, shade: string): AccessoryDef {
+function helmet(color: string, shade: string): AccessoryDraw {
   return {
-    camada: "cabeca",
     draw: (c) => {
       // casco por cima do topo do cabelo (o cabelo de cima já foi cortado) e aba de 1px
       c.head(1, -3, 10, 1, color);
@@ -412,16 +422,36 @@ function helmet(color: string, shade: string): AccessoryDef {
   };
 }
 
+/** canvas temporário do tamanho de um quadro, fora do cache */
+function freshSprite(paint: (ctx: CanvasRenderingContext2D) => void): HTMLCanvasElement | null {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = SPRITE_W;
+  canvas.height = SPRITE_H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.imageSmoothingEnabled = false;
+  paint(ctx);
+  return canvas;
+}
+
 function cup(put: AccessoryCtx["put"], x: number, y: number) {
   // copo AG das animações: branco com faixa marinho
   put(x, y, 3, 3, palette.white);
   put(x, y + 1, 3, 1, palette.navy900);
 }
 
-/** acessórios por camada; pra criar um novo, some uma entrada aqui (e em Acessorio, no shared/roster) */
-export const ACCESSORIES: Record<Acessorio, AccessoryDef> = {
+/**
+ * Acessórios, cada um na sua camada (cabeca, pelos, rosto, tronco, mao, pulso); o vestiário e a
+ * validação deixam um por camada. Pra criar um novo:
+ * 1. some o nome em `Acessorio`, `ACESSORIOS` e a camada em `CAMADA_DO_ACESSORIO` (shared/roster.ts);
+ * 2. some o `draw` aqui em DESENHOS (c.head/c.put; de perfil, desenhe virado pra direita); cor
+ *    nova vai em palette.props (theme.ts);
+ * 3. dê o nome em pt-BR em NOME_ACESSORIO (components/vestiarioLogic.ts).
+ * O TypeScript reclama se faltar o passo 2 ou o 3.
+ */
+const DESENHOS: Record<Acessorio, AccessoryDraw> = {
   headset: {
-    camada: "cabeca",
     draw: (c) => {
       const band = palette.gray800;
       const cupC = palette.gray600;
@@ -446,7 +476,6 @@ export const ACCESSORIES: Record<Acessorio, AccessoryDef> = {
   "capacete-branco": helmet(palette.white, palette.gray200),
   "capacete-amarelo": helmet(palette.props.helmetYellow, blend(palette.props.helmetYellow, palette.navy950, 0.25)),
   oculos: {
-    camada: "rosto",
     draw: (c) => {
       // cinza médio: contrasta com pele clara e escura
       const frame = palette.gray600;
@@ -464,7 +493,6 @@ export const ACCESSORIES: Record<Acessorio, AccessoryDef> = {
     },
   },
   colete: {
-    camada: "tronco",
     draw: (c) => {
       const vest = palette.props.vest;
       const stripe = palette.props.vestStripe;
@@ -485,7 +513,6 @@ export const ACCESSORIES: Record<Acessorio, AccessoryDef> = {
     },
   },
   prancheta: {
-    camada: "mao",
     prefer: -1,
     draw: (c) => {
       const h = c.slot;
@@ -498,7 +525,6 @@ export const ACCESSORIES: Record<Acessorio, AccessoryDef> = {
     },
   },
   caneca: {
-    camada: "mao",
     prefer: 1,
     draw: (c) => {
       const h = c.slot;
@@ -512,7 +538,6 @@ export const ACCESSORIES: Record<Acessorio, AccessoryDef> = {
     },
   },
   lapis: {
-    camada: "cabeca",
     draw: (c) => {
       const { pencil, pencilTip } = palette.props;
       if (c.view === "side") {
@@ -527,14 +552,12 @@ export const ACCESSORIES: Record<Acessorio, AccessoryDef> = {
     },
   },
   relogio: {
-    camada: "pulso",
     draw: (c) => {
       const w = c.slot;
       if (w) c.put(w.x, w.y, 2, 1, palette.props.watch);
     },
   },
   barba: {
-    camada: "rosto",
     draw: (c) => {
       const b = c.look.hair;
       if (c.view === "back") return;
@@ -552,6 +575,10 @@ export const ACCESSORIES: Record<Acessorio, AccessoryDef> = {
     },
   },
 };
+
+export const ACCESSORIES: Record<Acessorio, AccessoryDef> = Object.fromEntries(
+  (Object.keys(DESENHOS) as Acessorio[]).map((a) => [a, { ...DESENHOS[a], camada: CAMADA_DO_ACESSORIO[a] }]),
+) as Record<Acessorio, AccessoryDef>;
 
 /**
  * Desenha o boneco com o ponto entre os pés em (bx, by), já inteiros. Sem sombra e sem alpha:
@@ -995,6 +1022,8 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
       fp(1, 7, 2, 1, blush);
       fp(9, 7, 2, 1, blush);
     }
+    // barba antes do rosto: os óculos ficam por cima
+    for (const a of layer("pelos")) ACCESSORIES[a].draw(accCtx(F));
     for (const a of layer("rosto")) ACCESSORIES[a].draw(accCtx(F));
     // boca por último (por cima da barba)
     if (side) fp(cheer ? 9 : 10, 8, cheer ? 2 : 1, 1, cheer ? eye : blend(skin, eye, 0.6));

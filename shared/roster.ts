@@ -106,6 +106,55 @@ export const ACESSORIOS: readonly Acessorio[] = [
   "barba",
 ];
 
+/**
+ * Parte do corpo de cada acessório: um por camada (a validação confere). "pelos" (barba) é
+ * desenhada antes do "rosto", então barba e óculos convivem. sprites.ts lê daqui.
+ */
+export type Camada = "cabeca" | "pelos" | "rosto" | "tronco" | "mao" | "pulso";
+export const CAMADAS: readonly Camada[] = ["cabeca", "pelos", "rosto", "tronco", "mao", "pulso"];
+export const CAMADA_DO_ACESSORIO: Record<Acessorio, Camada> = {
+  headset: "cabeca",
+  "capacete-branco": "cabeca",
+  "capacete-amarelo": "cabeca",
+  lapis: "cabeca",
+  barba: "pelos",
+  oculos: "rosto",
+  colete: "tronco",
+  prancheta: "mao",
+  caneca: "mao",
+  relogio: "pulso",
+};
+
+/** campos que o vestiário (e o PUT /api/roster) pode mudar; papel, cargo, cordão, matrícula, key e falas não */
+export const CAMPOS_EDITAVEIS = ["nome", "apelido", "genero", "pele", "cabelo", "roupa", "destaque", "acessorios"] as const satisfies readonly (keyof AGzinho)[];
+export type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number];
+
+/** cargo de cada papel nos dois gêneros */
+export const CARGOS: Record<string, Record<Genero, string>> = {
+  lider: { feminino: "Líder", masculino: "Líder" },
+  planejador: { feminino: "Planejadora", masculino: "Planejador" },
+  pesquisador: { feminino: "Pesquisadora", masculino: "Pesquisador" },
+  dev: { feminino: "Desenvolvedora", masculino: "Desenvolvedor" },
+  testador: { feminino: "Testadora", masculino: "Testador" },
+  revisor: { feminino: "Revisora", masculino: "Revisor" },
+  documentador: { feminino: "Documentadora", masculino: "Documentador" },
+};
+
+/** convidados têm cargo próprio (Exploradora, Consultor...): o par é achado pelo cargo atual */
+export const CARGOS_CONVIDADO: readonly Record<Genero, string>[] = [
+  { feminino: "Exploradora", masculino: "Explorador" },
+  { feminino: "Consultora", masculino: "Consultor" },
+  { feminino: "Generalista", masculino: "Generalista" },
+];
+
+/** cargo que combina com o gênero; cargo desconhecido fica como está */
+export function cargoDe(papel: string, genero: Genero, atual: string): string {
+  const par = Object.hasOwn(CARGOS, papel)
+    ? CARGOS[papel]
+    : [...CARGOS_CONVIDADO, ...Object.values(CARGOS)].find((c) => c.feminino === atual || c.masculino === atual);
+  return par ? par[genero] : atual;
+}
+
 /** estilo → `hairStyle` desenhado em sprites.ts (0 curto ... 6 franja lateral, 7 chanel, 8 trancas) */
 export const HAIR_STYLE_INDEX: Record<EstiloCabelo, number> = {
   curto: 0,
@@ -389,7 +438,8 @@ export const DEFAULT_ROSTER: Roster = {
 
 export type RosterResult = { ok: true; roster: Roster } | { ok: false; erros: string[] };
 
-const LIMITS = {
+/** limites de tamanho do elenco (o vestiário usa os mesmos nos contadores) */
+export const LIMITS = {
   agzinhos: 40,
   key: 32,
   nome: 40,
@@ -457,8 +507,8 @@ export function agzinhoErrors(x: unknown, i = 0): string[] {
       x.agentTypes.forEach((t, j) => text(erros, `${who}.agentTypes[${j}]`, t, LIMITS.agentType));
     }
   }
-  text(erros, `${who}.nome`, x.nome, LIMITS.nome);
-  text(erros, `${who}.apelido`, x.apelido, LIMITS.apelido);
+  if (text(erros, `${who}.nome`, x.nome, LIMITS.nome) && EMOJI.test(x.nome)) erros.push(`${who}.nome: sem emoji`);
+  if (text(erros, `${who}.apelido`, x.apelido, LIMITS.apelido) && EMOJI.test(x.apelido)) erros.push(`${who}.apelido: sem emoji`);
   text(erros, `${who}.cargo`, x.cargo, LIMITS.cargo);
   text(erros, `${who}.personalidade`, x.personalidade, LIMITS.personalidade);
   if (!oneOf(GENEROS, x.genero)) erros.push(`${who}.genero: use ${GENEROS.join(" ou ")}`);
@@ -492,6 +542,8 @@ export function agzinhoErrors(x: unknown, i = 0): string[] {
       if (!oneOf(ACESSORIOS, a)) erros.push(`${who}.acessorios[${j}]: acessório desconhecido`);
     });
     if (new Set(x.acessorios).size !== x.acessorios.length) erros.push(`${who}.acessorios: item repetido`);
+    const camadas = x.acessorios.filter((a): a is Acessorio => oneOf(ACESSORIOS, a)).map((a) => CAMADA_DO_ACESSORIO[a]);
+    for (const c of new Set(camadas.filter((c, j) => camadas.indexOf(c) !== j))) erros.push(`${who}.acessorios: no máximo 1 acessório na camada ${c}`);
   }
 
   hex(erros, `${who}.cordao`, x.cordao);
@@ -609,6 +661,23 @@ export function mergeWithDefaults(parcial: unknown): Roster {
 
 function stripUndefined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+/**
+ * Parte de `atual` e copia de `de` só os CAMPOS_EDITAVEIS (o que faltar em `de` some, como o
+ * destaque). O cargo acompanha o gênero. Não valida: os valores vêm como estão.
+ */
+export function aplicarEditaveis(atual: AGzinho, de: Record<string, unknown> | AGzinho): AGzinho {
+  const out = structuredClone(atual) as unknown as Record<string, unknown>;
+  const fonte = de as Record<string, unknown>;
+  for (const campo of CAMPOS_EDITAVEIS) {
+    const v = fonte[campo];
+    if (v === undefined) delete out[campo];
+    else out[campo] = structuredClone(v);
+  }
+  const ag = out as unknown as AGzinho;
+  if (oneOf(GENEROS, ag.genero)) ag.cargo = cargoDe(ag.papel, ag.genero, ag.cargo);
+  return ag;
 }
 
 /** AGzinho principal de um papel (sem variação), ex.: a plaquinha da mesa do dev */
