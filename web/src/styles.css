@@ -47,9 +47,13 @@ body {
   outline-offset: 2px;
 }
 
+/*
+ * O canvas só aparece em escala inteira (576 x 288 base, cada pixel vira k x k). Painel de 280px
+ * e palco com 4px de respiro: em 1440 de largura sobram exatamente 1152px (k = 2).
+ */
 .app {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   height: 100vh;
 }
 
@@ -59,7 +63,7 @@ body {
 .stage {
   position: relative;
   display: flex;
-  padding: 20px;
+  padding: 4px;
   min-width: 0;
   background-color: var(--bg);
   background-image:
@@ -79,9 +83,10 @@ body {
 .office-canvas {
   image-rendering: pixelated;
   border-radius: 2px;
+  /* moldura cabe nos 4px de respiro do palco */
   box-shadow:
     0 0 0 1px var(--white),
-    0 0 0 5px var(--bg-2),
+    0 0 0 3px var(--bg-2),
     0 24px 60px rgba(0, 0, 0, 0.6);
 }
 
@@ -128,7 +133,7 @@ code {
   flex-direction: column;
   gap: 18px;
   min-height: 0;
-  padding: 20px 18px;
+  padding: 18px 16px;
   background: var(--bg-2);
   border-left: 1px solid var(--line);
   overflow-y: auto;

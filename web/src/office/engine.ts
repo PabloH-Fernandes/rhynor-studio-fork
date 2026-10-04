@@ -1,21 +1,25 @@
 // Motor do escritório: guarda a posição de cada personagem, decide pra onde ele vai
-// (mesa, café, reunião, porta), anda pelos caminhos e desenha tudo no canvas.
+// (mesa, reunião, porta e, quando está de boa, o descanso do agendador em activities.ts),
+// anda pelos caminhos e desenha tudo no canvas.
 
 import type { AGzinho, Acessorio, Agent, Roster } from "../../../shared/types";
 import { HAIR_STYLE_INDEX, agzinhoDoPapel } from "../../../shared/roster";
 import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
+import { AreaLayer, bakeDrawing, drawBaked, type Baked } from "./bake";
+import { RestScheduler, type RestActor, type RestMover, type RestPose } from "./activities";
 import { fill, line } from "./decor";
 import { Lightmap, clockDate, windowLight, type LightScene } from "./daylight";
 import { isReducedMotion } from "./motion";
 import {
   AISLE_Y,
-  COFFEE_SPOTS,
   DESKS,
   DOOR_SPOT,
   OVERFLOW_SPOTS,
   PROPS,
+  REST_SPOTS,
   SIGN,
   TILE,
+  H,
   W,
   deskSpot,
   drawBoard,
@@ -25,11 +29,14 @@ import {
   drawDecor,
   drawDesk,
   drawFloor,
+  drawWindows,
   drawMeetingTable,
   drawSign,
   drawSignGlow,
   monitorScreen,
+  cupSurface,
   route,
+  type CupSurface,
   type Desk,
   type Point,
   type Spot,
@@ -50,7 +57,12 @@ import {
 } from "./sprites";
 
 const SPEED = 3.4; // tiles por segundo
-const COFFEE_AFTER_MS = 15_000; // ocioso por esse tempo → vai tomar café (provisório até o agendador da etapa 4)
+/** as janelas são refeitas nesse intervalo (nuvens e guindaste andam menos de 1px nesse tempo) */
+const WINDOW_FRAME_MS = 200;
+/** chave do cache da mesa de reunião */
+const MEETING_TABLE = {};
+/** copo largado numa mesa (interrompido ou terminou o café sentado) some depois disso */
+const CUP_DECAL_MS = 60_000;
 const BUBBLE_MS = 3800;
 const CHAT_MS = 4500;
 const STRETCH_MS = 1600;
@@ -136,6 +148,38 @@ interface Visual {
   fade: number; // 1 → 0 ao sair pela porta
   chat?: { text: string; until: number };
   anim?: { kind: CharAnim; start: number; until: number };
+  /** largou o descanso com o copo de café: leva na mão até a mesa e deixa lá */
+  cupInHand?: boolean;
+}
+
+/** copo de café largado em cima de uma mesa */
+interface CupDecal {
+  deskId: string;
+  surface: CupSurface;
+  until: number;
+}
+
+/** linha do `__agRest()` (debug no console) */
+interface RestDebugRow {
+  id: string;
+  name: string;
+  status: Agent["status"];
+  label: string | null;
+  phase: string | null;
+  anim: string | null;
+  holding: string | null;
+  at: string;
+  x: number;
+  y: number;
+  cups: number;
+  cupInHand: boolean;
+}
+
+declare global {
+  interface Window {
+    /** debug: quem está descansando, onde e em que fase */
+    __agRest?: () => RestDebugRow[];
+  }
 }
 
 interface Envelope {
@@ -151,6 +195,36 @@ export class OfficeEngine {
   private logo: HTMLImageElement | null = null;
   private lightmap = new Lightmap();
   private rosterData: Roster | null = null;
+  /** descanso de quem está de boa; as reservas também guardam quem mora em pé na reunião */
+  private rest = new RestScheduler(REST_SPOTS, { seed: Date.now() | 0 });
+  private cups: CupDecal[] = [];
+  /** camada estática (chão, parede, quadros, placa) na escala k */
+  private staticLayer: HTMLCanvasElement | null = null;
+  private staticKey = "";
+  /** móveis estáticos já desenhados na escala bakedK */
+  private baked = new WeakMap<object, Baked | null>();
+  private bakedByName = new Map<string, Baked | null>();
+  private bakedK = 0;
+  /** faixa das janelas na parede (moldura e peitoril cabem em y 0..40) */
+  private windowLayer = new AreaLayer({ x: 0, y: 0, w: W, h: 40 });
+  private windowSlot = -1;
+  /** relógio (centro 176, 21; raio 10 + sombra) */
+  private clockLayer = new AreaLayer({ x: 164, y: 9, w: 24, h: 25 });
+  private clockSec = -1;
+  private mover: RestMover = {
+    goTo: (id, spot) => {
+      const v = this.visuals.get(id);
+      if (v && !v.leaving) this.goTo(v, spot);
+    },
+    goHome: (id) => {
+      const v = this.visuals.get(id);
+      if (v && !v.leaving) this.goTo(v, v.home);
+    },
+    dropCup: (id) => {
+      const v = this.visuals.get(id);
+      if (v && !v.leaving) v.cupInHand = true;
+    },
+  };
   selectedId: string | null = null;
   hoverId: string | null = null;
   onSelect?: (id: string | null) => void;
@@ -161,6 +235,26 @@ export class OfficeEngine {
       img.src = theme.logoUrl;
       this.logo = img;
     }
+    // debug (só no dev server): `__agRest()` no console lista quem está descansando, onde e em que fase
+    if (import.meta.env.DEV && typeof window !== "undefined") window.__agRest = () => this.restDebug();
+  }
+
+  private restDebug(): RestDebugRow[] {
+    const now = performance.now();
+    return [...this.visuals.values()].map((v) => ({
+      id: v.agent.id,
+      name: v.agent.name,
+      status: v.agent.status,
+      label: this.rest.restLabel(v.agent.id),
+      phase: this.rest.phase(v.agent.id) ?? null,
+      anim: this.animOf(v, now)?.kind ?? null,
+      holding: this.restPose(v, now)?.holding ?? null,
+      at: v.at.id,
+      x: +(v.x * TILE).toFixed(1),
+      y: +(v.y * TILE).toFixed(1),
+      cups: this.cups.length,
+      cupInHand: !!v.cupInHand,
+    }));
   }
 
   /** elenco vindo do servidor; null até o primeiro snapshot */
@@ -187,6 +281,8 @@ export class OfficeEngine {
   upsert(agent: Agent, fromSnapshot = false) {
     const now = performance.now();
     let v = this.visuals.get(agent.id);
+    // já foi embora na tela, mas o servidor ainda guarda o "saindo" por uns segundos: não ressuscita
+    if (!v && agent.status === "saindo") return;
     if (!v) {
       v = this.create(agent, fromSnapshot);
       this.visuals.set(agent.id, v);
@@ -194,8 +290,13 @@ export class OfficeEngine {
     const prev = v.agent.status;
     const delivered = agent.tasksDone !== v.agent.tasksDone && agent.tasksDone > 0;
     if (agent.agzinho !== v.agent.agzinho) v.look = lookFor(agent, this.rosterData);
+    if (agent.status !== "ocioso" && this.rest.isResting(agent.id)) {
+      // chamado no meio do descanso: larga tudo e volta pra mesa (trabalho tem prioridade)
+      this.rest.interrupt(agent.id, this.mover, now);
+    }
     if (agent.role !== v.agent.role && !v.leaving) {
       // trocou de papel (ex.: líder da simulação cede o Guto à sessão real): muda de mesa
+      this.rest.reservations.release(v.home.id, agent.id);
       const { spot, deskId } = this.claimHome(agent);
       v.home = spot;
       v.deskId = deskId;
@@ -267,13 +368,22 @@ export class OfficeEngine {
     const guest = DESKS.find((d) => d.role === "convidado" && free(d));
     const desk = own ?? guest;
     if (desk) return { spot: deskSpot(desk), deskId: desk.id };
-    const spot = OVERFLOW_SPOTS.find((s) => !taken.has(s.id)) ?? OVERFLOW_SPOTS[agent.id.length % OVERFLOW_SPOTS.length];
+    // em pé na reunião: a reserva é a mesma do descanso (a maquete usa 2 desses lugares)
+    // (quem estiver descansando nele volta pra mesa: morar ali tem prioridade)
+    const res = this.rest.reservations;
+    const spot =
+      OVERFLOW_SPOTS.find((s) => !taken.has(s.id) && res.isFree(s.id, agent.id)) ??
+      OVERFLOW_SPOTS.find((s) => !taken.has(s.id)) ??
+      OVERFLOW_SPOTS[agent.id.length % OVERFLOW_SPOTS.length];
+    this.rest.evict(spot.id, this.mover, performance.now());
+    res.reserve(spot.id, agent.id);
     return { spot };
   }
 
   private startLeaving(v: Visual) {
     if (v.leaving) return;
     v.leaving = true;
+    this.rest.remove(v.agent.id);
     this.goTo(v, DOOR_SPOT);
   }
 
@@ -289,7 +399,10 @@ export class OfficeEngine {
         : Math.abs(v.at.laneX - v.x) < Math.abs(v.target.laneX - v.x)
           ? v.at.laneX
           : v.target.laneX;
-      from = { id: "aqui", x: v.x, y: v.y, laneX: lane, via: [], sitting: false };
+      // fora do corredor e fora da lane (ex.: andando de lado rumo ao sofá): volta primeiro na
+      // horizontal até a lane, senão cortaria em diagonal por cima da mesa de alguém
+      const via = !onAisle && Math.abs(v.x - lane) > 0.01 ? [{ x: lane, y: v.y }] : [];
+      from = { id: "aqui", x: v.x, y: v.y, laneX: lane, via, sitting: false };
     }
     v.path = route(from, spot);
     v.target = spot;
@@ -298,24 +411,28 @@ export class OfficeEngine {
   // ------------------------------------------------------------ simulação
 
   update(dt: number, now: number) {
-    const busyCoffee = new Set([...this.visuals.values()].filter((v) => v.target.id.startsWith("cafe:")).map((v) => v.target.id));
-
+    // descanso: sorteia atividades pra quem está de boa e avança as fases (indo/fazendo/voltando)
+    const actors: RestActor[] = [];
     for (const v of this.visuals.values()) {
       if (v.anim && now >= v.anim.until) v.anim = undefined;
+      actors.push({
+        id: v.agent.id,
+        session: v.agent.sessionId,
+        idle: v.agent.status === "ocioso",
+        idleSince: v.idleSince,
+        leaving: v.leaving,
+        walking: v.path.length > 0,
+        busyAnim: !!v.anim,
+        atId: v.at.id,
+        homeId: v.home.id,
+        hasDesk: !!v.deskId,
+      });
+    }
+    this.rest.update(now, actors, this.mover);
 
-      // decide o destino
-      if (!v.leaving) {
-        const wantsCoffee = v.agent.status === "ocioso" && now - v.idleSince > COFFEE_AFTER_MS;
-        if (wantsCoffee && !v.target.id.startsWith("cafe:")) {
-          const spot = COFFEE_SPOTS.find((s) => !busyCoffee.has(s.id));
-          if (spot) {
-            busyCoffee.add(spot.id);
-            this.goTo(v, spot);
-          }
-        } else if (!wantsCoffee && v.target.id !== v.home.id) {
-          this.goTo(v, v.home);
-        }
-      }
+    for (const v of this.visuals.values()) {
+      // fora do descanso, o lugar de cada um é a própria mesa
+      if (!v.leaving && !this.rest.isResting(v.agent.id) && v.target.id !== v.home.id) this.goTo(v, v.home);
 
       // anda
       let budget = SPEED * dt;
@@ -341,15 +458,47 @@ export class OfficeEngine {
         v.at = v.target;
         v.dir = this.restingDir(v);
       }
+      if (v.leaving) v.cupInHand = false;
+      else if (v.cupInHand && !v.path.length && v.at.id === v.home.id) this.putCupDown(v, now);
       if (v.leaving && !v.path.length) v.fade = Math.max(0, v.fade - dt * 2.5);
     }
 
-    for (const [id, v] of this.visuals) if (v.leaving && v.fade <= 0) this.visuals.delete(id);
+    for (const [id, v] of this.visuals) {
+      if (v.leaving && v.fade <= 0) {
+        this.visuals.delete(id);
+        this.rest.remove(id);
+      }
+    }
     this.envelopes = this.envelopes.filter((e) => now - e.start < 1400);
+    if (this.cups.length) this.cups = this.cups.filter((c) => now < c.until);
+  }
+
+  /**
+   * Chegou em casa com o copo: deixa na própria mesa. Quem mora em pé na reunião deixa na mesa
+   * livre mais perto (sem livre, na mais perto). Um copo por mesa; some em CUP_DECAL_MS.
+   */
+  private putCupDown(v: Visual, now: number) {
+    v.cupInHand = false;
+    let desk = DESKS.find((d) => d.id === v.deskId);
+    if (!desk) {
+      const used = new Set([...this.visuals.values()].filter((o) => !o.leaving && o.deskId).map((o) => o.deskId));
+      const dist = (d: Desk) => Math.hypot(d.cx - v.x, d.cy - v.y);
+      const byDist = [...DESKS].sort((a, b) => dist(a) - dist(b));
+      desk = byDist.find((d) => !used.has(d.id)) ?? byDist[0];
+    }
+    const id = desk.id;
+    this.cups = this.cups.filter((c) => c.deskId !== id);
+    this.cups.push({ deskId: id, surface: cupSurface(desk), until: now + CUP_DECAL_MS });
+  }
+
+  /** "Tomando café", "No celular"... (crachá da etapa 6); null se não está descansando */
+  restLabel(id: string): string | null {
+    return this.rest.restLabel(id);
   }
 
   private restingDir(v: Visual): Dir {
-    if (v.at.sitting || v.at.id.startsWith("cafe:")) return "down";
+    if (v.at.face) return v.at.face;
+    if (v.at.sitting) return "down";
     if (v.at.id.startsWith("reuniao:")) return v.at.x < 16 ? "right" : v.at.x > 16 ? "left" : v.at.y < 11 ? "down" : "up";
     return "down";
   }
@@ -373,10 +522,9 @@ export class OfficeEngine {
     this.lightmap.refresh(now, scene);
     const daylight = this.lightmap.daylight;
 
-    drawFloor(ctx, now, windowLight(daylight));
-    drawDecor(ctx);
-    drawSign(ctx, this.logo);
-    drawClock(ctx, clockDate());
+    this.drawStatic(ctx);
+    this.drawWindowLayer(ctx, now, windowLight(daylight));
+    this.drawClockLayer(ctx);
 
     const active = visuals.filter((v) => !v.leaving);
     drawBoard(ctx, {
@@ -392,27 +540,43 @@ export class OfficeEngine {
       const occupant = visuals.find((v) => v.deskId === d.id && !v.leaving);
       const seated = seatedAt.get(d.id);
       const deskTop = (d.cy + 0.55) * TILE;
-      items.push({ y: (d.cy + 0.85) * TILE - 1, draw: () => drawChair(ctx, d, roleColor(d.role === "convidado" ? "convidado" : d.role)) });
+      items.push({ y: (d.cy + 0.85) * TILE - 1, draw: () => this.drawBakedOr(ctx, d, (g) => drawChair(g, d, roleColor(d.role === "convidado" ? "convidado" : d.role))) });
       items.push({
         y: deskTop + 20,
-        draw: () =>
-          drawDesk(ctx, d, {
+        draw: () => {
+          const opts = {
             active: !!seated && (seated.agent.status === "trabalhando" || seated.agent.status === "pensando"),
             waiting: !!seated && seated.agent.status === "esperando",
             occupantName: occupant ? this.nicknameOf(occupant.agent) : undefined,
             nickname: this.rosterData ? agzinhoDoPapel(this.rosterData, d.role)?.apelido : undefined,
             t: now,
             reducedMotion: isReducedMotion(),
-          }),
+          };
+          // monitor desligado não anima: a mesa fica pronta no cache (uma por plaquinha)
+          if (opts.active || opts.waiting) drawDesk(ctx, d, opts);
+          else this.drawBakedOr(ctx, `mesa|${d.id}|${opts.occupantName ?? ""}|${opts.nickname ?? ""}`, (g) => drawDesk(g, d, opts));
+        },
       });
     }
-    items.push({ y: 11.2 * TILE + 10, draw: () => drawMeetingTable(ctx) });
+    items.push({ y: 11.2 * TILE + 10, draw: () => this.drawBakedOr(ctx, MEETING_TABLE, drawMeetingTable) });
     items.push({ y: 16.1 * TILE, draw: () => drawCoffeeCorner(ctx, now, coffeeBusy) });
-    for (const p of PROPS) items.push({ y: p.y, draw: () => p.draw(ctx, now) });
+    for (const p of PROPS) {
+      items.push({ y: p.y, draw: () => (p.live ? p.draw(ctx, now) : this.drawBakedOr(ctx, p, (g) => p.draw(g, now))) });
+    }
+    for (const c of this.cups) items.push({ y: c.surface.depth, draw: () => drawCup(ctx, c.surface.x, c.surface.y) });
 
     for (const v of visuals) {
+      const still = !v.path.length;
+      // café terminando na mesa: o copo fica no tampo entre um gole e outro
+      const rest = this.restPose(v, now);
+      const desk = rest?.cupOnDesk ? DESKS.find((d) => d.id === v.deskId) : undefined;
+      if (desk) {
+        const surface = cupSurface(desk);
+        items.push({ y: surface.depth, draw: () => drawCup(ctx, surface.x, surface.y) });
+      }
       items.push({
-        y: v.y * TILE + (v.at.sitting && !v.path.length ? 0 : 0.5),
+        // no sofá: logo depois do sofá (o boneco senta na frente do encosto)
+        y: still && v.at.depth !== undefined ? v.at.depth : v.y * TILE + (v.at.sitting && still ? 0 : 0.5),
         draw: () => this.drawVisual(ctx, v, now),
       });
     }
@@ -428,6 +592,101 @@ export class OfficeEngine {
     // camada de cima: envelopes e balões
     for (const e of this.envelopes) this.drawEnvelope(ctx, e, now);
     for (const v of visuals) this.drawOverlay(ctx, v, now);
+  }
+
+  /**
+   * Chão, parede, quadros, placa e plaquinha não mudam: são desenhados uma vez num canvas fora da
+   * tela na escala atual (k) e copiados 1:1 a cada quadro. Eram milhares de fillRect por quadro.
+   * Refaz quando k muda ou quando a logo da placa termina de carregar.
+   */
+  private drawStatic(ctx: CanvasRenderingContext2D) {
+    const m = ctx.getTransform();
+    const k = Math.max(1, Math.round(m.a));
+    const logoReady = !!this.logo && this.logo.complete && this.logo.naturalWidth > 0;
+    const key = `${k}|${logoReady}`;
+    if (!this.staticLayer || this.staticKey !== key) {
+      const c = typeof document !== "undefined" ? document.createElement("canvas") : null;
+      const g = c?.getContext("2d");
+      if (!c || !g) {
+        drawFloor(ctx);
+        drawDecor(ctx);
+        drawSign(ctx, this.logo);
+        return;
+      }
+      c.width = W * k;
+      c.height = H * k;
+      g.setTransform(k, 0, 0, k, 0, 0);
+      g.imageSmoothingEnabled = false;
+      drawFloor(g);
+      drawDecor(g);
+      drawSign(g, this.logo);
+      this.staticLayer = c;
+      this.staticKey = key;
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, m.e, m.f);
+    ctx.drawImage(this.staticLayer, 0, 0);
+    ctx.restore();
+  }
+
+  /** escala inteira atual (o render roda com setTransform(k)) */
+  private scaleOf(ctx: CanvasRenderingContext2D): number {
+    return Math.max(1, Math.round(ctx.getTransform().a));
+  }
+
+  /** móvel estático: desenha uma vez por escala e depois só copia (sem canvas 2D, desenha direto) */
+  private drawBakedOr(ctx: CanvasRenderingContext2D, key: object | string, draw: (g: CanvasRenderingContext2D) => void) {
+    const k = this.scaleOf(ctx);
+    if (this.bakedK !== k) {
+      this.baked = new WeakMap();
+      this.bakedByName.clear();
+      this.bakedK = k;
+    }
+    let b = typeof key === "string" ? this.bakedByName.get(key) : this.baked.get(key);
+    if (b === undefined) {
+      b = bakeDrawing(k, draw);
+      if (typeof key === "string") {
+        // plaquinhas mudam pouco, mas nomes de visitantes extras podem ir se acumulando
+        if (this.bakedByName.size > 64) this.bakedByName.clear();
+        this.bakedByName.set(key, b);
+      } else this.baked.set(key, b);
+    }
+    if (b) drawBaked(ctx, b);
+    else draw(ctx);
+  }
+
+  /**
+   * Janelas (céu, nuvens, guindaste): mexem devagar, então são refeitas numa camada a cada
+   * WINDOW_FRAME_MS (ou quando a escala muda) em vez de todo quadro.
+   */
+  private drawWindowLayer(ctx: CanvasRenderingContext2D, now: number, light: ReturnType<typeof windowLight>) {
+    const k = this.scaleOf(ctx);
+    const slot = Math.floor(now / WINDOW_FRAME_MS);
+    if (this.windowLayer.scale !== k || this.windowSlot !== slot) {
+      if (!this.windowLayer.paint(k, (g) => drawWindows(g, now, light))) {
+        drawWindows(ctx, now, light);
+        return;
+      }
+      this.windowSlot = slot;
+    }
+    const b = this.windowLayer.baked;
+    if (b) drawBaked(ctx, b);
+  }
+
+  /** relógio de parede: redesenhado só quando o segundo muda */
+  private drawClockLayer(ctx: CanvasRenderingContext2D) {
+    const k = this.scaleOf(ctx);
+    const date = clockDate();
+    const sec = Math.floor(date.getTime() / 1000);
+    if (this.clockLayer.scale !== k || this.clockSec !== sec) {
+      if (!this.clockLayer.paint(k, (g) => drawClock(g, date))) {
+        drawClock(ctx, date);
+        return;
+      }
+      this.clockSec = sec;
+    }
+    const b = this.clockLayer.baked;
+    if (b) drawBaked(ctx, b);
   }
 
   /** apelido do AGzinho (plaquinha da mesa de convidado); visitante extra usa o nome */
@@ -449,11 +708,21 @@ export class OfficeEngine {
     ctx.restore();
   }
 
+  /** pose do descanso (objeto na mão, gesto no lugar), ou null fora do descanso */
+  private restPose(v: Visual, now: number): RestPose | null {
+    if (v.leaving) return null;
+    return this.rest.pose(v.agent.id, now, !v.path.length);
+  }
+
   /** animação em curso (só parado, no próprio lugar) e o progresso 0..1 */
   private animOf(v: Visual, now: number): { kind: CharAnim; t: number } | undefined {
+    if (v.path.length) return undefined;
     const a = v.anim;
-    if (!a || v.path.length || now >= a.until) return undefined;
-    return { kind: a.kind, t: (now - a.start) / (a.until - a.start) };
+    if (a && now < a.until) return { kind: a.kind, t: (now - a.start) / (a.until - a.start) };
+    const rest = this.restPose(v, now);
+    // com reduced-motion o descanso continua (andar é preciso), mas o espreguiçar não se mexe
+    if (!rest?.anim || (rest.anim === "stretch" && isReducedMotion())) return undefined;
+    return { kind: rest.anim, t: rest.animT };
   }
 
   /**
@@ -476,6 +745,7 @@ export class OfficeEngine {
     if ((selected || this.hoverId === v.agent.id) && !seated) {
       selectionRing(ctx, x, y, selected ? palette.navy900 : palette.navy500);
     }
+    const rest = this.restPose(v, now);
     drawCharacter(ctx, x, y, v.look, {
       dir: v.dir,
       walking: v.path.length > 0,
@@ -488,8 +758,10 @@ export class OfficeEngine {
       mood: MOOD[v.agent.status],
       anim: anim?.kind,
       animT: anim?.t ?? 0,
+      holding: rest?.holding ?? (v.cupInHand ? "copo" : undefined),
       reducedMotion: isReducedMotion(),
     });
+    if (seated && v.at.depth !== undefined && rest?.sofa && v.dir === "down") sofaShins(ctx, x, y, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
   }
 
   private headPoint(v: Visual, now: number): Point {
@@ -552,11 +824,6 @@ export class OfficeEngine {
         ctx.fillRect(Math.round(head.x - 5 + i * 4), Math.round(top - 4), 2, 2);
       }
       top -= 6;
-    } else if (v.at.id.startsWith("cafe:") && !v.path.length) {
-      ctx.fillStyle = palette.white;
-      ctx.fillRect(Math.round(head.x + 8), Math.round(top + 10), 4, 4);
-      ctx.fillStyle = "rgba(255,255,255,0.6)";
-      ctx.fillRect(Math.round(head.x + 9), Math.round(top + 6 - (Math.floor(now / 300) % 2)), 1, 3);
     }
 
     // balão: mensagem de chat > atividade recente > selecionado > esperando
@@ -642,6 +909,39 @@ function roundBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
   ctx.fillRect(x, y + 1, w, h - 2);
   ctx.fillStyle = fill;
   ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+}
+
+/**
+ * Copo AG largado em cima de uma mesa: boca com café, corpo branco com faixa marinho, asa de 1px
+ * à direita e contorno só nas bordas (sem caixa em volta). (x, y) = canto de cima do corpo.
+ */
+function drawCup(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  const ink = palette.navy950;
+  fill(ctx, x, y - 1, 3, 1, ink); // borda de cima
+  fill(ctx, x - 1, y, 1, 4, ink); // lados
+  fill(ctx, x + 3, y, 1, 4, ink);
+  fill(ctx, x, y + 4, 3, 1, ink); // fundo
+  fill(ctx, x, y, 3, 1, palette.furniture.woodShade); // café
+  fill(ctx, x, y + 1, 3, 3, palette.white);
+  fill(ctx, x, y + 2, 3, 1, palette.navy900);
+  fill(ctx, x + 4, y + 1, 1, 2, ink); // asa
+}
+
+/**
+ * Canelas e sapatos de quem está sentado no sofá, de frente: o sprite sentado não tem pernas
+ * (na mesa o tampo esconde), e no sofá elas aparecem na frente do assento.
+ */
+function sofaShins(ctx: CanvasRenderingContext2D, x: number, y: number, pants: string, shoes: string, alpha: number) {
+  const bx = Math.round(x);
+  const by = Math.round(y);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  fill(ctx, bx - 5, by - 4, 10, 7, palette.navy950);
+  for (const lx of [bx - 4, bx + 1]) {
+    fill(ctx, lx, by - 4, 3, 5, pants);
+    fill(ctx, lx, by + 1, 3, 1, shoes);
+  }
+  ctx.restore();
 }
 
 /** anel de seleção em pixel (oval 17x7, da largura da HIT_BOX) no chão, embaixo do personagem */

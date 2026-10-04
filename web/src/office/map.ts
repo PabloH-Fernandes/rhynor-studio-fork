@@ -1,9 +1,10 @@
 // Planta do escritório: tamanho, mesas, caminhos e desenho do cenário.
 // Tudo em "tiles" (1 tile = 16 px na resolução base). Pra mudar o layout,
-// mexa em DESKS, OVERFLOW_SPOTS e COFFEE_SPOTS.
+// mexa em DESKS, OVERFLOW_SPOTS, COFFEE_SPOTS e REST_SPOTS.
+// As colunas 32 a 36 são a ala de descanso (ping-pong, bebedouro, 3ª mesa de convidado).
 
 import { navyAlpha, palette, theme, roleColor } from "../theme";
-import { AG_LETTERS, drawBitmap } from "./agMark";
+import { AG_LETTERS, AG_POCKET, drawBitmap } from "./agMark";
 import {
   SOFA_GRAY,
   SOFA_NAVY,
@@ -14,13 +15,16 @@ import {
   drawCoffeeTable,
   drawCredenza,
   drawFloorLamp,
+  drawPingPongTable,
   drawPlant,
   drawPrinter,
   drawReception,
   drawSofa,
   drawTowerPainting,
   drawRollShelf,
+  drawWaterCooler,
   drawWindowView,
+  fill,
   line,
   mix,
   oval,
@@ -28,9 +32,10 @@ import {
   type WindowLight,
   type WindowView,
 } from "./decor";
+import type { Dir } from "./sprites";
 
 export const TILE = 16;
-export const COLS = 32;
+export const COLS = 36;
 export const ROWS = 18;
 export const W = COLS * TILE;
 export const H = ROWS * TILE;
@@ -51,6 +56,10 @@ export interface Spot extends Point {
   /** pontos entre o corredor e o lugar (sem incluir o corredor nem o lugar) */
   via: Point[];
   sitting: boolean;
+  /** pra onde olha ao chegar (sem isso: o padrão do motor) */
+  face?: Dir;
+  /** linha usada na ordenação por profundidade quando está parado aqui (ex.: na frente do sofá) */
+  depth?: number;
 }
 
 export interface Desk {
@@ -73,6 +82,8 @@ export const DESKS: Desk[] = [
   { id: "testador", role: "testador", cx: 10.5, cy: 12 },
   { id: "convidado-1", role: "convidado", cx: 21.5, cy: 12 },
   { id: "convidado-2", role: "convidado", cx: 27.5, cy: 12 },
+  // ala de descanso, embaixo do ping-pong (lane x = 32, a mesma dos jogadores)
+  { id: "convidado-3", role: "convidado", cx: 34, cy: 12 },
 ];
 
 export function deskSpot(d: Desk): Spot {
@@ -101,7 +112,86 @@ export const COFFEE_SPOTS: Spot[] = [
   [27.6, 15],
   [29.2, 15.1],
   [30.7, 15],
-].map(([x, y], i) => ({ id: `cafe:${i}`, x, y, laneX: x, via: [], sitting: false }));
+].map(([x, y], i) => ({ id: `cafe:${i}`, x, y, laneX: x, via: [], sitting: false, face: "down" as const }));
+
+// ------------------------------------------------------------------ descanso
+
+/** atividades com lugar no mapa (espreguiçar fica na própria mesa) */
+export type RestSpotKind = "cafe" | "celular" | "maquete" | "bebedouro" | "regar";
+
+/** Lugar de descanso: o agendador (activities.ts) reserva um por vez por AGzinho. */
+export interface RestSpot extends Spot {
+  kind: RestSpotKind;
+  face: Dir;
+  /** sentado no sofá/poltrona: o motor desenha as canelas na frente do assento */
+  sofa?: boolean;
+}
+
+/** Sentado no sofá: pés na linha `baseY - 4` e desenhado logo depois do sofá (base `baseY`). */
+function sofaSeat(id: string, xPx: number, baseY: number, approach?: { laneX: number; y: number }): RestSpot {
+  const x = xPx / TILE;
+  const y = (baseY - 4) / TILE;
+  return {
+    id,
+    kind: "celular",
+    x,
+    y,
+    laneX: approach?.laneX ?? x,
+    via: approach ? [{ x: approach.laneX, y: approach.y }, { x, y: approach.y }] : [],
+    sitting: true,
+    sofa: true,
+    face: "down",
+    depth: baseY + 0.5,
+  };
+}
+
+/** mesa de ping-pong da ala (tampo em px base; a base com as pernas fica 8 px abaixo) */
+export const PINGPONG = { x: 527, y: 106, w: 34, h: 28 } as const;
+/** coluna livre da ala: sobe do corredor até os jogadores e a 3ª mesa de convidado */
+export const ALA_LANE_X = 32;
+
+/** Os 2 lados da mesa de ping-pong (a partida entra na etapa 5; por ora o lugar só fica reservado). */
+export const PINGPONG_SPOTS: Spot[] = [
+  { id: "pingpong:0", x: 34, y: 6.2, laneX: ALA_LANE_X, via: [{ x: ALA_LANE_X, y: 6.2 }], sitting: false, face: "down" },
+  { id: "pingpong:1", x: 34, y: 9.6, laneX: ALA_LANE_X, via: [{ x: ALA_LANE_X, y: 9.6 }], sitting: false, face: "up" },
+];
+
+/** bebedouro da ala, embaixo do corredor (x = borda esquerda, y = base, px base) */
+export const WATER_COOLER: Point = { x: 553, y: 286 };
+
+/**
+ * Lugares de descanso. A maquete usa os mesmos ids de OVERFLOW_SPOTS (reuniao:0 e reuniao:1):
+ * a reserva é uma só, então ninguém fica em pé no mesmo ponto.
+ */
+export const REST_SPOTS: RestSpot[] = [
+  ...COFFEE_SPOTS.map((s): RestSpot => ({ ...s, kind: "cafe", face: "down" })),
+  // sofá marinho de cima (2 lugares) e poltrona: sobem pela lane da mesa mais perto
+  sofaSeat("sofa:0", 39, 104, { laneX: 2.5, y: 7 }),
+  sofaSeat("sofa:1", 57, 104, { laneX: 2.5, y: 7 }),
+  sofaSeat("poltrona", 455, 104, { laneX: 25.5, y: 7 }),
+  // sofá de espera embaixo (desce direto do corredor)
+  sofaSeat("espera:0", 127, 285),
+  sofaSeat("espera:1", 149, 285),
+  // maquete: em pé dos 2 lados de cima da mesa de reunião, olhando pro centro
+  ...OVERFLOW_SPOTS.slice(0, 2).map((s, i): RestSpot => ({ ...s, kind: "maquete", face: i === 0 ? "right" : "left" })),
+  // planta do corredor: o regador fica sobre o vaso
+  { id: "planta", kind: "regar", x: 282 / TILE, y: 15, laneX: 282 / TILE, via: [], sitting: false, face: "right" },
+  // bebedouro: à esquerda dele, virado pra ele
+  { id: "bebedouro", kind: "bebedouro", x: 540 / TILE, y: 17.4, laneX: 540 / TILE, via: [], sitting: false, face: "right" },
+];
+
+/** Onde fica um copo largado em cima de uma mesa (px base). */
+export interface CupSurface {
+  x: number;
+  y: number;
+  /** ordenação por profundidade: logo depois da mesa */
+  depth: number;
+}
+
+/** Lugar do copo no tampo: à direita, na frente do monitor (o lado esquerdo já tem caneca e papéis). */
+export function cupSurface(d: Desk): CupSurface {
+  return { x: Math.round(d.cx * TILE) + 15, y: Math.round((d.cy + 0.55) * TILE) + 4, depth: (d.cy + 0.55) * TILE + 20.1 };
+}
 
 export const DOOR_SPOT: Spot = { id: "porta", x: DOOR.x, y: DOOR.y, laneX: DOOR.x, via: [], sitting: false };
 
@@ -130,7 +220,11 @@ function rect(ctx: Ctx, x: number, y: number, w: number, h: number, color: strin
 /** placas de porcelanato: 32x32 px (2x2 tiles), alternando 2 tons, com juntas de 1px */
 const FLOOR_SLAB = 32;
 
-export function drawFloor(ctx: Ctx, t: number, light?: WindowLight) {
+/**
+ * Chão, tapete, passadeira, parede e porta: tudo estático, o motor desenha uma vez numa camada
+ * fora da tela (as janelas, que mexem, vêm por cima em drawWindows).
+ */
+export function drawFloor(ctx: Ctx) {
   const c = theme.colors;
   const top = WALL_ROWS * TILE;
   for (let y = top; y < H; y += FLOOR_SLAB) {
@@ -163,14 +257,11 @@ export function drawFloor(ctx: Ctx, t: number, light?: WindowLight) {
     for (let i = 1; i < 6; i++) rect(ctx, rx + 3, ry + i * 13, rw - 6, 1, palette.gray200);
   }
 
-  // corredor (passadeira cinza) por onde todo mundo anda
-  rect(ctx, 0, px(AISLE_Y) - 6, px(26.4), 12, palette.gray400);
-  rect(ctx, 0, px(AISLE_Y) - 5, px(26.4), 10, palette.gray300);
+  // corredor (passadeira cinza) por onde todo mundo anda, da porta até a ala de descanso
+  rect(ctx, 0, px(AISLE_Y) - 6, W, 12, palette.gray400);
+  rect(ctx, 0, px(AISLE_Y) - 5, W, 10, palette.gray300);
 
   drawWall(ctx);
-
-  // janelas com céu, nuvens e obra (guindaste girando, prédio subindo)
-  for (const win of WINDOWS) drawWindow(ctx, win.x, win.view, t, light);
 
   // porta (entrada à esquerda, madeira quente) + capacho marinho
   rect(ctx, 0, px(AISLE_Y) - 20, 5, 40, c.woodShade);
@@ -181,11 +272,17 @@ export function drawFloor(ctx: Ctx, t: number, light?: WindowLight) {
   for (let y = px(AISLE_Y) - 11; y < px(AISLE_Y) + 12; y += 3) rect(ctx, 7, y, 6, 1, palette.navy700);
 }
 
+/** janelas com céu, nuvens e obra (guindaste girando, prédio subindo): todo quadro, por cima da parede */
+export function drawWindows(ctx: Ctx, t: number, light?: WindowLight) {
+  for (const win of WINDOWS) drawWindow(ctx, win.x, win.view, t, light);
+}
+
 // ------------------------------------------------------------------ parede
 // Layout da parede (px base, da esquerda pra direita, sem sobreposição):
 //   janela 4–48 · janela 54–98 · quadro da ponte 106–130 · estante de rolos 136–160 ·
-//   relógio ~166–186 · placa da recepção 204–308 · quadro branco 318–374 ·
-//   quadro da torre 382–406 · janela 414–458 · janela 464–508
+//   relógio ~166–186 · placa da recepção 204–308 · quadro branco 318–374 (livre até 404:
+//   o quadro de etapas da etapa 8 cresce pra cá) · quadro da torre 410–434 · janela 440–484 ·
+//   janela 490–534 · plaquinha "AG POCKET" 539–574 (em cima da ala de descanso)
 
 const WALL_H = WALL_ROWS * TILE; // 48
 /** friso branco (1px) e lambril marinho embaixo dele, até o chão */
@@ -195,8 +292,8 @@ const TRIM_Y = 39;
 const WINDOWS: { x: number; view: WindowView }[] = [
   { x: 4, view: { kind: "crane", mast: 10, phase: 0 } },
   { x: 54, view: { kind: "construction", variant: 0 } },
-  { x: 414, view: { kind: "construction", variant: 1 } },
-  { x: 464, view: { kind: "crane", mast: 27, phase: 2.4, moon: { x: 4, y: 3 } } },
+  { x: 440, view: { kind: "construction", variant: 1 } },
+  { x: 490, view: { kind: "crane", mast: 27, phase: 2.4, moon: { x: 4, y: 3 } } },
 ];
 const WIN_W = 44;
 const WIN_Y = 4;
@@ -432,7 +529,28 @@ export function drawBoard(ctx: Ctx, counts: { working: number; waiting: number; 
 export function drawDecor(ctx: Ctx) {
   drawBridgePainting(ctx, 106, 9);
   drawRollShelf(ctx, 136, 9, 24, 39);
-  drawTowerPainting(ctx, 382, 9);
+  drawTowerPainting(ctx, 410, 9);
+  drawPocketPlaque(ctx);
+}
+
+/** plaquinha "AG POCKET" na parede da ala (px base) */
+export const POCKET_PLAQUE = { x: 539, y: 9, w: 35, h: 18 } as const;
+
+/** Plaquinha marinho com cantos em degrau e "AG / POCKET" branco em pixel bold (bitmap do agMark). */
+function drawPocketPlaque(ctx: Ctx) {
+  const { x, y, w, h } = POCKET_PLAQUE;
+  // sombra de 1px na parede, acompanhando o degrau de baixo
+  rect(ctx, x + 2, y + h, w - 3, 1, "rgba(2,11,28,0.25)");
+  rect(ctx, x + w, y + 2, 1, h - 3, "rgba(2,11,28,0.25)");
+  // contorno e fundo com 2 degraus em cada canto
+  const stepped = (ox: number, oy: number, ow: number, oh: number, color: string) => {
+    fill(ctx, ox + 2, oy, ow - 4, oh, color);
+    fill(ctx, ox + 1, oy + 1, ow - 2, oh - 2, color);
+    fill(ctx, ox, oy + 2, ow, oh - 4, color);
+  };
+  stepped(x, y, w, h, theme.colors.outline);
+  stepped(x + 1, y + 1, w - 2, h - 2, palette.navy900);
+  drawBitmap(ctx, AG_POCKET, x + 3, y + 3, palette.white);
 }
 
 /** Mesa de reunião redonda com uma maquete de obra no centro (desenhada ordenada por y). */
@@ -492,7 +610,7 @@ function drawMaquette(ctx: Ctx, cx: number, cy: number) {
   rect(ctx, mast, jibY - 3, 1, 1, palette.signal.craneLight);
 }
 
-/** Cantinho do café (no canto de baixo à direita): balcão marinho com tampo claro. */
+/** Cantinho do café (embaixo, antes da ala de descanso): balcão marinho com tampo claro. */
 export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean) {
   const F = palette.furniture;
   const x = px(26.6);
@@ -524,13 +642,11 @@ export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean) {
     }
   }
   rect(ctx, x + 41, y - 3, 5, 4, palette.navy600);
-  // bebedouro
-  rect(ctx, x + 64, y - 31, 12, 12, palette.navy950);
-  rect(ctx, x + 63, y - 21, 14, 24, palette.navy950);
-  rect(ctx, x + 64, y - 20, 12, 22, palette.gray100);
-  rect(ctx, x + 74, y - 20, 2, 22, palette.gray200);
-  rect(ctx, x + 65, y - 30, 10, 11, F.water);
-  rect(ctx, x + 66, y - 28, 3, 7, F.waterLight);
+  // torre de copos AG pra quem vem tomar café (o bebedouro foi pra ala de descanso)
+  rect(ctx, x + 65, y - 10, 6, 11, palette.navy950);
+  rect(ctx, x + 66, y - 9, 4, 9, palette.white);
+  for (let cy = y - 7; cy < y; cy += 2) rect(ctx, x + 66, cy, 4, 1, palette.gray200);
+  rect(ctx, x + 66, y - 9, 4, 1, palette.navy900);
 }
 
 /** balcão da recepção (x, y da base e largura); tem arandela própria à noite */
@@ -546,22 +662,28 @@ export const COFFEE_MACHINE: Point = { x: px(26.6) + 18, y: px(16.1) - 8 };
 export interface Prop {
   y: number;
   draw: (ctx: Ctx, t: number) => void;
+  /** muda com o tempo (luz piscando): desenha todo quadro; sem isso o motor guarda pronto (bake.ts) */
+  live?: boolean;
 }
 
 /**
- * Mobília solta e plantas. Só nas faixas livres: em cima (y 50–118, fora de x 215–290)
- * e embaixo (y 258–288, x 20–420); nada nas lanes x = 40/136/224/312/408 nem no corredor.
+ * Mobília solta e plantas. Só nas faixas livres: em cima (y 50–118, fora de x 215–290),
+ * embaixo (y 258–288, x 20–420) e na ala de descanso (x 518–576, fora do corredor);
+ * nada nas lanes x = 40/136/224/312/408/512 nem no corredor.
  */
 export const PROPS: Prop[] = [
-  // cantos de cima: planta grande abaixo do peitoril das janelas 1 e 4
+  // cantos de cima: planta grande no canto esquerdo e no canto da ala de descanso
   { y: 74, draw: (ctx) => drawPlant(ctx, 8, 74, true) },
   { y: 74, draw: (ctx) => drawPlant(ctx, W - 10, 74, true) },
+  // ala de descanso: ping-pong (base 8 px abaixo do tampo) e bebedouro embaixo do corredor
+  { y: PINGPONG.y + PINGPONG.h + 8, draw: (ctx) => drawPingPongTable(ctx, PINGPONG.x, PINGPONG.y, PINGPONG.w, PINGPONG.h) },
+  { y: WATER_COOLER.y, draw: (ctx) => drawWaterCooler(ctx, WATER_COOLER.x, WATER_COOLER.y) },
   // cima à esquerda: sofá marinho, mesinha de centro e luminária de piso
   { y: 104, draw: (ctx) => drawSofa(ctx, 24, 104, 48, 2, SOFA_NAVY, { pillow: true }) },
   { y: 100, draw: (ctx) => drawCoffeeTable(ctx, 78, 100) },
   { y: FLOOR_LAMP.y, draw: (ctx) => drawFloorLamp(ctx, FLOOR_LAMP.x, FLOOR_LAMP.y) },
   // cima à direita: multifuncional, cabideiro com capacetes e poltrona
-  { y: 100, draw: (ctx, t) => drawPrinter(ctx, 300, 100, t) },
+  { y: 100, draw: (ctx, t) => drawPrinter(ctx, 300, 100, t), live: true },
   { y: 100, draw: (ctx) => drawCoatRack(ctx, 350, 100) },
   { y: 104, draw: (ctx) => drawSofa(ctx, 440, 104, 30, 1, SOFA_NAVY) },
   // corredor (fora da lane 312)

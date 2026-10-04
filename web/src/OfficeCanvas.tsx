@@ -5,6 +5,8 @@ import { H, W } from "./office/map";
 
 export interface OfficeHandle {
   chat: (fromId: string, toId: string, text: string) => void;
+  /** o que o AGzinho está fazendo no descanso ("Tomando café"...), ou null se não está descansando */
+  restLabel: (id: string) => string | null;
 }
 
 interface Props {
@@ -21,7 +23,11 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
   if (!engineRef.current) engineRef.current = new OfficeEngine();
   const engine = engineRef.current;
 
-  useImperativeHandle(ref, () => ({ chat: (a, b, t) => engine.chat(a, b, t) }), [engine]);
+  useImperativeHandle(
+    ref,
+    () => ({ chat: (a, b, t) => engine.chat(a, b, t), restLabel: (id) => engine.restLabel(id) }),
+    [engine],
+  );
 
   useEffect(() => engine.sync(agents), [agents, engine]);
   useEffect(() => {
@@ -31,15 +37,20 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
     engine.selectedId = selectedId;
   }, [selectedId, engine]);
 
-  // tamanho: ocupa o espaço disponível mantendo a proporção e os pixels nítidos
+  // Tamanho em escala inteira: se a planta base (W x H) cabe no palco, k = maior inteiro com W*k pixels
+  // de tela cabendo, e o canvas aparece com exatamente W*k pixels de tela (1:1, todo pixel da arte do
+  // mesmo tamanho). Em tela estreita, onde nem W pixels CSS cabem (celular), ele é reduzido pelo CSS
+  // pra ocupar a largura, com k arredondado pra cima pra não perder nitidez.
   useEffect(() => {
     const wrap = wrapRef.current!;
     const canvas = canvasRef.current!;
     const resize = () => {
       const { width, height } = wrap.getBoundingClientRect();
-      const cssW = Math.max(200, Math.min(width, (height * W) / H));
       const dpr = window.devicePixelRatio || 1;
-      const k = Math.max(1, Math.round((cssW * dpr) / W));
+      const fitCss = Math.min(width, (height * W) / H);
+      const fits = fitCss >= W - 1e-6;
+      const k = fits ? Math.floor((fitCss * dpr) / W + 1e-6) : Math.max(1, Math.ceil((fitCss * dpr) / W - 1e-6));
+      const cssW = fits ? (W * k) / dpr : Math.max(200, fitCss);
       canvas.width = W * k;
       canvas.height = H * k;
       canvas.style.width = `${cssW}px`;

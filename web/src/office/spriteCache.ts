@@ -91,7 +91,7 @@ declare global {
   }
 }
 
-if (typeof window !== "undefined") {
+if (import.meta.env.DEV && typeof window !== "undefined") {
   window.__agSprites = spriteCacheStats;
   window.__agSpritesReset = resetSpriteCacheStats;
 }

@@ -146,11 +146,26 @@ test("timeout da sessão: 30 min sem nenhum evento encerra a sessão inteira", (
   start("a1", "dev");
   advance(29 * MIN);
   state.sweep();
-  assert.equal(byId("ag:dev")!.status, "chegando");
+  // sem evento próprio ele já passou de "chegando" pra "pensando" (ARRIVE_MS), mas continua lá
+  assert.equal(byId("ag:dev")!.status, "pensando");
   advance(2 * MIN);
   state.sweep();
   assert.ok(agents().every((a) => a.status === "saindo"));
   assert.equal(byId(`s:${S1}`)!.activity, "Saiu (sessão sem sinal)");
+});
+
+test("subagente sem evento nenhum não fica 'chegando' pra sempre: vira 'pensando' em 12 s", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  advance(11_000);
+  assert.equal(byId("ag:dev")!.status, "chegando");
+  advance(1000);
+  assert.equal(byId("ag:dev")!.status, "pensando");
+  // quem já teve evento não é mexido pelo timer
+  start("a2", "revisor");
+  hook("PreToolUse", { agent_id: "a2", agent_type: "revisor", tool_name: "Read", tool_input: { file_path: "a.ts" } });
+  advance(12_000);
+  assert.equal(byId("ag:revisor")!.status, "trabalhando");
 });
 
 test("timeout da sessão: ferramenta sem Post segura até 4x o limite", () => {

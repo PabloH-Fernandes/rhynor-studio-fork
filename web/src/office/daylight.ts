@@ -6,7 +6,7 @@
 
 import { palette } from "../theme";
 import { disc, hexToRgb, mix, type Rect, type WindowLight } from "./decor";
-import { AISLE_Y, BOARD, COFFEE_MACHINE, DESKS, FLOOR_LAMP, H, RECEPTION, SIGN_LAMP_X, TILE, W, WINDOW_PANES } from "./map";
+import { AISLE_Y, BOARD, COFFEE_MACHINE, DESKS, FLOOR_LAMP, H, PINGPONG, POCKET_PLAQUE, RECEPTION, WATER_COOLER, SIGN_LAMP_X, TILE, W, WINDOW_PANES } from "./map";
 
 export type RGB = [number, number, number];
 
@@ -167,8 +167,12 @@ export interface LightScene {
   coffeeBusy: boolean;
 }
 
-/** ~4 Hz basta: a hora muda devagar e as luzes só mudam quando o conjunto muda */
-const REBUILD_MS = 250;
+/**
+ * O mapa é refeito na hora quando as luzes mudam (tela acende, café ocupado) e, fora isso, só a
+ * cada 5 s pra acompanhar a hora (que muda devagar). Refazer a cada 250 ms dava um pico de
+ * milhares de fillRect 4x por segundo à noite.
+ */
+const REBUILD_MS = 5000;
 /** raio (px base), cor e força de cada luz; a força ainda é multiplicada por "night" */
 const LIGHT = {
   monitor: { r: 14, color: hexToRgb(palette.night.monitorLight), power: 0.75 },
@@ -180,7 +184,14 @@ const LIGHT = {
   meeting: { r: 40, color: hexToRgb(palette.night.ceilingLight), power: 0.32 },
   /** corredor: luz fraca e larga pra quem anda fora das mesas */
   aisle: { r: 70, color: hexToRgb(palette.night.ceilingLight), power: 0.18 },
+  /** luminária de teto da ala de descanso, sobre a mesa de ping-pong */
+  ala: { r: 38, color: hexToRgb(palette.night.ceilingLight), power: 0.45 },
+  /** luz fraca sobre o bebedouro (sem ela ele some na ala escura) */
+  cooler: { r: 20, color: hexToRgb(palette.night.ceilingLight), power: 0.4 },
 } as const;
+
+/** centros das luzes do corredor: 4 faixas iguais da porta até a ala */
+const AISLE_LIGHTS_X = [0, 1, 2, 3].map((i) => Math.round(((i + 0.5) * W) / 4));
 
 /**
  * Luz em faixas concêntricas somadas ("lighter"), de fora pra dentro, com pesos crescentes
@@ -241,6 +252,8 @@ export class Lightmap {
     const [br, bg, bb] = [200, 208, 228].map((v, i) => Math.max(v, d.ambient[i]));
     g.fillStyle = `rgb(${br}, ${bg}, ${bb})`;
     g.fillRect(BOARD.x, BOARD.y, BOARD.w, BOARD.h);
+    // plaquinha AG POCKET: mesmo piso de luz, pra continuar legível à noite
+    g.fillRect(POCKET_PLAQUE.x, POCKET_PLAQUE.y, POCKET_PLAQUE.w, POCKET_PLAQUE.h);
 
     g.globalCompositeOperation = "lighter";
     if (d.lightsOn) {
@@ -248,7 +261,9 @@ export class Lightmap {
         addLight(g, desk.cx * TILE, (desk.cy + 0.3) * TILE, LIGHT.ceiling.r, LIGHT.ceiling.color, LIGHT.ceiling.power * n, 3);
       }
       addLight(g, 16 * TILE, 11.2 * TILE, LIGHT.meeting.r, LIGHT.meeting.color, LIGHT.meeting.power * n, 3);
-      for (const ax of [70, 200, 330, 460]) addLight(g, ax, AISLE_Y * TILE, LIGHT.aisle.r, LIGHT.aisle.color, LIGHT.aisle.power * n, 3);
+      addLight(g, PINGPONG.x + (PINGPONG.w >> 1), PINGPONG.y + (PINGPONG.h >> 1), LIGHT.ala.r, LIGHT.ala.color, LIGHT.ala.power * n, 3);
+      addLight(g, WATER_COOLER.x + 7, WATER_COOLER.y - 18, LIGHT.cooler.r, LIGHT.cooler.color, LIGHT.cooler.power * n, 3);
+      for (const ax of AISLE_LIGHTS_X) addLight(g, ax, AISLE_Y * TILE, LIGHT.aisle.r, LIGHT.aisle.color, LIGHT.aisle.power * n, 3);
     }
     for (const r of scene.activeScreens) {
       addLight(g, r.x + (r.w >> 1), r.y + (r.h >> 1), LIGHT.monitor.r, LIGHT.monitor.color, LIGHT.monitor.power * n);

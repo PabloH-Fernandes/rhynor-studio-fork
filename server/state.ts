@@ -41,6 +41,11 @@ export const ROLE_NAMES: Record<string, string> = {
 
 const SUBAGENT_TOOLS = new Set(["Agent", "Task"]);
 const LEAVE_DELAY_MS = 7000; // tempo pra animação de saída antes de remover
+/**
+ * Subagente sem nenhum evento próprio depois de entrar: passa de "chegando" pra "pensando"
+ * (a caminhada da porta até a mesa mais longe, na ala de descanso, leva ~11 s)
+ */
+const ARRIVE_MS = 12_000;
 const FALLBACK_SPAWN_MS = 1500; // se o SubagentStart não chegar, cria pelo tool_use_id
 const RETIRE_MS = 2 * 60_000; // eventos atrasados de quem já entregou são ignorados por esse tempo
 const SWEEP_EVERY_MS = 60_000;
@@ -83,6 +88,7 @@ export class OfficeState {
   private listeners = new Set<Listener>();
   private pending = new Map<string, PendingSpawn>(); // tool_use_id -> spawn ainda sem SubagentStart
   private removalTimers = new Map<string, NodeJS.Timeout>();
+  private arrivalTimers = new Map<string, NodeJS.Timeout>();
   private roster: Roster = structuredClone(DEFAULT_ROSTER);
   /** agent_id ou "t:"+tool_use_id → id visual (ag:dev, ag:dev-2...) */
   private aliases = new Map<string, string>();
@@ -139,8 +145,10 @@ export class OfficeState {
   /** Apaga tudo (usado pelo botão "Limpar" da tela). */
   reset() {
     for (const t of this.removalTimers.values()) clearTimeout(t);
+    for (const t of this.arrivalTimers.values()) clearTimeout(t);
     for (const p of this.pending.values()) clearTimeout(p.timer);
     this.removalTimers.clear();
+    this.arrivalTimers.clear();
     this.pending.clear();
     this.aliases.clear();
     this.bindings.clear();
@@ -509,6 +517,15 @@ export class OfficeState {
     };
     this.agents.set(id, agent);
     this.emit({ type: "agent", agent });
+    // sem evento nenhum (ex.: subagente que só pensa), não fica "chegando / Indo pra mesa..." pra sempre
+    const arrive = setTimeout(() => {
+      this.arrivalTimers.delete(id);
+      if (this.agents.get(id) === agent && agent.status === "chegando") {
+        this.update(agent, "pensando", description ? agent.activity : "Pensando...");
+      }
+    }, ARRIVE_MS);
+    arrive.unref?.();
+    this.arrivalTimers.set(id, arrive);
     return { agent, returning: false };
   }
 
@@ -677,6 +694,9 @@ export class OfficeState {
     const t = this.removalTimers.get(id);
     if (t) clearTimeout(t);
     this.removalTimers.delete(id);
+    const arrive = this.arrivalTimers.get(id);
+    if (arrive) clearTimeout(arrive);
+    this.arrivalTimers.delete(id);
     for (const [alias, visual] of this.aliases) if (visual === id) this.aliases.delete(alias);
     this.bindings.delete(id);
     if (this.agents.delete(id)) this.emit({ type: "remove", id });

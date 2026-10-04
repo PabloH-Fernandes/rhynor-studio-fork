@@ -1,6 +1,6 @@
 // Cenário em pixel art: vista das janelas (céu, nuvens, guindaste, prédio em obra),
 // quadros (ponte, torre de transmissão), estante com rolos de projeto, a logo da placa em pixels duros
-// e a mobília do chão (plantas, sofás, impressora, cabideiro, balcão da recepção).
+// e a mobília do chão (plantas, sofás, impressora, cabideiro, balcão da recepção, ping-pong, bebedouro).
 // Tudo em coordenadas inteiras da resolução base, sem arc/ellipse/gradiente.
 
 import { navyAlpha, palette } from "../theme";
@@ -987,4 +987,63 @@ export function drawReception(ctx: Ctx, x: number, baseY: number, w: number) {
   fill(ctx, x + 6, top + 8, 1, h - 11, P.navy800);
   fill(ctx, x + w - 7, top + 8, 1, h - 11, P.navy800);
   drawBitmap(ctx, AG_LETTERS, x + Math.floor((w - 14) / 2), top + 9, P.white);
+}
+
+/**
+ * Mesa de ping-pong vista de cima em 3/4, no sentido do comprimento (jogadores em cima e embaixo):
+ * tampo marinho baixo e largo com bordas e linha do meio brancas, rede clara atravessando na
+ * horizontal, borda frontal fina, pernas finas só embaixo e sombra no chão.
+ * (x, y) = canto de cima do tampo; a base fica em y + h + 8.
+ */
+export function drawPingPongTable(ctx: Ctx, x: number, y: number, w: number, h: number) {
+  // sombra no chão debaixo do tampo (aparece entre as pernas)
+  fill(ctx, x + 1, y + h + 3, w - 1, 5, floorShadow);
+  fill(ctx, x + 3, y + h + 8, w - 5, 1, floorShadow);
+  // pernas finas: as de trás mais curtas e escuras, as da frente até o chão
+  for (const lx of [x + 5, x + w - 6]) fill(ctx, lx, y + h + 2, 1, 4, P.gray600);
+  for (const lx of [x + 2, x + w - 3]) {
+    fill(ctx, lx, y + h + 2, 1, 6, P.gray500);
+    fill(ctx, lx, y + h + 7, 1, 1, OUT);
+  }
+  // contorno, tampo e borda frontal (2px)
+  fill(ctx, x - 1, y - 1, w + 2, h + 4, OUT);
+  fill(ctx, x, y, w, h, P.navy600);
+  fill(ctx, x, y + h, w, 2, P.navy900);
+  // bordas brancas e linha do meio (no sentido do comprimento)
+  fill(ctx, x, y, w, 1, P.white);
+  fill(ctx, x, y + h - 1, w, 1, P.white);
+  fill(ctx, x, y, 1, h, P.white);
+  fill(ctx, x + w - 1, y, 1, h, P.white);
+  fill(ctx, x + (w >> 1), y, 1, h, P.white);
+  // rede: 1px clara atravessando, sombra embaixo, postes 1px pra fora de cada lado
+  const ny = y + (h >> 1);
+  fill(ctx, x - 2, ny, w + 4, 1, P.gray100);
+  fill(ctx, x, ny + 1, w, 1, P.navy800);
+  fill(ctx, x - 2, ny - 2, 1, 3, P.gray500);
+  fill(ctx, x + w + 1, ny - 2, 1, 3, P.gray500);
+  // raquetes descansando (uma de cada lado) e a bolinha
+  const paddle = (px: number, py: number) => {
+    fill(ctx, px - 1, py - 1, 5, 5, OUT);
+    fill(ctx, px, py, 3, 3, P.props.paddle);
+    fill(ctx, px, py, 1, 1, P.gray50);
+    fill(ctx, px + 1, py + 4, 1, 2, F.wood);
+  };
+  paddle(x + w - 9, y + 4);
+  paddle(x + 5, y + h - 10);
+  fill(ctx, x + 10, y + 6, 2, 2, P.white);
+}
+
+/** bebedouro de galão: corpo branco, galão azul em cima e torneirinha. `x` é a borda esquerda. */
+export function drawWaterCooler(ctx: Ctx, x: number, baseY: number) {
+  fill(ctx, x + 1, baseY, 14, 1, floorShadow);
+  fill(ctx, x + 1, baseY - 34, 12, 12, OUT);
+  fill(ctx, x, baseY - 24, 14, 24, OUT);
+  fill(ctx, x + 1, baseY - 23, 12, 22, P.gray100);
+  fill(ctx, x + 11, baseY - 23, 2, 22, P.gray200);
+  fill(ctx, x + 2, baseY - 33, 10, 11, F.water);
+  fill(ctx, x + 3, baseY - 31, 3, 7, F.waterLight);
+  // torneira e bandeja
+  fill(ctx, x + 4, baseY - 18, 3, 2, P.navy600);
+  fill(ctx, x + 5, baseY - 16, 1, 1, OUT);
+  fill(ctx, x + 3, baseY - 12, 6, 1, P.gray400);
 }
