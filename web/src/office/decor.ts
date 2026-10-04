@@ -993,9 +993,9 @@ export function drawReception(ctx: Ctx, x: number, baseY: number, w: number) {
  * Mesa de ping-pong vista de cima em 3/4, no sentido do comprimento (jogadores em cima e embaixo):
  * tampo marinho baixo e largo com bordas e linha do meio brancas, rede clara atravessando na
  * horizontal, borda frontal fina, pernas finas só embaixo e sombra no chão.
- * (x, y) = canto de cima do tampo; a base fica em y + h + 8.
+ * (x, y) = canto de cima do tampo; a base fica em y + h + 8. `gear` = raquetes e bolinha no tampo.
  */
-export function drawPingPongTable(ctx: Ctx, x: number, y: number, w: number, h: number) {
+export function drawPingPongTable(ctx: Ctx, x: number, y: number, w: number, h: number, gear = true) {
   // sombra no chão debaixo do tampo (aparece entre as pernas)
   fill(ctx, x + 1, y + h + 3, w - 1, 5, floorShadow);
   fill(ctx, x + 3, y + h + 8, w - 5, 1, floorShadow);
@@ -1021,7 +1021,8 @@ export function drawPingPongTable(ctx: Ctx, x: number, y: number, w: number, h: 
   fill(ctx, x, ny + 1, w, 1, P.navy800);
   fill(ctx, x - 2, ny - 2, 1, 3, P.gray500);
   fill(ctx, x + w + 1, ny - 2, 1, 3, P.gray500);
-  // raquetes descansando (uma de cada lado) e a bolinha
+  // raquetes descansando (uma de cada lado) e a bolinha; no jogo elas estão na mão
+  if (!gear) return;
   const paddle = (px: number, py: number) => {
     fill(ctx, px - 1, py - 1, 5, 5, OUT);
     fill(ctx, px, py, 3, 3, P.props.paddle);

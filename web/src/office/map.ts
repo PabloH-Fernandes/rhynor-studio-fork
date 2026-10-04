@@ -108,8 +108,9 @@ export const OVERFLOW_SPOTS: Spot[] = [
   [16, 13.4],
 ].map(([x, y], i) => ({ id: `reuniao:${i}`, x, y, laneX: x, via: [], sitting: false }));
 
+// cafe:0 fica 0,4 tile mais baixo: em 15 a cabeça cobria a plaquinha da mesa convidado-2
 export const COFFEE_SPOTS: Spot[] = [
-  [27.6, 15],
+  [27.6, 15.4],
   [29.2, 15.1],
   [30.7, 15],
 ].map(([x, y], i) => ({ id: `cafe:${i}`, x, y, laneX: x, via: [], sitting: false, face: "down" as const }));
@@ -117,7 +118,7 @@ export const COFFEE_SPOTS: Spot[] = [
 // ------------------------------------------------------------------ descanso
 
 /** atividades com lugar no mapa (espreguiçar fica na própria mesa) */
-export type RestSpotKind = "cafe" | "celular" | "maquete" | "bebedouro" | "regar";
+export type RestSpotKind = "cafe" | "celular" | "maquete" | "bebedouro" | "regar" | "papo";
 
 /** Lugar de descanso: o agendador (activities.ts) reserva um por vez por AGzinho. */
 export interface RestSpot extends Spot {
@@ -178,6 +179,46 @@ export const REST_SPOTS: RestSpot[] = [
   { id: "planta", kind: "regar", x: 282 / TILE, y: 15, laneX: 282 / TILE, via: [], sitting: false, face: "right" },
   // bebedouro: à esquerda dele, virado pra ele
   { id: "bebedouro", kind: "bebedouro", x: 540 / TILE, y: 17.4, laneX: 540 / TILE, via: [], sitting: false, face: "right" },
+];
+
+/** Ponto de encontro do bate-papo: 2 ou 3 lugares, usados na ordem (os 2 primeiros ficam lado a lado). */
+export interface PapoPlace {
+  id: string;
+  spots: readonly RestSpot[];
+}
+
+const restSpot = (id: string) => {
+  const s = REST_SPOTS.find((r) => r.id === id);
+  if (!s) throw new Error(`lugar de descanso ${id} não existe`);
+  return s;
+};
+
+/**
+ * Em pé no corredor, entre a mesa do testador e a reunião (fora das lanes 8,5 e 14,4):
+ * 2 frente a frente logo acima do corredor e o 3º logo abaixo, no meio, olhando pra cima
+ * (afastados ~14 px pra um não cobrir o outro).
+ */
+export const PAPO_CORREDOR: RestSpot[] = [
+  [12.3, 15.2, "right"],
+  [14.1, 15.2, "left"],
+  [13.2, 16.4, "up"],
+].map(([x, y, face], i) => ({
+  id: `papo:${i}`,
+  kind: "papo",
+  x: x as number,
+  y: y as number,
+  laneX: x as number,
+  via: [],
+  sitting: false,
+  face: face as Dir,
+}));
+
+/** Os mesmos ids do sofá e do café: a reserva é uma só, ninguém senta em cima de ninguém. */
+export const PAPO_PLACES: PapoPlace[] = [
+  { id: "sofa", spots: [restSpot("sofa:0"), restSpot("sofa:1")] },
+  { id: "espera", spots: [restSpot("espera:0"), restSpot("espera:1")] },
+  { id: "copa", spots: COFFEE_SPOTS.map((s) => restSpot(s.id)) },
+  { id: "corredor", spots: PAPO_CORREDOR },
 ];
 
 /** Onde fica um copo largado em cima de uma mesa (px base). */
@@ -660,6 +701,8 @@ export const COFFEE_MACHINE: Point = { x: px(26.6) + 18, y: px(16.1) - 8 };
 
 /** Peça de mobília fixa: `y` é a linha da base, usada na ordenação por profundidade. */
 export interface Prop {
+  /** o motor desenha diferente (ex.: "pingpong" sem as raquetes e a bolinha no tampo durante o jogo) */
+  id?: string;
   y: number;
   draw: (ctx: Ctx, t: number) => void;
   /** muda com o tempo (luz piscando): desenha todo quadro; sem isso o motor guarda pronto (bake.ts) */
@@ -676,7 +719,7 @@ export const PROPS: Prop[] = [
   { y: 74, draw: (ctx) => drawPlant(ctx, 8, 74, true) },
   { y: 74, draw: (ctx) => drawPlant(ctx, W - 10, 74, true) },
   // ala de descanso: ping-pong (base 8 px abaixo do tampo) e bebedouro embaixo do corredor
-  { y: PINGPONG.y + PINGPONG.h + 8, draw: (ctx) => drawPingPongTable(ctx, PINGPONG.x, PINGPONG.y, PINGPONG.w, PINGPONG.h) },
+  { id: "pingpong", y: PINGPONG.y + PINGPONG.h + 8, draw: (ctx) => drawPingPongTable(ctx, PINGPONG.x, PINGPONG.y, PINGPONG.w, PINGPONG.h) },
   { y: WATER_COOLER.y, draw: (ctx) => drawWaterCooler(ctx, WATER_COOLER.x, WATER_COOLER.y) },
   // cima à esquerda: sofá marinho, mesinha de centro e luminária de piso
   { y: 104, draw: (ctx) => drawSofa(ctx, 24, 104, 48, 2, SOFA_NAVY, { pillow: true }) },
@@ -705,11 +748,7 @@ export function drawDesk(
   opts: { active: boolean; waiting: boolean; occupantName?: string; nickname?: string; t: number; reducedMotion?: boolean },
 ) {
   const c = theme.colors;
-  const wTiles = d.big ? 3.6 : 2.75;
-  const w = px(wTiles);
-  const x = px(d.cx) - w / 2;
-  const top = px(d.cy + 0.55);
-  const depth = d.big ? 13 : 11;
+  const { w, x, top, depth } = deskGeom(d);
   const front = 9;
 
   const F = palette.furniture;
@@ -763,12 +802,26 @@ export function drawDesk(
   ctx.font = `5px "Press Start 2P", monospace`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const plain = stripAccents(label);
-  const tw = Math.min(ctx.measureText(plain).width + 6, w - 4);
-  // 7px de altura: 1px de cima fica para os acentos (LÚCIA, TOMÁS)
-  const plateY = top + depth + 1;
-  rect(ctx, px(d.cx) - tw / 2, plateY, tw, 7, color);
-  fillPlateText(ctx, label, px(d.cx), plateY + 4.3, w - 8, palette.navy950);
+  const plate = deskPlateRect(d, ctx.measureText(stripAccents(label)).width);
+  rect(ctx, plate.x, plate.y, plate.w, plate.h, color);
+  fillPlateText(ctx, label, px(d.cx), plate.y + 4.3, w - 8, palette.navy950);
+}
+
+/** medidas do tampo de uma mesa (px base): largura, borda esquerda, topo e profundidade */
+function deskGeom(d: Desk) {
+  const w = px(d.big ? 3.6 : 2.75);
+  return { w, x: px(d.cx) - w / 2, top: px(d.cy + 0.55), depth: d.big ? 13 : 11 };
+}
+
+/**
+ * Plaquinha da mesa (px base, inteiros): 7 px de altura (1 px de cima fica pros acentos de
+ * LÚCIA e TOMÁS), largura do texto + 6 até a largura do tampo - 4. Sem `textW`, o maior tamanho
+ * possível (é o que os balões evitam, sem precisar medir o texto).
+ */
+export function deskPlateRect(d: Desk, textW = Infinity): Rect {
+  const { w, top, depth } = deskGeom(d);
+  const tw = Math.min(textW + 6, w - 4);
+  return { x: Math.round(px(d.cx) - tw / 2), y: top + depth + 1, w: Math.round(tw), h: 7 };
 }
 
 const MARK_ACUTE = "\u0301";

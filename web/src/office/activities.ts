@@ -1,15 +1,22 @@
 // Agendador de descanso: quem está "De boa" escolhe uma atividade (café, sofá com celular,
-// maquete, bebedouro, regar a planta, espreguiçar), vai até o lugar, fica um tempo e volta pra mesa.
+// maquete, bebedouro, regar a planta, espreguiçar, ping-pong em dupla, bate-papo de 2 ou 3),
+// vai até o lugar, fica um tempo e volta pra mesa.
 // Lógica pura (sem DOM nem canvas): o motor passa os atores e um "mover" que anda com eles,
 // e pergunta a pose de cada um na hora de desenhar. Testes em activities.test.ts.
 
-import type { RestSpot, Spot } from "./map";
-import type { CharAnim, Holding } from "./sprites";
+import type { PapoPlace, RestSpot, Spot } from "./map";
+import type { CharAnim, Dir, Holding } from "./sprites";
 
-export type RestKind = "cafe" | "celular" | "maquete" | "bebedouro" | "regar" | "espreguicar";
+/** atividades de uma pessoa só */
+export type SoloKind = "cafe" | "celular" | "maquete" | "bebedouro" | "regar" | "espreguicar";
+/** atividades em grupo: ping-pong (2) e bate-papo (2 ou 3) */
+export type GroupKind = "pingpong" | "papo";
+export type RestKind = SoloKind | GroupKind;
 export type RestPhase = "indo" | "fazendo" | "voltando";
 
-/** peso no sorteio (ping-pong e papo entram na etapa 5) */
+export const GROUP_KINDS: readonly GroupKind[] = ["pingpong", "papo"];
+
+/** peso no sorteio */
 export const REST_WEIGHTS: Record<RestKind, number> = {
   cafe: 3,
   celular: 2,
@@ -17,6 +24,8 @@ export const REST_WEIGHTS: Record<RestKind, number> = {
   bebedouro: 1,
   regar: 1,
   espreguicar: 1,
+  pingpong: 2,
+  papo: 3,
 };
 
 /** o que aparece no crachá ("agora") */
@@ -27,6 +36,8 @@ export const REST_LABELS: Record<RestKind, string> = {
   bebedouro: "No bebedouro",
   regar: "Regando a planta",
   espreguicar: "Se espreguiçando",
+  pingpong: "Jogando ping-pong",
+  papo: "Batendo papo",
 };
 
 /** ocioso há pelo menos isso antes de sair da mesa */
@@ -52,6 +63,27 @@ const WATER_LOOP_MS = 1800;
 const STRETCH_MS = 1600;
 /** espreguiçar: um gesto a cada ~10 s, sempre pelo tempo mínimo de atividade */
 const STRETCH_LOOP_MS = 10_000;
+
+/** grupo: quem chega primeiro espera os outros até isso; depois desiste e escolhe outra coisa */
+export const PARTNER_WAIT_MS = 8000;
+/** papo: parceiros vêm de quem está livre a menos disso (px base) */
+export const PAPO_RADIUS_PX = 200;
+/** papo: uma fala a cada 6–8 s, revezando (o motor ainda segura 12 s por AGzinho) */
+export const PAPO_LINE_MIN_MS = 6000;
+export const PAPO_LINE_MAX_MS = 8000;
+/** ping-pong: um golpe (ida ou volta) leva de 500 a 800 ms */
+export const STROKE_MIN_MS = 500;
+export const STROKE_MAX_MS = 800;
+/** ~1 em 12 golpes a bolinha erra a mesa */
+export const MISS_CHANCE = 1 / 12;
+/** pausa antes do saque (início da partida e depois de um erro) */
+export const SERVE_MS = 700;
+/** depois do erro: a bolinha quica no chão, alguém pega e saca de novo */
+export const MISS_PAUSE_MS = 1200;
+/** parte da pausa do erro em que a bolinha ainda está no chão (o resto é o saque) */
+const MISS_FLOOR_SHARE = 0.55;
+/** tile em px base (as posições dos atores vêm em px; as dos lugares, em tiles) */
+const TILE_PX = 16;
 
 // ------------------------------------------------------------------ PRNG
 
@@ -151,6 +183,11 @@ export interface RestActor {
   homeId: string;
   /** tem mesa própria (quem mora em pé na reunião não leva o café pra "casa") */
   hasDesk: boolean;
+  /** posição em px base (o papo chama parceiros por perto) */
+  x: number;
+  y: number;
+  /** falas do AGzinho pro bate-papo (sem falas: entra no papo, mas só escuta) */
+  falas?: readonly string[];
 }
 
 /** Como o agendador mexe nos personagens (o motor implementa; os testes usam um falso). */
@@ -159,6 +196,8 @@ export interface RestMover {
   goHome(id: string): void;
   /** larga o copo de café: o motor leva até a mesa dele e deixa lá (decal que some sozinho) */
   dropCup(id: string): void;
+  /** fala do bate-papo: o motor põe na fila de balões de descanso */
+  say(id: string, text: string): void;
 }
 
 /** Pose de descanso pra desenhar quando o personagem está parado no lugar (ou o objeto na mão andando). */
@@ -172,11 +211,65 @@ export interface RestPose {
   cupOnDesk?: boolean;
 }
 
+/** Um golpe do ping-pong: sai do lado `from` (0 = de cima, 1 = de baixo) e chega no outro (ou erra). */
+export interface Stroke {
+  start: number;
+  /** começo do saque (a bolinha parada na mão de quem saca); = start no meio da troca de bolas */
+  serveAt: number;
+  dur: number;
+  from: 0 | 1;
+  miss: boolean;
+  /** desvio lateral (px) de onde a bolinha chega; o golpe seguinte sai daí */
+  dx: number;
+  /** desvio de onde saiu (o dx do golpe anterior; 0 no saque) */
+  dx0: number;
+}
+
+/**
+ * Momento da partida, pro motor desenhar a bolinha:
+ * - "saque": parada na mão de quem vai sacar (`from`), `p` = progresso da pausa;
+ * - "voo": no ar, de `from` pro outro lado, `p` = 0..1;
+ * - "fora": errou e está no chão (`since` = ms desde que caiu).
+ */
+export interface RallyFrame {
+  state: "saque" | "voo" | "fora";
+  from: 0 | 1;
+  p: number;
+  miss: boolean;
+  dx0: number;
+  dx: number;
+  since: number;
+}
+
+interface Group {
+  kind: GroupKind;
+  /** ids na ordem; o primeiro "puxa" o relógio do grupo (falas) */
+  members: string[];
+  arrived: Set<string>;
+  firstArrivalAt?: number;
+  /** todos chegaram: começou a partida/conversa */
+  readyAt?: number;
+  endsAt: number;
+  durationMs: number;
+  /** acabou o tempo: cada um volta sozinho, e sair do grupo não mexe nos outros */
+  over: boolean;
+  rnd: () => number;
+  /** último rallyOf (a pose dos 2 jogadores e a bolinha pedem o mesmo instante) */
+  rallyMemo?: { at: number; frame: RallyFrame };
+  /** ping-pong: golpe atual (gerado conforme o tempo passa) e o anterior */
+  stroke?: Stroke;
+  prevStroke?: Stroke;
+  /** papo: de quem é a vez, quando sai a próxima fala e quem falou por último */
+  turn: number;
+  nextLineAt: number;
+  speaker?: string;
+}
+
 interface Rest {
   kind: RestKind;
   phase: RestPhase;
   /** lugar reservado (undefined: espreguiçar, na própria mesa) */
-  spot?: RestSpot;
+  spot?: Spot & { sofa?: boolean };
   /** quando chegou no lugar (início do "fazendo") */
   doingAt: number;
   /** fim do "fazendo" atual */
@@ -188,6 +281,8 @@ interface Rest {
   atDesk: boolean;
   /** pausa entre goles (sorteada por atividade) */
   sipPauseMs: number;
+  /** ping-pong ou papo */
+  group?: Group;
 }
 
 interface Track {
@@ -196,6 +291,12 @@ interface Track {
   pauseUntil: number;
   last?: RestKind;
   rest?: Rest;
+  /** o grupo desfez (parceiro chamado, ninguém veio): escolhe outra atividade já no próximo passo */
+  rechoose?: boolean;
+  /** última fala no papo (não repete a mesma seguida) */
+  lastLine?: string;
+  /** falas do ator, guardadas a cada passo */
+  falas?: readonly string[];
 }
 
 export interface RestSchedulerOptions {
@@ -205,12 +306,24 @@ export interface RestSchedulerOptions {
    */
   seed?: number;
   reservations?: Reservations;
+  /** os 2 lados da mesa de ping-pong (sem isso, não tem ping-pong) */
+  pingpong?: readonly Spot[];
+  /** pontos de encontro do bate-papo (sem isso, não tem papo) */
+  papoPlaces?: readonly PapoPlace[];
 }
+
+const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+/** centro de um lugar em px base */
+const spotPx = (s: Spot) => ({ x: s.x * TILE_PX, y: s.y * TILE_PX });
 
 export class RestScheduler {
   readonly reservations: Reservations;
   private tracks = new Map<string, Track>();
   private seed: number;
+  private pingpongSpots: readonly Spot[];
+  private papoPlaces: readonly PapoPlace[];
+  /** partida em andamento (só há uma mesa) */
+  private match?: Group;
 
   constructor(
     private spots: readonly RestSpot[],
@@ -218,6 +331,8 @@ export class RestScheduler {
   ) {
     this.seed = opts.seed ?? 0;
     this.reservations = opts.reservations ?? new Reservations();
+    this.pingpongSpots = opts.pingpong?.length === 2 ? opts.pingpong : [];
+    this.papoPlaces = opts.papoPlaces ?? [];
   }
 
   private track(actor: { id: string; session: string }): Track {
@@ -229,8 +344,11 @@ export class RestScheduler {
     return t;
   }
 
-  /** pode sair da mesa pra descansar agora? */
-  eligible(a: RestActor, now: number): boolean {
+  /**
+   * Pode sair da mesa pra descansar agora? `asPartner`: chamado por alguém pro ping-pong ou papo
+   * (vale também na pausa entre atividades; senão os dois quase nunca ficariam livres juntos).
+   */
+  eligible(a: RestActor, now: number, asPartner = false): boolean {
     const t = this.tracks.get(a.id);
     if (t?.rest) return false;
     return (
@@ -239,7 +357,7 @@ export class RestScheduler {
       !a.walking &&
       !a.busyAnim &&
       now - a.idleSince >= IDLE_GRACE_MS &&
-      now >= (t?.pauseUntil ?? 0)
+      (asPartner || now >= (t?.pauseUntil ?? 0))
     );
   }
 
@@ -251,25 +369,67 @@ export class RestScheduler {
     return this.spots.filter((s) => s.kind === kind && this.reservations.holder(s.id) === undefined);
   }
 
-  /** atividades possíveis agora: com lugar livre e diferente da anterior */
-  options(id: string): RestKind[] {
+  /**
+   * Atividades possíveis agora: com lugar livre e diferente da anterior. As de grupo só entram
+   * com `ctx` (precisam de parceiro livre); com `ctx`, espreguiçar só parado na própria mesa.
+   */
+  options(id: string, ctx?: { actor: RestActor; now: number; pool: readonly RestActor[] }): RestKind[] {
     const last = this.tracks.get(id)?.last;
-    return (Object.keys(REST_WEIGHTS) as RestKind[]).filter(
-      (k) => k !== last && (k === "espreguicar" || this.freeSpots(k).length > 0),
-    );
+    return (Object.keys(REST_WEIGHTS) as RestKind[]).filter((k) => {
+      if (k === last) return false;
+      if (k === "espreguicar") return !ctx || (ctx.actor.atId === ctx.actor.homeId && !ctx.actor.walking);
+      if (k === "pingpong") return !!ctx && this.pingpongFree() && this.partners(ctx.actor, k, ctx.now, ctx.pool).length > 0;
+      if (k === "papo") return !!ctx && this.papoPlan(ctx.actor, ctx.now, ctx.pool, 2, 0) !== null;
+      return this.freeSpots(k).length > 0;
+    });
+  }
+
+  private pingpongFree(): boolean {
+    return this.pingpongSpots.length === 2 && this.pingpongSpots.every((s) => this.reservations.holder(s.id) === undefined);
+  }
+
+  /** quem pode entrar num grupo agora: livre, ocioso, sem pausa e sem ter acabado de fazer a mesma coisa */
+  private partners(a: RestActor, kind: GroupKind, now: number, pool: readonly RestActor[]): RestActor[] {
+    return pool
+      .filter((p) => {
+        if (p.id === a.id || !this.eligible(p, now, true)) return false;
+        const t = this.tracks.get(p.id);
+        return t?.last !== kind && !t?.rechoose;
+      })
+      .sort((p, q) => dist(a, p) - dist(a, q));
+  }
+
+  /** papo: um ponto de encontro com `size` lugares livres e parceiros por perto (ou null). `r` escolhe o ponto. */
+  private papoPlan(a: RestActor, now: number, pool: readonly RestActor[], size: number, r: number) {
+    const near = this.partners(a, "papo", now, pool).filter((p) => dist(a, p) < PAPO_RADIUS_PX);
+    if (near.length < size - 1) return null;
+    const places = this.papoPlaces
+      .map((place) => ({ place, free: place.spots.filter((s) => this.reservations.holder(s.id) === undefined) }))
+      .filter((p) => p.free.length >= size);
+    if (!places.length) return null;
+    return { ...places[Math.floor(r * places.length)], near };
   }
 
   /** Um passo do agendador. Chamar todo quadro; os sorteios acontecem a cada ~CHECK_MS por ator. */
   update(now: number, actors: Iterable<RestActor>, mover: RestMover) {
-    for (const a of actors) {
+    const pool = [...actors];
+    for (const a of pool) {
       // quem está saindo e não descansava não precisa de agenda
       if (a.leaving && !this.tracks.has(a.id)) continue;
       const t = this.track(a);
+      t.falas = a.falas;
       const r = t.rest;
       if (!r) {
+        if (t.rechoose) {
+          // o grupo desfez: escolhe outra atividade de onde está; sem nada (ou chamado pro
+          // trabalho nesse meio-tempo), volta pra mesa
+          t.rechoose = false;
+          if (!a.leaving && !(a.idle && this.start(a, t, now, mover, pool))) mover.goHome(a.id);
+          continue;
+        }
         if (now < t.nextCheckAt) continue;
         t.nextCheckAt = now + CHECK_MS;
-        if (this.eligible(a, now)) this.start(a, t, now, mover);
+        if (this.eligible(a, now)) this.start(a, t, now, mover, pool);
         continue;
       }
       // trabalho chegou sem passar pelo upsert (ex.: snapshot): larga tudo
@@ -278,16 +438,19 @@ export class RestScheduler {
         else this.interrupt(a.id, mover, now);
         continue;
       }
-      this.advance(a, t, r, now, mover);
+      if (r.group) this.advanceGroup(a, t, r, r.group, now, mover);
+      else this.advance(a, t, r, now, mover);
     }
   }
 
-  private start(a: RestActor, t: Track, now: number, mover: RestMover) {
+  /** sorteia e começa uma atividade; devolve se começou */
+  private start(a: RestActor, t: Track, now: number, mover: RestMover, pool: readonly RestActor[]): boolean {
     const kind = pickWeighted(
-      this.options(a.id).map((k) => ({ value: k, weight: REST_WEIGHTS[k] })),
+      this.options(a.id, { actor: a, now, pool }).map((k) => ({ value: k, weight: REST_WEIGHTS[k] })),
       t.rnd(),
     );
-    if (!kind) return;
+    if (!kind) return false;
+    if (kind === "pingpong" || kind === "papo") return this.startGroup(kind, a, t, now, mover, pool);
     const span = Math.round(DURATION_MIN_MS + t.rnd() * (DURATION_MAX_MS - DURATION_MIN_MS));
     // espreguiçar 60 s seguidos não tem graça: sempre o mínimo
     const durationMs = kind === "espreguicar" ? DURATION_MIN_MS : span;
@@ -307,12 +470,172 @@ export class RestScheduler {
     } else {
       const free = this.freeSpots(kind);
       const spot = free[Math.floor(t.rnd() * free.length)];
-      if (!spot || !this.reservations.reserve(spot.id, a.id)) return;
+      if (!spot || !this.reservations.reserve(spot.id, a.id)) return false;
       rest.spot = spot;
       rest.carry = kind === "cafe" && a.hasDesk && t.rnd() < CARRY_CUP_CHANCE;
       mover.goTo(a.id, spot);
     }
     t.rest = rest;
+    return true;
+  }
+
+  /**
+   * Ping-pong: chama o livre mais perto e reserva os 2 lados da mesa.
+   * Papo: escolhe um ponto de encontro com lugar e chama 1 ou 2 livres por perto.
+   */
+  private startGroup(kind: GroupKind, a: RestActor, t: Track, now: number, mover: RestMover, pool: readonly RestActor[]): boolean {
+    let crew: { actor: RestActor; spot: Spot }[];
+    if (kind === "pingpong") {
+      const partner = this.partners(a, kind, now, pool)[0];
+      if (!partner || !this.pingpongFree()) return false;
+      // cada um no lado que dá menos caminho pros dois
+      const [s0, s1] = this.pingpongSpots;
+      const straight = dist(a, spotPx(s0)) + dist(partner, spotPx(s1));
+      const crossed = dist(a, spotPx(s1)) + dist(partner, spotPx(s0));
+      crew =
+        straight <= crossed
+          ? [{ actor: a, spot: s0 }, { actor: partner, spot: s1 }]
+          : [{ actor: a, spot: s1 }, { actor: partner, spot: s0 }];
+    } else {
+      const want = t.rnd() < 0.5 ? 3 : 2;
+      const plan = this.papoPlan(a, now, pool, want, t.rnd()) ?? this.papoPlan(a, now, pool, 2, t.rnd());
+      if (!plan) return false;
+      const size = Math.min(want, plan.free.length, plan.near.length + 1);
+      crew = [a, ...plan.near.slice(0, size - 1)].map((actor, i) => ({ actor, spot: plan.free[i] }));
+    }
+    if (crew.some((c) => !this.reservations.isFree(c.spot.id))) return false;
+    const durationMs = Math.round(DURATION_MIN_MS + t.rnd() * (DURATION_MAX_MS - DURATION_MIN_MS));
+    const g: Group = {
+      kind,
+      members: crew.map((c) => c.actor.id),
+      arrived: new Set(),
+      endsAt: Infinity,
+      durationMs,
+      over: false,
+      rnd: mulberry32(Math.floor(t.rnd() * 4294967296)),
+      turn: 0,
+      nextLineAt: Infinity,
+    };
+    for (const c of crew) {
+      this.reservations.reserve(c.spot.id, c.actor.id);
+      this.track(c.actor).rest = {
+        kind,
+        phase: "indo",
+        spot: c.spot,
+        doingAt: now,
+        endsAt: Infinity,
+        durationMs,
+        carry: false,
+        atDesk: false,
+        sipPauseMs: 0,
+        group: g,
+      };
+      mover.goTo(c.actor.id, c.spot);
+    }
+    if (kind === "pingpong") this.match = g;
+    return true;
+  }
+
+  /** todos chegaram: começa a partida/conversa, com o mesmo relógio pra todos */
+  private groupReady(g: Group, now: number) {
+    g.readyAt = now;
+    g.endsAt = now + g.durationMs;
+    for (const id of g.members) {
+      const r = this.tracks.get(id)?.rest;
+      if (!r) continue;
+      r.phase = "fazendo";
+      r.doingAt = now;
+      r.endsAt = g.endsAt;
+    }
+    if (g.kind === "papo") g.nextLineAt = now + 800 + Math.round(g.rnd() * 1500);
+  }
+
+  private removeFromGroup(id: string, g: Group) {
+    g.members = g.members.filter((m) => m !== id);
+    g.arrived.delete(id);
+    if (g.speaker === id) g.speaker = undefined;
+    if (this.match === g && (g.members.length < 2 || g.over)) this.match = undefined;
+  }
+
+  /** tira alguém do grupo sem mandar pra mesa: solta o lugar e escolhe outra atividade no próximo passo */
+  private dropMember(id: string, g: Group) {
+    const t = this.tracks.get(id);
+    const r = t?.rest;
+    if (t && r?.group === g) {
+      if (r.spot) this.reservations.release(r.spot.id, id);
+      t.last = r.kind;
+      t.rest = undefined;
+      t.pauseUntil = 0;
+      t.rechoose = true;
+    }
+    this.removeFromGroup(id, g);
+  }
+
+  /**
+   * Alguém saiu do grupo (chamado pro trabalho, foi embora). Ping-pong acaba; papo continua
+   * se sobrarem 2. Quem sobra sozinho solta a reserva e escolhe outra atividade.
+   */
+  private leaveGroup(id: string, g: Group) {
+    this.removeFromGroup(id, g);
+    if (g.over) return;
+    if (g.kind === "pingpong" || g.members.length < 2) for (const m of [...g.members]) this.dropMember(m, g);
+  }
+
+  /** ninguém mais veio: quem não chegou sai; com menos de 2 (ou ping-pong), desfaz */
+  private groupTimeout(g: Group, now: number) {
+    for (const m of g.members.filter((m) => !g.arrived.has(m))) this.dropMember(m, g);
+    if (g.kind === "pingpong" || g.members.length < 2) {
+      for (const m of [...g.members]) this.dropMember(m, g);
+      return;
+    }
+    this.groupReady(g, now);
+  }
+
+  private advanceGroup(a: RestActor, t: Track, r: Rest, g: Group, now: number, mover: RestMover) {
+    if (r.phase === "indo") {
+      if (a.walking) return;
+      if (r.spot && a.atId !== r.spot.id) {
+        mover.goTo(a.id, r.spot);
+        return;
+      }
+      g.arrived.add(a.id);
+      g.firstArrivalAt ??= now;
+      if (g.members.every((m) => g.arrived.has(m))) this.groupReady(g, now);
+      else if (now - g.firstArrivalAt >= PARTNER_WAIT_MS) this.groupTimeout(g, now);
+      return;
+    }
+    if (r.phase === "fazendo") {
+      if (g.kind === "papo" && a.id === g.members[0]) this.talk(g, now, mover);
+      if (now < r.endsAt) return;
+      // acabou: cada um volta pra mesa por conta própria
+      g.over = true;
+      if (this.match === g) this.match = undefined;
+      if (r.spot) this.reservations.release(r.spot.id, a.id);
+      r.phase = "voltando";
+      mover.goHome(a.id);
+      return;
+    }
+    if (a.walking) return;
+    if (a.atId !== a.homeId) {
+      mover.goHome(a.id);
+      return;
+    }
+    this.finish(a.id, t, now, mover, false);
+  }
+
+  /** papo: a vez de alguém falar (revezando), uma fala dele diferente da última */
+  private talk(g: Group, now: number, mover: RestMover) {
+    if (now < g.nextLineAt || !g.members.length) return;
+    g.nextLineAt = now + Math.round(PAPO_LINE_MIN_MS + g.rnd() * (PAPO_LINE_MAX_MS - PAPO_LINE_MIN_MS));
+    const id = g.members[g.turn % g.members.length];
+    g.turn++;
+    const t = this.tracks.get(id);
+    const options = (t?.falas ?? []).filter((f) => f !== t?.lastLine);
+    if (!t || !options.length) return;
+    const line = options[Math.floor(g.rnd() * options.length)];
+    t.lastLine = line;
+    g.speaker = id;
+    mover.say(id, line);
   }
 
   private advance(a: RestActor, t: Track, r: Rest, now: number, mover: RestMover) {
@@ -373,7 +696,15 @@ export class RestScheduler {
   interrupt(id: string, mover: RestMover, now = Infinity) {
     const t = this.tracks.get(id);
     const r = t?.rest;
+    if (t?.rechoose && !r) {
+      // o grupo tinha acabado de desfazer e ele ainda estava no lugar do jogo/papo
+      t.rechoose = false;
+      t.pauseUntil = 0;
+      mover.goHome(id);
+      return;
+    }
     if (!t || !r) return;
+    if (r.group) this.leaveGroup(id, r.group);
     if (this.hasCup(r, now)) mover.dropCup(id);
     if (r.spot) this.reservations.release(r.spot.id, id);
     t.last = r.kind;
@@ -393,12 +724,16 @@ export class RestScheduler {
 
   /** saiu do escritório: esquece o ator e solta tudo que era dele */
   remove(id: string) {
+    const g = this.tracks.get(id)?.rest?.group;
+    if (g) this.leaveGroup(id, g);
     this.tracks.delete(id);
     this.reservations.releaseAll(id);
   }
 
+  /** descansando (ou com o grupo recém-desfeito, ainda fora da mesa esperando escolher outra coisa) */
   isResting(id: string): boolean {
-    return !!this.tracks.get(id)?.rest;
+    const t = this.tracks.get(id);
+    return !!t?.rest || !!t?.rechoose;
   }
 
   phase(id: string): RestPhase | undefined {
@@ -427,6 +762,7 @@ export class RestScheduler {
   pose(id: string, now: number, arrived: boolean): RestPose | null {
     const r = this.tracks.get(id)?.rest;
     if (!r) return null;
+    if (r.group && arrived && r.phase !== "voltando") return this.groupPose(id, r, r.group, now);
     if (r.phase !== "fazendo" || !arrived) {
       // andando: só o objeto na mão
       if (r.kind === "regar") return { animT: 0, holding: "regador" };
@@ -455,6 +791,123 @@ export class RestScheduler {
         const k = t % STRETCH_LOOP_MS;
         return k < STRETCH_MS ? { anim: "stretch", animT: k / STRETCH_MS } : { animT: 0 };
       }
+      case "pingpong":
+      case "papo":
+        return { animT: 0 };
     }
+  }
+
+  /**
+   * No lugar do grupo. Ping-pong: raquete na mão esperando o parceiro; na partida, o braço
+   * sobe ("swing" > 0,8) quando a bolinha chega e fica erguido logo depois do golpe.
+   */
+  private groupPose(id: string, r: Rest, g: Group, now: number): RestPose {
+    if (g.kind === "papo") return { animT: 0, sofa: r.spot?.sofa };
+    const side = this.sideOf(r);
+    const f = g.readyAt !== undefined ? this.rallyOf(g, now) : null;
+    if (!f || side === undefined) return { animT: 0, holding: "raquete" };
+    let animT = 0.3;
+    if (f.state === "voo") {
+      if (side === f.from) animT = f.p < 0.15 ? 0.9 : 0.3;
+      else animT = f.p;
+    } else if (f.state === "saque" && side === f.from) {
+      animT = Math.min(0.99, f.p);
+    }
+    return { anim: "swing", animT };
+  }
+
+  private sideOf(r: Rest): 0 | 1 | undefined {
+    const i = this.pingpongSpots.findIndex((s) => s.id === r.spot?.id);
+    return i === 0 ? 0 : i === 1 ? 1 : undefined;
+  }
+
+  /** Avança os golpes até `now` (determinístico pelo PRNG do grupo) e diz onde a partida está. */
+  private rallyOf(g: Group, now: number): RallyFrame | null {
+    if (g.readyAt === undefined) return null;
+    if (g.rallyMemo?.at === now) return g.rallyMemo.frame;
+    const frame = this.computeRally(g, g.readyAt, now);
+    g.rallyMemo = { at: now, frame };
+    return frame;
+  }
+
+  private computeRally(g: Group, readyAt: number, now: number): RallyFrame {
+    const next = (prev: Stroke | undefined): Stroke => {
+      const dur = Math.round(STROKE_MIN_MS + g.rnd() * (STROKE_MAX_MS - STROKE_MIN_MS));
+      const dx = Math.round(g.rnd() * 6) - 3;
+      if (!prev) {
+        const start = readyAt + SERVE_MS;
+        return { start, serveAt: readyAt, dur, from: g.rnd() < 0.5 ? 0 : 1, miss: false, dx, dx0: 0 };
+      }
+      const end = prev.start + prev.dur;
+      if (prev.miss) {
+        // quem errou busca a bolinha e saca
+        const start = end + MISS_PAUSE_MS;
+        return { start, serveAt: end + MISS_PAUSE_MS * MISS_FLOOR_SHARE, dur, from: prev.from === 0 ? 1 : 0, miss: false, dx, dx0: 0 };
+      }
+      return { start: end, serveAt: end, dur, from: prev.from === 0 ? 1 : 0, miss: g.rnd() < MISS_CHANCE, dx, dx0: prev.dx };
+    };
+    g.stroke ??= next(undefined);
+    let s = g.stroke;
+    // o golpe dura até a bolinha chegar; o que errou dura até a parte "no chão" da pausa acabar
+    while (now >= s.start + s.dur + (s.miss ? MISS_PAUSE_MS * MISS_FLOOR_SHARE : 0)) {
+      g.prevStroke = s;
+      s = g.stroke = next(s);
+    }
+    // relógio um pouco atrás de quem já avançou (ex.: debug com performance.now e quadro com o
+    // tempo do rAF): usa o golpe anterior em vez de mostrar um saque falso
+    const prev = g.prevStroke;
+    if (now < s.start && s.serveAt === s.start && prev && now >= prev.start) s = prev;
+    const base = { miss: s.miss, dx0: s.dx0, dx: s.dx, since: 0 };
+    if (now < s.start) {
+      const p = (now - s.serveAt) / Math.max(1, s.start - s.serveAt);
+      return { ...base, state: "saque", from: s.from, p: Math.max(0, p) };
+    }
+    const end = s.start + s.dur;
+    if (now < end) return { ...base, state: "voo", from: s.from, p: (now - s.start) / s.dur };
+    return { ...base, state: "fora", from: s.from, p: 1, since: now - end };
+  }
+
+  /** partida de ping-pong em andamento (todos na mesa), pro motor desenhar a bolinha */
+  rally(now: number): RallyFrame | null {
+    const g = this.match;
+    return g && !g.over && g.members.length === 2 ? this.rallyOf(g, now) : null;
+  }
+
+  /** alguém já está na mesa de ping-pong com a raquete (o motor tira as raquetes e a bolinha do tampo) */
+  pingpongInUse(): boolean {
+    return !!this.match && this.match.arrived.size > 0;
+  }
+
+  /** ids do grupo de quem está no ping-pong ou no papo (vazio fora de grupo) */
+  groupOf(id: string): readonly string[] {
+    return this.tracks.get(id)?.rest?.group?.members ?? [];
+  }
+
+  /**
+   * Pra onde olhar no papo (em pé): pra quem está falando; quem fala olha pro mais perto.
+   * Sentado no sofá continua de frente. undefined fora do papo.
+   */
+  face(id: string): Dir | undefined {
+    const r = this.tracks.get(id)?.rest;
+    const g = r?.group;
+    if (!r || !g || g.kind !== "papo" || r.phase === "voltando" || !r.spot || r.spot.sitting) return undefined;
+    const me = r.spot;
+    const spotOf = (m: string) => this.tracks.get(m)?.rest?.spot;
+    let target: Spot | undefined = g.speaker && g.speaker !== id ? spotOf(g.speaker) : undefined;
+    if (!target) {
+      let best = Infinity;
+      for (const m of g.members) {
+        const s = m === id ? undefined : spotOf(m);
+        if (s && dist(me, s) < best) {
+          best = dist(me, s);
+          target = s;
+        }
+      }
+    }
+    if (!target) return undefined;
+    const dx = target.x - me.x;
+    const dy = target.y - me.y;
+    if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
+    return dy >= 0 ? "down" : "up";
   }
 }

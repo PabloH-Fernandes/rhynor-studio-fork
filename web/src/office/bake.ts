@@ -14,6 +14,11 @@ export interface Baked {
 }
 
 let scratch: { canvas: HTMLCanvasElement; k: number } | null = null;
+/** quantas vezes algo foi assado (debug: se subir sem parar, alguma chave do cache está variando) */
+let bakes = 0;
+export function bakeCount(): number {
+  return bakes;
+}
 
 /**
  * Desenha `draw` (em coordenadas base) numa área W x H na escala k, acha a caixa dos pixels
@@ -21,6 +26,7 @@ let scratch: { canvas: HTMLCanvasElement; k: number } | null = null;
  */
 export function bakeDrawing(k: number, draw: (g: Ctx) => void): Baked | null {
   if (typeof document === "undefined") return null;
+  bakes++;
   if (!scratch || scratch.k !== k) {
     const c = document.createElement("canvas");
     c.width = W * k;

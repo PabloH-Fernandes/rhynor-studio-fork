@@ -4,23 +4,47 @@
 
 import type { AGzinho, Acessorio, Agent, Roster } from "../../../shared/types";
 import { HAIR_STYLE_INDEX, agzinhoDoPapel } from "../../../shared/roster";
-import { HAIRS, SKINS, inkAlpha, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
-import { AreaLayer, bakeDrawing, drawBaked, type Baked } from "./bake";
-import { RestScheduler, type RestActor, type RestMover, type RestPose } from "./activities";
-import { fill, line } from "./decor";
+import { HAIRS, SKINS, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
+import { AreaLayer, bakeCount, bakeDrawing, drawBaked, type Baked } from "./bake";
+import { RestScheduler, type RallyFrame, type RestActor, type RestMover, type RestPose } from "./activities";
+import { placeBubbles, type BubbleReq, type FloatReq, type Placement } from "./bubbles";
+import {
+  NAME_FONT,
+  NAME_SHIFTS,
+  REST_FONT,
+  REST_H,
+  REST_MAX_W,
+  WORK_FONT,
+  WORK_MAX_W,
+  drawBubbleAt,
+  drawNameTag,
+  drawThinkDots,
+  drawWaitBadge,
+  noLigatures,
+  wrap,
+  type BubbleStyle,
+} from "./overlay";
+import { drawBall } from "./pingpong";
+import { drawPingPongTable, fill, line, type Rect } from "./decor";
 import { Lightmap, clockDate, windowLight, type LightScene } from "./daylight";
 import { isReducedMotion } from "./motion";
 import {
   AISLE_Y,
+  BOARD,
   DESKS,
   DOOR_SPOT,
   OVERFLOW_SPOTS,
+  PAPO_PLACES,
+  PINGPONG,
+  PINGPONG_SPOTS,
+  POCKET_PLAQUE,
   PROPS,
   REST_SPOTS,
   SIGN,
   TILE,
   H,
   W,
+  deskPlateRect,
   deskSpot,
   drawBoard,
   drawChair,
@@ -41,7 +65,7 @@ import {
   type Point,
   type Spot,
 } from "./map";
-import { clearSpriteCache } from "./spriteCache";
+import { clearSpriteCache, spriteCacheStats } from "./spriteCache";
 import {
   HAIR_STYLE_COUNT,
   HEAD_TOP_SIT,
@@ -73,6 +97,33 @@ const CONFETTI_COUNT = 8;
 const CONFETTI_AT_MS = 150; // sai no primeiro impulso do pulo
 const CONFETTI_LIFE_MS = 800;
 const CONFETTI_GRAVITY = 0.00012; // px/ms²
+
+/** balão de descanso (fala do papo): fica 2,5–3 s, no máximo 2 na tela, 1 a cada 12 s por AGzinho */
+const REST_BUBBLE_MIN_MS = 2500;
+const REST_BUBBLE_MAX_MS = 3000;
+const REST_BUBBLE_MAX = 2;
+const REST_BUBBLE_GAP_MS = 12_000;
+/** sem lugar: a fala espera na fila, tenta de novo a cada 300 ms e desiste em 10 s */
+const REST_RETRY_MS = 300;
+const REST_GIVEUP_MS = 10_000;
+/** quem não é do elenco (visitante extra) também puxa assunto */
+const FALAS_VISITANTE = ["Tudo certo por aí?", "Bora um café depois?", "Que semana, hein!"];
+
+/** prioridade no layout (menor entra primeiro) */
+const PRI = { badge: 0, waiting: 0.5, work: 1, chat: 2, rest: 3, name: 4 } as const;
+
+/**
+ * Onde os balões e nomes não podem ficar (com 1 px de folga): placa, quadro, AG POCKET, plaquinhas
+ * e o tampo do ping-pong (o nome de quem joga embaixo cobria a bolinha).
+ */
+const FORBIDDEN: Rect[] = [SIGN, BOARD, POCKET_PLAQUE, PINGPONG, ...DESKS.map((d) => deskPlateRect(d))].map((r) => ({
+  x: r.x - 1,
+  y: r.y - 1,
+  w: r.w + 2,
+  h: r.h + 2,
+}));
+const BOUNDS: Rect = { x: 1, y: 1, w: W - 2, h: H - 2 };
+
 
 
 /** status em que o agente está "na tarefa" (vale espreguiçar ao ficar de boa) */
@@ -150,6 +201,41 @@ interface Visual {
   anim?: { kind: CharAnim; start: number; until: number };
   /** largou o descanso com o copo de café: leva na mão até a mesa e deixa lá */
   cupInHand?: boolean;
+  /** pose do quadro atual (calculada uma vez por quadro e usada no boneco, no copo e nos balões) */
+  memo?: { at: number; rest: RestPose | null; pose?: PoseInfo };
+}
+
+/** linhas e tamanho de um balão */
+interface BubbleLayout {
+  lines: string[];
+  w: number;
+  h: number;
+}
+
+/** o que cada personagem pede pro overlay neste quadro */
+interface OverlayItem {
+  v: Visual;
+  id: string;
+  head: Point;
+  top: number;
+  badge: "esperando" | "pensando" | null;
+  bubble?: { text: string; style: BubbleStyle; priority: number; lay: BubbleLayout };
+  selected: boolean;
+}
+
+/** resultado do layout (balões e nomes colocados) e a assinatura que o gerou */
+interface OverlayPlan {
+  sig: string;
+  bubbles: Map<string, Placement>;
+  names: Map<string, Placement>;
+}
+
+/** pose de desenho de um quadro */
+interface PoseInfo {
+  anim?: { kind: CharAnim; t: number };
+  seated: boolean;
+  sitting: boolean;
+  lift: number;
 }
 
 /** copo de café largado em cima de uma mesa */
@@ -179,6 +265,12 @@ declare global {
   interface Window {
     /** debug: quem está descansando, onde e em que fase */
     __agRest?: () => RestDebugRow[];
+    /** debug: momento da partida de ping-pong (null sem partida) */
+    __agRally?: () => RallyFrame | null;
+    /** debug: balões e nomes do último quadro e as zonas proibidas (retângulos em px base) */
+    /** debug: contadores de cache (assados, chaves de móveis, sprites) */
+    __agPerf?: () => { bakes: number; bakedByName: number; sprites: ReturnType<typeof spriteCacheStats> };
+    __agBubbles?: () => { placed: ({ id: string; side: string } & Rect)[]; forbidden: Rect[] };
   }
 }
 
@@ -195,8 +287,10 @@ export class OfficeEngine {
   private logo: HTMLImageElement | null = null;
   private lightmap = new Lightmap();
   private rosterData: Roster | null = null;
+  /** elenco por chave (falas, apelido e nome curto sem procurar na lista a cada quadro) */
+  private agzByKey = new Map<string, AGzinho>();
   /** descanso de quem está de boa; as reservas também guardam quem mora em pé na reunião */
-  private rest = new RestScheduler(REST_SPOTS, { seed: Date.now() | 0 });
+  private rest = new RestScheduler(REST_SPOTS, { seed: Date.now() | 0, pingpong: PINGPONG_SPOTS, papoPlaces: PAPO_PLACES });
   private cups: CupDecal[] = [];
   /** camada estática (chão, parede, quadros, placa) na escala k */
   private staticLayer: HTMLCanvasElement | null = null;
@@ -224,7 +318,30 @@ export class OfficeEngine {
       const v = this.visuals.get(id);
       if (v && !v.leaving) v.cupInHand = true;
     },
+    say: (id, text) => this.queueRestLine(id, text, performance.now()),
   };
+  /**
+   * Falas de descanso aceitas (id → texto e até quando). `shown`: já apareceu num quadro; se não
+   * aparecer, volta pra fila (com o `queuedAt` original) e o `lastRestAt` volta a `prevAt`.
+   */
+  private restBubbles = new Map<string, { text: string; until: number; shown: boolean; queuedAt: number; prevAt?: number }>();
+  /** falas esperando lugar (desistem em REST_GIVEUP_MS) */
+  private restQueue: { id: string; text: string; at: number }[] = [];
+  private lastRestAt = new Map<string, number>();
+  private restTryAt = 0;
+  /** candidato usado por cada balão/nome no quadro anterior (evita ficar pulando de lado) */
+  private prevCand = new Map<string, number>();
+  /** retângulos dos balões (sem os nomes) do quadro anterior: a fila de descanso testa contra eles */
+  private lastRects: Rect[] = [];
+  private lastPlaced: Placement[] = [];
+  /** larguras de texto medidas (fonte → texto → px) */
+  private textW = new Map<string, Map<string, number>>();
+  /** linhas e tamanho de cada balão (estilo|texto → layout) */
+  private layoutCache = new Map<string, BubbleLayout>();
+  /** nome inteiro → [inteiro, primeiro nome] */
+  private nameCache = new Map<string, readonly string[]>();
+  /** layout do overlay do último quadro; refeito só quando a assinatura muda */
+  private plan: OverlayPlan | null = null;
   selectedId: string | null = null;
   hoverId: string | null = null;
   onSelect?: (id: string | null) => void;
@@ -236,7 +353,12 @@ export class OfficeEngine {
       this.logo = img;
     }
     // debug (só no dev server): `__agRest()` no console lista quem está descansando, onde e em que fase
-    if (import.meta.env.DEV && typeof window !== "undefined") window.__agRest = () => this.restDebug();
+    if (import.meta.env.DEV && typeof window !== "undefined") {
+      window.__agRest = () => this.restDebug();
+      window.__agRally = () => this.rest.rally(performance.now());
+      window.__agPerf = () => ({ bakes: bakeCount(), bakedByName: this.bakedByName.size, sprites: spriteCacheStats() });
+      window.__agBubbles = () => ({ placed: this.lastPlaced.map((p) => ({ id: p.id, side: p.side, ...p.rect })), forbidden: FORBIDDEN });
+    }
   }
 
   private restDebug(): RestDebugRow[] {
@@ -266,6 +388,7 @@ export class OfficeEngine {
   set roster(roster: Roster | null) {
     if (roster === this.rosterData) return;
     this.rosterData = roster;
+    this.agzByKey = new Map((roster?.agzinhos ?? []).map((a) => [a.key, a]));
     clearSpriteCache();
     for (const v of this.visuals.values()) v.look = lookFor(v.agent, roster);
   }
@@ -426,6 +549,9 @@ export class OfficeEngine {
         atId: v.at.id,
         homeId: v.home.id,
         hasDesk: !!v.deskId,
+        x: v.x * TILE,
+        y: v.y * TILE,
+        falas: this.falasOf(v.agent),
       });
     }
     this.rest.update(now, actors, this.mover);
@@ -458,6 +584,9 @@ export class OfficeEngine {
         v.at = v.target;
         v.dir = this.restingDir(v);
       }
+      // no papo, em pé: olha pra quem está falando
+      const face = v.path.length ? undefined : this.rest.face(v.agent.id);
+      if (face && v.at.id === v.target.id) v.dir = face;
       if (v.leaving) v.cupInHand = false;
       else if (v.cupInHand && !v.path.length && v.at.id === v.home.id) this.putCupDown(v, now);
       if (v.leaving && !v.path.length) v.fade = Math.max(0, v.fade - dt * 2.5);
@@ -489,6 +618,21 @@ export class OfficeEngine {
     const id = desk.id;
     this.cups = this.cups.filter((c) => c.deskId !== id);
     this.cups.push({ deskId: id, surface: cupSurface(desk), until: now + CUP_DECAL_MS });
+  }
+
+  /** falas do bate-papo: as do AGzinho no elenco; visitante extra usa umas genéricas */
+  private falasOf(agent: Agent): readonly string[] {
+    const ag = agent.agzinho ? this.agzByKey.get(agent.agzinho) : undefined;
+    return ag?.falas.length ? ag.falas : FALAS_VISITANTE;
+  }
+
+  /** fala nova do papo: entra na fila (uma por AGzinho; a nova substitui a que ainda esperava) */
+  private queueRestLine(id: string, text: string, now: number) {
+    const q = this.restQueue.find((e) => e.id === id);
+    if (q) {
+      q.text = text;
+      q.at = now;
+    } else this.restQueue.push({ id, text, at: now });
   }
 
   /** "Tomando café", "No celular"... (crachá da etapa 6); null se não está descansando */
@@ -560,9 +704,19 @@ export class OfficeEngine {
     }
     items.push({ y: 11.2 * TILE + 10, draw: () => this.drawBakedOr(ctx, MEETING_TABLE, drawMeetingTable) });
     items.push({ y: 16.1 * TILE, draw: () => drawCoffeeCorner(ctx, now, coffeeBusy) });
+    const inPlay = this.rest.pingpongInUse();
     for (const p of PROPS) {
+      if (p.id === "pingpong" && inPlay) {
+        // jogando: as raquetes estão na mão e a bolinha no ar
+        const T = PINGPONG;
+        items.push({ y: p.y, draw: () => this.drawBakedOr(ctx, "pingpong|jogo", (g) => drawPingPongTable(g, T.x, T.y, T.w, T.h, false)) });
+        continue;
+      }
       items.push({ y: p.y, draw: () => (p.live ? p.draw(ctx, now) : this.drawBakedOr(ctx, p, (g) => p.draw(g, now))) });
     }
+    const rally = this.rest.rally(now);
+    // depois da mesa (e de quem joga do lado de cima), antes de quem joga do lado de baixo
+    if (rally) items.push({ y: PINGPONG.y + PINGPONG.h + 8.5, draw: () => drawBall(ctx, rally) });
     for (const c of this.cups) items.push({ y: c.surface.depth, draw: () => drawCup(ctx, c.surface.x, c.surface.y) });
 
     for (const v of visuals) {
@@ -589,9 +743,9 @@ export class OfficeEngine {
     this.lightmap.apply(ctx);
     this.drawEmissive(ctx, scene, daylight.night);
 
-    // camada de cima: envelopes e balões
+    // camada de cima: envelopes, balões e nomes (um passe de layout sem sobreposição)
     for (const e of this.envelopes) this.drawEnvelope(ctx, e, now);
-    for (const v of visuals) this.drawOverlay(ctx, v, now);
+    this.drawOverlays(ctx, visuals, now);
   }
 
   /**
@@ -691,8 +845,7 @@ export class OfficeEngine {
 
   /** apelido do AGzinho (plaquinha da mesa de convidado); visitante extra usa o nome */
   private nicknameOf(agent: Agent): string {
-    const ag = agent.agzinho ? this.rosterData?.agzinhos.find((a) => a.key === agent.agzinho) : undefined;
-    return ag?.apelido ?? agent.name;
+    return (agent.agzinho ? this.agzByKey.get(agent.agzinho)?.apelido : undefined) ?? agent.name;
   }
 
   /** brilho leve ("lighter") nas telas ligadas e na logo da placa, por cima do multiply */
@@ -710,8 +863,10 @@ export class OfficeEngine {
 
   /** pose do descanso (objeto na mão, gesto no lugar), ou null fora do descanso */
   private restPose(v: Visual, now: number): RestPose | null {
-    if (v.leaving) return null;
-    return this.rest.pose(v.agent.id, now, !v.path.length);
+    if (v.memo?.at === now) return v.memo.rest;
+    const rest = v.leaving ? null : this.rest.pose(v.agent.id, now, !v.path.length);
+    v.memo = { at: now, rest };
+    return rest;
   }
 
   /** animação em curso (só parado, no próprio lugar) e o progresso 0..1 */
@@ -729,12 +884,18 @@ export class OfficeEngine {
    * Pose de desenho. Pra comemorar o personagem levanta da cadeira (atrás da mesa) e pula:
    * a mesa cobre pernas e sombra, e o tronco aparece mais acima do tampo a cada pulo.
    */
-  private poseOf(v: Visual, now: number) {
+  private poseOf(v: Visual, now: number): PoseInfo {
+    const cached = v.memo?.at === now ? v.memo.pose : undefined;
+    if (cached) return cached;
     const anim = this.animOf(v, now);
     const seated = v.at.sitting && !v.path.length;
     const sitting = seated && !(anim?.kind === "cheer" && !isReducedMotion());
     const lift = animLift(anim?.kind, anim?.t ?? 0, isReducedMotion());
-    return { anim, seated, sitting, lift };
+    const pose = { anim, seated, sitting, lift };
+    // animOf já guardou o restPose deste quadro em v.memo
+    if (v.memo?.at === now) v.memo.pose = pose;
+    else v.memo = { at: now, rest: this.restPose(v, now), pose };
+    return pose;
   }
 
   private drawVisual(ctx: CanvasRenderingContext2D, v: Visual, now: number) {
@@ -795,68 +956,235 @@ export class OfficeEngine {
     ctx.restore();
   }
 
-  private drawOverlay(ctx: CanvasRenderingContext2D, v: Visual, now: number) {
-    if (v.fade <= 0.05) return;
+  /** topo da cabeça e onde os balões terminam (acima do "!" ou dos pontinhos, se houver) */
+  private anchorOf(v: Visual, now: number): { head: Point; top: number; badge: "esperando" | "pensando" | null } {
     const head = this.headPoint(v, now);
-    const selected = this.selectedId === v.agent.id || this.hoverId === v.agent.id;
     const status = v.agent.status;
-    let top = head.y - 2;
+    if (status === "esperando" && !v.leaving) return { head, top: head.y - 2 - 14, badge: "esperando" };
+    if (status === "pensando" && !v.path.length) return { head, top: head.y - 2 - 6, badge: "pensando" };
+    return { head, top: head.y - 2, badge: null };
+  }
 
-    // ícone de status
-    if (status === "esperando" && !v.leaving) {
-      // selo marinho com borda e "!" laranja; a borda pisca entre laranja e branco
-      // (com reduced-motion: parado e com a borda laranja fixa)
-      const b = isReducedMotion() ? 0 : Math.round(Math.sin(now / 150) * 1.5);
-      const sx = Math.round(head.x - 5);
-      const sy = Math.round(top - 13 + b);
-      const ring = !isReducedMotion() && Math.floor(now / 400) % 2 ? palette.white : palette.signal.waiting;
-      roundBox(ctx, sx, sy, 10, 12, ring, palette.navy950);
-      ctx.fillStyle = palette.navy900;
-      ctx.fillRect(sx + 2, sy + 2, 6, 8);
-      ctx.fillStyle = palette.signal.waiting;
-      ctx.fillRect(sx + 4, sy + 3, 2, 4);
-      ctx.fillRect(sx + 4, sy + 8, 2, 1);
-      top -= 14;
-    } else if (status === "pensando" && !v.path.length) {
-      const k = Math.floor(now / 300) % 4;
-      for (let i = 0; i < 3; i++) {
-        ctx.fillStyle = i < k ? palette.white : "rgba(255,255,255,0.35)";
-        ctx.fillRect(Math.round(head.x - 5 + i * 4), Math.round(top - 4), 2, 2);
-      }
-      top -= 6;
+  /**
+   * Qual balão o personagem mostra: pedido de permissão > chat (envelope) > atividade recente >
+   * fala do papo (só enquanto está no papo) > atividade de quem está selecionado.
+   */
+  private bubbleOf(v: Visual, now: number, selected: boolean): { text: string; style: BubbleStyle; priority: number } | null {
+    const status = v.agent.status;
+    if (!v.leaving && status === "esperando") return { text: v.agent.activity, style: "trabalho", priority: PRI.waiting };
+    if (v.chat && now < v.chat.until) return { text: v.chat.text, style: "chat", priority: PRI.chat };
+    if (v.leaving) return null;
+    if (now - v.activityAt < BUBBLE_MS) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
+    const line = this.restBubbles.get(v.agent.id);
+    if (line && now < line.until && this.rest.kind(v.agent.id) === "papo") return { text: line.text, style: "descanso", priority: PRI.rest };
+    if (selected) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
+    return null;
+  }
+
+  /** largura do texto, guardada por fonte e texto */
+  private measure(ctx: CanvasRenderingContext2D, font: string, text: string): number {
+    let byText = this.textW.get(font);
+    if (!byText) this.textW.set(font, (byText = new Map()));
+    let w = byText.get(text);
+    if (w === undefined) {
+      if (byText.size > 400) byText.clear();
+      ctx.font = font;
+      w = ctx.measureText(text).width;
+      byText.set(text, w);
     }
+    return w;
+  }
 
-    // balão: mensagem de chat > atividade recente > selecionado > esperando
-    let text: string | null = null;
-    let color: string = palette.white;
-    if (v.chat && now < v.chat.until) {
-      text = v.chat.text;
-      color = palette.navy100;
-    } else if (!v.leaving && (now - v.activityAt < BUBBLE_MS || selected || status === "esperando")) {
-      text = v.agent.activity;
-    }
-
-    if (text) {
-      drawBubble(ctx, head.x, top, head.y, text, color);
+  /** linhas e tamanho de um balão (guardados por estilo e texto) */
+  private bubbleLayout(ctx: CanvasRenderingContext2D, text: string, style: BubbleStyle): BubbleLayout {
+    const key = `${style}|${text}`;
+    const hit = this.layoutCache.get(key);
+    if (hit) return hit;
+    let lay: BubbleLayout;
+    if (style === "descanso") {
+      // uma linha só, letra menor; se passar de REST_MAX_W, corta com reticências
+      let t = noLigatures(text);
+      while (t.length > 1 && this.measure(ctx, REST_FONT, t) > REST_MAX_W - 6) t = `${t.slice(0, -2).trimEnd()}…`;
+      lay = { lines: [t], w: Math.ceil(this.measure(ctx, REST_FONT, t) + 6), h: REST_H };
     } else {
-      // só o nome
-      ctx.font = `7px VT323, monospace`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "bottom";
-      const name = v.agent.name;
-      // quadradinho 2x2 na cor do papel antes do nome (+3 px na largura)
-      const w = Math.round(ctx.measureText(name).width + 7);
-      const lx = Math.round(head.x - w / 2);
-      const ly = Math.round(top - 7);
-      ctx.fillStyle = inkAlpha(0.7);
-      ctx.fillRect(lx, ly, w, 7);
-      fill(ctx, lx + 2, ly + 3, 2, 2, roleColor(v.agent.role));
-      ctx.fillStyle = palette.white;
-      ctx.fillText(name, lx + 5, top);
+      ctx.font = WORK_FONT;
+      const lines = wrap(ctx, noLigatures(text), WORK_MAX_W - 8).slice(0, 2);
+      const tw = Math.max(...lines.map((l) => this.measure(ctx, WORK_FONT, l)));
+      lay = { lines, w: Math.ceil(tw + 8), h: lines.length * 8 + 4 };
+    }
+    if (this.layoutCache.size > 300) this.layoutCache.clear();
+    this.layoutCache.set(key, lay);
+    return lay;
+  }
+
+  /** pedido de layout de um balão em volta da cabeça */
+  private bubbleReq(id: string, priority: number, style: BubbleStyle, size: { w: number; h: number }, head: Point, top: number): FloatReq {
+    return {
+      id,
+      priority,
+      sizes: [size],
+      ax: head.x,
+      ay: top,
+      headY: head.y,
+      tail: style === "descanso" ? 2 : 3,
+      gap: 1,
+      prefer: this.prevCand.get(id),
+    };
+  }
+
+  /**
+   * Fila das falas de descanso: a cada ~300 ms tenta mostrar quem está esperando, se houver menos
+   * de 2 na tela, se o AGzinho não falou nos últimos 12 s e se o balão couber sem cobrir nada.
+   */
+  private tickRestSpeech(ctx: CanvasRenderingContext2D, now: number) {
+    for (const [id, b] of this.restBubbles) if (now >= b.until) this.restBubbles.delete(id);
+    if (!this.restQueue.length || now < this.restTryAt) return;
+    this.restTryAt = now + REST_RETRY_MS;
+    this.restQueue = this.restQueue.filter((q) => now - q.at < REST_GIVEUP_MS && this.visuals.has(q.id) && this.rest.kind(q.id) === "papo");
+    for (const q of [...this.restQueue]) {
+      if (this.restBubbles.size >= REST_BUBBLE_MAX) break;
+      const prevAt = this.lastRestAt.get(q.id);
+      if (now - (prevAt ?? -Infinity) < REST_BUBBLE_GAP_MS) continue;
+      const v = this.visuals.get(q.id);
+      if (!v || v.leaving) continue;
+      const { head, top } = this.anchorOf(v, now);
+      const size = this.bubbleLayout(ctx, q.text, "descanso");
+      const req = this.bubbleReq(`b:${q.id}`, PRI.rest, "descanso", size, head, top);
+      if (!placeBubbles([req], FORBIDDEN, BOUNDS, this.lastRects).placed.has(req.id)) continue;
+      const span = REST_BUBBLE_MIN_MS + Math.random() * (REST_BUBBLE_MAX_MS - REST_BUBBLE_MIN_MS);
+      this.restBubbles.set(q.id, { text: q.text, until: now + span, shown: false, queuedAt: q.at, prevAt });
+      this.lastRestAt.set(q.id, now);
+      this.restQueue = this.restQueue.filter((e) => e !== q);
+    }
+  }
+
+  /**
+   * Um passe de layout: "!" e pontinhos (fixos), pedido de permissão, balões de trabalho, chat,
+   * falas de descanso e, por último, os nomes. Nada cobre placa, quadro, AG POCKET, plaquinhas
+   * ou outro balão; quem não cabe espera (descanso), vira só o nome (trabalho) ou some/encurta
+   * pro primeiro nome (nome). Selecionado ou com o mouse em cima sempre mostra o nome.
+   * O layout só é refeito quando muda algo que o afeta (assinatura barata por quadro).
+   */
+  private drawOverlays(ctx: CanvasRenderingContext2D, visuals: Visual[], now: number) {
+    this.tickRestSpeech(ctx, now);
+    const reduced = isReducedMotion();
+    const items: OverlayItem[] = [];
+    let sig = `${this.restBubbles.size}`;
+    for (const v of visuals) {
+      if (v.fade <= 0.05) continue;
+      const id = v.agent.id;
+      const { head, top, badge } = this.anchorOf(v, now);
+      const selected = this.selectedId === id || this.hoverId === id;
+      const b = this.bubbleOf(v, now, selected);
+      const bubble = b ? { ...b, lay: this.bubbleLayout(ctx, b.text, b.style) } : undefined;
+      items.push({ v, id, head, top, badge, bubble, selected });
+      sig += `;${id}|${Math.round(head.x)}|${Math.round(head.y)}|${badge ?? ""}|${selected ? 1 : 0}|${b ? `${b.style}|${b.text}` : ""}`;
+    }
+    if (!this.plan || this.plan.sig !== sig) this.plan = this.layoutOverlay(ctx, items, sig);
+    const { bubbles, names } = this.plan;
+
+    // fala de descanso aceita que nunca chegou a aparecer: volta pra fila sem gastar os 12 s
+    for (const [id, line] of this.restBubbles) {
+      if (line.shown) continue;
+      if (bubbles.has(`b:${id}`)) {
+        line.shown = true;
+        continue;
+      }
+      this.restBubbles.delete(id);
+      if (line.prevAt === undefined) this.lastRestAt.delete(id);
+      else this.lastRestAt.set(id, line.prevAt);
+      if (!this.restQueue.some((q) => q.id === id)) this.restQueue.push({ id, text: line.text, at: line.queuedAt });
     }
 
-    // confete por cima do balão
-    this.drawConfetti(ctx, v, now);
+    // desenha do menos pro mais importante: nomes, descanso, chat, trabalho e o "!" por cima
+    const byId = new Map(items.map((it) => [it.id, it]));
+    for (const p of names.values()) {
+      const it = byId.get(p.id.slice(2));
+      if (it) drawNameTag(ctx, p.box, this.nameTexts(it.v.agent)[p.size], roleColor(it.v.agent.role));
+    }
+    for (const rank of ["descanso", "chat", "trabalho"] as const) {
+      for (const it of items) {
+        const b = it.bubble;
+        const p = b?.style === rank ? bubbles.get(`b:${it.id}`) : undefined;
+        if (b && p) drawBubbleAt(ctx, p, b.lay.lines, b.style, it.head.x, it.head.y);
+      }
+    }
+    for (const it of items) {
+      if (it.badge === "esperando") drawWaitBadge(ctx, it.head, now, reduced);
+      else if (it.badge === "pensando") drawThinkDots(ctx, it.head, now);
+    }
+    // confete por cima de tudo
+    for (const it of items) this.drawConfetti(ctx, it.v, now);
+  }
+
+  /** nome inteiro e, sem lugar pra ele, só o primeiro nome ("Tomás", "Bia") */
+  private nameTexts(agent: Agent): readonly string[] {
+    let texts = this.nameCache.get(agent.name);
+    if (!texts) {
+      // a VT323 junta "fi" numa ligadura ("Sofia" virava "Soña"): quebra antes de medir
+      const full = noLigatures(agent.name);
+      const first = full.split(" ")[0];
+      texts = first && first !== full ? [full, first] : [full];
+      if (this.nameCache.size > 200) this.nameCache.clear();
+      this.nameCache.set(agent.name, texts);
+    }
+    return texts;
+  }
+
+  /** os dois passes de placeBubbles (balões, depois nomes) */
+  private layoutOverlay(ctx: CanvasRenderingContext2D, items: OverlayItem[], sig: string): OverlayPlan {
+    const reqs: BubbleReq[] = [];
+    for (const it of items) {
+      const hx = Math.round(it.head.x);
+      const hy = Math.round(it.head.y);
+      // o "!" pula de -1 a +2 px: o retângulo fixo cobre o pulo inteiro (não muda a cada quadro)
+      if (it.badge === "esperando") reqs.push({ id: `!:${it.id}`, priority: PRI.badge, fixed: { x: hx - 5, y: hy - 16, w: 10, h: 15 } });
+      else if (it.badge === "pensando") reqs.push({ id: `!:${it.id}`, priority: PRI.badge, fixed: { x: hx - 5, y: hy - 6, w: 10, h: 2 } });
+      if (it.bubble) reqs.push(this.bubbleReq(`b:${it.id}`, it.bubble.priority, it.bubble.style, it.bubble.lay, it.head, it.top));
+    }
+    // cabeça de quem está sentado: evita cobrir (custo, não proibição; o pedido de permissão ao
+    // lado caía na cabeça de quem senta na mesa vizinha)
+    const seatedHeads: Rect[] = [];
+    for (const it of items) {
+      if (!it.v.at.sitting || it.v.path.length) continue;
+      const x = Math.round(it.v.x * TILE);
+      const y = Math.round(it.head.y);
+      seatedHeads.push({ x: x + HIT_BOX.left, y, w: HIT_BOX.right - HIT_BOX.left, h: 14 });
+    }
+    const bubbles = placeBubbles(reqs, FORBIDDEN, BOUNDS, [], seatedHeads);
+
+    // nomes: de quem não tem balão na tela (ou não coube)
+    const nameReqs: FloatReq[] = [];
+    // nome também não fica em cima da cabeça de ninguém (no sofá, o nome ao lado caía no vizinho)
+    const occupied = bubbles.rects.slice();
+    for (const it of items) occupied.push({ x: Math.round(it.head.x) - 7, y: Math.round(it.head.y), w: 14, h: 14 });
+    for (const it of items) {
+      if (bubbles.placed.has(`b:${it.id}`)) continue;
+      const id = `n:${it.id}`;
+      nameReqs.push({
+        id,
+        priority: PRI.name,
+        sizes: this.nameTexts(it.v.agent).map((t) => ({ w: Math.round(this.measure(ctx, NAME_FONT, t) + 7), h: 7 })),
+        ax: it.head.x,
+        ay: it.top,
+        headY: it.head.y,
+        tail: 0,
+        gap: 0,
+        // sem ir longe (±16 cai em cima da cabeça do vizinho): perto, nem que seja só o primeiro nome
+        shifts: NAME_SHIFTS,
+        positionFirst: true,
+        always: it.selected,
+        prefer: this.prevCand.get(id),
+      });
+    }
+    const names = placeBubbles(nameReqs, FORBIDDEN, BOUNDS, occupied);
+
+    this.prevCand.clear();
+    for (const p of bubbles.placed.values()) this.prevCand.set(p.id, p.cand);
+    for (const p of names.placed.values()) this.prevCand.set(p.id, p.cand);
+    this.lastRects = bubbles.rects;
+    this.lastPlaced = [...bubbles.placed.values(), ...names.placed.values()];
+    return { sig, bubbles: bubbles.placed, names: names.placed };
   }
 
   private drawEnvelope(ctx: CanvasRenderingContext2D, e: Envelope, now: number) {
@@ -900,16 +1228,6 @@ export class OfficeEngine {
 }
 
 // ------------------------------------------------------------------ helpers de desenho
-
-function roundBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, stroke: string) {
-  x = Math.round(x);
-  y = Math.round(y);
-  ctx.fillStyle = stroke;
-  ctx.fillRect(x + 1, y, w - 2, h);
-  ctx.fillRect(x, y + 1, w, h - 2);
-  ctx.fillStyle = fill;
-  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
-}
 
 /**
  * Copo AG largado em cima de uma mesa: boca com café, corpo branco com faixa marinho, asa de 1px
@@ -956,74 +1274,4 @@ function selectionRing(ctx: CanvasRenderingContext2D, x: number, y: number, colo
   fill(ctx, x - 7, y + 2, 2, 1, color);
   fill(ctx, x + 6, y + 2, 2, 1, color);
   fill(ctx, x - 5, y + 3, 11, 1, color);
-}
-
-const BUBBLE_INK = palette.navy900;
-const BUBBLE_BORDER = palette.navy950;
-
-/**
- * Balão de fala acima da cabeça. Se ele cairia em cima da placa da logo (líder sentado ou
- * andando perto dela), vai pro lado da cabeça, logo abaixo da placa, com o rabinho virado pra ela.
- */
-function drawBubble(ctx: CanvasRenderingContext2D, cx: number, bottom: number, headY: number, text: string, bg: string) {
-  ctx.font = `8px VT323, monospace`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  const maxW = 120;
-  const lines = wrap(ctx, text, maxW - 8).slice(0, 2);
-  const tw = Math.max(...lines.map((l) => ctx.measureText(l).width));
-  const w = Math.ceil(tw + 8);
-  const h = lines.length * 8 + 4;
-  let x = Math.round(cx - w / 2);
-  x = Math.max(2, Math.min(W - w - 2, x));
-  let y = Math.round(bottom - h - 4);
-  const signBottom = SIGN.y + SIGN.h;
-  const overSign = y < signBottom && x < SIGN.x + SIGN.w && x + w > SIGN.x;
-  if (overSign) {
-    // ao lado: à esquerda da cabeça (ou à direita, se não couber), centrado na altura do rosto
-    const left = cx - 10 - w >= 2;
-    x = Math.round(left ? cx - 10 - w : cx + 10);
-    y = Math.max(signBottom + 1, Math.round(headY + 2 - h / 2));
-    roundBox(ctx, x, y, w, h, bg, BUBBLE_BORDER);
-    const ty = Math.round(Math.max(y + 2, Math.min(y + h - 7, headY)));
-    // rabinho lateral apontando pra cabeça
-    const ex = left ? x + w - 1 : x;
-    const s = left ? 1 : -1;
-    ctx.fillStyle = BUBBLE_BORDER;
-    ctx.fillRect(left ? ex : ex - 1, ty, 2, 5);
-    ctx.fillRect(ex + 2 * s, ty + 1, 1, 3);
-    ctx.fillRect(ex + 3 * s, ty + 2, 1, 1);
-    ctx.fillStyle = bg;
-    ctx.fillRect(ex, ty + 1, 1, 3);
-    ctx.fillRect(ex + s, ty + 2, 1, 1);
-  } else {
-    roundBox(ctx, x, y, w, h, bg, BUBBLE_BORDER);
-    // rabinho
-    const tx = Math.round(Math.max(x + 3, Math.min(x + w - 6, cx - 2)));
-    ctx.fillStyle = BUBBLE_BORDER;
-    ctx.fillRect(tx, y + h - 1, 5, 2);
-    ctx.fillRect(tx + 1, y + h + 1, 3, 1);
-    ctx.fillRect(tx + 2, y + h + 2, 1, 1);
-    ctx.fillStyle = bg;
-    ctx.fillRect(tx + 1, y + h - 1, 3, 1);
-    ctx.fillRect(tx + 2, y + h, 1, 1);
-  }
-  ctx.fillStyle = BUBBLE_INK;
-  lines.forEach((l, i) => ctx.fillText(l, x + 4, y + 6 + i * 8));
-}
-
-function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let line = "";
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (ctx.measureText(test).width > maxW && line) {
-      lines.push(line);
-      line = w;
-    } else line = test;
-  }
-  if (line) lines.push(line);
-  if (lines.length > 2) lines[1] = lines[1].replace(/.{0,2}$/, "…");
-  return lines;
 }
