@@ -17,6 +17,15 @@
   --green: #3fbf86;
   --red: #ef5f7b;
   --blue: #5aaef0;
+  /* crachá: cartão de PVC branco, foto com fundo de estúdio, presilha de metal */
+  --badge-ink: var(--bg-2); /* texto principal no cartão (16:1 sobre branco) */
+  --badge-ink-soft: var(--navy-600); /* texto secundário (8,4:1 sobre branco) */
+  --badge-rule: var(--navy-100);
+  --photo-bg: #e6edf6;
+  --clip-metal: #c4cdd9;
+  --clip-metal-edge: #6f7f96;
+  --idle-gray: #9aa3b2; /* bolinha "de boa" */
+  --cordao-visitante: #a3a8b5;
   --pixel: "Press Start 2P", monospace;
   --term: "VT323", monospace;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
@@ -439,25 +448,345 @@ h2 {
   box-shadow: inset 0 0 0 1px var(--waiting);
 }
 
-/* ---------------------------------------------------------------- detalhe */
+/* ---------------------------------------------------------------- crachá */
 
-.detail dl {
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* o balanço gira o crachá pela presilha; o clip segura a rotação dentro do respiro do painel */
+.cracha {
+  flex-shrink: 0;
+  overflow: clip;
+  overflow-clip-margin: 14px;
+}
+
+.cracha-pendulo {
+  position: relative;
+  max-width: 300px;
+  margin: 0 auto;
+  padding-top: 46px; /* altura do cordão */
+  transform-origin: 50% 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cracha-pendulo {
+    animation: cracha-balanco 0.9s cubic-bezier(0.3, 0.6, 0.4, 1);
+  }
+}
+
+@keyframes cracha-balanco {
+  0% {
+    transform: rotate(-3deg);
+  }
+  35% {
+    transform: rotate(2deg);
+  }
+  65% {
+    transform: rotate(-0.8deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+
+/* duas faixas em V do topo do bloco até a presilha */
+.cracha-cordao {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 52px;
+  pointer-events: none;
+}
+
+.cordao-faixa {
+  position: absolute;
+  left: calc(50% - 5px);
+  bottom: 10px;
+  width: 10px;
+  height: 64px;
+  transform-origin: 50% 100%;
+  background-color: var(--cordao);
+  /* trama do tecido */
+  background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.14) 0 1px, transparent 1px 3px);
+  box-shadow: inset 2px 0 rgba(255, 255, 255, 0.25), inset -2px 0 rgba(0, 0, 0, 0.2);
+}
+
+.cordao-esq {
+  transform: rotate(-38deg);
+}
+
+.cordao-dir {
+  transform: rotate(38deg);
+}
+
+.cordao-presilha {
+  position: absolute;
+  left: calc(50% - 9px);
+  bottom: -4px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--clip-metal-edge);
+  border-radius: 3px 3px 2px 2px;
+  background: linear-gradient(var(--white), var(--clip-metal) 55%);
+}
+
+/* argola da presilha entrando no furo */
+.cordao-presilha::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: -6px;
+  height: 7px;
+  border: 2px solid var(--clip-metal-edge);
+  border-top: 0;
+  border-radius: 0 0 3px 3px;
+}
+
+.cracha-cartao {
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--badge-ink);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 14px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* furo do cordão: o marinho do painel aparecendo através do cartão */
+.cracha-furo {
+  width: 34px;
+  height: 6px;
+  margin: 6px auto 5px;
+  border-radius: 3px;
+  background: var(--bg-2);
+}
+
+.cracha-faixa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 6px 6px 12px;
+  background: var(--bg-2);
+  color: var(--white);
+}
+
+.cracha-simbolo {
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 1px var(--white);
+}
+
+.cracha-marca {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--pixel);
+  font-size: 9px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.cracha-fechar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 12px;
-  margin: 0;
-  padding: 12px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: 4px;
-  background: var(--bg-3);
+  background: transparent;
+  color: var(--white);
+  font: 400 22px/1 var(--sans);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
-.detail dt {
-  color: var(--muted);
+/* o laranja é só de "te esperando" (e dá 2,3:1 no branco): no cartão o foco é marinho */
+.cracha-cartao :focus-visible {
+  outline-color: var(--bg-2);
 }
 
-.detail dd {
+/* × sobre a faixa marinho */
+.cracha-cartao .cracha-fechar:focus-visible {
+  outline-color: var(--white);
+  outline-offset: -3px;
+}
+
+.cracha-fechar:hover {
+  background: var(--navy-600);
+  border-color: var(--navy-500);
+}
+
+.cracha-corpo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  text-align: center;
+}
+
+/* foto 3x4: fundo claro de estúdio, moldura fina, busto encostado embaixo */
+.cracha-foto {
+  padding: 10px 10px 0;
+  border: 1px solid var(--navy-500);
+  border-radius: 2px;
+  background: var(--photo-bg);
+  line-height: 0;
+}
+
+.cracha-foto canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.cracha .cracha-nome {
+  display: block;
+  margin: 14px 0 2px;
+  max-width: 100%;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.25;
+  color: var(--badge-ink);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.cracha-cargo {
   margin: 0;
-  word-break: break-word;
+  font-size: 13px;
+  color: var(--badge-ink-soft);
+}
+
+.cracha-matricula {
+  margin: 10px 0 0;
+  padding: 0 8px;
+  border: 1px solid var(--badge-ink);
+  border-radius: 2px;
+  font-family: var(--term);
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--badge-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* uma linha por dado: "Rótulo: valor" */
+/* visitante extra: selo no lugar da matrícula e uma tarja cinza sob a faixa */
+.cracha-selo {
+  margin: 10px 0 0;
+  padding: 5px 10px 4px;
+  border: 1px solid var(--badge-ink);
+  border-radius: 2px;
+  background: var(--cordao-visitante);
+  color: var(--badge-ink);
+  font-family: var(--pixel);
+  font-size: 9px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.cracha-visitante .cracha-faixa {
+  box-shadow: inset 0 -4px 0 var(--cordao-visitante);
+}
+
+.cracha-dados {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed var(--badge-rule);
+  text-align: left;
+}
+
+.cracha-dados > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.cracha-dados dt {
+  flex-shrink: 0;
+  color: var(--badge-ink-soft);
+}
+
+.cracha-dados dd {
+  flex: 1 1 0;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cracha-dados .cracha-status {
+  margin-bottom: 2px;
+}
+
+.cracha-status dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.cracha-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--idle-gray);
+  /* anel marinho: a bolinha branca (chegando/saindo) aparece no cartão branco */
+  box-shadow: 0 0 0 1.5px var(--badge-ink);
+}
+
+.dot-trabalhando {
+  background: var(--green);
+}
+
+.dot-pensando {
+  background: var(--blue);
+}
+
+.dot-esperando {
+  background: var(--waiting);
+}
+
+.dot-chegando,
+.dot-saindo {
+  background: var(--white);
+}
+
+.cracha-agora dd {
+  font-weight: 500;
+}
+
+.cracha-stat,
+.cracha-projeto {
+  font-size: 13px;
+}
+
+.cracha-stat dd {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cracha-personalizar {
+  flex: 0 0 auto;
+  width: 100%;
+  margin-top: 16px;
 }
 
 /* ---------------------------------------------------------------- feed */

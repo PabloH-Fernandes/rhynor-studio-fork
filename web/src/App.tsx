@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Agent, AgentStatus, FeedItem } from "../../shared/types";
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
+import { Cracha } from "./components/Cracha";
 import { SpriteGallery } from "./SpriteGallery";
 import { GALLERY_ENABLED } from "./office/gallery";
 import { roleColor, theme } from "./theme";
@@ -29,6 +30,14 @@ export default function App() {
   const { agents, feed, roster, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** sobe a cada seleção feita no canvas: no layout empilhado o crachá rola pra vista */
+  const [revelar, setRevelar] = useState(0);
+  const restLabel = useCallback((id: string) => officeRef.current?.restLabel(id) ?? null, []);
+  const closeCracha = useCallback(() => setSelectedId(null), []);
+  const selectFromCanvas = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id) setRevelar((n) => n + 1);
+  }, []);
 
   const list = useMemo(() => Object.values(agents), [agents]);
   const sorted = useMemo(
@@ -40,6 +49,11 @@ export default function App() {
     [list],
   );
   const selected = selectedId ? agents[selectedId] : undefined;
+  // quem saiu do escritório deixa de estar selecionado (o feed não fica preso nele e, se o mesmo id
+  // voltar, o crachá não reabre sozinho)
+  useEffect(() => {
+    if (selectedId && !agents[selectedId]) setSelectedId(null);
+  }, [agents, selectedId]);
   const waiting = list.filter((a) => a.status === "esperando").length;
 
   const call = async (path: string) => {
@@ -57,7 +71,7 @@ export default function App() {
         {GALLERY_ENABLED ? (
           <SpriteGallery roster={roster} />
         ) : (
-          <OfficeCanvas ref={officeRef} agents={list} roster={roster} selectedId={selectedId} onSelect={setSelectedId} />
+          <OfficeCanvas ref={officeRef} agents={list} roster={roster} selectedId={selectedId} onSelect={selectFromCanvas} />
         )}
         {!GALLERY_ENABLED && list.length === 0 && conn === "online" && (
           <div className="empty">
@@ -121,21 +135,14 @@ export default function App() {
         </section>
 
         {selected && (
-          <section className="detail">
-            <h2>Detalhes</h2>
-            <dl>
-              <dt>Agente</dt>
-              <dd>{selected.name}</dd>
-              <dt>Projeto</dt>
-              <dd>{selected.project}</dd>
-              <dt>Status</dt>
-              <dd>{STATUS_LABEL[selected.status]}</dd>
-              <dt>Agora</dt>
-              <dd>{selected.activity}</dd>
-              <dt>No time há</dt>
-              <dd>{since(selected.startedAt)}</dd>
-            </dl>
-          </section>
+          <Cracha
+            agent={selected}
+            roster={roster}
+            statusLabel={STATUS_LABEL[selected.status]}
+            restLabel={restLabel}
+            onClose={closeCracha}
+            revelar={revelar}
+          />
         )}
 
         <section className="feed-section">
@@ -164,7 +171,12 @@ export default function App() {
 function AgentRow({ agent, selected, onClick }: { agent: Agent; selected: boolean; onClick: () => void }) {
   return (
     <li>
-      <button className={`agent-row ${selected ? "selected" : ""} st-${agent.status}`} onClick={onClick}>
+      <button
+        className={`agent-row ${selected ? "selected" : ""} st-${agent.status}`}
+        data-agent-id={agent.id}
+        aria-pressed={selected}
+        onClick={onClick}
+      >
         <span className="swatch" style={{ background: roleColor(agent.role) }} />
         <span className="agent-main">
           <span className="agent-name">
@@ -181,12 +193,4 @@ function AgentRow({ agent, selected, onClick }: { agent: Agent; selected: boolea
 
 function clock(ts: number) {
   return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-function since(ts: number) {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)}h ${m % 60}min`;
 }

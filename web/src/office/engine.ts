@@ -144,9 +144,14 @@ const ROLE_LOOK: Record<string, { hairStyle: number; accessories?: Acessorio[] }
 };
 const GUEST_ACCESSORIES: Acessorio[][] = [[], [], ["barba"], ["oculos"]];
 
+/** AGzinho do elenco que o agente está usando (undefined no visitante extra ou sem elenco) */
+export function agzinhoOf(agent: Agent, roster: Roster | null): AGzinho | undefined {
+  return agent.agzinho ? roster?.agzinhos.find((a) => a.key === agent.agzinho) : undefined;
+}
+
 /** Aparência do AGzinho do elenco; sem elenco ou visitante extra, a de sempre (papel + hash do id). */
-function lookFor(agent: Agent, roster: Roster | null): CharLook {
-  const ag = agent.agzinho ? roster?.agzinhos.find((a) => a.key === agent.agzinho) : undefined;
+export function lookFor(agent: Agent, roster: Roster | null): CharLook {
+  const ag = agzinhoOf(agent, roster);
   return ag ? lookOfAgzinho(ag) : lookByHash(agent, hashString(agent.id));
 }
 
