@@ -120,9 +120,9 @@ export function drawWaitBadge(ctx: CanvasRenderingContext2D, head: Point, now: n
   ctx.fillRect(sx + 4, sy + 8, 2, 1);
 }
 
-/** três pontinhos acendendo em sequência acima de quem está pensando */
-export function drawThinkDots(ctx: CanvasRenderingContext2D, head: Point, now: number) {
-  const k = Math.floor(now / 300) % 4;
+/** três pontinhos acendendo em sequência acima de quem está pensando (com reduced-motion: os três acesos, parados) */
+export function drawThinkDots(ctx: CanvasRenderingContext2D, head: Point, now: number, reduced = false) {
+  const k = reduced ? 3 : Math.floor(now / 300) % 4;
   for (let i = 0; i < 3; i++) {
     ctx.fillStyle = i < k ? palette.white : "rgba(255,255,255,0.35)";
     ctx.fillRect(Math.round(head.x - 5 + i * 4), Math.round(head.y - 6), 2, 2);

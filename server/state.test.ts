@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, mock, test } from "node:test";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
 import type { Agent } from "../shared/types.ts";
-import { cancelDemo, runDemo } from "./demo.ts";
+import { DEMO_END_AFTER_STOP_MS, cancelDemo, runDemo } from "./demo.ts";
 import { OfficeState, type HookInput } from "./state.ts";
 
 const S1 = "sessao-1";
@@ -247,22 +247,63 @@ test("cancelDemo + reset no meio da simulação: ninguém reaparece depois", () 
   assert.equal(agents().length, 0);
 });
 
-test("simulação completa: o '!' acontece, os subagentes ficam de boa e o SessionEnd leva todos", () => {
+test("simulação completa: ficam depois de entregar, 2ª chamada, 2 devs, '!', quadro e SessionEnd", () => {
   const { durationMs } = runDemo(state);
-  // anda de 500 em 500 ms até o PermissionRequest do testador acender o laranja (o roteiro muda de duração)
-  let passou = 0;
+  // anda de 500 em 500 ms anotando o que aconteceu (o roteiro pode mudar de tempos)
   let laranja = false;
-  while (passou < durationMs && !laranja) {
+  let devsJuntos = false;
+  const titulos: string[] = [];
+  /** id visual do pesquisador quando ele entregou a 1ª vez */
+  let pesquisadorId: string | undefined;
+  let chamadoNoDescanso = false;
+  let passou = 0;
+  // até o Stop do líder (o SessionEnd vem DEMO_END_AFTER_STOP_MS depois)
+  while (passou < durationMs - DEMO_END_AFTER_STOP_MS) {
     advance(500);
     passou += 500;
-    laranja = agents().some((a) => a.status === "esperando");
+    const now = agents();
+    laranja ||= now.some((a) => a.status === "esperando");
+    const trabalhando = (id: string) => {
+      const a = now.find((x) => x.id === id);
+      return !!a && a.status !== "ocioso" && a.status !== "saindo";
+    };
+    devsJuntos ||= trabalhando("ag:dev") && trabalhando("ag:dev-2");
+    const pesq = now.find((a) => a.role === "pesquisador");
+    if (pesq?.status === "ocioso" && pesq.tasksDone === 1) pesquisadorId ??= pesq.id;
+    if (pesquisadorId && pesq?.id === pesquisadorId && pesq.tasksDone === 1 && trabalhando(pesq.id)) chamadoNoDescanso = true;
+    const p = state.getProgress();
+    const titulo = p.fonte === "tarefas" ? (p.concluidas === p.total ? `concluíram ${p.total}` : `etapa ${p.etapa}/${p.total}`) : p.titulo;
+    if (titulo && titulos.at(-1) !== titulo) titulos.push(titulo);
   }
   assert.ok(laranja, "o PermissionRequest do testador devia acender o laranja");
-  advance(durationMs - passou + 1000);
+  assert.ok(devsJuntos, "dev (Bia) e dev-2 (Yasmin) deviam trabalhar ao mesmo tempo");
+  assert.ok(chamadoNoDescanso, "o pesquisador de boa devia ser chamado de novo (mesmo id visual)");
+  // o quadro passa por Planejamento, pelas etapas da lista e chega a "concluíram"
+  assert.ok(titulos.includes("Planejamento"), titulos.join(" → "));
+  for (const etapa of ["etapa 1/6", "etapa 2/6", "etapa 4/6", "etapa 6/6", "concluíram 6"]) {
+    assert.ok(titulos.includes(etapa), `${etapa} faltou: ${titulos.join(" → ")}`);
+  }
+  assert.ok(titulos.indexOf("Planejamento") < titulos.indexOf("etapa 1/6"));
+  assert.equal(titulos.at(-1), "concluíram 6");
+
+  // depois do Stop do líder: todo mundo de boa, ninguém saiu
+  advance(1000);
   const team = subs();
-  assert.equal(team.length, 6);
-  assert.ok(team.every((a) => a.status === "ocioso" && a.tasksDone === 1));
-  advance(20_000 + 7000);
+  assert.deepEqual(team.map((a) => a.id).sort(), ["ag:dev", "ag:dev-2", "ag:documentador", "ag:pesquisador", "ag:planejador", "ag:revisor", "ag:testador"]);
+  assert.ok(team.every((a) => a.status === "ocioso"), team.map((a) => `${a.id}:${a.status}`).join(" "));
+  assert.equal(byId("ag:pesquisador")!.id, pesquisadorId);
+  assert.equal(byId("ag:pesquisador")!.tasksDone, 2, "o pesquisador entregou 2 vezes");
+  assert.ok(team.filter((a) => a.id !== "ag:pesquisador").every((a) => a.tasksDone === 1));
+  const lider = agents().find((a) => !a.parentId)!;
+  assert.equal(lider.status, "ocioso");
+  assert.equal(lider.activity, "Terminou, esperando você");
+
+  // SessionEnd: todos vão até a porta e saem
+  advance(DEMO_END_AFTER_STOP_MS - 1000 - 500);
+  assert.equal(agents().length, 8, "ainda de boa antes do SessionEnd");
+  advance(1000);
+  assert.ok(agents().every((a) => a.status === "saindo"));
+  advance(7000);
   assert.equal(agents().length, 0);
 });
 
@@ -347,6 +388,70 @@ test("PreToolUse do subagente antes do SubagentStart: o Start não duplica", () 
   assert.equal(byId("ag:testador")!.activity, "Testar o form");
   advance(2000); // o fallback já foi consumido pelo Start
   assert.equal(subs().length, 1);
+});
+
+const spawnDev = (tool_use_id: string, description: string) =>
+  hook("PreToolUse", { tool_name: "Agent", tool_use_id, tool_input: { subagent_type: "dev", description } });
+
+test("2 devs seguidos (Pre → Start → Pre → Start): cada um com a sua descrição", () => {
+  spawnDev("tA", "A");
+  advance(300);
+  start("a1", "dev");
+  advance(1000);
+  spawnDev("tB", "B");
+  advance(300);
+  start("a2", "dev");
+  assert.equal(byId("ag:dev")!.activity, "A");
+  assert.equal(byId("ag:dev-2")!.activity, "B");
+  advance(2000); // nenhum fallback sobrando
+  assert.equal(subs().length, 2);
+});
+
+test("2 devs com os Pre antes dos Start: casam na ordem (FIFO)", () => {
+  spawnDev("tA", "A");
+  spawnDev("tB", "B");
+  advance(200);
+  start("a1", "dev");
+  start("a2", "dev");
+  assert.equal(byId("ag:dev")!.activity, "A");
+  assert.equal(byId("ag:dev-2")!.activity, "B");
+  advance(2000);
+  assert.equal(subs().length, 2);
+});
+
+test("SubagentStart antes do PreToolUse Agent: um dev só, com a descrição", () => {
+  start("a1", "dev");
+  advance(300);
+  spawnDev("tA", "A");
+  assert.equal(subs().length, 1);
+  assert.equal(byId("ag:dev")!.activity, "A");
+  advance(2000);
+  assert.equal(subs().length, 1);
+});
+
+test("evento do subagente antes do Start, Start nunca chega: o fallback não duplica", () => {
+  spawnDev("tA", "A");
+  advance(500);
+  hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read" });
+  advance(2000);
+  assert.equal(subs().length, 1);
+  assert.equal(byId("ag:dev")!.activity, "A");
+});
+
+test("evento do subagente antes do Start, depois um 2º dev: cada um com a sua descrição", () => {
+  spawnDev("tA", "A");
+  advance(200);
+  hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read" });
+  advance(200);
+  start("a1", "dev");
+  advance(500);
+  spawnDev("tB", "B");
+  advance(300);
+  start("a2", "dev");
+  assert.equal(byId("ag:dev")!.activity, "A");
+  assert.equal(byId("ag:dev-2")!.activity, "B");
+  advance(2000);
+  assert.equal(subs().length, 2);
 });
 
 test("Notification sem notification_type: idle, permissão e aviso comum", () => {

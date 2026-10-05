@@ -286,6 +286,10 @@ h2 {
 }
 
 /* na linha de baixo; título de tarefa enorme para em 2 linhas */
+.progresso-contagem {
+  white-space: nowrap;
+}
+
 .progresso-detalhe {
   display: -webkit-box;
   -webkit-box-orient: vertical;

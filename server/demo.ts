@@ -1,10 +1,29 @@
 // Simulação: dispara eventos falsos no mesmo formato dos hooks do Claude Code,
 // pra você ver o escritório funcionando sem precisar abrir uma sessão real.
 // Os timers ficam guardados para o "Limpar" (cancelDemo) parar tudo de verdade.
+//
+// Roteiro (~2 min 46 s), em segundos desde o "Rodar simulação":
+//   0–12    o líder recebe o pedido e chama pesquisador e planejador em paralelo (quadro: Ação → Planejamento)
+//   13–15   o líder monta a lista de 6 tarefas (quadro: Etapa 1 de 6)
+//   27      planejador e pesquisador entregam juntos: comemoram e FICAM; ~4 s depois vão descansar
+//   29–66   dev (Bia) e um 2º dev (Yasmin, dev-2) em paralelo, o testador, envelopes e o "!" de permissão (46 → 52)
+//   69      dev-2, testador e dev entregam no mesmo instante: 5 AGzinhos de boa ao mesmo tempo por ~30 s
+//           (o agendador do front espera IDLE_GRACE de 4 s e só chama pra ping-pong/papo quem já passou
+//           dele: entregar junto é o que dá chance de grupo; com 68/68,5/69 s quase sempre saía tudo solo)
+//   99      o pesquisador é chamado de novo no meio do descanso: larga tudo, volta pra mesa e entrega (2 entregas)
+//   117–145 revisor e depois documentador; o quadro chega a "concluíram 6 de 6"
+//   151     Stop do líder ("Terminou, esperando você"); ele também descansa um pouco
+//   166     SessionEnd: todo mundo vai até a porta
 
 import type { HookInput, OfficeState } from "./state.ts";
 
-type Step = [delayMs: number, input: Omit<HookInput, "session_id" | "cwd">];
+type Input = Omit<HookInput, "session_id" | "cwd">;
+/** [quando, em segundos desde o início; evento] */
+type Step = [atSec: number, input: Input];
+type Who = [agentId: string, agentType: string];
+
+/** depois do Stop do líder, o time fica de boa no escritório por esse tempo antes do SessionEnd */
+export const DEMO_END_AFTER_STOP_MS = 15_000;
 
 const timers = new Set<NodeJS.Timeout>();
 let activeSession: string | null = null;
@@ -32,129 +51,165 @@ export function runDemo(state: OfficeState) {
   activeSession = session_id;
   const cwd = "/home/pablo/projetos/portal-chamados";
   let tid = 0;
-  const tool = (name: string, input: Record<string, any>, agent?: [string, string]): Step[1] => ({
+  const tool = (name: string, input: Record<string, any>, agent?: Who): Input => ({
     hook_event_name: "PreToolUse",
     tool_name: name,
     tool_input: input,
     tool_use_id: `demo-tool-${++tid}`,
     ...(agent ? { agent_id: agent[0], agent_type: agent[1] } : {}),
   });
-  const done = (agent?: [string, string]): Step[1] => ({
+  const done = (agent?: Who): Input => ({
     hook_event_name: "PostToolUse",
     tool_name: "Read",
     ...(agent ? { agent_id: agent[0], agent_type: agent[1] } : {}),
   });
-  const spawn = (type: string, description: string): Step[1] => ({
+  // cada chamada da ferramenta Agent tem o próprio tool_use_id (2 devs, pesquisador chamado 2 vezes)
+  const spawn = (type: string, description: string): Input => ({
     hook_event_name: "PreToolUse",
     tool_name: "Agent",
     tool_input: { subagent_type: type, description },
-    tool_use_id: `${session_id}-spawn-${type}`,
+    tool_use_id: `${session_id}-spawn-${++tid}`,
   });
-  const start = (a: [string, string]): Step[1] => ({ hook_event_name: "SubagentStart", agent_id: a[0], agent_type: a[1] });
-  const stop = (a: [string, string]): Step[1] => ({ hook_event_name: "SubagentStop", agent_id: a[0], agent_type: a[1] });
-  const msg = (from: [string, string], to: string, message: string): Step[1] =>
-    tool("SendMessage", { to, message }, from);
+  const start = (a: Who): Input => ({ hook_event_name: "SubagentStart", agent_id: a[0], agent_type: a[1] });
+  const stop = (a: Who): Input => ({ hook_event_name: "SubagentStop", agent_id: a[0], agent_type: a[1] });
+  const msg = (from: Who, to: string, message: string): Input => tool("SendMessage", { to, message }, from);
+  const permission = (a: Who, command: string, description: string): Input => ({
+    hook_event_name: "PermissionRequest",
+    tool_name: "Bash",
+    tool_input: { command, description },
+    agent_id: a[0],
+    agent_type: a[1],
+  });
   // lista de tarefas no formato real: TaskCreate (Pre + Post com tool_response.task.id) e TaskUpdate (Pre + Post)
-  const taskCreate = (id: string, subject: string, activeForm: string, agent?: [string, string]): Step[] => {
-    const pre = tool("TaskCreate", { subject, description: subject, activeForm }, agent);
-    const post: Step[1] = { ...pre, hook_event_name: "PostToolUse", tool_response: { task: { id, subject } } };
+  const taskCreate = (at: number, id: string, subject: string, activeForm: string): Step[] => {
+    const pre = tool("TaskCreate", { subject, description: subject, activeForm });
+    const post: Input = { ...pre, hook_event_name: "PostToolUse", tool_response: { task: { id, subject } } };
     return [
-      [250, pre],
-      [50, post],
+      [at, pre],
+      [at + 0.05, post],
     ];
   };
-  const taskUpdate = (id: string, status: string, delay = 200, agent?: [string, string]): Step[] => {
-    const pre = tool("TaskUpdate", { taskId: id, status }, agent);
-    const post: Step[1] = { ...pre, hook_event_name: "PostToolUse", tool_response: { success: true, taskId: id, updatedFields: ["status"] } };
+  const taskUpdate = (at: number, id: string, status: string): Step[] => {
+    const pre = tool("TaskUpdate", { taskId: id, status });
+    const post: Input = { ...pre, hook_event_name: "PostToolUse", tool_response: { success: true, taskId: id, updatedFields: ["status"] } };
     return [
-      [delay, pre],
-      [50, post],
+      [at, pre],
+      [at + 0.05, post],
     ];
   };
 
-  const plan: [string, string] = [`${session_id}-plan`, "planejador"];
-  const pesq: [string, string] = [`${session_id}-pesq`, "pesquisador"];
-  const dev: [string, string] = [`${session_id}-dev`, "dev"];
-  const test: [string, string] = [`${session_id}-test`, "testador"];
-  const rev: [string, string] = [`${session_id}-rev`, "revisor"];
-  const doc: [string, string] = [`${session_id}-doc`, "documentador"];
+  const plan: Who = [`${session_id}-plan`, "planejador"];
+  const pesq: Who = [`${session_id}-pesq`, "pesquisador"];
+  const dev: Who = [`${session_id}-dev`, "dev"];
+  const dev2: Who = [`${session_id}-dev2`, "dev"]; // com a Bia ocupada, vira a Yasmin (dev-2)
+  const test: Who = [`${session_id}-test`, "testador"];
+  // chamado de novo no meio do descanso: agent_id novo, mesmo AGzinho
+  const pesqDeNovo: Who = [`${session_id}-pesq-2`, "pesquisador"];
+  const rev: Who = [`${session_id}-rev`, "revisor"];
+  const doc: Who = [`${session_id}-doc`, "documentador"];
 
   const steps: Step[] = [
+    // a) pedido, pesquisador e planejador em paralelo, lista de tarefas
     [0, { hook_event_name: "SessionStart", source: "startup" }],
-    [1500, { hook_event_name: "UserPromptSubmit", user_prompt: "Cria a tela de abertura de chamados com validação e testes" }],
-    [2000, tool("Glob", { pattern: "src/**/*.tsx" })],
-    [1500, tool("Read", { file_path: "src/pages/Chamados.tsx" })],
-    [1500, spawn("planejador", "Quebrar a feature em tarefas")],
-    [300, start(plan)],
-    [600, spawn("pesquisador", "Ver boas práticas de validação com zod")],
-    [300, start(pesq)],
-    [2500, tool("Read", { file_path: "docs/requisitos.md" }, plan)],
-    [800, tool("WebSearch", { query: "react hook form zod validação" }, pesq)],
-    // o planejador monta a lista (uma tarefa por etapa) e já começa a 1ª
-    [2200, tool("Read", { file_path: "src/pages/Chamados.tsx" }, plan)],
-    ...taskCreate("1", "Planejar a tela de chamados", "Planejando a tela de chamados", plan),
-    ...taskCreate("2", "Implementar o formulário", "Construindo o formulário", plan),
-    ...taskCreate("3", "Escrever os testes", "Escrevendo os testes", plan),
-    ...taskCreate("4", "Revisar o código", "Revisando o código", plan),
-    ...taskCreate("5", "Atualizar o README", "Atualizando o README", plan),
-    ...taskUpdate("1", "in_progress", 200, plan),
-    [1800, tool("WebFetch", { url: "https://zod.dev/" }, pesq)],
-    [2200, msg(plan, "dev", "Plano pronto: 5 tarefas, começa pelo formulário")],
-    ...taskUpdate("1", "completed", 600),
-    [600, stop(plan)],
-    [800, msg(pesq, "dev", "Use zodResolver no useForm, schema em arquivo separado")],
-    [1000, stop(pesq)],
-    ...taskUpdate("2", "in_progress", 300),
-    [300, spawn("dev", "Implementar o formulário de chamados")],
-    [300, start(dev)],
-    [500, spawn("testador", "Escrever testes do formulário")],
-    [300, start(test)],
-    [2000, tool("Write", { file_path: "src/schemas/chamado.ts" }, dev)],
-    [1200, tool("Read", { file_path: "src/pages/Chamados.tsx" }, test)],
-    [2400, tool("Edit", { file_path: "src/pages/Chamados.tsx" }, dev)],
-    [1500, tool("Write", { file_path: "tests/chamados.spec.ts" }, test)],
-    [2500, tool("Bash", { command: "npm run lint", description: "Rodando o lint" }, dev)],
-    [1500, { hook_event_name: "PermissionRequest", tool_name: "Bash", tool_input: { command: "npx playwright test", description: "Rodando os testes E2E" }, agent_id: test[0], agent_type: test[1] }],
-    [3500, tool("Bash", { command: "npx playwright test", description: "Rodando os testes E2E" }, test)],
-    [3000, msg(test, "dev", "2 testes falharam: campo prioridade aceita vazio")],
-    [1800, tool("Edit", { file_path: "src/schemas/chamado.ts" }, dev)],
-    [2200, msg(dev, "testador", "Corrigido, pode rodar de novo")],
-    [1500, tool("Bash", { command: "npx playwright test", description: "Rodando os testes de novo" }, test)],
-    ...taskUpdate("2", "completed", 400),
-    ...taskUpdate("3", "in_progress", 200),
-    [2400, msg(test, "dev", "Tudo verde ✅")],
-    [800, stop(dev)],
-    [400, stop(test)],
-    ...taskUpdate("3", "completed", 300),
-    ...taskUpdate("4", "in_progress", 200),
-    [800, spawn("revisor", "Revisar o código da feature")],
-    [300, start(rev)],
-    [600, spawn("documentador", "Atualizar o README")],
-    [300, start(doc)],
-    [1800, tool("Grep", { pattern: "any" }, rev)],
-    [1200, tool("Read", { file_path: "README.md" }, doc)],
-    [2200, tool("Read", { file_path: "src/pages/Chamados.tsx" }, rev)],
-    [1800, tool("Edit", { file_path: "README.md" }, doc)],
-    [2500, msg(rev, "lider", "Aprovado, só 1 sugestão de nome de variável")],
-    [800, stop(rev)],
-    ...taskUpdate("4", "completed", 200),
-    ...taskUpdate("5", "in_progress", 200),
-    [1300, stop(doc)],
-    ...taskUpdate("5", "completed", 200),
-    [1500, tool("Bash", { command: "git status", description: "Conferindo as mudanças" })],
-    [2000, done()],
-    [1500, { hook_event_name: "Stop" }],
+    [1.5, { hook_event_name: "UserPromptSubmit", user_prompt: "Cria a tela de abertura de chamados com anexos, validação e testes" }],
+    [3, tool("Glob", { pattern: "src/**/*.tsx" })],
+    [4.5, tool("Read", { file_path: "src/pages/Chamados.tsx" })],
+    [6, spawn("pesquisador", "Ver boas práticas de validação com zod")],
+    [6.3, start(pesq)],
+    [6.9, spawn("planejador", "Quebrar a feature em tarefas")],
+    [7.2, start(plan)],
+    [10, tool("WebSearch", { query: "react hook form zod validação" }, pesq)],
+    // o planejador é o último do time a mexer: o quadro (sem lista ainda) mostra "Planejamento"
+    [11.5, tool("Read", { file_path: "docs/requisitos.md" }, plan)],
+    ...taskCreate(13, "1", "Planejar a tela de chamados", "Planejando a tela de chamados"),
+    ...taskCreate(13.4, "2", "Implementar o formulário", "Construindo o formulário"),
+    ...taskCreate(13.8, "3", "Escrever os testes", "Escrevendo os testes"),
+    ...taskCreate(14.2, "4", "Pesquisar o upload de anexos", "Pesquisando o upload de anexos"),
+    ...taskCreate(14.6, "5", "Revisar o código", "Revisando o código"),
+    ...taskCreate(15, "6", "Atualizar o README", "Atualizando o README"),
+    ...taskUpdate(15.4, "1", "in_progress"),
+    [17, tool("WebFetch", { url: "https://zod.dev/" }, pesq)],
+    [19, tool("Write", { file_path: "docs/plano.md" }, plan)],
+    [22, msg(pesq, "planejador", "zodResolver no useForm, schema em arquivo separado")],
+    [24.5, msg(plan, "lider", "Plano pronto: 6 tarefas, começa pelo formulário")],
+    // b) os dois entregam no mesmo instante: comemoram e ficam (o descanso começa ~4 s depois)
+    [27, stop(plan)],
+    [27, stop(pesq)],
+    ...taskUpdate(28, "1", "completed"),
+    ...taskUpdate(28.3, "2", "in_progress"),
+    // c) dois devs em paralelo, testador, "!" de permissão e envelopes
+    [29, spawn("dev", "Implementar o formulário de chamados")],
+    [29.3, start(dev)],
+    [29.6, spawn("dev", "Implementar a validação do formulário")],
+    [29.9, start(dev2)],
+    [30.5, spawn("testador", "Escrever testes do formulário")],
+    [30.8, start(test)],
+    [34, tool("Write", { file_path: "src/pages/NovoChamado.tsx" }, dev)],
+    [35.5, tool("Write", { file_path: "src/schemas/chamado.ts" }, dev2)],
+    [37, tool("Read", { file_path: "src/pages/NovoChamado.tsx" }, test)],
+    [39, tool("Edit", { file_path: "src/pages/NovoChamado.tsx" }, dev)],
+    [40.5, tool("Edit", { file_path: "src/schemas/chamado.ts" }, dev2)],
+    [42, tool("Write", { file_path: "tests/chamados.spec.ts" }, test)],
+    [43.5, msg(dev2, "dev", "Schema pronto, é só ligar o zodResolver")],
+    [45, tool("Bash", { command: "npm run lint", description: "Rodando o lint" }, dev)],
+    [46, permission(test, "npx playwright test", "Rodando os testes E2E")],
+    // você liberou: o testador volta a trabalhar
+    [52, tool("Bash", { command: "npx playwright test", description: "Rodando os testes E2E" }, test)],
+    [55, msg(test, "dev", "2 testes falharam: campo prioridade aceita vazio")],
+    [57, tool("Edit", { file_path: "src/schemas/chamado.ts" }, dev2)],
+    [59, msg(dev2, "testador", "Corrigido, pode rodar de novo")],
+    [60.5, tool("Edit", { file_path: "src/pages/NovoChamado.tsx" }, dev)],
+    [62, tool("Bash", { command: "npx playwright test", description: "Rodando os testes de novo" }, test)],
+    [66, msg(test, "dev", "Tudo verde ✅")],
+    // d) os três entregam no mesmo instante: com o planejador e o pesquisador, 5 de boa ao mesmo tempo
+    [69, stop(dev2)],
+    [69, stop(test)],
+    [69, stop(dev)],
+    ...taskUpdate(70, "2", "completed"),
+    ...taskUpdate(70.3, "3", "completed"),
+    ...taskUpdate(70.6, "4", "in_progress"),
+    [73, tool("Read", { file_path: "src/api/anexos.ts" })],
+    [80, tool("Grep", { pattern: "multipart" })],
+    [88, tool("Read", { file_path: "server/routes/chamados.ts" })],
+    // e) ~20 s depois dos grupos formados, o pesquisador é chamado de novo no meio do descanso
+    [98.7, spawn("pesquisador", "Ver limite de tamanho do upload de anexos")],
+    [99, start(pesqDeNovo)],
+    [106, tool("WebSearch", { query: "multer limite de tamanho arquivo" }, pesqDeNovo)],
+    [109, tool("WebFetch", { url: "https://github.com/expressjs/multer" }, pesqDeNovo)],
+    [112.5, msg(pesqDeNovo, "lider", "Limite de 10 MB com multer, valide o tipo no front")],
+    [115, stop(pesqDeNovo)],
+    ...taskUpdate(116, "4", "completed"),
+    ...taskUpdate(116.3, "5", "in_progress"),
+    // f) revisor e depois documentador; o quadro chega a "concluíram 6 de 6"
+    [117, spawn("revisor", "Revisar o código da feature")],
+    [117.3, start(rev)],
+    [121, tool("Grep", { pattern: "any" }, rev)],
+    [124.5, tool("Read", { file_path: "src/pages/NovoChamado.tsx" }, rev)],
+    [128, msg(rev, "lider", "Aprovado, só 1 sugestão de nome de variável")],
+    [130, stop(rev)],
+    ...taskUpdate(130.5, "5", "completed"),
+    ...taskUpdate(130.8, "6", "in_progress"),
+    [131.5, spawn("documentador", "Atualizar o README")],
+    [131.8, start(doc)],
+    [137, tool("Read", { file_path: "README.md" }, doc)],
+    [141, tool("Edit", { file_path: "README.md" }, doc)],
+    [145, stop(doc)],
+    ...taskUpdate(145.5, "6", "completed"),
+    // g) o líder confere e termina a vez dele
+    [147, tool("Bash", { command: "git status", description: "Conferindo as mudanças" })],
+    [149, done()],
+    [151, { hook_event_name: "Stop" }],
   ];
 
   let at = 0;
-  for (const [delay, input] of steps) {
-    at += delay;
+  for (const [sec, input] of steps) {
+    at = Math.round(sec * 1000);
     schedule(at, () => state.handleHook({ ...input, session_id, cwd } as HookInput));
   }
-  // encerra a sessão de demo um tempo depois (até lá o time fica de boa no escritório)
-  schedule(at + 20_000, () => {
+  // h) encerra a sessão de demo um tempo depois (até lá o time todo fica de boa no escritório)
+  schedule(at + DEMO_END_AFTER_STOP_MS, () => {
     activeSession = null;
     state.handleHook({ hook_event_name: "SessionEnd", session_id, cwd });
   });
-  return { session_id, durationMs: at };
+  return { session_id, durationMs: at + DEMO_END_AFTER_STOP_MS };
 }

@@ -716,7 +716,11 @@ export class OfficeEngine {
             active: !!seated && (seated.agent.status === "trabalhando" || seated.agent.status === "pensando"),
             waiting: !!seated && seated.agent.status === "esperando",
             occupantName: occupant ? this.nicknameOf(occupant.agent) : undefined,
-            nickname: this.rosterData ? agzinhoDoPapel(this.rosterData, d.role)?.apelido : undefined,
+            // mesa do papel: o apelido de quem está nela (ex.: a dev-2 na mesa do dev quando a Bia
+            // não está); vazia, o do AGzinho principal do papel
+            nickname:
+              (occupant ? this.apelidoDe(occupant.agent) : undefined) ??
+              (this.rosterData ? agzinhoDoPapel(this.rosterData, d.role)?.apelido : undefined),
             t: now,
             reducedMotion: isReducedMotion(),
           };
@@ -839,10 +843,13 @@ export class OfficeEngine {
    */
   private drawWindowLayer(ctx: CanvasRenderingContext2D, now: number, light: ReturnType<typeof windowLight>) {
     const k = this.scaleOf(ctx);
+    // a camada continua sendo refeita a cada WINDOW_FRAME_MS (a luz do dia muda), mas com
+    // reduced-motion as nuvens, o guindaste e o elevador de obra ficam parados (tempo 0)
     const slot = Math.floor(now / WINDOW_FRAME_MS);
+    const t = isReducedMotion() ? 0 : now;
     if (this.windowLayer.scale !== k || this.windowSlot !== slot) {
-      if (!this.windowLayer.paint(k, (g) => drawWindows(g, now, light))) {
-        drawWindows(ctx, now, light);
+      if (!this.windowLayer.paint(k, (g) => drawWindows(g, t, light))) {
+        drawWindows(ctx, t, light);
         return;
       }
       this.windowSlot = slot;
@@ -883,9 +890,14 @@ export class OfficeEngine {
     if (b) drawBaked(ctx, b);
   }
 
+  /** apelido do AGzinho do agente no elenco atual (undefined pra visitante extra) */
+  private apelidoDe(agent: Agent): string | undefined {
+    return agent.agzinho ? this.agzByKey.get(agent.agzinho)?.apelido : undefined;
+  }
+
   /** apelido do AGzinho (plaquinha da mesa de convidado); visitante extra usa o nome */
   private nicknameOf(agent: Agent): string {
-    return (agent.agzinho ? this.agzByKey.get(agent.agzinho)?.apelido : undefined) ?? agent.name;
+    return this.apelidoDe(agent) ?? agent.name;
   }
 
   /** brilho leve ("lighter") nas telas ligadas e na logo da placa, por cima do multiply */
@@ -1153,7 +1165,7 @@ export class OfficeEngine {
     }
     for (const it of items) {
       if (it.badge === "esperando") drawWaitBadge(ctx, it.head, now, reduced);
-      else if (it.badge === "pensando") drawThinkDots(ctx, it.head, now);
+      else if (it.badge === "pensando") drawThinkDots(ctx, it.head, now, reduced);
     }
     // confete por cima de tudo
     for (const it of items) this.drawConfetti(ctx, it.v, now);

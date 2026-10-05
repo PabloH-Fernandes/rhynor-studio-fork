@@ -73,6 +73,11 @@ interface PendingSpawn {
 interface Binding {
   type: string;
   alias: string;
+  /**
+   * chegou pelo SubagentStart sem nenhum "Agent" pendente pra casar: o PreToolUse dele ainda pode
+   * chegar depois (ordem trocada). Só quem está assim pode ser casado por um "Agent" que chega depois.
+   */
+  awaitingSpawn?: boolean;
 }
 
 export interface OfficeStateOptions {
@@ -279,21 +284,25 @@ export class OfficeState {
         const id = input.agent_id;
         if (!id || this.isRetired(id)) break;
         const type = String(input.agent_type ?? "general-purpose");
-        const pend = this.takePending(input.session_id, type);
         const known = this.aliases.get(id);
         if (known && this.agents.has(known)) {
           // um evento dele chegou antes do Start e já o colocou na mesa: só completa a descrição
           const agent = this.agents.get(known)!;
+          const pend = this.takePending(input.session_id, type, input.tool_use_id);
           if (pend?.description) this.update(agent, agent.status, truncate(pend.description, 60));
+          this.markAwaitingSpawn(agent, !pend);
           break;
         }
         // o fallback já criou este subagente pelo tool_use_id: passa a ouvir pelo agent_id
+        // (o "Agent" dele já foi consumido pelo fallback: não pega o pendente de outro)
         const early = this.fallbackBound(input.session_id, type);
         if (early) {
           this.rebindAlias(early, id, type);
           break;
         }
-        this.bindSubagent(input.session_id, id, type, pend?.description ?? "", input.cwd);
+        const pend = this.takePending(input.session_id, type, input.tool_use_id);
+        const agent = this.bindSubagent(input.session_id, id, type, pend?.description ?? "", input.cwd);
+        if (!pend) this.markAwaitingSpawn(agent, true);
         break;
       }
 
@@ -431,7 +440,10 @@ export class OfficeState {
       const sub = this.agentByAlias(input.agent_id);
       if (sub) return sub;
       if (this.isRetired(input.agent_id)) return undefined;
-      return this.bindSubagent(input.session_id, input.agent_id, String(input.agent_type ?? "general-purpose"), "", input.cwd);
+      // apareceu pelo próprio evento: ainda não foi casado com nenhum PreToolUse Agent
+      const agent = this.bindSubagent(input.session_id, input.agent_id, String(input.agent_type ?? "general-purpose"), "", input.cwd);
+      this.markAwaitingSpawn(agent, true);
+      return agent;
     }
     return this.ensureLeader(input);
   }
@@ -604,6 +616,7 @@ export class OfficeState {
     // o SubagentStart pode ter chegado antes deste evento: nesse caso só completa a descrição
     const early = this.recentSubagent(input.session_id, type, askedAt);
     if (early) {
+      this.markAwaitingSpawn(early, false);
       if (description) this.update(early, early.status, truncate(description, 60));
       return;
     }
@@ -611,13 +624,27 @@ export class OfficeState {
       const p = this.pending.get(toolUseId);
       if (!p) return;
       this.pending.delete(toolUseId);
-      if (this.recentSubagent(p.sessionId, p.type, askedAt)) return;
+      const late = this.recentSubagent(p.sessionId, p.type, askedAt);
+      if (late) {
+        this.markAwaitingSpawn(late, false);
+        if (p.description) this.update(late, late.status, truncate(p.description, 60));
+        return;
+      }
       this.bindSubagent(p.sessionId, `t:${toolUseId}`, p.type, p.description, input.cwd);
     }, FALLBACK_SPAWN_MS);
     this.pending.set(toolUseId, { sessionId: input.session_id, type, description, timer });
   }
 
-  /** subagente desta sessão e tipo que chegou pelo SubagentStart (não pelo fallback) há pouco */
+  private markAwaitingSpawn(agent: Agent, awaiting: boolean) {
+    const b = this.bindings.get(agent.id);
+    if (b) b.awaitingSpawn = awaiting;
+  }
+
+  /**
+   * subagente desta sessão e tipo que chegou pelo SubagentStart (não pelo fallback) há pouco e
+   * ainda não casou com nenhum "Agent" (awaitingSpawn): o "Agent" de outro do mesmo tipo, chamado
+   * logo depois, não rouba quem já tem o seu
+   */
   private recentSubagent(sessionId: string, type: string, since: number): Agent | undefined {
     const t = normalizeRole(type);
     return [...this.agents.values()].find((a) => {
@@ -626,6 +653,7 @@ export class OfficeState {
         a.parentId &&
         a.sessionId === sessionId &&
         b?.type === t &&
+        b.awaitingSpawn === true &&
         !b.alias.startsWith("t:") &&
         this.aliases.get(b.alias) === a.id &&
         a.status !== "saindo" &&
@@ -651,7 +679,14 @@ export class OfficeState {
     });
   }
 
-  private takePending(sessionId: string, type: string): PendingSpawn | undefined {
+  /** o "Agent" pendente deste Start: o do tool_use_id, se vier; senão o mais antigo do tipo (FIFO) */
+  private takePending(sessionId: string, type: string, toolUseId?: string): PendingSpawn | undefined {
+    const own = toolUseId ? this.pending.get(toolUseId) : undefined;
+    if (own && own.sessionId === sessionId) {
+      clearTimeout(own.timer);
+      this.pending.delete(toolUseId!);
+      return own;
+    }
     for (const [key, p] of this.pending) {
       if (p.sessionId === sessionId && (p.type === type || normalizeRole(p.type) === normalizeRole(type))) {
         clearTimeout(p.timer);
