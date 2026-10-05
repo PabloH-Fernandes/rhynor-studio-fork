@@ -4,7 +4,9 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import type { LinhaGravada } from "./gravador.ts";
-import { agentePorKey, agentePorNome, agentes, anonimizar, lerJsonl, reproduzir } from "./replay.ts";
+import { agentePorKey, agentePorNome, agentes, anonimizar, lerJsonl, reproduzir, type RelogioVirtual } from "./replay.ts";
+import { OfficeState } from "./state.ts";
+import { DEFAULT_ROSTER } from "../shared/roster.ts";
 
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "sessoes", "lider-dois-subagentes.jsonl");
 const TEXTO = fs.readFileSync(FIXTURE, "utf8");
@@ -44,31 +46,56 @@ test("sem evento nenhum, o subagente sai de 'chegando' pelo timer de 12 s do rel
   assert.equal(agentePorKey(depois, "dev")?.status, "pensando");
 });
 
-// Reproduz o bug 4: o servidor reinicia no meio da sessão e o escritório fica vazio, mesmo
-// com a sessão e os subagentes vivos. Este teste afirma o comportamento ATUAL; na etapa 3 a
-// persistência do estado vai mudar isso e este teste deve ser atualizado junto.
-test("marcador servidor_iniciou zera o estado (bug 4, comportamento atual)", () => {
+/** o servidor novo carrega o que o anterior salvou (como data/escritorio.json, ida e volta pelo JSON) */
+function comPersistencia(anterior: OfficeState, relogio: RelogioVirtual): OfficeState {
+  const salvo: unknown = JSON.parse(JSON.stringify(anterior.serializar()));
+  const novo = new OfficeState({ relogio, sweepEveryMs: 0 });
+  novo.setRoster(structuredClone(DEFAULT_ROSTER));
+  novo.restaurar(salvo);
+  return novo;
+}
+
+// Bug 4: o servidor reinicia no meio da sessão (tsx watch). Sem persistência o escritório
+// esvaziava; com o estado salvo, o mesmo time volta como estava.
+test("bug 4: servidor_iniciou com persistência mantém o time, os status e a lista", () => {
   const base = linhas();
   const fim = base[base.length - 1].chegada;
   const comReinicio: LinhaGravada[] = [...base, { chegada: fim + 1000, marcador: "servidor_iniciou" }];
+  const antes = reproduzir(base).state;
+  const resumo = (s: OfficeState) => agentes(s).map((a) => `${a.id}:${a.agzinho}:${a.status}:${a.activity}`).sort();
 
-  const { state, linhaDoTempo } = reproduzir(comReinicio);
+  const { state, linhaDoTempo } = reproduzir(comReinicio, { aoReiniciar: comPersistencia });
+  assert.deepEqual(resumo(state), resumo(antes));
+  assert.equal(state.getProgress().total, 2);
+  const iReinicio = linhaDoTempo.findIndex((m) => m.status === "reiniciou");
+  assert.ok(iReinicio >= 0);
+  assert.deepEqual(linhaDoTempo.slice(iReinicio + 1), [], "ninguém sai nem chega no reinício");
+
+  // eventos da sessão viva depois do reinício: o mesmo agent_id cai no mesmo boneco
+  const depois: LinhaGravada[] = [
+    {
+      chegada: fim + 2000,
+      hookTs: null,
+      evento: { hook_event_name: "PreToolUse", session_id: "sessao-fixture", agent_id: "ag-dev", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "/x/a.ts" } },
+    },
+    { chegada: fim + 3000, hookTs: null, evento: { hook_event_name: "SubagentStop", session_id: "sessao-fixture", agent_id: "ag-dev", agent_type: "dev" } },
+  ];
+  const volta = reproduzir([...comReinicio, ...depois], { aoReiniciar: comPersistencia });
+  assert.deepEqual(agentes(volta.state).map((a) => a.agzinho).sort(), ["dev", "lider", "planejador"]);
+  const bia = agentePorKey(volta.state, "dev");
+  assert.equal(bia?.id, agentePorKey(antes, "dev")?.id);
+  assert.equal(bia?.status, "ocioso");
+  assert.equal(bia?.tasksDone, 1);
+  assert.equal(volta.state.getProgress().total, 2);
+  assert.ok(!volta.linhaDoTempo.some((m) => m.status === "saindo" || m.status === "saiu" || (m.status === "chegando" && m.t > fim)));
+});
+
+test("servidor_iniciou sem persistência (aoReiniciar ausente) ainda começa vazio", () => {
+  const base = linhas();
+  const fim = base[base.length - 1].chegada;
+  const { state } = reproduzir([...base, { chegada: fim + 1000, marcador: "servidor_iniciou" }]);
   assert.equal(agentes(state).length, 0);
   assert.equal(state.getProgress().fonte, "nada");
-  assert.equal(linhaDoTempo.filter((m) => m.status === "reiniciou").length, 1);
-
-  // um evento da sessão viva depois do reinício: a Bia e o líder voltam como se fossem novos,
-  // mas o planejador (que já tinha entregado) e a lista de tarefas se perderam
-  const depois: LinhaGravada = {
-    chegada: fim + 2000,
-    hookTs: null,
-    evento: { hook_event_name: "PreToolUse", session_id: "sessao-fixture", agent_id: "ag-dev", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "/x/a.ts" } },
-  };
-  const volta = reproduzir([...comReinicio, depois]).state;
-  assert.deepEqual(agentes(volta).map((a) => a.agzinho).sort(), ["dev", "lider"]);
-  assert.equal(agentePorKey(volta, "dev")?.status, "trabalhando");
-  assert.equal(agentePorKey(volta, "planejador"), undefined);
-  assert.equal(volta.getProgress().total, 0);
 });
 
 test("anonimizador: nenhum caminho, cwd, prompt ou comando original sobra, e o replay dá o mesmo resultado", () => {

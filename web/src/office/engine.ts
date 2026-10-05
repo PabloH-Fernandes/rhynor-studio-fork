@@ -132,6 +132,8 @@ const BOUNDS: Rect = { x: 1, y: 1, w: W - 2, h: H - 2 };
 
 /** status em que o agente está "na tarefa" (vale espreguiçar ao ficar de boa) */
 const BUSY = new Set<Agent["status"]>(["trabalhando", "pensando", "esperando"]);
+/** "chegando" há mais que isso (ex.: estado restaurado depois de reiniciar o servidor) já está na mesa */
+const ARRIVED_AFTER_MS = 15_000;
 
 /** sobrancelha: sobe esperando, inclina pensando */
 const MOOD: Partial<Record<Agent["status"], Mood>> = { esperando: "esperando", pensando: "pensando" };
@@ -487,8 +489,9 @@ export class OfficeEngine {
   private create(agent: Agent, fromSnapshot: boolean): Visual {
     const h = hashString(agent.id);
     const { spot, deskId } = this.claimHome(agent);
-    // quem já estava trabalhando quando a tela abriu aparece direto na mesa
-    const startAtHome = fromSnapshot && agent.status !== "chegando";
+    // quem já estava trabalhando quando a tela abriu aparece direto na mesa; "chegando" também,
+    // se entrou faz tempo (a caminhada da porta já teria acabado)
+    const startAtHome = fromSnapshot && (agent.status !== "chegando" || Date.now() - agent.startedAt > ARRIVED_AFTER_MS);
     const start = startAtHome ? spot : DOOR_SPOT;
     return {
       agent,

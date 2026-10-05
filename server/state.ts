@@ -9,7 +9,7 @@
 import path from "node:path";
 import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ServerMessage } from "../shared/types.ts";
 import { DEFAULT_ROSTER, agzinhoDoPapel, type AGzinho, type Roster } from "../shared/roster.ts";
-import { PROGRESS_NADA, ProgressTracker, sameProgress } from "./progress.ts";
+import { PROGRESS_NADA, ProgressTracker, sameProgress, type TarefasSalvas } from "./progress.ts";
 
 /** Formato (parcial) do JSON que o Claude Code manda no stdin de cada hook. */
 export interface HookInput {
@@ -28,6 +28,8 @@ export interface HookInput {
   message?: string;
   notification_type?: string;
   source?: string;
+  /** só no SessionEnd: por que a sessão acabou ("clear", "logout", "prompt_input_exit", "other"...) */
+  reason?: string;
   [key: string]: unknown;
 }
 
@@ -52,6 +54,10 @@ const ARRIVE_MS = 12_000;
 const FALLBACK_SPAWN_MS = 1500; // se o SubagentStart não chegar, cria pelo tool_use_id
 const RETIRE_MS = 2 * 60_000; // eventos atrasados de uma sessão encerrada (SessionEnd) são ignorados por esse tempo
 const SWEEP_EVERY_MS = 60_000;
+/** /clear: o SessionEnd (reason "clear") espera o SessionStart da conversa nova por esse tempo */
+export const TRANSICAO_MS = 30_000;
+/** /clear com os hooks fora de ordem: SessionStart "clear" até esse tempo antes do SessionEnd "clear" ainda funde */
+export const CLEAR_ADIANTADO_MS = 5000;
 /** sessão com ferramenta em andamento (Pre sem Post) espera esse múltiplo do timeout */
 const BUSY_TIMEOUT_FACTOR = 4;
 export const DEFAULT_SESSION_TIMEOUT_MIN = 30;
@@ -70,7 +76,7 @@ interface PendingSpawn {
 }
 
 /** como o id visual foi ligado da última vez: o tipo pedido e a chave do alias (agent_id ou t:<tool_use_id>) */
-interface Binding {
+export interface Binding {
   type: string;
   alias: string;
   /**
@@ -78,6 +84,30 @@ interface Binding {
    * chegar depois (ordem trocada). Só quem está assim pode ser casado por um "Agent" que chega depois.
    */
   awaitingSpawn?: boolean;
+}
+
+/** sessão que recebeu SessionEnd com reason "clear": o time espera a conversa nova (mesmo cwd) */
+interface Transicao {
+  cwd?: string;
+  ate: number;
+  timer: Timer;
+}
+
+/** O estado do escritório em JSON puro (data/escritorio.json); as simulações ficam de fora. */
+export interface EstadoSalvo {
+  v: 1;
+  salvoEm: number;
+  agents: Agent[];
+  feed: FeedItem[];
+  feedSeq: number;
+  aliases: [string, string][];
+  bindings: [string, Binding][];
+  retired: [string, number][];
+  stopped: string[];
+  lastSeen: [string, number][];
+  lideres: [string, string][];
+  transicoes: { sessionId: string; cwd?: string; ate: number }[];
+  tarefas: TarefasSalvas;
 }
 
 /** identificador opaco de um timer do Relogio */
@@ -139,6 +169,12 @@ export class OfficeState {
   private stopped = new Set<string>();
   /** session_id → último evento recebido */
   private lastSeen = new Map<string, number>();
+  /** session_id → id visual do líder, quando não é s:<session_id> (o time herdado de um /clear) */
+  private lideres = new Map<string, string>();
+  /** session_id encerrada por /clear → espera da conversa nova */
+  private transicoes = new Map<string, Transicao>();
+  /** SessionStart "clear" que não achou time para herdar: o SessionEnd da conversa limpa pode vir depois */
+  private clearsSemTime = new Map<string, { cwd?: string; at: number }>();
   /** listas de tarefas por sessão (quadro de etapas) e o último valor mandado às telas */
   private tasks = new ProgressTracker();
   private progress: Progress = PROGRESS_NADA;
@@ -194,6 +230,130 @@ export class OfficeState {
     }
   }
 
+  // ---------------------------------------------------------------- persistência
+
+  /**
+   * O estado em JSON puro, para sobreviver ao reinício do servidor (tsx watch). Fica de fora o que
+   * é passageiro: simulações, quem já está saindo, spawns pendentes e timers.
+   */
+  serializar(): EstadoSalvo {
+    const real = (sessionId: string) => !isDemo(sessionId);
+    const agents = [...this.agents.values()].filter((a) => real(a.sessionId) && a.status !== "saindo");
+    const ids = new Set(agents.map((a) => a.id));
+    const daDemo = new Set([...this.agents.values()].filter((a) => isDemo(a.sessionId)).map((a) => a.id));
+    return {
+      v: 1,
+      salvoEm: this.now(),
+      agents: structuredClone(agents),
+      feed: this.feed.filter((f) => !daDemo.has(f.agentId) && !f.agentId.startsWith("s:demo-")).slice(-60),
+      feedSeq: this.feedSeq,
+      aliases: [...this.aliases].filter(([, visual]) => ids.has(visual)),
+      bindings: structuredClone([...this.bindings].filter(([visual]) => ids.has(visual))),
+      retired: [...this.retired],
+      stopped: [...this.stopped],
+      lastSeen: [...this.lastSeen].filter(([sessionId]) => real(sessionId)),
+      lideres: [...this.lideres].filter(([, visual]) => ids.has(visual)),
+      transicoes: [...this.transicoes].map(([sessionId, t]) => ({ sessionId, cwd: t.cwd, ate: t.ate })),
+      tarefas: this.tasks.serializar().filter((t) => real(t.sessionId)),
+    };
+  }
+
+  /**
+   * Carrega o estado salvo por serializar() num OfficeState recém-criado (antes de qualquer evento).
+   * Sessões que passaram do timeout ficam de fora; quem estava "chegando" já aparece sentado (o
+   * timer de chegada morreu com o processo). Dado inválido → começa vazio. Nunca lança.
+   * Devolve quantos agentes voltaram.
+   */
+  restaurar(dados: unknown): number {
+    try {
+      return this.restaurarOuLancar(dados);
+    } catch {
+      this.limparMemoria();
+      return 0;
+    }
+  }
+
+  private restaurarOuLancar(dados: unknown): number {
+    this.limparMemoria();
+    if (!isObj(dados) || dados.v !== 1) return 0;
+    const now = this.now();
+    const lista = <T>(v: unknown, ok: (x: unknown) => x is T): T[] => (Array.isArray(v) ? v.filter(ok) : []);
+    const par = <V>(ok: (x: unknown) => x is V) => (x: unknown): x is [string, V] =>
+      Array.isArray(x) && x.length === 2 && typeof x[0] === "string" && ok(x[1]);
+    const num = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+    const txt = (x: unknown): x is string => typeof x === "string";
+
+    const agents = lista(dados.agents, agenteValido).filter((a) => !isDemo(a.sessionId) && a.status !== "saindo");
+    const seen = new Map(lista(dados.lastSeen, par(num)));
+    const transicoes = lista(dados.transicoes, (x): x is { sessionId: string; cwd?: string; ate: number } =>
+      isObj(x) && txt(x.sessionId) && num(x.ate) && (x.cwd === undefined || txt(x.cwd)),
+    );
+    const emTransicao = new Map(transicoes.filter((t) => t.ate > now && seen.has(t.sessionId)).map((t) => [t.sessionId, t]));
+    // sessão viva: teve evento e não passou do timeout (a regra é a mesma da varredura)
+    const vivas = new Set<string>();
+    for (const [sessionId, t] of seen) {
+      if (isDemo(sessionId) || this.semSinal(sessionId, t, now, agents)) continue;
+      // /clear sem a conversa nova até o fim da espera: a sessão acabou
+      if (transicoes.some((x) => x.sessionId === sessionId) && !emTransicao.has(sessionId)) continue;
+      vivas.add(sessionId);
+    }
+
+    for (const a of agents) {
+      if (!vivas.has(a.sessionId)) continue;
+      if (a.status === "chegando") {
+        // o timer de chegada morreu com o processo: já está na mesa
+        a.status = a.parentId ? "pensando" : "ocioso";
+        if (a.activity === "Chegando..." || a.activity === "Indo pra mesa...") a.activity = a.parentId ? "Pensando..." : "Esperando você";
+      }
+      const ag = a.agzinho ? this.findAgzinho(a.agzinho) : undefined;
+      if (ag) a.name = ag.nome;
+      this.agents.set(a.id, a);
+    }
+    for (const sessionId of vivas) this.lastSeen.set(sessionId, seen.get(sessionId)!);
+    for (const [alias, visual] of lista(dados.aliases, par(txt))) if (this.agents.has(visual)) this.aliases.set(alias, visual);
+    const bindingValido = (x: unknown): x is Binding => isObj(x) && txt(x.type) && txt(x.alias);
+    for (const [visual, b] of lista(dados.bindings, par(bindingValido))) {
+      if (this.agents.has(visual)) this.bindings.set(visual, { type: b.type, alias: b.alias, awaitingSpawn: b.awaitingSpawn === true || undefined });
+    }
+    for (const alias of lista(dados.stopped, txt)) if (this.aliases.has(alias)) this.stopped.add(alias);
+    for (const [key, until] of lista(dados.retired, par(num))) if (until > now) this.retired.set(key, until);
+    for (const [sessionId, visual] of lista(dados.lideres, par(txt))) {
+      if (vivas.has(sessionId) && this.agents.has(visual)) this.lideres.set(sessionId, visual);
+    }
+    for (const t of emTransicao.values()) if (vivas.has(t.sessionId)) this.agendarTransicao(t.sessionId, t.cwd, t.ate);
+    this.tasks.restaurar(dados.tarefas, (sessionId) => vivas.has(sessionId));
+    const ids = new Set(this.agents.keys());
+    this.feed = lista(dados.feed, (x): x is FeedItem => isObj(x) && num(x.id) && txt(x.agentId) && txt(x.text)).filter(
+      (f) => ids.has(f.agentId) || !f.agentId.startsWith("s:demo-"),
+    );
+    this.feedSeq = Math.max(num(dados.feedSeq) ? dados.feedSeq : 0, ...this.feed.map((f) => f.id));
+    this.refreshProgress();
+    this.emit(this.snapshot());
+    return this.agents.size;
+  }
+
+  /** zera tudo sem avisar ninguém (o restaurar começa daqui) */
+  private limparMemoria() {
+    for (const t of this.removalTimers.values()) this.relogio.clearTimeout(t);
+    for (const t of this.arrivalTimers.values()) this.relogio.clearTimeout(t);
+    for (const p of this.pending.values()) this.relogio.clearTimeout(p.timer);
+    for (const t of this.transicoes.values()) this.relogio.clearTimeout(t.timer);
+    this.removalTimers.clear();
+    this.arrivalTimers.clear();
+    this.pending.clear();
+    this.transicoes.clear();
+    this.clearsSemTime.clear();
+    this.agents.clear();
+    this.aliases.clear();
+    this.bindings.clear();
+    this.retired.clear();
+    this.stopped.clear();
+    this.lastSeen.clear();
+    this.lideres.clear();
+    this.tasks.reset();
+    this.feed = [];
+  }
+
   /** Apaga tudo (usado pelo botão "Limpar" da tela). */
   reset() {
     for (const t of this.removalTimers.values()) this.relogio.clearTimeout(t);
@@ -207,8 +367,12 @@ export class OfficeState {
     this.retired.clear();
     this.stopped.clear();
     this.lastSeen.clear();
+    for (const t of this.transicoes.values()) this.relogio.clearTimeout(t.timer);
+    this.transicoes.clear();
+    this.clearsSemTime.clear();
     this.tasks.reset();
     for (const id of [...this.agents.keys()]) this.remove(id);
+    this.lideres.clear();
     this.feed = [];
     this.refreshProgress();
     this.emit(this.snapshot());
@@ -220,16 +384,38 @@ export class OfficeState {
     if (!input || typeof input.hook_event_name !== "string" || !input.session_id) return;
     const ev = input.hook_event_name;
     // sessão encerrada: eventos atrasados não recriam o líder (só um SessionStart novo a reabre)
-    const sessionKey = this.leaderId(input.session_id);
+    const sessionKey = this.sessionKey(input.session_id);
     if (ev === "SessionStart") this.retired.delete(sessionKey);
     else if (this.isRetired(sessionKey)) return;
-    if (ev !== "SessionEnd") this.lastSeen.set(input.session_id, this.now());
+    if (ev !== "SessionEnd") {
+      this.lastSeen.set(input.session_id, this.now());
+      // a sessão que parecia limpa por /clear continua viva: cancela a espera
+      const transicao = this.transicoes.get(input.session_id);
+      if (transicao) this.relogio.clearTimeout(transicao.timer);
+      this.transicoes.delete(input.session_id);
+    }
     // a lista muda antes do agente: o refresh do update() já vê a lista nova
     const listaMudou = this.tasks.handle(input, this.now());
 
     switch (ev) {
       case "SessionStart": {
+        // /clear: a conversa nova (session_id novo) herda o time da que acabou de ser limpa
+        const herdou = input.source === "clear" && this.herdarTime(input);
+        const existia = this.agents.get(this.leaderId(input.session_id))?.sessionId === input.session_id;
         const lead = this.ensureLeader(input);
+        // compact/resume da mesma sessão: o time fica e o líder segue no que estava fazendo
+        // (o compact automático chega no meio do trabalho); só quem já estava ocioso ganha o texto novo
+        if (!herdou && existia && (input.source === "compact" || input.source === "resume")) {
+          if (lead.status === "ocioso") this.update(lead, "ocioso", input.source === "compact" ? "Resumiu a conversa" : "Voltou ao trabalho");
+          this.pushFeed(lead, input.source === "compact" ? "resumiu a conversa (compact)" : "retomou a sessão", "info");
+          break;
+        }
+        if (input.source === "clear" && !herdou) this.clearsSemTime.set(input.session_id, { cwd: input.cwd, at: this.now() });
+        if (herdou) {
+          this.update(lead, "ocioso", "Começou uma conversa nova");
+          this.pushFeed(lead, "limpou a conversa (/clear): o time continua", "info");
+          break;
+        }
         this.update(lead, "ocioso", input.source === "resume" ? "Voltou ao trabalho" : "Chegou no escritório");
         this.pushFeed(lead, `entrou no projeto ${lead.project}`, "info");
         break;
@@ -377,7 +563,9 @@ export class OfficeState {
       }
 
       case "SessionEnd": {
-        this.endSession(input.session_id, "Foi embora");
+        // /clear: a sessão acaba, mas a conversa nova (SessionStart source "clear") vem logo atrás
+        if (input.reason === "clear" && !isDemo(input.session_id)) this.esperarConversaNova(input);
+        else this.endSession(input.session_id, "Foi embora");
         break;
       }
 
@@ -397,7 +585,11 @@ export class OfficeState {
   endSession(sessionId: string, activity: string, { retire = true }: { retire?: boolean } = {}) {
     this.lastSeen.delete(sessionId);
     this.tasks.endSession(sessionId);
-    if (retire) this.retire(this.leaderId(sessionId));
+    const transicao = this.transicoes.get(sessionId);
+    if (transicao) this.relogio.clearTimeout(transicao.timer);
+    this.transicoes.delete(sessionId);
+    this.clearsSemTime.delete(sessionId);
+    if (retire) this.retire(this.sessionKey(sessionId));
     for (const [key, p] of this.pending) {
       if (p.sessionId !== sessionId) continue;
       this.relogio.clearTimeout(p.timer);
@@ -419,23 +611,137 @@ export class OfficeState {
     const now = this.now();
     for (const [id, until] of this.retired) if (until <= now) this.retired.delete(id);
     for (const [sessionId, seen] of [...this.lastSeen]) {
-      const team = [...this.agents.values()].filter((a) => a.sessionId === sessionId);
-      if (team.some((a) => a.status === "esperando")) continue;
-      const busy = team.some((a) => a.status === "trabalhando");
-      const limit = this.config.sessionTimeoutMs * (busy ? BUSY_TIMEOUT_FACTOR : 1);
-      if (now - seen > limit) this.endSession(sessionId, "Saiu (sessão sem sinal)", { retire: false });
+      if (this.semSinal(sessionId, seen, now)) this.endSession(sessionId, "Saiu (sessão sem sinal)", { retire: false });
+    }
+  }
+
+  /** a sessão passou do timeout sem evento (com alguém esperando você, nunca; trabalhando, 4x) */
+  private semSinal(sessionId: string, seen: number, now: number, agents: Iterable<Agent> = this.agents.values()): boolean {
+    const team = [...agents].filter((a) => a.sessionId === sessionId);
+    if (team.some((a) => a.status === "esperando")) return false;
+    const busy = team.some((a) => a.status === "trabalhando");
+    return now - seen > this.config.sessionTimeoutMs * (busy ? BUSY_TIMEOUT_FACTOR : 1);
+  }
+
+  // ---------------------------------------------------------------- /clear
+
+  /** SessionEnd reason "clear": o time fica esperando a conversa nova; sem ela em 30 s, vai embora. */
+  private esperarConversaNova(input: HookInput) {
+    if (this.fundirClearAdiantado(input)) return;
+    this.agendarTransicao(input.session_id, input.cwd, this.now() + TRANSICAO_MS);
+  }
+
+  /**
+   * O SessionStart "clear" da conversa nova chegou ANTES deste SessionEnd "clear" (hooks em paralelo):
+   * o líder recém-chegado sai da tela e o time da conversa limpa passa para a sessão nova na hora.
+   */
+  private fundirClearAdiantado(input: HookInput): boolean {
+    const antiga = input.session_id;
+    const now = this.now();
+    for (const [sessionId, c] of this.clearsSemTime) if (now - c.at > CLEAR_ADIANTADO_MS) this.clearsSemTime.delete(sessionId);
+    const candidatas = [...this.clearsSemTime].filter(([sessionId]) => sessionId !== antiga);
+    const novo = this.escolherPorCwd(candidatas, input.cwd, (c) => c.at);
+    if (novo === undefined) return false;
+    this.clearsSemTime.delete(novo);
+    const recem = this.agents.get(this.leaderId(novo));
+    const antigo = this.agents.get(this.leaderId(antiga));
+    if (recem && antigo && recem.sessionId === novo) {
+      this.remove(recem.id);
+      this.transferirTime(antiga, novo);
+      this.update(antigo, recem.status === "chegando" ? "ocioso" : recem.status, recem.status === "ocioso" || recem.status === "chegando" ? "Começou uma conversa nova" : recem.activity);
+    } else {
+      this.transferirTime(antiga, novo);
+    }
+    return true;
+  }
+
+  /**
+   * A espera mais recente compatível com o cwd. Com mais de uma aberta, o cwd tem que ser igual
+   * (sem cwd nenhum, não dá pra saber qual: não casa); com uma só, cwd ausente de um dos lados aceita.
+   */
+  private escolherPorCwd<T extends { cwd?: string }>(lista: [string, T][], cwd: string | undefined, quando: (t: T) => number): string | undefined {
+    const exigir = lista.length > 1;
+    let melhor: string | undefined;
+    let maisRecente = -Infinity;
+    for (const [sessionId, t] of lista) {
+      const ok = exigir ? !!cwd && t.cwd === cwd : !(t.cwd && cwd && t.cwd !== cwd);
+      if (ok && quando(t) > maisRecente) {
+        maisRecente = quando(t);
+        melhor = sessionId;
+      }
+    }
+    return melhor;
+  }
+
+  private agendarTransicao(sessionId: string, cwd: string | undefined, ate: number) {
+    const anterior = this.transicoes.get(sessionId);
+    if (anterior) this.relogio.clearTimeout(anterior.timer);
+    const timer = this.relogio.setTimeout(() => {
+      if (this.transicoes.get(sessionId)?.timer !== timer) return;
+      this.transicoes.delete(sessionId);
+      this.endSession(sessionId, "Foi embora");
+    }, Math.max(0, ate - this.now()));
+    soltar(timer);
+    this.transicoes.set(sessionId, { cwd, ate, timer });
+  }
+
+  /**
+   * SessionStart source "clear": passa o time da sessão limpa há pouco (mesmo cwd) para a nova.
+   * Os bonecos mantêm o id visual (o líder continua s:<sessão antiga>, via `lideres`), então a tela
+   * não vê ninguém sair nem entrar. Eventos atrasados da conversa antiga passam a ser ignorados.
+   */
+  private herdarTime(input: HookInput): boolean {
+    const novo = input.session_id;
+    const abertas = [...this.transicoes].filter(([sessionId]) => sessionId !== novo);
+    const antiga = this.escolherPorCwd(abertas, input.cwd, (t) => t.ate);
+    if (antiga === undefined) return false;
+    this.relogio.clearTimeout(this.transicoes.get(antiga)!.timer);
+    this.transicoes.delete(antiga);
+    this.transferirTime(antiga, novo);
+    return true;
+  }
+
+  /** o time (líder com o id visual dele, subagentes, spawns pendentes) passa da sessão `antiga` para `novo` */
+  private transferirTime(antiga: string, novo: string) {
+    const visualLider = this.leaderId(antiga);
+    this.lideres.delete(antiga);
+    if (!this.agents.has(this.leaderId(novo))) {
+      if (visualLider === this.sessionKey(novo)) this.lideres.delete(novo);
+      else this.lideres.set(novo, visualLider);
+    }
+    for (const p of this.pending.values()) if (p.sessionId === antiga) p.sessionId = novo;
+    this.lastSeen.delete(antiga);
+    this.tasks.endSession(antiga); // conversa nova, lista nova
+    this.retire(this.sessionKey(antiga));
+    for (const a of this.agents.values()) {
+      if (a.sessionId !== antiga) continue;
+      a.sessionId = novo;
+      this.emit({ type: "agent", agent: a });
     }
   }
 
   // ---------------------------------------------------------------- agentes
 
+  /** id visual do líder da sessão (o herdado de um /clear mantém o id da sessão anterior) */
   private leaderId(sessionId: string) {
+    return this.lideres.get(sessionId) ?? this.sessionKey(sessionId);
+  }
+
+  /** chave da sessão em `retired` */
+  private sessionKey(sessionId: string) {
     return `s:${sessionId}`;
   }
 
   private ensureLeader(input: HookInput): Agent {
-    const id = this.leaderId(input.session_id);
+    let id = this.leaderId(input.session_id);
     let lead = this.agents.get(id);
+    if (lead && lead.sessionId !== input.session_id) {
+      // o id s:<sessão> ficou com o time herdado por outra conversa (/clear) e esta sessão voltou
+      // (ex.: claude --resume da conversa antiga): ela ganha um líder com outro id
+      id = `${this.sessionKey(input.session_id)}#${this.now()}`;
+      this.lideres.set(input.session_id, id);
+      lead = undefined;
+    }
     if (!lead) {
       // sessão iniciada com --agent ou teammate de um agent team: usa o tipo como papel
       const type = !input.agent_id && input.agent_type ? input.agent_type : "lider";
@@ -580,11 +886,17 @@ export class OfficeState {
     // líder criado por evento de subagente (servidor aberto com a sessão em andamento): ele está
     // coordenando, não chegando; sem isso ficava "chegando" até ter um evento próprio
     if (lead.status === "chegando") this.update(lead, "pensando", "Coordenando o time");
-    // primeiro quem está livre de verdade; o boneco de um agent_id que já entregou só sem alternativa
-    // (aí o agent_id antigo perde o boneco: o rebindAlias apaga o alias dele, e se ele voltar ganha
-    // outro AGzinho livre como qualquer agent_id novo)
+    // o agent_id antigo que perde o boneco reaproveitado (o rebindAlias apaga o alias dele) ganha,
+    // se voltar, outro AGzinho livre como qualquer agent_id novo
     const options = this.candidates(agentType, false).map((a) => ({ a, tier: this.freeTier(a.key, sessionId) }));
-    const ag = (options.find((o) => o.tier === 0) ?? options.find((o) => o.tier === 1))?.a;
+    // quem já está de boa nesta sessão só volta pra mesa; depois quem está livre de verdade; por
+    // último o de boa de outra sessão (sempre na ordem de candidates(): principal, depois variações)
+    // ("de boa nesta sessão" = no mesmo tipo: o curinga de um Plan não vira o general-purpose)
+    const daSessao = (o: (typeof options)[number]) =>
+      o.tier === 1 &&
+      this.agents.get(subagentId(o.a.key))?.sessionId === sessionId &&
+      this.bindings.get(subagentId(o.a.key))?.type === normalizeRole(agentType);
+    const ag = (options.find(daSessao) ?? options.find((o) => o.tier === 0) ?? options.find((o) => o.tier === 1))?.a;
     const id = ag ? subagentId(ag.key) : `ag:extra:${hookId}`;
     const now = this.now();
     const activity = description ? truncate(description, 60) : "Indo pra mesa...";
@@ -858,6 +1170,7 @@ export class OfficeState {
       this.stopped.delete(alias);
     }
     this.bindings.delete(id);
+    for (const [sessionId, visual] of this.lideres) if (visual === id) this.lideres.delete(sessionId);
     if (this.agents.delete(id)) this.emit({ type: "remove", id });
   }
 
@@ -901,6 +1214,30 @@ export class OfficeState {
 }
 
 const subagentId = (key: string) => `ag:${key}`;
+
+const STATUS_VALIDOS = new Set<string>(["chegando", "trabalhando", "pensando", "esperando", "ocioso", "saindo"]);
+
+function isObj(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** agente salvo com os campos que o estado usa */
+function agenteValido(x: unknown): x is Agent {
+  return (
+    isObj(x) &&
+    typeof x.id === "string" &&
+    typeof x.sessionId === "string" &&
+    typeof x.name === "string" &&
+    typeof x.role === "string" &&
+    typeof x.status === "string" &&
+    STATUS_VALIDOS.has(x.status) &&
+    typeof x.activity === "string" &&
+    typeof x.startedAt === "number" &&
+    typeof x.updatedAt === "number" &&
+    typeof x.boundAt === "number" &&
+    typeof x.tasksDone === "number"
+  );
+}
 
 /** sessões da simulação (server/demo.ts) */
 const isDemo = (sessionId: string) => sessionId.startsWith("demo-");

@@ -83,6 +83,17 @@ interface SessionTasks {
   doneAt?: number;
 }
 
+/** As listas de tarefas em JSON puro (data/escritorio.json). */
+export type TarefasSalvas = {
+  sessionId: string;
+  todos: Task[] | null;
+  tasks: [string, Task][];
+  pendentes: [string, Pendente][];
+  resolvidos: [string, number][];
+  lastAt: number;
+  doneAt?: number;
+}[];
+
 /** Só o que o rastreador lê do evento de hook. */
 export interface ProgressHook {
   hook_event_name: string;
@@ -145,6 +156,52 @@ export class ProgressTracker {
 
   reset() {
     this.sessions.clear();
+  }
+
+  /** As listas de todas as sessões, em JSON puro (persistência do estado). */
+  serializar(): TarefasSalvas {
+    return [...this.sessions].map(([id, s]) => ({
+      sessionId: id,
+      todos: s.todos,
+      tasks: [...s.tasks],
+      pendentes: [...s.pendentes],
+      resolvidos: [...s.resolvidos],
+      lastAt: s.lastAt,
+      doneAt: s.doneAt,
+    }));
+  }
+
+  /**
+   * Troca as listas pelas salvas (só das sessões aceitas por `manter`). Entrada inválida é
+   * descartada item por item; nunca lança.
+   */
+  restaurar(dados: unknown, manter: (sessionId: string) => boolean = () => true) {
+    this.sessions.clear();
+    if (!Array.isArray(dados)) return;
+    for (const raw of dados) {
+      if (!isObj(raw) || typeof raw.sessionId !== "string" || !manter(raw.sessionId)) continue;
+      const tasks = new Map<string, Task>();
+      for (const [k, t] of pares(raw.tasks)) {
+        const task = taskSalva(t);
+        if (task) tasks.set(k, task);
+      }
+      const pendentes = new Map<string, Pendente>();
+      for (const [k, p] of pares(raw.pendentes)) {
+        const task = taskSalva(p);
+        if (task && isObj(p) && typeof p.at === "number") pendentes.set(k, { ...task, at: p.at });
+      }
+      const resolvidos = new Map<string, number>();
+      for (const [k, at] of pares(raw.resolvidos)) if (typeof at === "number") resolvidos.set(k, at);
+      const todos = Array.isArray(raw.todos) ? raw.todos.map(taskSalva).filter((t): t is Task => t !== null) : null;
+      this.sessions.set(raw.sessionId, {
+        todos,
+        tasks,
+        pendentes,
+        resolvidos,
+        lastAt: typeof raw.lastAt === "number" ? raw.lastAt : 0,
+        doneAt: typeof raw.doneAt === "number" ? raw.doneAt : undefined,
+      });
+    }
   }
 
   /**
@@ -337,6 +394,20 @@ function idDaResposta(response: unknown): string {
   if (!isObj(response)) return "";
   const task = response.task;
   return (isObj(task) && str(task.id)) || str(response.taskId) || str(response.id);
+}
+
+/** tarefa como foi salva ({ subject, activeForm?, status }); inválida → null */
+function taskSalva(raw: unknown): Task | null {
+  if (!isObj(raw) || typeof raw.subject !== "string") return null;
+  const status = toStatus(raw.status);
+  if (!status) return null;
+  return { subject: raw.subject, activeForm: typeof raw.activeForm === "string" ? raw.activeForm : undefined, status };
+}
+
+/** [chave, valor][] salvo; o que não for par com chave texto fica de fora */
+function pares(v: unknown): [string, unknown][] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((p): p is [string, unknown] => Array.isArray(p) && p.length === 2 && typeof p[0] === "string");
 }
 
 function isObj(v: unknown): v is Record<string, unknown> {

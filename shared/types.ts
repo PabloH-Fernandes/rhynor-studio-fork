@@ -14,7 +14,7 @@ export type AgentStatus =
   | "saindo"; // a sessão acabou e ele vai embora
 
 export interface Agent {
-  /** líder: s:<session_id>; subagente: ag:<key do AGzinho> (ou ag:extra:<agent_id> sem AGzinho livre) */
+  /** líder: s:<session_id> (após um /clear, o da conversa anterior); subagente: ag:<key do AGzinho> (ou ag:extra:<agent_id> sem AGzinho livre) */
   id: string;
   sessionId: string;
   /** id do agente que delegou o trabalho (líder), se for subagente */

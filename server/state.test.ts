@@ -52,7 +52,7 @@ const subs = () => agents().filter((a) => a.parentId);
 const start = (agent_id: string, agent_type: string, session = S1) => hook("SubagentStart", { agent_id, agent_type }, session);
 const stop = (agent_id: string, agent_type: string, session = S1) => hook("SubagentStop", { agent_id, agent_type }, session);
 
-test("Start → Stop → Start do mesmo agent_id volta o mesmo AGzinho; agent_id novo vai pra variação", () => {
+test("Start → Stop → Start do mesmo agent_id volta o mesmo AGzinho; agent_id novo da sessão também (só volta pra mesa)", () => {
   start("a1", "dev");
   const first = byId("ag:dev");
   assert.ok(first, "devia criar ag:dev");
@@ -73,22 +73,21 @@ test("Start → Stop → Start do mesmo agent_id volta o mesmo AGzinho; agent_id
   stop("a1", "dev");
   assert.equal(byId("ag:dev")!.tasksDone, 2);
 
-  // agent_id novo do mesmo papel: a Bia (ligada ao a1) só seria reaproveitada sem alternativa
+  // agent_id novo do mesmo papel na mesma sessão: a Bia de boa só volta pra mesa (V3 etapa 3)
   start("a2", "dev");
-  assert.equal(byId("ag:dev")!.status, "ocioso");
-  assert.equal(byId("ag:dev-2")?.name, "Yasmin Okada");
-  hook("PreToolUse", { agent_id: "a2", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/a.ts" } });
-  assert.equal(byId("ag:dev-2")!.status, "trabalhando");
-  assert.equal(byId("ag:dev")!.status, "ocioso");
-
-  // sem alternativa (Yasmin com o a2 ativo; a Bia só com o a1, que entregou), o 3º reaproveita a Bia
-  start("a3", "dev");
   assert.equal(byId("ag:dev")!.status, "pensando");
+  assert.equal(byId("ag:dev-2"), undefined, "ninguém novo entra pela porta");
+  hook("PreToolUse", { agent_id: "a2", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/a.ts" } });
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+
+  // com a Bia ocupada pelo a2, o 3º vai pra variação
+  start("a3", "dev");
+  assert.equal(byId("ag:dev-2")?.name, "Yasmin Okada");
   assert.equal(subs().length, 2);
-  // e o a1 perdeu o boneco: se voltar, não divide a Bia com o a3 (vai para um visitante extra)
+  // e o a1 perdeu o boneco: se voltar, não divide a Bia com o a2 (vai para um visitante extra)
   const biaAntes = { ...byId("ag:dev")! };
   hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/b.ts" } });
-  assert.deepEqual(byId("ag:dev"), biaAntes, "evento do a1 não mexe na Bia do a3");
+  assert.deepEqual(byId("ag:dev"), biaAntes, "evento do a1 não mexe na Bia do a2");
   assert.equal(byId("ag:extra:a1")?.status, "trabalhando", "o a1 de volta ganha outro boneco");
 });
 
@@ -122,7 +121,7 @@ test("convidados: Explore → Iara, Plan e tipo desconhecido → Sofia, general-
   assert.equal(subs().length, 3);
 });
 
-test("bug 2: agent_id que já entregou, sem agent_type e 3 min depois, é a Bia (não a Sofia); a Bia de boa não vai pra outro agent_id", () => {
+test("bug 2: agent_id que já entregou, sem agent_type e 3 min depois, é a Bia (não a Sofia); outro dev da sessão também volta pra Bia", () => {
   start("a1", "dev");
   hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/a.ts" } });
   stop("a1", "dev");
@@ -132,12 +131,13 @@ test("bug 2: agent_id que já entregou, sem agent_type e 3 min depois, é a Bia 
   assert.equal(byId("ag:curinga"), undefined, "o curinga não pega o trabalho da Bia");
   stop("a1", "dev");
 
-  // outro agent_id (sem tipo e de outro dev) não leva a Bia de boa enquanto houver outro livre
+  // outro agent_id sem tipo não leva a Bia de boa (não é dev); um dev novo da sessão só a leva de volta pra mesa
   const bia = { ...byId("ag:dev")! };
   hook("PreToolUse", { agent_id: "x1", tool_name: "Grep", tool_input: { pattern: "y" } });
-  start("a2", "dev");
   assert.deepEqual(byId("ag:dev"), bia);
-  assert.equal(byId("ag:dev-2")?.status, "chegando");
+  start("a2", "dev");
+  assert.equal(byId("ag:dev")?.status, "pensando");
+  assert.equal(byId("ag:dev-2"), undefined);
 });
 
 test("evento depois do SubagentStop (mesmo após 2+ min) volta pro mesmo boneco, sem criar ninguém", () => {

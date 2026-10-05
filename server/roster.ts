@@ -23,9 +23,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DATA_DIR = path.join(ROOT, "data");
 export const ROSTER_FILE = path.join(DATA_DIR, "agzinhos.json");
 
-const RENAME_RETRIES = 5;
-const RENAME_BACKOFF_MS = 50; // 50, 100, 200, 400, 800
-const RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
+export const RENAME_RETRIES = 5;
+export const RENAME_BACKOFF_MS = 50; // 50, 100, 200, 400, 800
+export const RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
 
 /**
  * Lê o elenco salvo, completa com os padrões e saneia AGzinho por AGzinho: o inválido volta
@@ -184,7 +184,8 @@ export function flushRosterSaves(): Promise<void> {
   return chain.then(() => undefined);
 }
 
-async function writeAtomic(file: string, data: string) {
+/** Grava `data` em `file` de forma atômica (tmp + fsync + rename com retry). */
+export async function writeAtomic(file: string, data: string) {
   await fsp.mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   const fh = await fsp.open(tmp, "w");

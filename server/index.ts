@@ -11,6 +11,7 @@ import { DEFAULT_SESSION_TIMEOUT_MIN, OfficeState } from "./state.ts";
 import { Gravador, lerHookTs } from "./gravador.ts";
 import { cancelDemo, runDemo } from "./demo.ts";
 import { aplicarPut, loadRoster, saveRoster } from "./roster.ts";
+import { ESTADO_FILE, PersistenciaEstado } from "./persistencia.ts";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
@@ -33,6 +34,12 @@ gravador?.servidorIniciou();
 
 const state = new OfficeState({ sessionTimeoutMs: SESSION_TIMEOUT_MIN * 60_000 });
 state.setRoster(loadRoster());
+// o time de antes do reinício (tsx watch reinicia quando o time edita server/) volta direto pra mesa
+// AGPOCKET_ESTADO troca o arquivo (ex.: testes isolados); relativo à raiz do projeto
+const ESTADO = process.env.AGPOCKET_ESTADO?.trim() ? path.resolve(ROOT, process.env.AGPOCKET_ESTADO.trim()) : ESTADO_FILE;
+const persistencia = new PersistenciaEstado(state, ESTADO);
+const restaurados = persistencia.carregar();
+persistencia.ligar();
 const app = express();
 // cada rota com o próprio limite: eventos de hook podem ser grandes, o elenco não
 const hookJson = express.json({ limit: "5mb" });
@@ -53,6 +60,7 @@ setInterval(() => {
     } catch (err) {
       console.error("[hook] erro ao processar evento:", err);
     }
+    persistencia.agendar(); // o "último evento" da sessão muda mesmo sem mudar ninguém na tela
   }
 }, 50).unref();
 
@@ -99,9 +107,14 @@ app.post("/api/demo", (_req, res) => {
   res.json({ ok: true, ...info });
 });
 
-app.post("/api/reset", (_req, res) => {
+app.post("/api/reset", async (_req, res) => {
   cancelDemo(); // senão a simulação em andamento volta a encher o escritório
   state.reset();
+  try {
+    await persistencia.limpar(); // senão o próximo boot traz todo mundo de volta
+  } catch (err) {
+    console.error("[estado] erro ao apagar o estado salvo:", err);
+  }
   res.json({ ok: true });
 });
 
@@ -141,7 +154,9 @@ server.listen(PORT, HOST, () => {
   console.log(`\n🏢 AG Pocket rodando`);
   console.log(`   Hooks → http://${HOST}:${PORT}/api/hook`);
   console.log(hasUi ? `   Tela  → http://${HOST}:${PORT}` : `   Tela  → http://localhost:5173 (npm run dev)`);
-  console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (AG_SESSION_TIMEOUT_MIN)\n`);
+  console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (AG_SESSION_TIMEOUT_MIN)`);
+  if (restaurados) console.log(`   Estado restaurado: ${restaurados} AGzinho(s) de volta`);
+  console.log("");
   if (HOOK_LOG_OBSOLETO) {
     console.warn("   AG_HOOK_LOG está obsoleto: use AGPOCKET_GRAVAR=1 (por enquanto liga o mesmo gravador)");
   }
@@ -152,6 +167,20 @@ server.listen(PORT, HOST, () => {
     );
   }
 });
+
+// Ao desligar, grava o estado na hora (o debounce de 1 s pode não ter rodado ainda).
+// No Windows o tsx watch mata o processo sem sinal: aí vale a última gravação do debounce.
+let desligando = false;
+function desligar(codigo: number) {
+  if (desligando) return;
+  desligando = true;
+  persistencia.salvarSync();
+  process.exit(codigo);
+}
+process.once("SIGINT", () => desligar(130));
+process.once("SIGTERM", () => desligar(143));
+process.once("SIGHUP", () => desligar(129));
+process.once("beforeExit", () => persistencia.salvarSync());
 
 /** AG_SESSION_TIMEOUT_MIN: minutos (> 0); vazio usa o padrão, inválido avisa e usa o padrão */
 function parseTimeoutMin(raw: string | undefined): number {
