@@ -7,8 +7,9 @@
 // passa tempo demais sem nenhum evento.
 
 import path from "node:path";
-import type { Agent, AgentStatus, FeedItem, OfficeConfig, ServerMessage } from "../shared/types.ts";
+import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ServerMessage } from "../shared/types.ts";
 import { DEFAULT_ROSTER, agzinhoDoPapel, type AGzinho, type Roster } from "../shared/roster.ts";
+import { PROGRESS_NADA, ProgressTracker, sameProgress } from "./progress.ts";
 
 /** Formato (parcial) do JSON que o Claude Code manda no stdin de cada hook. */
 export interface HookInput {
@@ -20,6 +21,8 @@ export interface HookInput {
   tool_name?: string;
   tool_input?: Record<string, any>;
   tool_use_id?: string;
+  /** só no PostToolUse: a saída da ferramenta (ex.: TaskCreate → { task: { id, subject } }) */
+  tool_response?: unknown;
   user_prompt?: string;
   prompt?: string;
   message?: string;
@@ -98,6 +101,10 @@ export class OfficeState {
   private retired = new Map<string, number>();
   /** session_id → último evento recebido */
   private lastSeen = new Map<string, number>();
+  /** listas de tarefas por sessão (quadro de etapas) e o último valor mandado às telas */
+  private tasks = new ProgressTracker();
+  private progress: Progress = PROGRESS_NADA;
+  private progressTimer: NodeJS.Timeout | null = null;
   private readonly now: () => number;
   readonly config: OfficeConfig;
 
@@ -124,7 +131,12 @@ export class OfficeState {
       feed: this.feed.slice(-60),
       roster: this.roster,
       config: this.config,
+      progress: this.progress,
     };
+  }
+
+  getProgress(): Progress {
+    return this.progress;
   }
 
   getRoster(): Roster {
@@ -154,8 +166,10 @@ export class OfficeState {
     this.bindings.clear();
     this.retired.clear();
     this.lastSeen.clear();
+    this.tasks.reset();
     for (const id of [...this.agents.keys()]) this.remove(id);
     this.feed = [];
+    this.refreshProgress();
     this.emit(this.snapshot());
   }
 
@@ -169,6 +183,8 @@ export class OfficeState {
     if (ev === "SessionStart") this.retired.delete(sessionKey);
     else if (this.isRetired(sessionKey)) return;
     if (ev !== "SessionEnd") this.lastSeen.set(input.session_id, this.now());
+    // a lista muda antes do agente: o refresh do update() já vê a lista nova
+    const listaMudou = this.tasks.handle(input, this.now());
 
     switch (ev) {
       case "SessionStart": {
@@ -311,6 +327,7 @@ export class OfficeState {
         // outros eventos não mudam o escritório
         break;
     }
+    if (listaMudou) this.refreshProgress();
   }
 
   /**
@@ -321,6 +338,7 @@ export class OfficeState {
    */
   endSession(sessionId: string, activity: string, { retire = true }: { retire?: boolean } = {}) {
     this.lastSeen.delete(sessionId);
+    this.tasks.endSession(sessionId);
     if (retire) this.retire(this.leaderId(sessionId));
     for (const [key, p] of this.pending) {
       if (p.sessionId !== sessionId) continue;
@@ -332,6 +350,7 @@ export class OfficeState {
       if (retire) for (const [alias, visual] of this.aliases) if (visual === a.id) this.retire(alias);
       this.leave(a, activity);
     }
+    this.refreshProgress();
   }
 
   /**
@@ -721,6 +740,23 @@ export class OfficeState {
 
   private emit(msg: ServerMessage) {
     for (const fn of this.listeners) fn(msg);
+    // status de agente muda a fase (reserva sem lista) e o "de boa"
+    if (msg.type === "agent" || msg.type === "remove") this.refreshProgress();
+  }
+
+  /** Recalcula o quadro de etapas; manda {type:"progress"} só quando o valor muda. */
+  private refreshProgress() {
+    const { progress, proximaMudanca } = this.tasks.compute([...this.agents.values()], this.now());
+    if (this.progressTimer) clearTimeout(this.progressTimer);
+    this.progressTimer = null;
+    if (proximaMudanca !== undefined) {
+      // a lista concluída sai do quadro sozinha depois de um tempo
+      this.progressTimer = setTimeout(() => this.refreshProgress(), Math.max(0, proximaMudanca - this.now()) + 10);
+      this.progressTimer.unref?.();
+    }
+    if (sameProgress(progress, this.progress)) return;
+    this.progress = progress;
+    for (const fn of this.listeners) fn({ type: "progress", progress });
   }
 }
 

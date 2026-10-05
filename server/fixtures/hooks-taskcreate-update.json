@@ -1,0 +1,267 @@
+[
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TaskCreate",
+    "tool_input": {
+      "subject": "Etapa um",
+      "description": "Etapa um"
+    },
+    "tool_use_id": "toolu_01VFBbJDVL66bTEUKttucMBK"
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskCreate",
+    "tool_input": {
+      "subject": "Etapa um",
+      "description": "Etapa um"
+    },
+    "tool_response": {
+      "task": {
+        "id": "1",
+        "subject": "Etapa um"
+      }
+    },
+    "tool_use_id": "toolu_01VFBbJDVL66bTEUKttucMBK",
+    "duration_ms": 16
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TaskCreate",
+    "tool_input": {
+      "subject": "Etapa dois",
+      "description": "Etapa dois"
+    },
+    "tool_use_id": "toolu_01HUEqH2WEiV91wvi25YgGVG"
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskCreate",
+    "tool_input": {
+      "subject": "Etapa dois",
+      "description": "Etapa dois"
+    },
+    "tool_response": {
+      "task": {
+        "id": "2",
+        "subject": "Etapa dois"
+      }
+    },
+    "tool_use_id": "toolu_01HUEqH2WEiV91wvi25YgGVG",
+    "duration_ms": 8
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TaskCreate",
+    "tool_input": {
+      "subject": "Etapa tres",
+      "description": "Etapa tres"
+    },
+    "tool_use_id": "toolu_0171cV2pFVGV9gmdQnD8s8Pd"
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskCreate",
+    "tool_input": {
+      "subject": "Etapa tres",
+      "description": "Etapa tres"
+    },
+    "tool_response": {
+      "task": {
+        "id": "3",
+        "subject": "Etapa tres"
+      }
+    },
+    "tool_use_id": "toolu_0171cV2pFVGV9gmdQnD8s8Pd",
+    "duration_ms": 16
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "1",
+      "status": "in_progress"
+    },
+    "tool_use_id": "toolu_01QJ4UJUgPfpeWZRzQJ67FgX"
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "1",
+      "status": "in_progress"
+    },
+    "tool_response": {
+      "success": true,
+      "taskId": "1",
+      "updatedFields": [
+        "status"
+      ],
+      "statusChange": {
+        "from": "pending",
+        "to": "in_progress"
+      }
+    },
+    "tool_use_id": "toolu_01QJ4UJUgPfpeWZRzQJ67FgX",
+    "duration_ms": 7
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "1",
+      "status": "completed"
+    },
+    "tool_use_id": "toolu_01Bb6VmD6A7XybWRof8Mp7XV"
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "1",
+      "status": "completed"
+    },
+    "tool_response": {
+      "success": true,
+      "taskId": "1",
+      "updatedFields": [
+        "status"
+      ],
+      "statusChange": {
+        "from": "in_progress",
+        "to": "completed"
+      }
+    },
+    "tool_use_id": "toolu_01Bb6VmD6A7XybWRof8Mp7XV",
+    "duration_ms": 7
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "2",
+      "status": "in_progress"
+    },
+    "tool_use_id": "toolu_01Lv4NYc7N53or4pKrEYxzPY"
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "2",
+      "status": "in_progress"
+    },
+    "tool_response": {
+      "success": true,
+      "taskId": "2",
+      "updatedFields": [
+        "status"
+      ],
+      "statusChange": {
+        "from": "pending",
+        "to": "in_progress"
+      }
+    },
+    "tool_use_id": "toolu_01Lv4NYc7N53or4pKrEYxzPY",
+    "duration_ms": 6
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "3",
+      "status": "deleted"
+    },
+    "tool_use_id": "toolu_0113J6CtNzPwy1AVzrwe6Y5K"
+  },
+  {
+    "session_id": "sessao-tasks",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-tasks.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "3",
+      "status": "deleted"
+    },
+    "tool_response": {
+      "success": true,
+      "taskId": "3",
+      "updatedFields": [
+        "deleted"
+      ],
+      "statusChange": {
+        "from": "pending",
+        "to": "deleted"
+      }
+    },
+    "tool_use_id": "toolu_0113J6CtNzPwy1AVzrwe6Y5K",
+    "duration_ms": 11
+  }
+]

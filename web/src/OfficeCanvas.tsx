@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import type { Agent, Roster } from "../../shared/types";
+import type { Agent, Progress, Roster } from "../../shared/types";
 import { OfficeEngine } from "./office/engine";
 import { H, W } from "./office/map";
 
@@ -12,11 +12,13 @@ export interface OfficeHandle {
 interface Props {
   agents: Agent[];
   roster: Roster | null;
+  /** quadro de etapas na parede */
+  progress: Progress | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }
 
-export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, selectedId, onSelect }, ref) {
+export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, selectedId, onSelect }, ref) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OfficeEngine>();
@@ -33,6 +35,9 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
   useEffect(() => {
     engine.roster = roster;
   }, [roster, engine]);
+  useEffect(() => {
+    engine.progress = progress;
+  }, [progress, engine]);
   useEffect(() => {
     engine.selectedId = selectedId;
   }, [selectedId, engine]);

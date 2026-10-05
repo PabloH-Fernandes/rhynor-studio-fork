@@ -2,7 +2,8 @@
 // (mesa, reunião, porta e, quando está de boa, o descanso do agendador em activities.ts),
 // anda pelos caminhos e desenha tudo no canvas.
 
-import type { AGzinho, Acessorio, Agent, Roster } from "../../../shared/types";
+import type { AGzinho, Acessorio, Agent, Progress, Roster } from "../../../shared/types";
+import { textoDoProgresso, type TextoProgresso } from "../progresso";
 import { HAIR_STYLE_INDEX, agzinhoDoPapel } from "../../../shared/roster";
 import { HAIRS, SKINS, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
 import { AreaLayer, bakeCount, bakeDrawing, drawBaked, type Baked } from "./bake";
@@ -60,6 +61,7 @@ import {
   monitorScreen,
   cupSurface,
   route,
+  type BoardData,
   type CupSurface,
   type Desk,
   type Point,
@@ -79,6 +81,8 @@ import {
   type Dir,
   type Mood,
 } from "./sprites";
+
+const PROGRESSO_NADA: Progress = { fonte: "nada", etapa: 0, total: 0, concluidas: 0, titulo: "" };
 
 const SPEED = 3.4; // tiles por segundo
 /** as janelas são refeitas nesse intervalo (nuvens e guindaste andam menos de 1px nesse tempo) */
@@ -143,6 +147,11 @@ const ROLE_LOOK: Record<string, { hairStyle: number; accessories?: Acessorio[] }
   documentador: { hairStyle: 1, accessories: ["lapis"] },
 };
 const GUEST_ACCESSORIES: Acessorio[][] = [[], [], ["barba"], ["oculos"]];
+
+/** líder da sessão (não foi chamado por ninguém); subagentes têm parentId */
+export function ehLider(agent: Agent): boolean {
+  return !agent.parentId;
+}
 
 /** AGzinho do elenco que o agente está usando (undefined no visitante extra ou sem elenco) */
 export function agzinhoOf(agent: Agent, roster: Roster | null): AGzinho | undefined {
@@ -310,6 +319,10 @@ export class OfficeEngine {
   /** relógio (centro 176, 21; raio 10 + sombra) */
   private clockLayer = new AreaLayer({ x: 164, y: 9, w: 24, h: 25 });
   private clockSec = -1;
+  /** quadro de etapas (BOARD + sombra e bandeja); redesenhado só quando o conteúdo muda */
+  private boardLayer = new AreaLayer({ x: BOARD.x, y: BOARD.y, w: BOARD.w + 1, h: BOARD.h + 3 });
+  private boardKey = "";
+  private progresso: TextoProgresso = textoDoProgresso(PROGRESSO_NADA);
   private mover: RestMover = {
     goTo: (id, spot) => {
       const v = this.visuals.get(id);
@@ -396,6 +409,11 @@ export class OfficeEngine {
     this.agzByKey = new Map((roster?.agzinhos ?? []).map((a) => [a.key, a]));
     clearSpriteCache();
     for (const v of this.visuals.values()) v.look = lookFor(v.agent, roster);
+  }
+
+  /** andamento vindo do servidor (snapshot e mensagem "progress") */
+  set progress(p: Progress | null) {
+    this.progresso = textoDoProgresso(p ?? PROGRESSO_NADA);
   }
 
   // ------------------------------------------------------------ dados do servidor
@@ -676,7 +694,8 @@ export class OfficeEngine {
     this.drawClockLayer(ctx);
 
     const active = visuals.filter((v) => !v.leaving);
-    drawBoard(ctx, {
+    this.drawBoardLayer(ctx, {
+      progresso: this.progresso,
       total: active.length,
       working: active.filter((v) => v.agent.status === "trabalhando" || v.agent.status === "pensando").length,
       waiting: active.filter((v) => v.agent.status === "esperando").length,
@@ -832,6 +851,22 @@ export class OfficeEngine {
     if (b) drawBaked(ctx, b);
   }
 
+  /** quadro de etapas: redesenhado só quando o progresso, os contadores, a escala ou a fonte mudam */
+  private drawBoardLayer(ctx: CanvasRenderingContext2D, data: BoardData) {
+    const k = this.scaleOf(ctx);
+    const fontOk = typeof document !== "undefined" && !!document.fonts?.check("8px VT323");
+    const key = `${k}|${fontOk}|${JSON.stringify(data)}`;
+    if (this.boardKey !== key) {
+      if (!this.boardLayer.paint(k, (g) => drawBoard(g, data, k))) {
+        drawBoard(ctx, data, k);
+        return;
+      }
+      this.boardKey = key;
+    }
+    const b = this.boardLayer.baked;
+    if (b) drawBaked(ctx, b);
+  }
+
   /** relógio de parede: redesenhado só quando o segundo muda */
   private drawClockLayer(ctx: CanvasRenderingContext2D) {
     const k = this.scaleOf(ctx);
@@ -980,7 +1015,7 @@ export class OfficeEngine {
     if (!v.leaving && status === "esperando") return { text: v.agent.activity, style: "trabalho", priority: PRI.waiting };
     if (v.chat && now < v.chat.until) return { text: v.chat.text, style: "chat", priority: PRI.chat };
     if (v.leaving) return null;
-    const trabalho = mostraBalaoDeTrabalho(status, v.agent.activity, !v.agent.parentId);
+    const trabalho = mostraBalaoDeTrabalho(status, v.agent.activity, ehLider(v.agent));
     if (trabalho && now - v.activityAt < BUBBLE_MS) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
     const line = this.restBubbles.get(v.agent.id);
     if (line && now < line.until && this.rest.kind(v.agent.id) === "papo") return { text: line.text, style: "descanso", priority: PRI.rest };

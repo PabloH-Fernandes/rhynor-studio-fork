@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import type { Agent, FeedItem, Roster, ServerMessage } from "../../shared/types";
+import type { Agent, FeedItem, Progress, Roster, ServerMessage } from "../../shared/types";
 
 export type Conn = "conectando" | "online" | "offline";
 
 type ChatHandler = (fromId: string, toId: string, text: string) => void;
 
-/** Conecta no servidor via WebSocket e mantém a lista de agentes, o feed e o elenco. Reconecta sozinho. */
+/** Conecta no servidor via WebSocket e mantém a lista de agentes, o feed, o elenco e o quadro de etapas. Reconecta sozinho. */
 export function useOffice(onChat: ChatHandler) {
   const [agents, setAgents] = useState<Record<string, Agent>>({});
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [roster, setRoster] = useState<Roster | null>(null);
+  const [progress, setProgress] = useState<Progress | null>(null);
   const [conn, setConn] = useState<Conn>("conectando");
   const chatRef = useRef(onChat);
   chatRef.current = onChat;
@@ -34,6 +35,10 @@ export function useOffice(onChat: ChatHandler) {
             setAgents(Object.fromEntries(msg.agents.map((a) => [a.id, a])));
             setFeed(msg.feed);
             if (msg.roster) setRoster(msg.roster);
+            setProgress(msg.progress ?? null);
+            break;
+          case "progress":
+            setProgress(msg.progress);
             break;
           case "roster":
             setRoster(msg.roster);
@@ -66,5 +71,5 @@ export function useOffice(onChat: ChatHandler) {
     };
   }, []);
 
-  return { agents, feed, roster, conn };
+  return { agents, feed, roster, progress, conn };
 }

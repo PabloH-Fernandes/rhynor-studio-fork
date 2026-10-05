@@ -55,12 +55,33 @@ export interface FeedItem {
   kind: "info" | "tool" | "spawn" | "done" | "alert" | "message";
 }
 
+/**
+ * Andamento do trabalho para o quadro de etapas ("AGzinhos na Etapa 4 de 7").
+ * - tarefas: veio da lista de tarefas do líder (TodoWrite ou TaskCreate/TaskUpdate);
+ *   concluidas === total > 0 é a lista inteira feita ("concluíram N de N");
+ * - papel: sem lista, a fase pelo papel ativo (titulo = "Construção", "Testes"...; sem número);
+ * - nada: ninguém trabalhando ("de boa").
+ */
+export interface Progress {
+  fonte: "tarefas" | "papel" | "nada";
+  /** etapa atual (1-based); 0 fora de "tarefas" */
+  etapa: number;
+  total: number;
+  concluidas: number;
+  /** tarefas: o que está sendo feito (activeForm ou o assunto); papel: a fase */
+  titulo: string;
+  /** sessão de onde veio */
+  sessionId?: string;
+}
+
 export type ServerMessage =
-  | { type: "snapshot"; agents: Agent[]; feed: FeedItem[]; roster: Roster; config: OfficeConfig }
+  | { type: "snapshot"; agents: Agent[]; feed: FeedItem[]; roster: Roster; config: OfficeConfig; progress: Progress }
   | { type: "agent"; agent: Agent }
   | { type: "remove"; id: string }
   | { type: "feed"; item: FeedItem }
   /** um agente mandou mensagem pra outro (agent teams / SendMessage) */
   | { type: "chat"; fromId: string; toId: string; text: string }
   /** o elenco mudou (PUT /api/roster) */
-  | { type: "roster"; roster: Roster };
+  | { type: "roster"; roster: Roster }
+  /** o quadro de etapas mudou */
+  | { type: "progress"; progress: Progress };

@@ -256,6 +256,84 @@ h2 {
   background: var(--red);
 }
 
+/* quadro de etapas: o quadro branco da parede do escritório, com moldura de alumínio */
+.progresso {
+  --board-frame: #8a96a8; /* gray400, a moldura do quadro no canvas */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border: 2px solid var(--board-frame);
+  border-radius: 3px;
+  background: var(--white);
+  color: var(--badge-ink);
+}
+
+.progresso-titulo {
+  margin: 0;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.progresso-frase {
+  font-family: var(--term);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--badge-ink);
+}
+
+/* na linha de baixo; título de tarefa enorme para em 2 linhas */
+.progresso-detalhe {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--badge-ink-soft);
+}
+
+.progresso-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progresso-barra {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+}
+
+.progresso-barra i {
+  height: 10px;
+  background: var(--badge-rule);
+}
+
+.progresso-barra i.cheio {
+  background: var(--badge-ink);
+}
+
+.progresso-num {
+  flex-shrink: 0;
+  font-family: var(--term);
+  font-size: 20px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--badge-ink);
+}
+
+.progresso-nota {
+  margin: 0;
+  font-size: 13px;
+  color: var(--badge-ink-soft);
+}
+
 /* "te esperando": borda e ícone laranja, texto branco sobre marinho */
 .alert {
   display: flex;

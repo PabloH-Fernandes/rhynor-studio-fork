@@ -6,7 +6,7 @@
 
 import { palette } from "../theme";
 import { disc, hexToRgb, mix, type Rect, type WindowLight } from "./decor";
-import { AISLE_Y, BOARD, COFFEE_MACHINE, DESKS, FLOOR_LAMP, H, PINGPONG, POCKET_PLAQUE, RECEPTION, WATER_COOLER, SIGN_LAMP_X, TILE, W, WINDOW_PANES } from "./map";
+import { AISLE_Y, BOARD, BOARD_TRAY, COFFEE_MACHINE, DESKS, FLOOR_LAMP, H, PINGPONG, POCKET_PLAQUE, RECEPTION, WATER_COOLER, SIGN_LAMP_X, TILE, W, WINDOW_PANES } from "./map";
 
 export type RGB = [number, number, number];
 
@@ -248,11 +248,13 @@ export class Lightmap {
     g.fillStyle = "#FFFFFF";
     for (const r of WINDOW_PANES) g.fillRect(r.x, r.y, r.w, r.h);
     for (const r of [...scene.activeScreens, ...scene.waitingScreens]) g.fillRect(r.x, r.y, r.w, r.h);
-    // quadro branco com os contadores: nunca mais escuro que cinza claro, legível em qualquer hora
-    const [br, bg, bb] = [200, 208, 228].map((v, i) => Math.max(v, d.ambient[i]));
+    // quadro de etapas (e a bandeja): piso de luz alto, pra o texto pequeno passar de 4,5:1 à noite
+    const [br, bg, bb] = [225, 230, 240].map((v, i) => Math.max(v, d.ambient[i]));
     g.fillStyle = `rgb(${br}, ${bg}, ${bb})`;
     g.fillRect(BOARD.x, BOARD.y, BOARD.w, BOARD.h);
-    // plaquinha AG POCKET: mesmo piso de luz, pra continuar legível à noite
+    g.fillRect(BOARD_TRAY.x, BOARD_TRAY.y, BOARD_TRAY.w, BOARD_TRAY.h);
+    // plaquinha AG POCKET: o piso de antes (marinho com letra branca não precisa de mais)
+    g.fillStyle = `rgb(${[200, 208, 228].map((v, i) => Math.max(v, d.ambient[i])).join(", ")})`;
     g.fillRect(POCKET_PLAQUE.x, POCKET_PLAQUE.y, POCKET_PLAQUE.w, POCKET_PLAQUE.h);
 
     g.globalCompositeOperation = "lighter";

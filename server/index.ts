@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 import { DEFAULT_SESSION_TIMEOUT_MIN, OfficeState } from "./state.ts";
+import { TASK_TOOLS } from "./progress.ts";
 import { cancelDemo, runDemo } from "./demo.ts";
 import { aplicarPut, loadRoster, saveRoster } from "./roster.ts";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
@@ -20,6 +21,13 @@ const DIST = path.join(ROOT, "web", "dist");
 
 /** minutos sem nenhum evento até a sessão ser encerrada (terminal fechado à força, sem SessionEnd) */
 const SESSION_TIMEOUT_MIN = parseTimeoutMin(process.env.AG_SESSION_TIMEOUT_MIN);
+
+/**
+ * AG_HOOK_LOG=1 grava em data/hooks.jsonl (uma linha por evento) o corpo cru dos eventos das
+ * ferramentas de tarefa (TodoWrite, TaskCreate, TaskUpdate), pra conferir o formato do quadro de etapas.
+ */
+const HOOK_LOG = process.env.AG_HOOK_LOG === "1";
+const HOOK_LOG_FILE = path.join(ROOT, "data", "hooks.jsonl");
 
 const state = new OfficeState({ sessionTimeoutMs: SESSION_TIMEOUT_MIN * 60_000 });
 state.setRoster(loadRoster());
@@ -49,6 +57,7 @@ setInterval(() => {
 // Os hooks mandam o JSON do evento aqui. Responde rápido pra nunca atrasar o Claude.
 app.post("/api/hook", hookJson, (req, res) => {
   res.status(204).end();
+  if (HOOK_LOG && TASK_TOOLS.has(String(req.body?.tool_name))) logHook(req.body);
   const ts = Number(req.header("x-hook-ts")) || Date.now();
   queue.push({ ts: Math.min(ts, Date.now()), seq: ++seq, body: req.body });
 });
@@ -130,7 +139,22 @@ server.listen(PORT, HOST, () => {
   console.log(`   Hooks → http://${HOST}:${PORT}/api/hook`);
   console.log(hasUi ? `   Tela  → http://${HOST}:${PORT}` : `   Tela  → http://localhost:5173 (npm run dev)`);
   console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (AG_SESSION_TIMEOUT_MIN)\n`);
+  if (HOOK_LOG) {
+    console.warn(
+      "   AG_HOOK_LOG ligado: gravando eventos crus das ferramentas de tarefa (textos das tarefas, pastas e caminhos) em data/hooks.jsonl; apague depois\n",
+    );
+  }
 });
+
+/** Acrescenta o corpo cru em data/hooks.jsonl; em ordem de chegada, sem nunca travar a resposta. */
+let hookLogChain: Promise<void> = Promise.resolve();
+function logHook(body: unknown) {
+  const line = JSON.stringify(body) + "\n";
+  hookLogChain = hookLogChain
+    .then(() => fs.promises.mkdir(path.dirname(HOOK_LOG_FILE), { recursive: true }))
+    .then(() => fs.promises.appendFile(HOOK_LOG_FILE, line))
+    .catch((err) => console.warn("[hook-log] não consegui gravar:", err));
+}
 
 /** AG_SESSION_TIMEOUT_MIN: minutos (> 0); vazio usa o padrão, inválido avisa e usa o padrão */
 function parseTimeoutMin(raw: string | undefined): number {

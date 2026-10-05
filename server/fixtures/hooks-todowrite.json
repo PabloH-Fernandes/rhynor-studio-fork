@@ -1,0 +1,141 @@
+[
+  {
+    "session_id": "sessao-todo",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-todo.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TodoWrite",
+    "tool_input": {
+      "todos": [
+        {
+          "content": "Etapa um",
+          "status": "in_progress",
+          "activeForm": "Fazendo etapa um"
+        },
+        {
+          "content": "Etapa dois",
+          "status": "pending",
+          "activeForm": "Fazendo etapa dois"
+        }
+      ]
+    },
+    "tool_use_id": "toolu_01826kWmiPSAMQTwk4Q5jn4Z"
+  },
+  {
+    "session_id": "sessao-todo",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-todo.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TodoWrite",
+    "tool_input": {
+      "todos": [
+        {
+          "content": "Etapa um",
+          "status": "in_progress",
+          "activeForm": "Fazendo etapa um"
+        },
+        {
+          "content": "Etapa dois",
+          "status": "pending",
+          "activeForm": "Fazendo etapa dois"
+        }
+      ]
+    },
+    "tool_response": {
+      "oldTodos": [],
+      "newTodos": [
+        {
+          "content": "Etapa um",
+          "status": "in_progress",
+          "activeForm": "Fazendo etapa um"
+        },
+        {
+          "content": "Etapa dois",
+          "status": "pending",
+          "activeForm": "Fazendo etapa dois"
+        }
+      ]
+    },
+    "tool_use_id": "toolu_01826kWmiPSAMQTwk4Q5jn4Z",
+    "duration_ms": 0
+  },
+  {
+    "session_id": "sessao-todo",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-todo.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "TodoWrite",
+    "tool_input": {
+      "todos": [
+        {
+          "content": "Etapa um",
+          "status": "completed",
+          "activeForm": "Fazendo etapa um"
+        },
+        {
+          "content": "Etapa dois",
+          "status": "in_progress",
+          "activeForm": "Fazendo etapa dois"
+        }
+      ]
+    },
+    "tool_use_id": "toolu_01TucB644RNEMhK1zHBi6zVJ"
+  },
+  {
+    "session_id": "sessao-todo",
+    "transcript_path": "/home/usuario/.claude/projects/projeto-exemplo/sessao-todo.jsonl",
+    "cwd": "/home/usuario/projeto-exemplo",
+    "prompt_id": "prompt-exemplo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TodoWrite",
+    "tool_input": {
+      "todos": [
+        {
+          "content": "Etapa um",
+          "status": "completed",
+          "activeForm": "Fazendo etapa um"
+        },
+        {
+          "content": "Etapa dois",
+          "status": "in_progress",
+          "activeForm": "Fazendo etapa dois"
+        }
+      ]
+    },
+    "tool_response": {
+      "oldTodos": [
+        {
+          "content": "Etapa um",
+          "status": "in_progress",
+          "activeForm": "Fazendo etapa um"
+        },
+        {
+          "content": "Etapa dois",
+          "status": "pending",
+          "activeForm": "Fazendo etapa dois"
+        }
+      ],
+      "newTodos": [
+        {
+          "content": "Etapa um",
+          "status": "completed",
+          "activeForm": "Fazendo etapa um"
+        },
+        {
+          "content": "Etapa dois",
+          "status": "in_progress",
+          "activeForm": "Fazendo etapa dois"
+        }
+      ]
+    },
+    "tool_use_id": "toolu_01TucB644RNEMhK1zHBi6zVJ",
+    "duration_ms": 0
+  }
+]

@@ -33,6 +33,7 @@ import {
   type WindowView,
 } from "./decor";
 import type { Dir } from "./sprites";
+import { SEGMENTOS, segmentosCheios, type TextoProgresso } from "../progresso";
 
 export const TILE = 16;
 export const COLS = 36;
@@ -321,8 +322,8 @@ export function drawWindows(ctx: Ctx, t: number, light?: WindowLight) {
 // ------------------------------------------------------------------ parede
 // Layout da parede (px base, da esquerda pra direita, sem sobreposição):
 //   janela 4–48 · janela 54–98 · quadro da ponte 106–130 · estante de rolos 136–160 ·
-//   relógio ~166–186 · placa da recepção 204–308 · quadro branco 318–374 (livre até 404:
-//   o quadro de etapas da etapa 8 cresce pra cá) · quadro da torre 410–434 · janela 440–484 ·
+//   relógio ~166–186 · placa da recepção 204–308 · quadro de etapas 318–404 (bandeja até y 39,
+//   acima do friso) · quadro da torre 410–434 · janela 440–484 ·
 //   janela 490–534 · plaquinha "AG POCKET" 539–574 (em cima da ala de descanso)
 
 const WALL_H = WALL_ROWS * TILE; // 48
@@ -539,12 +540,68 @@ export function drawClock(ctx: Ctx, now: Date) {
   rect(ctx, cx, cy, 1, 1, theme.colors.outline);
 }
 
-/** quadro branco (px base); o lightmap mantém ele claro em qualquer hora */
-export const BOARD = { x: 318, y: 6, w: 56, h: 30 } as const;
+/**
+ * quadro de etapas na parede (px base), entre a placa e o quadro da torre (x 410); o lightmap
+ * mantém ele claro em qualquer hora. A bandeja de pincéis fica embaixo (y + h .. y + h + 2), acima
+ * do friso da parede (y 39).
+ */
+export const BOARD = { x: 318, y: 3, w: 86, h: 34 } as const;
+/** bandeja de pincéis embaixo do quadro (o lightmap clareia junto) */
+export const BOARD_TRAY = { x: BOARD.x + 6, y: BOARD.y + BOARD.h, w: 22, h: 2 } as const;
 
-/** Quadro branco com contadores ao vivo. */
-export function drawBoard(ctx: Ctx, counts: { working: number; waiting: number; total: number }) {
+export interface BoardData {
+  progresso: TextoProgresso;
+  total: number;
+  working: number;
+  waiting: number;
+}
+
+const BOARD_TITLE_FONT = "8px VT323, monospace";
+const BOARD_SMALL_FONT = "7px VT323, monospace";
+
+/** corta o texto com "…" até caber em maxW (px base) */
+function fitText(ctx: Ctx, text: string, maxW: number): string {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxW) t = t.slice(0, -1);
+  return `${t.trimEnd()}…`;
+}
+
+/** copo AG (o mesmo das mesas) com vapor; (x, y) = canto de cima do corpo */
+function boardCup(ctx: Ctx, x: number, y: number) {
+  const ink = palette.navy950;
+  rect(ctx, x + 1, y - 2, 1, 1, palette.gray400); // vapor
+  rect(ctx, x + 2, y - 3, 1, 1, palette.gray400);
+  rect(ctx, x, y - 1, 3, 1, ink); // borda de cima
+  rect(ctx, x - 1, y, 1, 4, ink); // lados
+  rect(ctx, x + 3, y, 1, 4, ink);
+  rect(ctx, x, y + 4, 3, 1, ink); // fundo
+  rect(ctx, x, y, 3, 1, palette.furniture.woodShade); // café
+  rect(ctx, x, y + 1, 3, 3, palette.white);
+  rect(ctx, x, y + 2, 3, 1, palette.navy900); // faixa AG
+  rect(ctx, x + 4, y + 1, 1, 2, ink); // asa
+}
+
+/** visto em pixel (6x5) */
+function boardCheck(ctx: Ctx, x: number, y: number) {
+  const c = palette.navy700;
+  rect(ctx, x, y + 2, 1, 1, c);
+  rect(ctx, x + 1, y + 3, 1, 1, c);
+  rect(ctx, x + 2, y + 4, 1, 1, c);
+  rect(ctx, x + 3, y + 2, 1, 2, c);
+  rect(ctx, x + 4, y + 1, 1, 1, c);
+  rect(ctx, x + 5, y, 1, 1, c);
+}
+
+/**
+ * Quadro de etapas: título ("AGzinhos na Etapa 4 de 7", "em Construção" ou "de boa" com xícara),
+ * o que está sendo feito, barra de 10 segmentos com "4/7" e, embaixo, "TIME 5 · FAZENDO 2"
+ * (e "ESPERA n" em waitingInk só quando há alguém esperando). Fica numa camada própria no motor,
+ * redesenhada só quando o texto ou os contadores mudam.
+ */
+export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
   const { x, y, w, h } = BOARD;
+  const pr = data.progresso;
   rect(ctx, x + 1, y + h, w, 1, "rgba(2,11,28,0.18)");
   rect(ctx, x + w, y + 1, 1, h, "rgba(2,11,28,0.18)");
   rect(ctx, x, y, w, h, palette.gray400); // moldura de alumínio
@@ -552,18 +609,59 @@ export function drawBoard(ctx: Ctx, counts: { working: number; waiting: number; 
   rect(ctx, x + 2, y + 2, w - 4, h - 4, palette.white);
   rect(ctx, x + 2, y + 2, w - 4, 1, palette.gray50);
   // bandeja com pincéis
-  rect(ctx, x + 6, y + h, 22, 2, palette.gray500);
+  rect(ctx, BOARD_TRAY.x, BOARD_TRAY.y, BOARD_TRAY.w, BOARD_TRAY.h, palette.gray500);
   rect(ctx, x + 9, y + h - 1, 5, 1, palette.navy600);
   rect(ctx, x + 16, y + h - 1, 5, 1, palette.signal.alert);
+
+  const left = x + 5;
+  const maxW = w - 9;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  ctx.font = `8px VT323, monospace`;
+
+  // título (com espaço pro ícone de xícara ou visto)
+  ctx.font = BOARD_TITLE_FONT;
+  const icon = pr.estado === "nada" || pr.estado === "concluido" ? 8 : 0;
+  const title = ctx.measureText(pr.titulo).width <= maxW - icon ? pr.titulo : fitText(ctx, pr.curto, maxW - icon);
   ctx.fillStyle = palette.navy900;
-  ctx.fillText(`TIME: ${counts.total}`, x + 5, y + 3);
-  ctx.fillStyle = palette.navy700;
-  ctx.fillText(`FAZENDO: ${counts.working}`, x + 5, y + 11);
-  ctx.fillStyle = counts.waiting ? palette.signal.waitingInk : palette.gray400;
-  ctx.fillText(`ESPERA: ${counts.waiting}`, x + 5, y + 19);
+  ctx.fillText(title, left, y + 2);
+  const tw = Math.round(ctx.measureText(title).width);
+  if (pr.estado === "nada") boardCup(ctx, left + tw + 3, y + 6);
+  if (pr.estado === "concluido") boardCheck(ctx, left + tw + 2, y + 5);
+
+  // texto de 7 px em k=1 vira borrão (o canvas sempre suaviza texto): ali o detalhe some e os
+  // contadores vão em 8 px; de k=2 pra cima a linha pequena aparece
+  const small = k >= 2 ? BOARD_SMALL_FONT : BOARD_TITLE_FONT;
+  ctx.font = small;
+  const detalhe =
+    pr.estado === "tarefas" ? pr.detalhe : pr.estado === "papel" ? "sem lista de tarefas" : pr.estado === "concluido" ? "tudo entregue" : "ninguém trabalhando agora";
+  if (detalhe && k >= 2) {
+    ctx.fillStyle = pr.estado === "tarefas" ? palette.navy600 : palette.gray500;
+    ctx.fillText(fitText(ctx, detalhe, maxW), left, y + 10);
+  }
+
+  // barra de 10 segmentos + "4/7"
+  if (pr.max > 0) {
+    const cheios = segmentosCheios(pr.valor, pr.max);
+    for (let i = 0; i < SEGMENTOS; i++) {
+      const sx = left + i * 6;
+      rect(ctx, sx, y + 18, 5, 5, i < cheios ? palette.navy700 : palette.gray200);
+    }
+    ctx.fillStyle = palette.navy900;
+    ctx.fillText(`${pr.valor}/${pr.max}`, left + SEGMENTOS * 6 + 2, y + 17);
+  }
+
+  // contadores (sem barra, sobem pro lugar dela); com "ESPERA n", "FAZENDO" vira "FAZ." se não couber
+  const cy = pr.max > 0 ? y + 25 : y + 17;
+  ctx.font = small;
+  const espera = data.waiting > 0 ? ` · ESPERA ${data.waiting}` : "";
+  let base = `TIME ${data.total} · FAZENDO ${data.working}`;
+  if (ctx.measureText(base + espera).width > maxW) base = `TIME ${data.total} · FAZ. ${data.working}`;
+  ctx.fillStyle = palette.gray600;
+  ctx.fillText(base, left, cy);
+  if (espera) {
+    ctx.fillStyle = palette.signal.waitingInk;
+    ctx.fillText(espera, left + ctx.measureText(base).width, cy);
+  }
 }
 
 /** Quadros e estante da parede (estáticos). */

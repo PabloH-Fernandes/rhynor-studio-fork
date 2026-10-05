@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Agent, AgentStatus, FeedItem } from "../../shared/types";
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
 import { Cracha } from "./components/Cracha";
+import { Progresso } from "./components/Progresso";
 import { Vestiario } from "./components/Vestiario";
 import { agzinhoOf } from "./office/engine";
 import { SpriteGallery } from "./SpriteGallery";
@@ -29,7 +30,7 @@ const KIND_ICON: Record<FeedItem["kind"], string> = {
 
 export default function App() {
   const officeRef = useRef<OfficeHandle>(null);
-  const { agents, feed, roster, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const { agents, feed, roster, progress, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /** agente clicado no canvas cujo crachá deve rolar pra vista (layout empilhado); o crachá consome */
@@ -77,7 +78,7 @@ export default function App() {
         {GALLERY_ENABLED ? (
           <SpriteGallery roster={roster} />
         ) : (
-          <OfficeCanvas ref={officeRef} agents={list} roster={roster} selectedId={selectedId} onSelect={selectFromCanvas} />
+          <OfficeCanvas ref={officeRef} agents={list} roster={roster} progress={progress} selectedId={selectedId} onSelect={selectFromCanvas} />
         )}
         {!GALLERY_ENABLED && list.length === 0 && conn === "online" && (
           <div className="empty">
@@ -111,6 +112,8 @@ export default function App() {
             <i /> {conn}
           </span>
         </header>
+
+        <Progresso progress={progress} />
 
         {waiting > 0 && (
           <div className="alert">

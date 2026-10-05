@@ -249,12 +249,16 @@ test("cancelDemo + reset no meio da simulação: ninguém reaparece depois", () 
 
 test("simulação completa: o '!' acontece, os subagentes ficam de boa e o SessionEnd leva todos", () => {
   const { durationMs } = runDemo(state);
-  advance(33_600);
-  assert.ok(
-    agents().some((a) => a.status === "esperando"),
-    "o PermissionRequest do testador (~33,5 s) devia acender o laranja",
-  );
-  advance(durationMs - 33_600 + 1000);
+  // anda de 500 em 500 ms até o PermissionRequest do testador acender o laranja (o roteiro muda de duração)
+  let passou = 0;
+  let laranja = false;
+  while (passou < durationMs && !laranja) {
+    advance(500);
+    passou += 500;
+    laranja = agents().some((a) => a.status === "esperando");
+  }
+  assert.ok(laranja, "o PermissionRequest do testador devia acender o laranja");
+  advance(durationMs - passou + 1000);
   const team = subs();
   assert.equal(team.length, 6);
   assert.ok(team.every((a) => a.status === "ocioso" && a.tasksDone === 1));
