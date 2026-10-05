@@ -12,6 +12,7 @@
     "uninstall-hooks": "node scripts/install-hooks.mjs --remove",
     "install-agents": "node scripts/install-agents.mjs",
     "typecheck": "tsc --noEmit",
+    "replay": "tsx server/replay.ts",
     "test": "tsx --test \"server/**/*.test.ts\" \"shared/**/*.test.ts\" \"web/src/**/*.test.ts\""
   },
   "dependencies": {

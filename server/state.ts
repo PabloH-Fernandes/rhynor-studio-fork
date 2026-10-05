@@ -66,7 +66,7 @@ interface PendingSpawn {
   sessionId: string;
   type: string;
   description: string;
-  timer: NodeJS.Timeout;
+  timer: Timer;
 }
 
 /** como o id visual foi ligado da última vez: o tipo pedido e a chave do alias (agent_id ou t:<tool_use_id>) */
@@ -80,11 +80,36 @@ interface Binding {
   awaitingSpawn?: boolean;
 }
 
+/** identificador opaco de um timer do Relogio */
+export type Timer = unknown;
+
+/** relógio e timers do estado: os globais por padrão; o replay usa um agendador virtual */
+export interface Relogio {
+  now(): number;
+  setTimeout(fn: () => void, ms: number): Timer;
+  clearTimeout(timer: Timer): void;
+}
+
+/** os globais, resolvidos na hora da chamada (os testes trocam o setTimeout pelo mock do node:test) */
+const RELOGIO_PADRAO: Relogio = {
+  now: () => Date.now(),
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (t) => clearTimeout(t as ReturnType<typeof setTimeout>),
+};
+
+/** timer que não segura o processo aberto (só os do Node têm unref) */
+function soltar(t: Timer) {
+  const unref = (t as { unref?: unknown } | null)?.unref;
+  if (typeof unref === "function") unref.call(t);
+}
+
 export interface OfficeStateOptions {
   /** sessão sem evento por esse tempo é encerrada (padrão 30 min) */
   sessionTimeoutMs?: number;
-  /** relógio (injetável nos testes) */
+  /** relógio (injetável nos testes); com `relogio`, vale o now dele */
   now?: () => number;
+  /** relógio e timers (injetáveis: o replay usa um agendador virtual) */
+  relogio?: Partial<Relogio>;
   /** intervalo da varredura de sessões; 0 desliga (os testes chamam sweep() na mão) */
   sweepEveryMs?: number;
 }
@@ -95,8 +120,8 @@ export class OfficeState {
   private feedSeq = 0;
   private listeners = new Set<Listener>();
   private pending = new Map<string, PendingSpawn>(); // tool_use_id -> spawn ainda sem SubagentStart
-  private removalTimers = new Map<string, NodeJS.Timeout>();
-  private arrivalTimers = new Map<string, NodeJS.Timeout>();
+  private removalTimers = new Map<string, Timer>();
+  private arrivalTimers = new Map<string, Timer>();
   private roster: Roster = structuredClone(DEFAULT_ROSTER);
   /** agent_id ou "t:"+tool_use_id → id visual (ag:dev, ag:dev-2...) */
   private aliases = new Map<string, string>();
@@ -109,12 +134,14 @@ export class OfficeState {
   /** listas de tarefas por sessão (quadro de etapas) e o último valor mandado às telas */
   private tasks = new ProgressTracker();
   private progress: Progress = PROGRESS_NADA;
-  private progressTimer: NodeJS.Timeout | null = null;
+  private progressTimer: Timer | null = null;
   private readonly now: () => number;
+  private readonly relogio: Relogio;
   readonly config: OfficeConfig;
 
   constructor(opts: OfficeStateOptions = {}) {
-    this.now = opts.now ?? Date.now;
+    this.relogio = { ...RELOGIO_PADRAO, ...(opts.now ? { now: opts.now } : {}), ...opts.relogio };
+    this.now = this.relogio.now;
     const timeout = opts.sessionTimeoutMs;
     this.config = {
       sessionTimeoutMs: timeout !== undefined && Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_SESSION_TIMEOUT_MIN * 60_000,
@@ -161,9 +188,9 @@ export class OfficeState {
 
   /** Apaga tudo (usado pelo botão "Limpar" da tela). */
   reset() {
-    for (const t of this.removalTimers.values()) clearTimeout(t);
-    for (const t of this.arrivalTimers.values()) clearTimeout(t);
-    for (const p of this.pending.values()) clearTimeout(p.timer);
+    for (const t of this.removalTimers.values()) this.relogio.clearTimeout(t);
+    for (const t of this.arrivalTimers.values()) this.relogio.clearTimeout(t);
+    for (const p of this.pending.values()) this.relogio.clearTimeout(p.timer);
     this.removalTimers.clear();
     this.arrivalTimers.clear();
     this.pending.clear();
@@ -351,7 +378,7 @@ export class OfficeState {
     if (retire) this.retire(this.leaderId(sessionId));
     for (const [key, p] of this.pending) {
       if (p.sessionId !== sessionId) continue;
-      clearTimeout(p.timer);
+      this.relogio.clearTimeout(p.timer);
       this.pending.delete(key);
     }
     for (const a of [...this.agents.values()]) {
@@ -549,13 +576,13 @@ export class OfficeState {
     this.agents.set(id, agent);
     this.emit({ type: "agent", agent });
     // sem evento nenhum (ex.: subagente que só pensa), não fica "chegando / Indo pra mesa..." pra sempre
-    const arrive = setTimeout(() => {
+    const arrive = this.relogio.setTimeout(() => {
       this.arrivalTimers.delete(id);
       if (this.agents.get(id) === agent && agent.status === "chegando") {
         this.update(agent, "pensando", description ? agent.activity : "Pensando...");
       }
     }, ARRIVE_MS);
-    arrive.unref?.();
+    soltar(arrive);
     this.arrivalTimers.set(id, arrive);
     return { agent, returning: false };
   }
@@ -620,7 +647,7 @@ export class OfficeState {
       if (description) this.update(early, early.status, truncate(description, 60));
       return;
     }
-    const timer = setTimeout(() => {
+    const timer = this.relogio.setTimeout(() => {
       const p = this.pending.get(toolUseId);
       if (!p) return;
       this.pending.delete(toolUseId);
@@ -683,13 +710,13 @@ export class OfficeState {
   private takePending(sessionId: string, type: string, toolUseId?: string): PendingSpawn | undefined {
     const own = toolUseId ? this.pending.get(toolUseId) : undefined;
     if (own && own.sessionId === sessionId) {
-      clearTimeout(own.timer);
+      this.relogio.clearTimeout(own.timer);
       this.pending.delete(toolUseId!);
       return own;
     }
     for (const [key, p] of this.pending) {
       if (p.sessionId === sessionId && (p.type === type || normalizeRole(p.type) === normalizeRole(type))) {
-        clearTimeout(p.timer);
+        this.relogio.clearTimeout(p.timer);
         this.pending.delete(key);
         return p;
       }
@@ -700,7 +727,7 @@ export class OfficeState {
   private finishFallback(toolUseId: string) {
     const p = this.pending.get(toolUseId);
     if (p) {
-      clearTimeout(p.timer);
+      this.relogio.clearTimeout(p.timer);
       this.pending.delete(toolUseId);
     }
     const alias = `t:${toolUseId}`;
@@ -740,16 +767,16 @@ export class OfficeState {
     agent.updatedAt = this.now();
     this.emit({ type: "agent", agent });
     this.pushFeed(agent, activity.toLowerCase(), "done");
-    const t = setTimeout(() => this.remove(agent.id), LEAVE_DELAY_MS);
+    const t = this.relogio.setTimeout(() => this.remove(agent.id), LEAVE_DELAY_MS);
     this.removalTimers.set(agent.id, t);
   }
 
   private remove(id: string) {
     const t = this.removalTimers.get(id);
-    if (t) clearTimeout(t);
+    if (t) this.relogio.clearTimeout(t);
     this.removalTimers.delete(id);
     const arrive = this.arrivalTimers.get(id);
-    if (arrive) clearTimeout(arrive);
+    if (arrive) this.relogio.clearTimeout(arrive);
     this.arrivalTimers.delete(id);
     for (const [alias, visual] of this.aliases) if (visual === id) this.aliases.delete(alias);
     this.bindings.delete(id);
@@ -782,12 +809,12 @@ export class OfficeState {
   /** Recalcula o quadro de etapas; manda {type:"progress"} só quando o valor muda. */
   private refreshProgress() {
     const { progress, proximaMudanca } = this.tasks.compute([...this.agents.values()], this.now());
-    if (this.progressTimer) clearTimeout(this.progressTimer);
+    if (this.progressTimer) this.relogio.clearTimeout(this.progressTimer);
     this.progressTimer = null;
     if (proximaMudanca !== undefined) {
       // a lista concluída sai do quadro sozinha depois de um tempo
-      this.progressTimer = setTimeout(() => this.refreshProgress(), Math.max(0, proximaMudanca - this.now()) + 10);
-      this.progressTimer.unref?.();
+      this.progressTimer = this.relogio.setTimeout(() => this.refreshProgress(), Math.max(0, proximaMudanca - this.now()) + 10);
+      soltar(this.progressTimer);
     }
     if (sameProgress(progress, this.progress)) return;
     this.progress = progress;
