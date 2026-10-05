@@ -879,6 +879,46 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
+/* "O que eu faço": a função em linguagem simples, abaixo dos dados do dia */
+.cracha-funcao {
+  width: 100%;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--badge-rule);
+  text-align: left;
+  font-size: 13px;
+}
+
+.cracha-funcao-titulo {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--badge-ink-soft);
+}
+
+.cracha-funcao-frase {
+  margin: 0;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.cracha-funcao-sub {
+  margin: 8px 0 2px;
+  color: var(--badge-ink-soft);
+}
+
+.cracha-funcao-lista {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.4;
+}
+
+.cracha-funcao-lista li::marker {
+  color: var(--cordao);
+}
+
 .cracha-personalizar {
   flex: 0 0 auto;
   width: 100%;
@@ -1144,7 +1184,8 @@ h2 {
   font-weight: 600;
 }
 
-.vest-texto input {
+.vest-texto input,
+.vest-texto textarea {
   grid-column: 1 / -1;
   width: 100%;
   min-height: 40px;
@@ -1156,7 +1197,13 @@ h2 {
   font: 400 16px/1.3 var(--sans);
 }
 
-.vest-texto input:focus-visible {
+.vest-texto textarea {
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.vest-texto input:focus-visible,
+.vest-texto textarea:focus-visible {
   outline-offset: 1px;
   border-color: var(--white);
 }
@@ -1166,7 +1213,8 @@ h2 {
   text-transform: uppercase;
 }
 
-.vest-texto input[aria-invalid="true"] {
+.vest-texto input[aria-invalid="true"],
+.vest-texto textarea[aria-invalid="true"] {
   border-color: var(--red);
 }
 
@@ -1204,6 +1252,18 @@ h2 {
   color: var(--navy-100);
   font-size: 13px;
   font-weight: 600;
+}
+
+/* "O que eu faço" do crachá: frase e responsabilidades empilhadas */
+.vest-funcao {
+  display: grid;
+  gap: 10px;
+}
+
+.vest-dica {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .vest-chips {

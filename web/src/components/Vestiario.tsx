@@ -1,5 +1,5 @@
 // Vestiário: modal pra trocar o visual dos AGzinhos (nome, apelido, pele, cabelo, roupa e
-// acessórios), com o boneco girando ao vivo. Salvar manda o elenco inteiro no PUT /api/roster e
+// acessórios) e o "O que eu faço" do crachá, com o boneco girando ao vivo. Salvar manda o elenco inteiro no PUT /api/roster e
 // todos os navegadores recebem pelo WS. As regras puras ficam em vestiarioLogic.ts.
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type SyntheticEvent } from "react";
@@ -13,6 +13,10 @@ import {
   CAMADAS,
   LIMITE_APELIDO,
   LIMITE_NOME,
+  LIMITE_O_QUE_FACO,
+  LIMITE_RESPONSABILIDADE,
+  MAX_RESPONSABILIDADES,
+  MIN_RESPONSABILIDADES,
   NOME_ACESSORIO,
   NOME_CAMADA,
   NOME_ESTILO,
@@ -35,6 +39,7 @@ import {
   trocarAcessorio,
   trocarDestaque,
   trocarGenero,
+  trocarResponsabilidade,
   trocarRoupa,
   type Rascunhos,
   type TipoErro,
@@ -344,7 +349,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
             />
             <TextoCampo
               id={`${id}-apelido`}
-              rotulo="Apelido (plaquinha da mesa)"
+              rotulo="Apelido"
               valor={ed.apelido}
               max={LIMITE_APELIDO}
               erro={campoErro("apelido")}
@@ -473,6 +478,35 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
             <ErroCampo id={`${id}-erro-acessorios`} texto={campoErro("acessorios")} />
           </fieldset>
 
+          <fieldset className="vest-grupo vest-funcao" aria-describedby={`${id}-funcao-dica`}>
+            <legend>Crachá: o que eu faço</legend>
+            <p id={`${id}-funcao-dica`} className="vest-dica">
+              Escreva para quem não é de TI: uma frase e de {MIN_RESPONSABILIDADES} a {MAX_RESPONSABILIDADES} responsabilidades.
+            </p>
+            <TextoCampo
+              id={`${id}-oquefaco`}
+              rotulo="Frase"
+              valor={ed.oQueFaco}
+              max={LIMITE_O_QUE_FACO}
+              erro={campoErro("oQueFaco")}
+              onChange={(v) => editar((a) => ({ ...a, oQueFaco: v }))}
+              multilinha
+            />
+            {Array.from({ length: MAX_RESPONSABILIDADES }, (_, i) => (
+              <TextoCampo
+                key={i}
+                id={`${id}-resp-${i}`}
+                rotulo={`Sou responsável por, item ${i + 1}${i >= MIN_RESPONSABILIDADES ? " (opcional)" : ""}`}
+                valor={ed.responsabilidades[i] ?? ""}
+                max={LIMITE_RESPONSABILIDADE}
+                invalido={!!campoErro("responsabilidades")}
+                descritoPor={campoErro("responsabilidades") ? `${id}-erro-responsabilidades` : undefined}
+                onChange={(v) => editar((a) => ({ ...a, responsabilidades: trocarResponsabilidade(a.responsabilidades, i, v) }))}
+              />
+            ))}
+            <ErroCampo id={`${id}-erro-responsabilidades`} texto={campoErro("responsabilidades")} />
+          </fieldset>
+
           <section className="vest-grupo" aria-labelledby={`${id}-fixos`}>
             <h4 id={`${id}-fixos`} className="vest-legenda">
               Vem do papel (o cargo acompanha o gênero)
@@ -540,7 +574,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
             {confirmarPadrao && padrao && (
               <div className="vest-confirma" role="group" aria-labelledby={`${id}-confirma`}>
                 <p id={`${id}-confirma`}>
-                  Voltar {apelidoDe(atual)} ao visual padrão ({padrao.apelido})? Nome, apelido, pele, cabelo, roupa e acessórios voltam ao que eram. Só
+                  Voltar {apelidoDe(atual)} ao visual padrão ({padrao.apelido})? Nome, apelido, pele, cabelo, roupa, acessórios e o texto do crachá voltam ao que eram. Só
                   vale depois de salvar.
                 </p>
                 <div className="vest-linha-botoes">
@@ -615,24 +649,44 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
 
 // ------------------------------------------------------------------ campos
 
-function TextoCampo(props: { id: string; rotulo: string; valor: string; max: number; erro?: string; caixaAlta?: boolean; onChange: (v: string) => void }) {
-  const { id, rotulo, valor, max, erro, caixaAlta, onChange } = props;
+function TextoCampo(props: {
+  id: string;
+  rotulo: string;
+  valor: string;
+  max: number;
+  erro?: string;
+  caixaAlta?: boolean;
+  /** textarea (frase do crachá) em vez de input; frase tem acento e pontuação, então com corretor */
+  multilinha?: boolean;
+  /** erro de um grupo (ex.: responsabilidades): marca o campo e aponta pro texto do erro do grupo */
+  invalido?: boolean;
+  descritoPor?: string;
+  onChange: (v: string) => void;
+}) {
+  const { id, rotulo, valor, max, erro, caixaAlta, multilinha, invalido, descritoPor, onChange } = props;
   const n = contarCaracteres(valor);
+  const comum = {
+    id,
+    value: valor,
+    maxLength: max,
+    autoComplete: "off",
+    "aria-invalid": erro || invalido ? true : undefined,
+    "aria-describedby": [`${id}-cont`, erro && `${id}-erro`, descritoPor].filter(Boolean).join(" "),
+  } as const;
   return (
     <div className="vest-texto">
       <label htmlFor={id}>{rotulo}</label>
-      <input
-        id={id}
-        type="text"
-        className={caixaAlta ? "vest-caixa-alta" : undefined}
-        value={valor}
-        maxLength={max}
-        autoComplete="off"
-        spellCheck={false}
-        aria-invalid={erro ? true : undefined}
-        aria-describedby={`${id}-cont${erro ? ` ${id}-erro` : ""}`}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      {multilinha ? (
+        <textarea {...comum} rows={2} spellCheck onChange={(e) => onChange(e.target.value)} />
+      ) : (
+        <input
+          {...comum}
+          type="text"
+          className={caixaAlta ? "vest-caixa-alta" : undefined}
+          spellCheck={false}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
       <span id={`${id}-cont`} className="vest-contador">
         <span className="sr-only">Caracteres usados: </span>
         {n}/{max}

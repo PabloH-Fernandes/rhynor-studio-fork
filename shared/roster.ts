@@ -68,6 +68,10 @@ export interface AGzinho {
   personalidade: string;
   /** 3 a 5 falas de bate-papo, até 28 caracteres, sem emoji */
   falas: string[];
+  /** crachá, "O que eu faço": uma frase simples, para quem não é de TI */
+  oQueFaco: string;
+  /** crachá, "Sou responsável por:": 2 ou 3 itens curtos */
+  responsabilidades: string[];
 }
 
 export interface Roster {
@@ -126,7 +130,18 @@ export const CAMADA_DO_ACESSORIO: Record<Acessorio, Camada> = {
 };
 
 /** campos que o vestiário (e o PUT /api/roster) pode mudar; papel, cargo, cordão, matrícula, key e falas não */
-export const CAMPOS_EDITAVEIS = ["nome", "apelido", "genero", "pele", "cabelo", "roupa", "destaque", "acessorios"] as const satisfies readonly (keyof AGzinho)[];
+export const CAMPOS_EDITAVEIS = [
+  "nome",
+  "apelido",
+  "genero",
+  "pele",
+  "cabelo",
+  "roupa",
+  "destaque",
+  "acessorios",
+  "oQueFaco",
+  "responsabilidades",
+] as const satisfies readonly (keyof AGzinho)[];
 export type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number];
 
 /** cargo de cada papel nos dois gêneros */
@@ -245,6 +260,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0001",
       personalidade: "calmo, decidido, gentil",
       falas: ["Bora alinhar rapidinho?", "Bom trabalho, time!", "Quem pega essa?", "Café e foco, pessoal."],
+      oQueFaco: "Converso com você, entendo o pedido e divido o trabalho entre o time.",
+      responsabilidades: ["entender o que você precisa", "chamar a pessoa certa para cada parte", "entregar o resultado final para você"],
     },
     {
       key: "planejador",
@@ -261,6 +278,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0002",
       personalidade: "organizada, metódica, otimista",
       falas: ["Já anotei no quadro!", "Passo a passo, gente.", "Prazo tá folgado.", "Cada coisa no lugar."],
+      oQueFaco: "Transformo um pedido grande em passos pequenos, na ordem certa.",
+      responsabilidades: ["dividir o trabalho em etapas", "avisar o que pode dar errado", "dizer quem faz o quê"],
     },
     {
       key: "pesquisador",
@@ -277,6 +296,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0003",
       personalidade: "curioso, detalhista, falante",
       falas: ["Li um artigo ótimo!", "Tem doc pra tudo, viu?", "Sabia que tem versão nova?", "Deixa eu conferir isso."],
+      oQueFaco: "Procuro informação fora do projeto para o time decidir com segurança.",
+      responsabilidades: ["ler manuais e guias oficiais", "comparar opções antes da escolha", "explicar erros que ninguém conhece"],
     },
     {
       key: "dev",
@@ -293,6 +314,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0004",
       personalidade: "focada, criativa, bem-humorada",
       falas: ["Compilou de primeira!", "Só mais um commit...", "Quem mexeu no meu CSS?", "Tá rodando aqui!"],
+      oQueFaco: "Construo o que foi pedido, escrevendo e ajustando o programa.",
+      responsabilidades: ["fazer as mudanças no projeto", "consertar o que estiver quebrado", "deixar tudo rodando direitinho"],
     },
     {
       key: "testador",
@@ -309,6 +332,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0005",
       personalidade: "cuidadoso, paciente, cético",
       falas: ["Rodei 3 vezes, passou.", "E se clicar duas vezes?", "Achei um caso de borda.", "Confia, mas testa."],
+      oQueFaco: "Confiro se o que foi feito funciona antes de entregar.",
+      responsabilidades: ["testar cada mudança", "achar erros antes de você", "avisar o dev quando algo quebra"],
     },
     {
       key: "revisor",
@@ -326,6 +351,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0006",
       personalidade: "criteriosa, sincera, gentil",
       falas: ["Ficou bem legível!", "Só um detalhezinho...", "Esse nome tá ótimo.", "Aprovado com carinho."],
+      oQueFaco: "Leio tudo com calma antes de ficar pronto e aponto o que dá para melhorar.",
+      responsabilidades: ["achar falhas e riscos escondidos", "ver se está claro e organizado", "dar o sinal verde para entregar"],
     },
     {
       key: "documentador",
@@ -342,6 +369,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0007",
       personalidade: "didático, calmo, caprichoso",
       falas: ["Já tá no README!", "Um exemplo ajuda, né?", "Escrevi bem simples.", "Faltou só um print."],
+      oQueFaco: "Escrevo as explicações para qualquer pessoa entender e usar.",
+      responsabilidades: ["atualizar o guia do projeto", "anotar o que mudou e por quê", "dar exemplos simples de uso"],
     },
     {
       key: "dev-2",
@@ -359,6 +388,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0008",
       personalidade: "animada, rápida, prática",
       falas: ["Pareando com a Bia!", "Testa aí no seu PC?", "Subi a correção já.", "Bora que dá tempo!"],
+      oQueFaco: "Ajudo a construir quando tem muita coisa para fazer ao mesmo tempo.",
+      responsabilidades: ["pegar uma parte do trabalho", "trabalhar junto sem atrapalhar ninguém", "consertar o que estiver quebrado"],
     },
     {
       key: "pesquisador-2",
@@ -376,6 +407,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0009",
       personalidade: "tranquilo, observador, nerd",
       falas: ["Achei a fonte original!", "Anotei 3 referências.", "Vale ler o changelog.", "Hmm, interessante..."],
+      oQueFaco: "Pesquiso junto quando aparecem muitas perguntas de uma vez.",
+      responsabilidades: ["achar a fonte original de cada coisa", "anotar referências confiáveis", "resumir o que encontrei"],
     },
     {
       key: "explore",
@@ -394,6 +427,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0010",
       personalidade: "aventureira, rápida, sorridente",
       falas: ["Já vasculhei tudo!", "Achei na pasta src/", "Mapa do projeto pronto.", "Partiu explorar!"],
+      oQueFaco: "Vasculho as pastas do projeto e conto onde fica cada coisa.",
+      responsabilidades: ["achar arquivos rapidinho", "montar um mapa do projeto", "responder onde algo está guardado"],
     },
     {
       key: "general-purpose",
@@ -412,6 +447,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0011",
       personalidade: "prestativo, versátil, tranquilo",
       falas: ["Precisa de mão aí?", "Faço o que precisar!", "Deixa comigo.", "Já já fica pronto."],
+      oQueFaco: "Pego tarefas variadas que não são de ninguém em especial.",
+      responsabilidades: ["resolver um pouco de tudo", "fazer tarefas com vários passos", "dar uma mão a quem precisar"],
     },
     {
       key: "curinga",
@@ -430,6 +467,8 @@ export const DEFAULT_ROSTER: Roster = {
       matricula: "AG-0012",
       personalidade: "gentil, estratégica, curiosa",
       falas: ["Posso dar uma ideia?", "Visitando o time hoje!", "Que escritório lindo!", "Gostei desse plano."],
+      oQueFaco: "Venho quando o time precisa de uma ajuda diferente ou de um plano extra.",
+      responsabilidades: ["planejar quando pedirem", "cobrir funções que o time não tem", "dar uma segunda opinião"],
     },
   ],
 };
@@ -452,6 +491,10 @@ export const LIMITS = {
   agentTypes: 10,
   agentType: 64,
   acessorios: 6,
+  oQueFaco: 100,
+  responsabilidade: 40,
+  responsabilidadesMin: 2,
+  responsabilidadesMax: 3,
 } as const;
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -556,7 +599,37 @@ export function agzinhoErrors(x: unknown, i = 0): string[] {
       if (text(erros, `${who}.falas[${j}]`, f, LIMITS.fala) && EMOJI.test(f)) erros.push(`${who}.falas[${j}]: sem emoji`);
     });
   }
+  erros.push(...oQueFacoErrors(x, who));
   return erros;
+}
+
+/** Erros só da parte "O que eu faço" do crachá (frase e responsabilidades). */
+export function oQueFacoErrors(x: Record<string, unknown>, who = "agzinho"): string[] {
+  const erros: string[] = [];
+  if (text(erros, `${who}.oQueFaco`, x.oQueFaco, LIMITS.oQueFaco) && EMOJI.test(x.oQueFaco)) erros.push(`${who}.oQueFaco: sem emoji`);
+  const r = x.responsabilidades;
+  if (!Array.isArray(r) || r.length < LIMITS.responsabilidadesMin || r.length > LIMITS.responsabilidadesMax) {
+    erros.push(`${who}.responsabilidades: precisa ter de ${LIMITS.responsabilidadesMin} a ${LIMITS.responsabilidadesMax} itens`);
+  } else {
+    r.forEach((item, j) => {
+      const at = `${who}.responsabilidades[${j}]`;
+      if (text(erros, at, item, LIMITS.responsabilidade) && EMOJI.test(item)) erros.push(`${at}: sem emoji`);
+    });
+  }
+  return erros;
+}
+
+/** texto "O que eu faço" de quem não tem padrão próprio (AGzinho extra de um elenco salvo) */
+const O_QUE_FACO_GENERICO = {
+  oQueFaco: "Ajudo o time no que for preciso.",
+  responsabilidades: ["pegar tarefas avulsas", "dar uma mão a quem precisar"],
+};
+
+/** "O que eu faço" padrão de um papel: o do AGzinho principal do papel no elenco padrão */
+export function oQueFacoPadrao(papel: string): Pick<AGzinho, "oQueFaco" | "responsabilidades"> {
+  const def = papel === "convidado" ? undefined : DEFAULT_ROSTER.agzinhos.find((a) => a.papel === papel && !a.variacaoDe);
+  const fonte = def ?? O_QUE_FACO_GENERICO;
+  return { oQueFaco: fonte.oQueFaco, responsabilidades: [...fonte.responsabilidades] };
 }
 
 /**
@@ -570,6 +643,7 @@ export function cleanAGzinho(x: Record<string, unknown>): AGzinho {
   if (Array.isArray(x.agentTypes)) out.agentTypes = [...x.agentTypes];
   if (Array.isArray(x.acessorios)) out.acessorios = [...x.acessorios];
   if (Array.isArray(x.falas)) out.falas = [...x.falas];
+  if (Array.isArray(x.responsabilidades)) out.responsabilidades = [...x.responsabilidades];
   return out as unknown as AGzinho;
 }
 
@@ -592,6 +666,8 @@ const AGZINHO_FIELDS = [
   "matricula",
   "personalidade",
   "falas",
+  "oQueFaco",
+  "responsabilidades",
 ] as const satisfies readonly (keyof AGzinho)[];
 
 /**
@@ -648,7 +724,11 @@ export function mergeWithDefaults(parcial: unknown): Roster {
     const { destaque: _padrao, ...semDestaque } = def;
     return { ...semDestaque, ...s, cabelo } as AGzinho;
   });
-  agzinhos.push(...saved.values());
+  // extras (sem padrão próprio) de um elenco antigo, sem o "O que eu faço": o do papel
+  for (const extra of saved.values()) {
+    const pad = oQueFacoPadrao(typeof extra.papel === "string" ? extra.papel : "");
+    agzinhos.push({ ...extra, oQueFaco: extra.oQueFaco ?? pad.oQueFaco, responsabilidades: extra.responsabilidades ?? pad.responsabilidades });
+  }
   // convidado salvo sem destaque (elenco antigo ou editado à mão): ganha o crachá de visitante
   for (const a of agzinhos) if (a.papel === "convidado" && a.destaque === undefined) a.destaque = "cracha-visitante";
 

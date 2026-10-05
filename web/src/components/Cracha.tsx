@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Agent, Roster } from "../../../shared/types";
+import { oQueFacoPadrao } from "../../../shared/roster";
 import { agzinhoOf, lookFor } from "../office/engine";
 import { PORTRAIT_H, PORTRAIT_W, drawPortrait } from "../office/sprites";
 
@@ -39,6 +40,8 @@ export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPerso
   const visitante = !ag;
   const nome = ag?.nome ?? agent.name;
   const cargo = ag ? `${ag.cargo} · AGzinho` : `Visitante · ${agent.name}`;
+  // "O que eu faço": o do elenco; visitante extra (sem AGzinho) usa o texto genérico do papel
+  const funcao = ag ?? oQueFacoPadrao(agent.role);
   const sectionRef = useRef<HTMLElement>(null);
 
   // descanso: pergunta ao engine a cada ~1 s (setState com o mesmo texto não re-renderiza)
@@ -173,6 +176,21 @@ export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPerso
                 </div>
               )}
             </dl>
+
+            <section className="cracha-funcao" aria-labelledby={`${titleId}-funcao`}>
+              <h3 id={`${titleId}-funcao`} className="cracha-funcao-titulo">
+                O que eu faço
+              </h3>
+              <p className="cracha-funcao-frase">{funcao.oQueFaco}</p>
+              <p className="cracha-funcao-sub" id={`${titleId}-resp`}>
+                Sou responsável por:
+              </p>
+              <ul className="cracha-funcao-lista" aria-labelledby={`${titleId}-resp`}>
+                {funcao.responsabilidades.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            </section>
 
             {ag && (
               <button

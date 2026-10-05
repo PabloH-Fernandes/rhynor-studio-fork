@@ -13,6 +13,8 @@ import {
   agzinhoErrors,
   aplicarEditaveis,
   mergeWithDefaults,
+  oQueFacoErrors,
+  oQueFacoPadrao,
   validateRoster,
   type AGzinho,
   type Roster,
@@ -96,6 +98,14 @@ export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
     a.acessorios = fica;
   }
   const defaults = new Map(DEFAULT_ROSTER.agzinhos.map((a) => [a.key, a]));
+  // "O que eu faço" inválido (editado à mão): só esse texto volta ao padrão, o visual fica
+  for (const a of merged.agzinhos) {
+    if (!oQueFacoErrors(a as unknown as Record<string, unknown>, a.key).length) continue;
+    const pad = defaults.get(a.key) ?? oQueFacoPadrao(a.papel);
+    notas.push(`${a.key}: "O que eu faço" voltou ao padrão`);
+    a.oQueFaco = pad.oQueFaco;
+    a.responsabilidades = [...pad.responsabilidades];
+  }
   const agzinhos: AGzinho[] = [];
   merged.agzinhos.forEach((a, i) => {
     const erros = agzinhoErrors(a, i);
@@ -132,7 +142,7 @@ export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
 
 /**
  * Corpo do PUT /api/roster sobre o elenco atual do servidor. Cada AGzinho do corpo parte do atual
- * com a mesma key e só traz os CAMPOS_EDITAVEIS; papel, cargo (que segue o gênero), cordão,
+ * com a mesma key e só traz os CAMPOS_EDITAVEIS (inclusive o "O que eu faço" do crachá); papel, cargo (que segue o gênero), cordão,
  * matrícula, key e falas ficam como estão. O corpo tem de trazer exatamente as keys do elenco
  * atual: key desconhecida, faltando ou repetida é recusada (lista vazia também).
  */

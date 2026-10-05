@@ -200,7 +200,7 @@ export interface Theme {
   uniforms: Record<string, Uniform>;
   /** cor de destaque de cada papel (plaquinha da mesa, painel lateral) */
   roleColors: Record<string, string>;
-  /** rótulo da plaquinha da mesa */
+  /** função de cada papel na plaquinha da mesa (office/deskLabel.ts) */
   deskLabels: Record<string, string>;
 }
 
@@ -306,6 +306,7 @@ export const theme: Theme = {
     revisor: "REVISÃO",
     documentador: "DOCUMENTAÇÃO",
     pesquisador: "PESQUISA",
+    convidado: "CONVIDADO",
   },
 };
 

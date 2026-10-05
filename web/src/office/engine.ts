@@ -4,7 +4,8 @@
 
 import type { AGzinho, Acessorio, Agent, Progress, Roster } from "../../../shared/types";
 import { textoDoProgresso, type TextoProgresso } from "../progresso";
-import { HAIR_STYLE_INDEX, agzinhoDoPapel } from "../../../shared/roster";
+import { HAIR_STYLE_INDEX } from "../../../shared/roster";
+import { rotulosDasMesas } from "./deskLabel";
 import { HAIRS, SKINS, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
 import { AreaLayer, bakeCount, bakeDrawing, drawBaked, type Baked } from "./bake";
 import { RestScheduler, type RallyFrame, type RestActor, type RestMover, type RestPose } from "./activities";
@@ -713,8 +714,13 @@ export class OfficeEngine {
     // objetos com profundidade, desenhados de cima pra baixo
     const items: { y: number; draw: () => void }[] = [];
 
-    for (const d of DESKS) {
-      const occupant = visuals.find((v) => v.deskId === d.id && !v.leaving);
+    const occupants = DESKS.map((d) => visuals.find((v) => v.deskId === d.id && !v.leaving));
+    // a função de quem está em cada mesa (ex.: DESENVOLVIMENTO 2 com a dev-2); vazia, a do setor ou LIVRE
+    const labels = rotulosDasMesas(
+      DESKS.map((d, i) => ({ papel: d.role, quem: occupants[i]?.agent ?? null })),
+      this.rosterData?.agzinhos ?? [],
+    );
+    for (const [i, d] of DESKS.entries()) {
       const seated = seatedAt.get(d.id);
       const deskTop = (d.cy + 0.55) * TILE;
       items.push({ y: (d.cy + 0.85) * TILE - 1, draw: () => this.drawBakedOr(ctx, d, (g) => drawChair(g, d, roleColor(d.role === "convidado" ? "convidado" : d.role))) });
@@ -724,18 +730,13 @@ export class OfficeEngine {
           const opts = {
             active: !!seated && (seated.agent.status === "trabalhando" || seated.agent.status === "pensando"),
             waiting: !!seated && seated.agent.status === "esperando",
-            occupantName: occupant ? this.nicknameOf(occupant.agent) : undefined,
-            // mesa do papel: o apelido de quem está nela (ex.: a dev-2 na mesa do dev quando a Bia
-            // não está); vazia, o do AGzinho principal do papel
-            nickname:
-              (occupant ? this.apelidoDe(occupant.agent) : undefined) ??
-              (this.rosterData ? agzinhoDoPapel(this.rosterData, d.role)?.apelido : undefined),
+            label: labels[i],
             t: now,
             reducedMotion: isReducedMotion(),
           };
           // monitor desligado não anima: a mesa fica pronta no cache (uma por plaquinha)
           if (opts.active || opts.waiting) drawDesk(ctx, d, opts);
-          else this.drawBakedOr(ctx, `mesa|${d.id}|${opts.occupantName ?? ""}|${opts.nickname ?? ""}`, (g) => drawDesk(g, d, opts));
+          else this.drawBakedOr(ctx, `mesa|${d.id}|${opts.label}`, (g) => drawDesk(g, d, opts));
         },
       });
     }
@@ -897,16 +898,6 @@ export class OfficeEngine {
     }
     const b = this.clockLayer.baked;
     if (b) drawBaked(ctx, b);
-  }
-
-  /** apelido do AGzinho do agente no elenco atual (undefined pra visitante extra) */
-  private apelidoDe(agent: Agent): string | undefined {
-    return agent.agzinho ? this.agzByKey.get(agent.agzinho)?.apelido : undefined;
-  }
-
-  /** apelido do AGzinho (plaquinha da mesa de convidado); visitante extra usa o nome */
-  private nicknameOf(agent: Agent): string {
-    return this.apelidoDe(agent) ?? agent.name;
   }
 
   /** brilho leve ("lighter") nas telas ligadas e na logo da placa, por cima do multiply */

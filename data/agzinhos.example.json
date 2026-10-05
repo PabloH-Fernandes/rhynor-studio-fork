@@ -27,6 +27,12 @@
         "Bom trabalho, time!",
         "Quem pega essa?",
         "Café e foco, pessoal."
+      ],
+      "oQueFaco": "Converso com você, entendo o pedido e divido o trabalho entre o time.",
+      "responsabilidades": [
+        "entender o que você precisa",
+        "chamar a pessoa certa para cada parte",
+        "entregar o resultado final para você"
       ]
     },
     {
@@ -53,6 +59,12 @@
         "Passo a passo, gente.",
         "Prazo tá folgado.",
         "Cada coisa no lugar."
+      ],
+      "oQueFaco": "Transformo um pedido grande em passos pequenos, na ordem certa.",
+      "responsabilidades": [
+        "dividir o trabalho em etapas",
+        "avisar o que pode dar errado",
+        "dizer quem faz o quê"
       ]
     },
     {
@@ -79,6 +91,12 @@
         "Tem doc pra tudo, viu?",
         "Sabia que tem versão nova?",
         "Deixa eu conferir isso."
+      ],
+      "oQueFaco": "Procuro informação fora do projeto para o time decidir com segurança.",
+      "responsabilidades": [
+        "ler manuais e guias oficiais",
+        "comparar opções antes da escolha",
+        "explicar erros que ninguém conhece"
       ]
     },
     {
@@ -105,6 +123,12 @@
         "Só mais um commit...",
         "Quem mexeu no meu CSS?",
         "Tá rodando aqui!"
+      ],
+      "oQueFaco": "Construo o que foi pedido, escrevendo e ajustando o programa.",
+      "responsabilidades": [
+        "fazer as mudanças no projeto",
+        "consertar o que estiver quebrado",
+        "deixar tudo rodando direitinho"
       ]
     },
     {
@@ -131,6 +155,12 @@
         "E se clicar duas vezes?",
         "Achei um caso de borda.",
         "Confia, mas testa."
+      ],
+      "oQueFaco": "Confiro se o que foi feito funciona antes de entregar.",
+      "responsabilidades": [
+        "testar cada mudança",
+        "achar erros antes de você",
+        "avisar o dev quando algo quebra"
       ]
     },
     {
@@ -158,6 +188,12 @@
         "Só um detalhezinho...",
         "Esse nome tá ótimo.",
         "Aprovado com carinho."
+      ],
+      "oQueFaco": "Leio tudo com calma antes de ficar pronto e aponto o que dá para melhorar.",
+      "responsabilidades": [
+        "achar falhas e riscos escondidos",
+        "ver se está claro e organizado",
+        "dar o sinal verde para entregar"
       ]
     },
     {
@@ -185,6 +221,12 @@
         "Um exemplo ajuda, né?",
         "Escrevi bem simples.",
         "Faltou só um print."
+      ],
+      "oQueFaco": "Escrevo as explicações para qualquer pessoa entender e usar.",
+      "responsabilidades": [
+        "atualizar o guia do projeto",
+        "anotar o que mudou e por quê",
+        "dar exemplos simples de uso"
       ]
     },
     {
@@ -212,6 +254,12 @@
         "Testa aí no seu PC?",
         "Subi a correção já.",
         "Bora que dá tempo!"
+      ],
+      "oQueFaco": "Ajudo a construir quando tem muita coisa para fazer ao mesmo tempo.",
+      "responsabilidades": [
+        "pegar uma parte do trabalho",
+        "trabalhar junto sem atrapalhar ninguém",
+        "consertar o que estiver quebrado"
       ]
     },
     {
@@ -239,6 +287,12 @@
         "Anotei 3 referências.",
         "Vale ler o changelog.",
         "Hmm, interessante..."
+      ],
+      "oQueFaco": "Pesquiso junto quando aparecem muitas perguntas de uma vez.",
+      "responsabilidades": [
+        "achar a fonte original de cada coisa",
+        "anotar referências confiáveis",
+        "resumir o que encontrei"
       ]
     },
     {
@@ -269,6 +323,12 @@
         "Achei na pasta src/",
         "Mapa do projeto pronto.",
         "Partiu explorar!"
+      ],
+      "oQueFaco": "Vasculho as pastas do projeto e conto onde fica cada coisa.",
+      "responsabilidades": [
+        "achar arquivos rapidinho",
+        "montar um mapa do projeto",
+        "responder onde algo está guardado"
       ]
     },
     {
@@ -299,6 +359,12 @@
         "Faço o que precisar!",
         "Deixa comigo.",
         "Já já fica pronto."
+      ],
+      "oQueFaco": "Pego tarefas variadas que não são de ninguém em especial.",
+      "responsabilidades": [
+        "resolver um pouco de tudo",
+        "fazer tarefas com vários passos",
+        "dar uma mão a quem precisar"
       ]
     },
     {
@@ -330,6 +396,12 @@
         "Visitando o time hoje!",
         "Que escritório lindo!",
         "Gostei desse plano."
+      ],
+      "oQueFaco": "Venho quando o time precisa de uma ajuda diferente ou de um plano extra.",
+      "responsabilidades": [
+        "planejar quando pedirem",
+        "cobrir funções que o time não tem",
+        "dar uma segunda opinião"
       ]
     }
   ]

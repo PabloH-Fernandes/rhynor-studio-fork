@@ -199,3 +199,48 @@ test("load: elenco antigo com 2 acessórios na mesma camada fica com o primeiro"
   assert.deepEqual(r.agzinhos[3].acessorios, ["headset", "relogio"]);
   assert.equal(r.agzinhos[3].apelido, "BIA");
 });
+
+test('PUT: aceita a frase e as responsabilidades do crachá ("O que eu faço")', () => {
+  const r = aplicarPut(
+    DEFAULT_ROSTER,
+    corpo((c) => {
+      const rafa = c.agzinhos.find((a) => a.key === "testador")!;
+      rafa.oQueFaco = "Testo tudo antes de chegar em você.";
+      rafa.responsabilidades = ["testar", "avisar"];
+    }),
+  );
+  assert.ok(r.ok, !r.ok ? r.erros.join(" | ") : "");
+  const rafa = r.roster.agzinhos.find((a) => a.key === "testador")!;
+  assert.equal(rafa.oQueFaco, "Testo tudo antes de chegar em você.");
+  assert.deepEqual(rafa.responsabilidades, ["testar", "avisar"]);
+  const ruim = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.agzinhos.find((a) => a.key === "testador")!.responsabilidades = ["um só"])));
+  assert.equal(ruim.ok, false);
+});
+
+test('load: arquivo antigo sem "O que eu faço" fica válido com o padrão, sem backup', () => {
+  const antigo = JSON.parse(JSON.stringify(DEFAULT_ROSTER)) as { agzinhos: Record<string, unknown>[] };
+  for (const a of antigo.agzinhos) {
+    delete a.oQueFaco;
+    delete a.responsabilidades;
+  }
+  antigo.agzinhos.find((a) => a.key === "dev")!.apelido = "BEA";
+  fs.writeFileSync(file, JSON.stringify(antigo));
+  const r = loadRoster(file);
+  const bia = r.agzinhos.find((a) => a.key === "dev")!;
+  assert.equal(bia.apelido, "BEA");
+  assert.deepEqual(bia.responsabilidades, DEFAULT_ROSTER.agzinhos.find((a) => a.key === "dev")!.responsabilidades);
+  assert.equal(backups().length, 0);
+});
+
+test('load: "O que eu faço" inválido volta ao padrão sem perder o visual', () => {
+  const salvo = withChange((r) => {
+    const bia = r.agzinhos.find((a) => a.key === "dev")!;
+    bia.apelido = "BEA";
+    bia.responsabilidades = ["só uma"];
+  });
+  fs.writeFileSync(file, JSON.stringify(salvo));
+  const bia = loadRoster(file).agzinhos.find((a) => a.key === "dev")!;
+  assert.equal(bia.apelido, "BEA");
+  assert.deepEqual(bia.responsabilidades, DEFAULT_ROSTER.agzinhos.find((a) => a.key === "dev")!.responsabilidades);
+  assert.equal(backups().length, 1);
+});

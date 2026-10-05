@@ -12,7 +12,9 @@ import {
   DESTAQUES_PERMITIDOS,
   ESTILOS_CABELO,
   HAIR_STYLE_INDEX,
+  LIMITS,
   mergeWithDefaults,
+  oQueFacoPadrao,
   validateRoster,
   type AGzinho,
   type Roster,
@@ -223,4 +225,46 @@ test("no máximo 1 acessório por camada; barba (pelos) convive com óculos", ()
   assert.ok(validateRoster(withChange("documentador", (a) => (a.acessorios = ["lapis", "barba", "oculos"]))).ok);
   for (const a of ACESSORIOS) assert.ok(CAMADA_DO_ACESSORIO[a], a);
   assert.equal(CAMADA_DO_ACESSORIO.barba, "pelos");
+});
+
+test('todo AGzinho do padrão tem "O que eu faço": frase e 2 a 3 responsabilidades dentro dos limites', () => {
+  for (const a of DEFAULT_ROSTER.agzinhos) {
+    assert.ok(a.oQueFaco.length > 0 && a.oQueFaco.length <= LIMITS.oQueFaco, a.key);
+    assert.ok(a.responsabilidades.length >= LIMITS.responsabilidadesMin && a.responsabilidades.length <= LIMITS.responsabilidadesMax, a.key);
+    for (const r of a.responsabilidades) assert.ok(r.length > 0 && r.length <= LIMITS.responsabilidade, `${a.key}: ${r}`);
+  }
+  assert.deepEqual(DEFAULT_ROSTER.agzinhos.find((a) => a.key === "testador")!.responsabilidades, [
+    "testar cada mudança",
+    "achar erros antes de você",
+    "avisar o dev quando algo quebra",
+  ]);
+});
+
+test('"O que eu faço": frase longa, sem frase, com emoji e responsabilidades fora de 2 a 3 são rejeitados', () => {
+  expectError(withChange("dev", (a) => (a.oQueFaco = "x".repeat(LIMITS.oQueFaco + 1))), /\(dev\)\.oQueFaco: precisa ter/);
+  expectError(withChange("dev", (a) => (a.oQueFaco = "   ")), /\(dev\)\.oQueFaco/);
+  expectError(withChange("dev", (a) => (a.oQueFaco = "Faço código 🚀")), /\(dev\)\.oQueFaco: sem emoji/);
+  expectError(withChange("dev", (a) => (a.responsabilidades = ["só uma"])), /\(dev\)\.responsabilidades: precisa ter de 2 a 3/);
+  expectError(withChange("dev", (a) => (a.responsabilidades = ["a", "b", "c", "d"])), /\(dev\)\.responsabilidades: precisa ter de 2 a 3/);
+  expectError(withChange("dev", (a) => (a.responsabilidades = ["ok", "y".repeat(LIMITS.responsabilidade + 1)])), /\(dev\)\.responsabilidades\[1\]/);
+  expectError(withChange("dev", (a) => delete (a as Partial<AGzinho>).responsabilidades), /\(dev\)\.responsabilidades/);
+});
+
+test('mergeWithDefaults: elenco antigo sem "O que eu faço" ganha o padrão; o salvo é mantido', () => {
+  const antigo = structuredClone(DEFAULT_ROSTER) as unknown as { agzinhos: Record<string, unknown>[] };
+  for (const a of antigo.agzinhos) {
+    delete a.oQueFaco;
+    delete a.responsabilidades;
+  }
+  antigo.agzinhos.find((a) => a.key === "revisor")!.oQueFaco = "Leio e aprovo.";
+  // extra de um elenco antigo (sem padrão próprio): ganha o texto do papel
+  antigo.agzinhos.push({ ...structuredClone(DEFAULT_ROSTER.agzinhos[3]), key: "dev-3", variacaoDe: "dev", matricula: "AG-0013", oQueFaco: undefined, responsabilidades: undefined });
+  const m = mergeWithDefaults(antigo);
+  const res = validateRoster(m);
+  assert.ok(res.ok, !res.ok ? res.erros.join(" | ") : "");
+  const dev = DEFAULT_ROSTER.agzinhos.find((a) => a.key === "dev")!;
+  assert.equal(m.agzinhos.find((a) => a.key === "lider")!.oQueFaco, DEFAULT_ROSTER.agzinhos[0].oQueFaco);
+  assert.equal(m.agzinhos.find((a) => a.key === "revisor")!.oQueFaco, "Leio e aprovo.");
+  assert.deepEqual(m.agzinhos.find((a) => a.key === "dev-3")!.responsabilidades, dev.responsabilidades);
+  assert.equal(oQueFacoPadrao("papel-inventado").responsabilidades.length, 2);
 });

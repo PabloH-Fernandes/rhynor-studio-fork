@@ -70,6 +70,11 @@ export const NOME_DESTAQUE: Record<Destaque, string> = {
 
 export const LIMITE_NOME = LIMITS.nome;
 export const LIMITE_APELIDO = LIMITS.apelido;
+export const LIMITE_O_QUE_FACO = LIMITS.oQueFaco;
+export const LIMITE_RESPONSABILIDADE = LIMITS.responsabilidade;
+/** quantas caixas de responsabilidade o vestiário mostra (a última é opcional) */
+export const MAX_RESPONSABILIDADES = LIMITS.responsabilidadesMax;
+export const MIN_RESPONSABILIDADES = LIMITS.responsabilidadesMin;
 
 /** conta caracteres como a validação (acento conta 1) */
 export const contarCaracteres = (s: string) => [...s.normalize("NFC")].length;
@@ -147,12 +152,30 @@ export function trocarAcessorio(lista: readonly Acessorio[], camada: Camada, nov
 
 const ordenarAcessorios = (lista: readonly Acessorio[]) => [...lista].sort((a, b) => ACESSORIOS.indexOf(a) - ACESSORIOS.indexOf(b));
 
+// ------------------------------------------------------------------ "O que eu faço" do crachá
+
+/**
+ * Troca o item `i` das responsabilidades (as caixas vazias do meio ficam como "" pra não pular
+ * de lugar enquanto digita; as do fim somem).
+ */
+export function trocarResponsabilidade(lista: readonly string[], i: number, valor: string): string[] {
+  const out = [...lista];
+  while (out.length <= i) out.push("");
+  out[i] = valor;
+  while (out.length && !out[out.length - 1].trim()) out.pop();
+  return out;
+}
+
+/** responsabilidades como vão pro servidor: sem espaço nas pontas e sem caixa vazia */
+export const limparResponsabilidades = (lista: readonly string[]) => lista.map((r) => r.trim()).filter(Boolean);
+
 // ------------------------------------------------------------------ elenco, rascunhos e "sujo"
 
 /** forma canônica de um AGzinho pra comparar (campos na ordem do JSON salvo, acessórios ordenados) */
 function canonico(ag: AGzinho): string {
   const c = cleanAGzinho(ag as unknown as Record<string, unknown>);
-  return JSON.stringify({ ...c, acessorios: ordenarAcessorios(c.acessorios ?? []) });
+  // caixa de responsabilidade vazia não conta como alteração (some ao salvar)
+  return JSON.stringify({ ...c, acessorios: ordenarAcessorios(c.acessorios ?? []), responsabilidades: limparResponsabilidades(c.responsabilidades ?? []) });
 }
 
 export function mesmoAGzinho(a: AGzinho | undefined, b: AGzinho | undefined): boolean {
@@ -183,13 +206,23 @@ export function chavesSujas(base: Roster, rascunhos: Rascunhos): string[] {
   return base.agzinhos.filter((a) => rascunhos[a.key] && !mesmoAGzinho(rascunhos[a.key], a)).map((a) => a.key);
 }
 
-/** o elenco salvo com os rascunhos aplicados (nome e apelido sem espaço nas pontas, apelido em caixa alta) */
+/**
+ * o elenco salvo com os rascunhos aplicados (textos sem espaço nas pontas, apelido em caixa alta,
+ * responsabilidades sem caixa vazia)
+ */
 export function aplicarRascunhos(base: Roster, rascunhos: Rascunhos): Roster {
   return {
     ...base,
     agzinhos: base.agzinhos.map((a) => {
       const r = rascunhos[a.key];
-      return r ? { ...r, nome: r.nome.trim(), apelido: r.apelido.trim().toLocaleUpperCase("pt-BR") } : a;
+      if (!r) return a;
+      return {
+        ...r,
+        nome: r.nome.trim(),
+        apelido: r.apelido.trim().toLocaleUpperCase("pt-BR"),
+        oQueFaco: r.oQueFaco.trim(),
+        responsabilidades: limparResponsabilidades(r.responsabilidades),
+      };
     }),
   };
 }
@@ -230,6 +263,8 @@ const ROTULO_CAMPO: Record<string, string> = {
   cordao: "Cordão",
   matricula: "Matrícula",
   cargo: "Cargo",
+  oQueFaco: "O que eu faço",
+  responsabilidades: "Sou responsável por",
 };
 
 /** erro de validação (do front ou do 400) ou falha do servidor/rede: o título do alerta muda */

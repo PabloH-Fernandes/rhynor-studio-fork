@@ -22,6 +22,7 @@ import {
   regraRoupa,
   trocarAcessorio,
   trocarGenero,
+  trocarResponsabilidade,
   trocarRoupa,
 } from "./vestiarioLogic";
 
@@ -157,5 +158,36 @@ describe("erros", () => {
   it("conta caracteres como a validação", () => {
     assert.equal(contarCaracteres("LÚCIA"), 5);
     assert.equal(contarCaracteres("Lúcia"), 5);
+  });
+});
+
+describe('"O que eu faço" do crachá', () => {
+  it("trocar um item mantém o lugar das caixas do meio e tira as vazias do fim", () => {
+    assert.deepEqual(trocarResponsabilidade(["a", "b"], 2, "c"), ["a", "b", "c"]);
+    assert.deepEqual(trocarResponsabilidade(["a", "b", "c"], 2, ""), ["a", "b"]);
+    assert.deepEqual(trocarResponsabilidade(["a", "b", "c"], 1, ""), ["a", "", "c"]);
+    assert.deepEqual(trocarResponsabilidade([], 1, "x"), ["", "x"]);
+  });
+
+  it("envio: frase e itens sem espaço nas pontas, caixa vazia some; menos de 2 itens é recusado", () => {
+    const base = elenco();
+    const bom = prepararEnvio(base, { dev: { ...ag(base, "dev"), oQueFaco: "  Faço o programa.  ", responsabilidades: [" mudar ", "", "consertar"] } });
+    assert.ok(bom.ok, !bom.ok ? bom.erros.join(" | ") : "");
+    const bia = agzinhoDe(bom.roster, "dev")!;
+    assert.equal(bia.oQueFaco, "Faço o programa.");
+    assert.deepEqual(bia.responsabilidades, ["mudar", "consertar"]);
+    const ruim = prepararEnvio(base, { dev: { ...ag(base, "dev"), responsabilidades: ["só uma", "  "] } });
+    assert.equal(ruim.ok, false);
+    if (!ruim.ok) assert.equal(mensagemDeErro(ruim.erros[0], base), "BIA · Sou responsável por: precisa ter de 2 a 3 itens");
+  });
+
+  it("caixa vazia no fim não deixa sujo; mudar a frase deixa; voltar ao padrão traz o texto", () => {
+    const base = elenco();
+    const dev = ag(base, "dev");
+    assert.deepEqual(chavesSujas(base, { dev: { ...dev, responsabilidades: [...dev.responsabilidades, ""] } }), []);
+    assert.deepEqual(chavesSujas(base, { dev: { ...dev, oQueFaco: "Outra frase." } }), ["dev"]);
+    const volta = copiarVisual({ ...dev, oQueFaco: "Outra frase.", responsabilidades: ["a", "b"] }, agzinhoDe(DEFAULT_ROSTER, "dev")!);
+    assert.equal(volta.oQueFaco, dev.oQueFaco);
+    assert.deepEqual(volta.responsabilidades, dev.responsabilidades);
   });
 });

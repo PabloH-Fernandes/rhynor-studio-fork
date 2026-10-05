@@ -33,6 +33,7 @@ import {
   type WindowView,
 } from "./decor";
 import type { Dir } from "./sprites";
+import { rotuloQueCabe } from "./deskLabel";
 import { SEGMENTOS, segmentosCheios, type TextoProgresso } from "../progresso";
 
 export const TILE = 16;
@@ -839,11 +840,11 @@ export const PROPS: Prop[] = [
   { y: 285, draw: (ctx) => drawCredenza(ctx, 330, 285, 66) },
 ];
 
-/** Mesa de trabalho com computador e plaquinha. `occupantName` vai na plaquinha das mesas de convidado. */
+/** Mesa de trabalho com computador e plaquinha. `label` é a função na plaquinha (rotuloDaMesa). */
 export function drawDesk(
   ctx: Ctx,
   d: Desk,
-  opts: { active: boolean; waiting: boolean; occupantName?: string; nickname?: string; t: number; reducedMotion?: boolean },
+  opts: { active: boolean; waiting: boolean; label: string; t: number; reducedMotion?: boolean },
 ) {
   const c = theme.colors;
   const { w, x, top, depth } = deskGeom(d);
@@ -891,19 +892,24 @@ export function drawDesk(
   rect(ctx, x + 10, top + 3, 8, 5, palette.white);
   rect(ctx, x + 11, top + 5, 5, 1, palette.gray300);
 
-  // plaquinha: apelido do AGzinho da mesa (elenco); sem elenco, o nome do setor
-  const label =
-    d.role === "convidado"
-      ? (opts.occupantName ?? "LIVRE").toUpperCase()
-      : (opts.nickname || theme.deskLabels[d.role] || d.role).toLocaleUpperCase("pt-BR");
+  // plaquinha: a função de quem está na mesa (office/deskLabel.ts), na cor do setor da mesa.
+  // VT323 a 7px: estreita (2,8 px por letra) e com Ç, Ã e Í de verdade. Rótulo que só cabe muito
+  // espremido vira a forma curta ("DESENVOLV. 2").
   const color = roleColor(d.role === "convidado" ? "convidado" : d.role);
-  ctx.font = `5px "Press Start 2P", monospace`;
+  ctx.font = PLATE_FONT;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const plate = deskPlateRect(d, ctx.measureText(stripAccents(label)).width);
+  const maxW = w - 6;
+  const label = rotuloQueCabe(opts.label, maxW, (s) => ctx.measureText(s).width);
+  const textW = Math.min(ctx.measureText(label).width, maxW);
+  const plate = deskPlateRect(d, textW);
   rect(ctx, plate.x, plate.y, plate.w, plate.h, color);
-  fillPlateText(ctx, label, px(d.cx), plate.y + 4.3, w - 8, palette.navy950);
+  ctx.fillStyle = palette.navy950;
+  ctx.fillText(label, px(d.cx), plate.y + 4, maxW);
 }
+
+/** fonte da plaquinha da mesa */
+const PLATE_FONT = "7px VT323, monospace";
 
 /** medidas do tampo de uma mesa (px base): largura, borda esquerda, topo e profundidade */
 function deskGeom(d: Desk) {
@@ -912,75 +918,14 @@ function deskGeom(d: Desk) {
 }
 
 /**
- * Plaquinha da mesa (px base, inteiros): 7 px de altura (1 px de cima fica pros acentos de
- * LÚCIA e TOMÁS), largura do texto + 6 até a largura do tampo - 4. Sem `textW`, o maior tamanho
- * possível (é o que os balões evitam, sem precisar medir o texto).
+ * Plaquinha da mesa (px base, inteiros): 7 px de altura (o til de REVISÃO encosta no topo e a
+ * cedilha de DOCUMENTAÇÃO na base), largura do texto + 6 até a largura do tampo - 4. Sem `textW`,
+ * o maior tamanho possível (é o que os balões evitam, sem precisar medir o texto).
  */
 export function deskPlateRect(d: Desk, textW = Infinity): Rect {
   const { w, top, depth } = deskGeom(d);
   const tw = Math.min(textW + 6, w - 4);
   return { x: Math.round(px(d.cx) - tw / 2), y: top + depth + 1, w: Math.round(tw), h: 7 };
-}
-
-const MARK_ACUTE = "\u0301";
-const MARK_GRAVE = "\u0300";
-const MARK_CIRCUMFLEX = "\u0302";
-const MARK_TILDE = "\u0303";
-const MARK_CEDILLA = "\u0327";
-
-function stripAccents(s: string) {
-  return s.normalize("NFD").replace(/\p{M}/gu, "");
-}
-
-/**
- * Texto da plaquinha. A Press Start 2P espreme as maiúsculas acentuadas na mesma célula
- * e, a 5px, "Ú" vira um "ú". Então escreve a letra sem acento e desenha o acento à mão
- * logo acima (ou a cedilha logo abaixo). Usa textAlign center e textBaseline middle.
- */
-function fillPlateText(ctx: Ctx, label: string, cx: number, cy: number, maxW: number, color: string) {
-  let base = "";
-  const marks: { at: number; mark: string }[] = [];
-  for (const ch of label.normalize("NFD")) {
-    if (/\p{M}/u.test(ch)) marks.push({ at: base.length - 1, mark: ch });
-    else base += ch;
-  }
-  ctx.fillStyle = color;
-  ctx.fillText(base, cx, cy, maxW);
-  if (!marks.length) return;
-
-  const full = ctx.measureText(base).width;
-  const k = full > maxW ? maxW / full : 1; // fillText comprime quando passa do maxW
-  const left = cx - (full * k) / 2;
-  const top = cy - 2.5; // topo da letra de 5px
-  for (const { at, mark } of marks) {
-    if (at < 0) continue;
-    const x0 = left + ctx.measureText(base.slice(0, at)).width * k;
-    const mid = x0 + (ctx.measureText(base[at]).width * k) / 2 - 0.4; // a célula tem 1px de respiro à direita
-    switch (mark) {
-      case MARK_ACUTE:
-        ctx.fillRect(mid - 0.25, top - 0.75, 1, 0.5);
-        ctx.fillRect(mid + 0.25, top - 1.25, 1, 0.5);
-        break;
-      case MARK_GRAVE:
-        ctx.fillRect(mid - 0.75, top - 1.25, 1, 0.5);
-        ctx.fillRect(mid - 0.25, top - 0.75, 1, 0.5);
-        break;
-      case MARK_CIRCUMFLEX:
-        ctx.fillRect(mid - 1, top - 0.75, 0.75, 0.5);
-        ctx.fillRect(mid - 0.375, top - 1.25, 0.75, 0.5);
-        ctx.fillRect(mid + 0.25, top - 0.75, 0.75, 0.5);
-        break;
-      case MARK_TILDE:
-        ctx.fillRect(mid - 1.25, top - 0.75, 0.75, 0.5);
-        ctx.fillRect(mid - 0.5, top - 1.25, 1, 0.5);
-        ctx.fillRect(mid + 0.5, top - 0.75, 0.75, 0.5);
-        ctx.fillRect(mid + 1.25, top - 1.25, 0.5, 0.5);
-        break;
-      case MARK_CEDILLA:
-        ctx.fillRect(mid - 0.25, top + 5, 0.75, 1);
-        break;
-    }
-  }
 }
 
 /** tela do monitor de uma mesa (px base); o lightmap usa pra luz e brilho */
