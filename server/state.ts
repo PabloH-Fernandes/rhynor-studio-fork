@@ -50,7 +50,7 @@ const LEAVE_DELAY_MS = 7000; // tempo pra animação de saída antes de remover
  */
 const ARRIVE_MS = 12_000;
 const FALLBACK_SPAWN_MS = 1500; // se o SubagentStart não chegar, cria pelo tool_use_id
-const RETIRE_MS = 2 * 60_000; // eventos atrasados de quem já entregou são ignorados por esse tempo
+const RETIRE_MS = 2 * 60_000; // eventos atrasados de uma sessão encerrada (SessionEnd) são ignorados por esse tempo
 const SWEEP_EVERY_MS = 60_000;
 /** sessão com ferramenta em andamento (Pre sem Post) espera esse múltiplo do timeout */
 const BUSY_TIMEOUT_FACTOR = 4;
@@ -127,8 +127,16 @@ export class OfficeState {
   private aliases = new Map<string, string>();
   /** id visual → última ligação (pra achar quem acabou de chegar pelo SubagentStart) */
   private bindings = new Map<string, Binding>();
-  /** agent_id (ou t:...) que já entregou → até quando os eventos dele são ignorados */
+  /**
+   * sessão (s:<id>) ou agent_id de sessão encerrada por SessionEnd → até quando os eventos dele
+   * são ignorados. Subagente que só entregou (SubagentStop) NÃO entra aqui: ele pode ser retomado.
+   */
   private retired = new Map<string, number>();
+  /**
+   * aliases (agent_id ou t:...) que já entregaram (SubagentStop) e ainda não voltaram: o boneco
+   * fica ocioso e ligado a eles, mas pode ser reaproveitado se não houver outro livre
+   */
+  private stopped = new Set<string>();
   /** session_id → último evento recebido */
   private lastSeen = new Map<string, number>();
   /** listas de tarefas por sessão (quadro de etapas) e o último valor mandado às telas */
@@ -197,6 +205,7 @@ export class OfficeState {
     this.aliases.clear();
     this.bindings.clear();
     this.retired.clear();
+    this.stopped.clear();
     this.lastSeen.clear();
     this.tasks.reset();
     for (const id of [...this.agents.keys()]) this.remove(id);
@@ -269,11 +278,12 @@ export class OfficeState {
         if (SUBAGENT_TOOLS.has(tool) && !input.agent_id && input.tool_use_id) {
           this.finishFallback(input.tool_use_id);
         }
-        const agent = this.agentFor(input);
-        if (!agent) break;
-        if (agent.status === "trabalhando" || agent.status === "esperando") {
-          this.update(agent, "pensando", ev === "PostToolUseFailure" ? `Deu erro em ${tool}, ajustando...` : agent.activity);
-        }
+        // o fim de uma ferramenta não retoma ninguém: Post atrasado (depois do SubagentStop, do Stop
+        // ou do TeammateIdle) não tira de "ocioso"; só PreToolUse e SubagentStart retomam
+        const agent = this.agentFor(input, { religa: false });
+        if (!agent || agent.status === "ocioso") break;
+        // de resto, trabalho ganha do descanso: o Post também é trabalho (nunca vira ocioso nem "pensando")
+        this.update(agent, "trabalhando", ev === "PostToolUseFailure" ? `Deu erro em ${tool}, ajustando...` : agent.activity);
         if (ev === "PostToolUseFailure") this.pushFeed(agent, `${tool} falhou`, "alert");
         break;
       }
@@ -311,18 +321,30 @@ export class OfficeState {
         const id = input.agent_id;
         if (!id || this.isRetired(id)) break;
         const type = String(input.agent_type ?? "general-purpose");
-        const known = this.aliases.get(id);
-        if (known && this.agents.has(known)) {
-          // um evento dele chegou antes do Start e já o colocou na mesa: só completa a descrição
-          const agent = this.agents.get(known)!;
-          const pend = this.takePending(input.session_id, type, input.tool_use_id);
-          if (pend?.description) this.update(agent, agent.status, truncate(pend.description, 60));
-          this.markAwaitingSpawn(agent, !pend);
+        const known = this.agentByAlias(id);
+        if (known) {
+          if (this.stopped.delete(id)) {
+            // retomado (SendMessage do líder depois do SubagentStop): mesmo boneco, de volta à mesa.
+            // Só casa com um "Agent" pendente pelo tool_use_id (por tipo, roubaria o de um novo)
+            const pend = this.takePending(input.session_id, type, input.tool_use_id, false);
+            this.revive(known);
+            this.update(known, "trabalhando", pend?.description ? truncate(pend.description, 60) : "Voltou ao trabalho");
+            this.markAwaitingSpawn(known, false);
+            break;
+          }
+          // um evento dele chegou antes do Start e já o colocou na mesa: só completa a descrição.
+          // Por tipo só se ele ainda espera o "Agent" dele (senão roubaria o pendente de um novo do mesmo papel)
+          const waiting = this.bindings.get(known.id)?.awaitingSpawn === true;
+          const pend = this.takePending(input.session_id, type, input.tool_use_id, waiting);
+          if (pend?.description) this.update(known, known.status, truncate(pend.description, 60));
+          this.markAwaitingSpawn(known, !pend);
           break;
         }
         // o fallback já criou este subagente pelo tool_use_id: passa a ouvir pelo agent_id
-        // (o "Agent" dele já foi consumido pelo fallback: não pega o pendente de outro)
-        const early = this.fallbackBound(input.session_id, type);
+        // (o "Agent" dele já foi consumido pelo fallback: não pega o pendente de outro).
+        // Pelo tool_use_id quando vier; só sem ele casa pelo tipo
+        const byTool = input.tool_use_id ? this.agentByAlias(`t:${input.tool_use_id}`) : undefined;
+        const early = byTool && !this.stopped.has(`t:${input.tool_use_id}`) ? byTool : this.fallbackBound(input.session_id, type);
         if (early) {
           this.rebindAlias(early, id, type);
           break;
@@ -337,7 +359,7 @@ export class OfficeState {
         const id = input.agent_id;
         if (!id) break;
         const agent = this.agentByAlias(id);
-        if (agent) this.finishWork(agent, id);
+        if (agent && !this.stopped.has(id)) this.finishWork(agent, id);
         break;
       }
 
@@ -459,13 +481,22 @@ export class OfficeState {
   }
 
   /**
-   * O agente "dono" do evento: o subagente (se veio de dentro de um) ou o líder.
-   * Devolve undefined para eventos atrasados de quem já entregou: esses não recriam ninguém.
+   * O agente "dono" do evento, só pela identidade: o subagente daquele agent_id (o mesmo boneco
+   * a sessão inteira, mesmo depois do SubagentStop) ou, sem agent_id, o líder da sessão.
+   * Devolve undefined para eventos atrasados de uma sessão encerrada: esses não recriam ninguém.
    */
-  private agentFor(input: HookInput): Agent | undefined {
+  private agentFor(input: HookInput, { religa = true }: { religa?: boolean } = {}): Agent | undefined {
     if (input.agent_id) {
       const sub = this.agentByAlias(input.agent_id);
-      if (sub) return sub;
+      if (sub) {
+        // evento novo de quem já tinha entregue: voltou a trabalhar (o handler põe o status).
+        // Com religa: false (PostToolUse), só identifica: não retoma quem parou
+        if (religa) {
+          this.stopped.delete(input.agent_id);
+          this.revive(sub);
+        }
+        return sub;
+      }
       if (this.isRetired(input.agent_id)) return undefined;
       // apareceu pelo próprio evento: ainda não foi casado com nenhum PreToolUse Agent
       const agent = this.bindSubagent(input.session_id, input.agent_id, String(input.agent_type ?? "general-purpose"), "", input.cwd);
@@ -505,17 +536,26 @@ export class OfficeState {
   }
 
   /**
-   * Livre para um subagente da sessão: ninguém na tela com ele, ou ele mesmo de boa (ocioso).
-   * A simulação não pega emprestado quem está de boa numa sessão real.
+   * O quanto um AGzinho está livre para um subagente novo:
+   * - 0: ninguém na tela com ele (ou ele ocioso sem agent_id nenhum ligado);
+   * - 1: ocioso, ligado só a agent_id que já entregaram (SubagentStop): reaproveitar só sem alternativa;
+   * - null: não pode (AGzinho de líder, saindo, trabalhando ou ligado a um agent_id ativo).
+   * Dois agent_id ativos nunca dividem boneco. A simulação não pega emprestado quem está numa sessão real.
    */
-  private freeForSubagent(key: string, sessionId: string): boolean {
+  private freeTier(key: string, sessionId: string): 0 | 1 | null {
+    let tier: 0 | 1 = 0;
     for (const a of this.agents.values()) {
       if (a.agzinho !== key) continue;
-      if (a.id !== subagentId(key)) return false; // é o AGzinho de um líder
-      if (a.status !== "ocioso") return false; // trabalhando, chegando ou saindo
-      if (isDemo(sessionId) && !isDemo(a.sessionId)) return false;
+      if (a.id !== subagentId(key)) return null; // é o AGzinho de um líder
+      if (a.status !== "ocioso") return null; // trabalhando, chegando ou saindo
+      if (isDemo(sessionId) && !isDemo(a.sessionId)) return null;
+      for (const [alias, visual] of this.aliases) {
+        if (visual !== a.id) continue;
+        if (!this.stopped.has(alias)) return null; // agent_id ativo (ex.: ocioso por TeammateIdle)
+        tier = 1;
+      }
     }
-    return true;
+    return tier;
   }
 
   /** livre para um líder: ninguém (fora quem já está saindo) com esse AGzinho */
@@ -540,7 +580,11 @@ export class OfficeState {
     // líder criado por evento de subagente (servidor aberto com a sessão em andamento): ele está
     // coordenando, não chegando; sem isso ficava "chegando" até ter um evento próprio
     if (lead.status === "chegando") this.update(lead, "pensando", "Coordenando o time");
-    const ag = this.candidates(agentType, false).find((a) => this.freeForSubagent(a.key, sessionId));
+    // primeiro quem está livre de verdade; o boneco de um agent_id que já entregou só sem alternativa
+    // (aí o agent_id antigo perde o boneco: o rebindAlias apaga o alias dele, e se ele voltar ganha
+    // outro AGzinho livre como qualquer agent_id novo)
+    const options = this.candidates(agentType, false).map((a) => ({ a, tier: this.freeTier(a.key, sessionId) }));
+    const ag = (options.find((o) => o.tier === 0) ?? options.find((o) => o.tier === 1))?.a;
     const id = ag ? subagentId(ag.key) : `ag:extra:${hookId}`;
     const now = this.now();
     const activity = description ? truncate(description, 60) : "Indo pra mesa...";
@@ -596,14 +640,38 @@ export class OfficeState {
     return agent;
   }
 
-  /** O agente passa a ouvir pelo `alias`; aliases antigos dele saem (já entregaram ou foram trocados). */
+  /**
+   * O agente passa a ouvir pelo `alias`; aliases antigos dele saem (o t:<tool_use_id> trocado pelo
+   * agent_id, ou o agent_id que já entregou e cujo boneco foi reaproveitado).
+   */
   private rebindAlias(agent: Agent, alias: string, type: string) {
-    for (const [key, visual] of this.aliases) if (visual === agent.id && key !== alias) this.aliases.delete(key);
+    for (const [key, visual] of this.aliases) {
+      if (visual !== agent.id || key === alias) continue;
+      this.aliases.delete(key);
+      this.stopped.delete(key);
+    }
     this.aliases.set(alias, agent.id);
+    this.stopped.delete(alias);
     this.bindings.set(agent.id, { type: normalizeRole(type), alias });
   }
 
-  /** Fim do trabalho de um subagente: fica de boa no escritório e conta mais uma entrega. */
+  /**
+   * Subagente que ia embora (visitante extra que entregou) recebeu evento novo: cancela a saída.
+   * Quem está saindo porque a sessão acabou não chega aqui (a sessão encerrada é ignorada antes).
+   */
+  private revive(agent: Agent) {
+    if (agent.status !== "saindo" || !agent.parentId) return;
+    const t = this.removalTimers.get(agent.id);
+    if (t) this.relogio.clearTimeout(t);
+    this.removalTimers.delete(agent.id);
+    agent.status = "pensando"; // o update não tira ninguém do "saindo"
+    this.update(agent, "pensando", agent.activity);
+  }
+
+  /**
+   * Fim do trabalho de um subagente: fica de boa no escritório e conta mais uma entrega. O alias
+   * continua ligado (até o fim da sessão): se o líder retomar o agente, o mesmo boneco volta.
+   */
   private finishWork(agent: Agent, alias: string) {
     if (agent.status !== "saindo") {
       const today = dayKey(this.now());
@@ -617,11 +685,11 @@ export class OfficeState {
         this.pushFeed(agent, "entregou o trabalho", "done");
       } else {
         // visitante extra (sem AGzinho livre) não fica: senão eles se acumulam no escritório
+        // (evento dele antes de sumir cancela a saída; depois, o agent_id entra de novo)
         this.leave(agent, "Entregou o trabalho");
       }
     }
-    this.aliases.delete(alias);
-    this.retire(alias);
+    this.stopped.add(alias);
   }
 
   private retire(alias: string) {
@@ -706,14 +774,18 @@ export class OfficeState {
     });
   }
 
-  /** o "Agent" pendente deste Start: o do tool_use_id, se vier; senão o mais antigo do tipo (FIFO) */
-  private takePending(sessionId: string, type: string, toolUseId?: string): PendingSpawn | undefined {
+  /**
+   * o "Agent" pendente deste Start: o do tool_use_id, se vier; senão (com `byType`) o mais antigo
+   * do tipo (FIFO)
+   */
+  private takePending(sessionId: string, type: string, toolUseId?: string, byType = true): PendingSpawn | undefined {
     const own = toolUseId ? this.pending.get(toolUseId) : undefined;
     if (own && own.sessionId === sessionId) {
       this.relogio.clearTimeout(own.timer);
       this.pending.delete(toolUseId!);
       return own;
     }
+    if (!byType) return undefined;
     for (const [key, p] of this.pending) {
       if (p.sessionId === sessionId && (p.type === type || normalizeRole(p.type) === normalizeRole(type))) {
         this.relogio.clearTimeout(p.timer);
@@ -747,7 +819,9 @@ export class OfficeState {
       return a.role === role || a.name.toLowerCase() === toName || a.agzinho === toName || ag?.apelido.toLowerCase() === toName;
     };
     const all = [...this.agents.values()];
-    const to = all.find((a) => matches(a) && a.sessionId === from.sessionId) ?? all.find(matches);
+    // o líder retoma um subagente pelo agent_id ({to: agent_id}): é o boneco ligado a ele
+    const byId = this.agentByAlias(String(toolInput.to ?? ""));
+    const to = byId ?? all.find((a) => matches(a) && a.sessionId === from.sessionId) ?? all.find(matches);
     if (to) this.emit({ type: "chat", fromId: from.id, toId: to.id, text: truncate(text, 80) });
     this.pushFeed(from, `→ ${to?.name ?? (toName || "time")}: ${truncate(text, 80)}`, "message");
   }
@@ -778,7 +852,11 @@ export class OfficeState {
     const arrive = this.arrivalTimers.get(id);
     if (arrive) this.relogio.clearTimeout(arrive);
     this.arrivalTimers.delete(id);
-    for (const [alias, visual] of this.aliases) if (visual === id) this.aliases.delete(alias);
+    for (const [alias, visual] of this.aliases) {
+      if (visual !== id) continue;
+      this.aliases.delete(alias);
+      this.stopped.delete(alias);
+    }
     this.bindings.delete(id);
     if (this.agents.delete(id)) this.emit({ type: "remove", id });
   }

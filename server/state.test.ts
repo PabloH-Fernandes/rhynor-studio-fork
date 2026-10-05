@@ -52,7 +52,7 @@ const subs = () => agents().filter((a) => a.parentId);
 const start = (agent_id: string, agent_type: string, session = S1) => hook("SubagentStart", { agent_id, agent_type }, session);
 const stop = (agent_id: string, agent_type: string, session = S1) => hook("SubagentStop", { agent_id, agent_type }, session);
 
-test("Start → Stop → Start do mesmo papel volta o mesmo AGzinho, com 1 entrega", () => {
+test("Start → Stop → Start do mesmo agent_id volta o mesmo AGzinho; agent_id novo vai pra variação", () => {
   start("a1", "dev");
   const first = byId("ag:dev");
   assert.ok(first, "devia criar ag:dev");
@@ -65,17 +65,31 @@ test("Start → Stop → Start do mesmo papel volta o mesmo AGzinho, com 1 entre
   assert.equal(idle.tasksDone, 1);
 
   advance(5000);
-  start("a2", "dev");
-  const again = byId("ag:dev")!;
+  // retomado: mesmo agent_id, mesmo boneco, trabalhando
+  start("a1", "dev");
   assert.equal(subs().length, 1, "não pode nascer outro dev");
-  assert.equal(again.name, "Beatriz Lima");
-  assert.equal(again.tasksDone, 1);
-  assert.equal(again.status, "pensando");
-  assert.equal(again.boundAt, t);
-
-  // os eventos do novo agent_id caem nela
-  hook("PreToolUse", { agent_id: "a2", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/a.ts" } });
   assert.equal(byId("ag:dev")!.status, "trabalhando");
+  assert.equal(byId("ag:dev")!.tasksDone, 1);
+  stop("a1", "dev");
+  assert.equal(byId("ag:dev")!.tasksDone, 2);
+
+  // agent_id novo do mesmo papel: a Bia (ligada ao a1) só seria reaproveitada sem alternativa
+  start("a2", "dev");
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+  assert.equal(byId("ag:dev-2")?.name, "Yasmin Okada");
+  hook("PreToolUse", { agent_id: "a2", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/a.ts" } });
+  assert.equal(byId("ag:dev-2")!.status, "trabalhando");
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+
+  // sem alternativa (Yasmin com o a2 ativo; a Bia só com o a1, que entregou), o 3º reaproveita a Bia
+  start("a3", "dev");
+  assert.equal(byId("ag:dev")!.status, "pensando");
+  assert.equal(subs().length, 2);
+  // e o a1 perdeu o boneco: se voltar, não divide a Bia com o a3 (vai para um visitante extra)
+  const biaAntes = { ...byId("ag:dev")! };
+  hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/b.ts" } });
+  assert.deepEqual(byId("ag:dev"), biaAntes, "evento do a1 não mexe na Bia do a3");
+  assert.equal(byId("ag:extra:a1")?.status, "trabalhando", "o a1 de volta ganha outro boneco");
 });
 
 test("dois devs ao mesmo tempo viram ag:dev e ag:dev-2", () => {
@@ -99,23 +113,45 @@ test("convidados: Explore → Iara, Plan e tipo desconhecido → Sofia, general-
   assert.equal(byId("ag:curinga")?.name, "Sofia Arruda");
   stop("p1", "Plan");
 
-  start("x1", "superpowers:code-reviewer");
-  assert.equal(byId("ag:curinga")?.status, "pensando", "o tipo desconhecido reaproveita a Sofia de boa");
-  assert.equal(subs().length, 2);
-
   start("g1", "general-purpose");
   assert.equal(byId("ag:general-purpose")?.name, "Jorge Batista");
+
+  // Iara e Jorge com agent_id ativo; a Sofia só com o p1, que entregou: sem alternativa, é ela
+  start("x1", "superpowers:code-reviewer");
+  assert.equal(byId("ag:curinga")?.status, "pensando", "o tipo desconhecido reaproveita a Sofia de boa");
+  assert.equal(subs().length, 3);
 });
 
-test("evento atrasado de um agent_id aposentado não cria ninguém", () => {
+test("bug 2: agent_id que já entregou, sem agent_type e 3 min depois, é a Bia (não a Sofia); a Bia de boa não vai pra outro agent_id", () => {
+  start("a1", "dev");
+  hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/a.ts" } });
+  stop("a1", "dev");
+  advance(3 * MIN);
+  hook("PreToolUse", { agent_id: "a1", tool_name: "Read", tool_input: { file_path: "src/b.ts" } });
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+  assert.equal(byId("ag:curinga"), undefined, "o curinga não pega o trabalho da Bia");
+  stop("a1", "dev");
+
+  // outro agent_id (sem tipo e de outro dev) não leva a Bia de boa enquanto houver outro livre
+  const bia = { ...byId("ag:dev")! };
+  hook("PreToolUse", { agent_id: "x1", tool_name: "Grep", tool_input: { pattern: "y" } });
+  start("a2", "dev");
+  assert.deepEqual(byId("ag:dev"), bia);
+  assert.equal(byId("ag:dev-2")?.status, "chegando");
+});
+
+test("evento depois do SubagentStop (mesmo após 2+ min) volta pro mesmo boneco, sem criar ninguém", () => {
   start("a1", "testador");
   stop("a1", "testador");
+  advance(3 * MIN);
   const before = agents().length;
   hook("PreToolUse", { agent_id: "a1", agent_type: "testador", tool_name: "Bash", tool_input: { command: "ls" } });
+  assert.equal(byId("ag:testador")!.status, "trabalhando");
   hook("PostToolUse", { agent_id: "a1", agent_type: "testador", tool_name: "Bash" });
+  assert.equal(byId("ag:testador")!.status, "trabalhando", "PostToolUse nunca deixa ocioso");
   hook("PermissionRequest", { agent_id: "a1", agent_type: "testador", tool_name: "Bash" });
   assert.equal(agents().length, before);
-  assert.equal(byId("ag:testador")!.status, "ocioso");
+  assert.equal(byId("ag:testador")!.status, "esperando");
 });
 
 test("líder criado por evento de subagente já aparece coordenando (não fica chegando)", () => {

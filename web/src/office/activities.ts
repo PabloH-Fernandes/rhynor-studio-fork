@@ -42,6 +42,16 @@ export const REST_LABELS: Record<RestKind, string> = {
 
 /** ocioso há pelo menos isso antes de sair da mesa */
 export const IDLE_GRACE_MS = 4000;
+/** quem recebeu evento de trabalho há menos que isso não começa nem continua descansando */
+export const WORK_COOLDOWN_MS = 20_000;
+
+/**
+ * Pode estar no descanso agora? Só ocioso e sem trabalho recente: trabalho ganha do descanso.
+ * (o agendador só lê o status; quem muda status é o servidor)
+ */
+export function podeDescansar(a: Pick<RestActor, "idle" | "workedAt">, now: number): boolean {
+  return a.idle && now - (a.workedAt ?? -Infinity) >= WORK_COOLDOWN_MS;
+}
 /** de quanto em quanto tempo cada ator livre tenta sortear */
 export const CHECK_MS = 500;
 export const DURATION_MIN_MS = 20_000;
@@ -173,6 +183,8 @@ export interface RestActor {
   idle: boolean;
   /** desde quando está ocioso (Infinity se não está) */
   idleSince: number;
+  /** último instante com evento de trabalho (status trabalhando/pensando/esperando); sem isso, nunca */
+  workedAt?: number;
   leaving: boolean;
   /** ainda tem caminho pela frente */
   walking: boolean;
@@ -352,7 +364,7 @@ export class RestScheduler {
     const t = this.tracks.get(a.id);
     if (t?.rest) return false;
     return (
-      a.idle &&
+      podeDescansar(a, now) &&
       !a.leaving &&
       !a.walking &&
       !a.busyAnim &&
@@ -424,7 +436,7 @@ export class RestScheduler {
           // o grupo desfez: escolhe outra atividade de onde está; sem nada (ou chamado pro
           // trabalho nesse meio-tempo), volta pra mesa
           t.rechoose = false;
-          if (!a.leaving && !(a.idle && this.start(a, t, now, mover, pool))) mover.goHome(a.id);
+          if (!a.leaving && !(podeDescansar(a, now) && this.start(a, t, now, mover, pool))) mover.goHome(a.id);
           continue;
         }
         if (now < t.nextCheckAt) continue;
@@ -432,8 +444,8 @@ export class RestScheduler {
         if (this.eligible(a, now)) this.start(a, t, now, mover, pool);
         continue;
       }
-      // trabalho chegou sem passar pelo upsert (ex.: snapshot): larga tudo
-      if (!a.idle || a.leaving) {
+      // trabalho chegou (agora ou há menos de WORK_COOLDOWN_MS) sem passar pelo upsert: larga tudo
+      if (!podeDescansar(a, now) || a.leaving) {
         if (a.leaving) this.remove(a.id);
         else this.interrupt(a.id, mover, now);
         continue;

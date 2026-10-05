@@ -103,7 +103,8 @@ export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPerso
   // ocioso fora do descanso: a activity do servidor ("Terminou, esperando você"), menos o "De boa"
   // que já está no status
   const activity = agent.activity && agent.activity !== statusLabel && agent.activity !== "De boa" ? agent.activity : "";
-  const agora = (agent.status === "ocioso" ? rest || activity : activity || rest) || "Na mesa, aguardando tarefa";
+  // o descanso só aparece pra quem está ocioso: trabalhando, o crachá não pode dizer "Tomando café"
+  const agora = (agent.status === "ocioso" ? rest || activity : activity) || "Na mesa, aguardando tarefa";
 
   const style = { "--cordao": ag?.cordao ?? "var(--cordao-visitante)" } as CSSProperties;
 

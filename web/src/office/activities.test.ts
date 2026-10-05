@@ -15,9 +15,11 @@ import {
   REST_LABELS,
   Reservations,
   RestScheduler,
+  WORK_COOLDOWN_MS,
   hash32,
   mulberry32,
   pickWeighted,
+  podeDescansar,
   type RestActor,
   type RestKind,
   type RestMover,
@@ -157,6 +159,31 @@ describe("RestScheduler", () => {
     run(s, w, IDLE_GRACE_MS, IDLE_GRACE_MS + CHECK_MS);
     assert.ok(s.isResting("ag:dev"));
     assert.ok(s.restLabel("ag:dev"));
+  });
+
+  it("trabalho recente bloqueia o descanso: não começa e, se já descansava, larga e volta pra mesa", () => {
+    assert.equal(podeDescansar({ idle: true, workedAt: 1000 }, 1000 + WORK_COOLDOWN_MS - 1), false);
+    assert.equal(podeDescansar({ idle: true, workedAt: 1000 }, 1000 + WORK_COOLDOWN_MS), true);
+    assert.equal(podeDescansar({ idle: true }, 0), true, "sem trabalho visto, só o ócio conta");
+    assert.equal(podeDescansar({ idle: false, workedAt: -Infinity }, 0), false);
+
+    // ocioso há muito, mas trabalhou há 5 s: não sai da mesa até passar o cooldown
+    const s = new RestScheduler(SPOTS, { seed: 1 });
+    const w = world(["ag:dev"]);
+    w.actors.get("ag:dev")!.workedAt = 5000;
+    run(s, w, 10_000, 5000 + WORK_COOLDOWN_MS - 100);
+    assert.ok(!s.isResting("ag:dev"), "trabalhou há menos de 20 s");
+    run(s, w, 5000 + WORK_COOLDOWN_MS, 5000 + WORK_COOLDOWN_MS + CHECK_MS);
+    assert.ok(s.isResting("ag:dev"), "passou o cooldown: pode descansar");
+
+    // chegou trabalho enquanto descansava (status continua ocioso no ator): cancela e vai pra mesa
+    const now = 5000 + WORK_COOLDOWN_MS + 2 * CHECK_MS;
+    w.actors.get("ag:dev")!.workedAt = now;
+    w.log.length = 0;
+    s.update(now, w.actors.values(), w.mover);
+    assert.ok(!s.isResting("ag:dev"));
+    assert.ok(w.log.includes("ag:dev goHome"), w.log.join(" | "));
+    assert.equal(w.actors.get("ag:dev")!.idle, true, "o agendador nunca muda o status");
   });
 
   it("não começa andando, saindo, comemorando ou fora do ócio", () => {

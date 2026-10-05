@@ -19,15 +19,16 @@ test("líder + 2 subagentes: cada AGzinho termina no status certo", () => {
   // o planejador entregou (SubagentStop): fica de boa no escritório
   assert.equal(agentePorNome(state, "Marina")?.status, "ocioso");
   // o Pre do Bash chegou depois do Post do Edit, mas começou antes (x-hook-ts menor): a fila
-  // ordena como o servidor e o Post do Edit é o último, deixando a Bia pensando
+  // ordena como o servidor e o Post do Edit é o último; PostToolUse também é trabalho (V3 etapa 2:
+  // nunca vira descanso), então a Bia termina trabalhando
   const bia = agentePorNome(state, "Bia");
   assert.equal(bia?.agzinho, "dev");
-  assert.equal(bia?.status, "pensando");
+  assert.equal(bia?.status, "trabalhando");
   assert.equal(bia?.activity, "Rodar os testes do login");
   assert.equal(state.getProgress().total, 2);
 
   const daBia = linhaDoTempo.filter((m) => m.id === bia?.id).map((m) => m.status);
-  assert.deepEqual(daBia, ["chegando", "trabalhando", "trabalhando", "pensando"]);
+  assert.deepEqual(daBia, ["chegando", "trabalhando", "trabalhando"]);
 });
 
 test("sem evento nenhum, o subagente sai de 'chegando' pelo timer de 12 s do relógio virtual", () => {

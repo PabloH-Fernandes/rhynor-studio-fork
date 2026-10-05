@@ -208,6 +208,8 @@ interface Visual {
   /** semente do piscar (hash do id) */
   seed: number;
   idleSince: number;
+  /** último evento de trabalho visto (status ocupado): bloqueia o descanso por WORK_COOLDOWN_MS */
+  workedAt: number;
   activityAt: number;
   leaving: boolean;
   fade: number; // 1 → 0 ao sair pela porta
@@ -436,6 +438,8 @@ export class OfficeEngine {
     const prev = v.agent.status;
     const delivered = agent.tasksDone !== v.agent.tasksDone && agent.tasksDone > 0;
     if (agent.agzinho !== v.agent.agzinho) v.look = lookFor(agent, this.rosterData);
+    // evento de trabalho: o descanso fica bloqueado por um tempo (a entrega, ocupado→ocioso, não conta)
+    if (BUSY.has(agent.status)) v.workedAt = now;
     if (agent.status !== "ocioso" && this.rest.isResting(agent.id)) {
       // chamado no meio do descanso: larga tudo e volta pra mesa (trabalho tem prioridade)
       this.rest.interrupt(agent.id, this.mover, now);
@@ -500,6 +504,7 @@ export class OfficeEngine {
       phase: h % 1000,
       seed: h,
       idleSince: agent.status === "ocioso" ? performance.now() : Infinity,
+      workedAt: BUSY.has(agent.status) ? performance.now() : -Infinity,
       activityAt: performance.now(),
       leaving: false,
       fade: 1,
@@ -566,6 +571,7 @@ export class OfficeEngine {
         session: v.agent.sessionId,
         idle: v.agent.status === "ocioso",
         idleSince: v.idleSince,
+        workedAt: BUSY.has(v.agent.status) ? now : v.workedAt,
         leaving: v.leaving,
         walking: v.path.length > 0,
         busyAnim: !!v.anim,

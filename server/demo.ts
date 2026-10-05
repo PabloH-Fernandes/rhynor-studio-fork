@@ -10,7 +10,8 @@
 //   69      dev-2, testador e dev entregam no mesmo instante: 5 AGzinhos de boa ao mesmo tempo por ~30 s
 //           (o agendador do front espera IDLE_GRACE de 4 s e só chama pra ping-pong/papo quem já passou
 //           dele: entregar junto é o que dá chance de grupo; com 68/68,5/69 s quase sempre saía tudo solo)
-//   99      o pesquisador é chamado de novo no meio do descanso: larga tudo, volta pra mesa e entrega (2 entregas)
+//   99      o líder retoma o pesquisador (SendMessage pro agent_id dele) no meio do descanso: larga tudo,
+//           volta pra mesma mesa e entrega (2 entregas, mesmo agent_id)
 //   117–145 revisor e depois documentador; o quadro chega a "concluíram 6 de 6"
 //   151     Stop do líder ("Terminou, esperando você"); ele também descansa um pouco
 //   166     SessionEnd: todo mundo vai até a porta
@@ -63,7 +64,7 @@ export function runDemo(state: OfficeState) {
     tool_name: "Read",
     ...(agent ? { agent_id: agent[0], agent_type: agent[1] } : {}),
   });
-  // cada chamada da ferramenta Agent tem o próprio tool_use_id (2 devs, pesquisador chamado 2 vezes)
+  // cada chamada da ferramenta Agent tem o próprio tool_use_id (2 devs em paralelo)
   const spawn = (type: string, description: string): Input => ({
     hook_event_name: "PreToolUse",
     tool_name: "Agent",
@@ -103,8 +104,6 @@ export function runDemo(state: OfficeState) {
   const dev: Who = [`${session_id}-dev`, "dev"];
   const dev2: Who = [`${session_id}-dev2`, "dev"]; // com a Bia ocupada, vira a Yasmin (dev-2)
   const test: Who = [`${session_id}-test`, "testador"];
-  // chamado de novo no meio do descanso: agent_id novo, mesmo AGzinho
-  const pesqDeNovo: Who = [`${session_id}-pesq-2`, "pesquisador"];
   const rev: Who = [`${session_id}-rev`, "revisor"];
   const doc: Who = [`${session_id}-doc`, "documentador"];
 
@@ -171,13 +170,14 @@ export function runDemo(state: OfficeState) {
     [73, tool("Read", { file_path: "src/api/anexos.ts" })],
     [80, tool("Grep", { pattern: "multipart" })],
     [88, tool("Read", { file_path: "server/routes/chamados.ts" })],
-    // e) ~20 s depois dos grupos formados, o pesquisador é chamado de novo no meio do descanso
-    [98.7, spawn("pesquisador", "Ver limite de tamanho do upload de anexos")],
-    [99, start(pesqDeNovo)],
-    [106, tool("WebSearch", { query: "multer limite de tamanho arquivo" }, pesqDeNovo)],
-    [109, tool("WebFetch", { url: "https://github.com/expressjs/multer" }, pesqDeNovo)],
-    [112.5, msg(pesqDeNovo, "lider", "Limite de 10 MB com multer, valide o tipo no front")],
-    [115, stop(pesqDeNovo)],
+    // e) ~20 s depois dos grupos formados, o líder retoma o pesquisador (SendMessage pro agent_id
+    // dele) no meio do descanso: mesmo agent_id, mesmo AGzinho, larga tudo e volta pra mesa
+    [98.7, tool("SendMessage", { to: pesq[0], message: "Ver limite de tamanho do upload de anexos" })],
+    [99, tool("WebSearch", { query: "multer limite de tamanho arquivo" }, pesq)],
+    [106, tool("WebFetch", { url: "https://github.com/expressjs/multer" }, pesq)],
+    [109, tool("Read", { file_path: "server/routes/anexos.ts" }, pesq)],
+    [112.5, msg(pesq, "lider", "Limite de 10 MB com multer, valide o tipo no front")],
+    [115, stop(pesq)],
     ...taskUpdate(116, "4", "completed"),
     ...taskUpdate(116.3, "5", "in_progress"),
     // f) revisor e depois documentador; o quadro chega a "concluíram 6 de 6"
