@@ -503,67 +503,72 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
       </div>
 
       <footer className="vest-rodape">
-        {erros.length > 0 && (
-          <div className="vest-erros" role="alert">
-            <p>
-              {tipoErro === "servidor" ? (
-                <strong>O servidor não salvou o elenco.</strong>
-              ) : (
-                <>
-                  <strong>Não deu pra salvar.</strong> Corrija {erros.length === 1 ? "o item" : `os ${erros.length} itens`}:
-                </>
-              )}
-            </p>
-            <ul>
-              {erros.map((e) => {
-                const key = lerErro(e).key;
-                const texto = mensagemDeErro(e, elencoMostrado);
-                return (
-                  <li key={e}>
-                    {key && key !== atual && agzinhoDe(base, key) ? (
-                      <button type="button" className="vest-erro-link" onClick={() => setAtual(key)}>
-                        {texto}
-                      </button>
-                    ) : (
-                      texto
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
+        {/* só as mensagens rolam: em tela baixa os botões de salvar e fechar continuam à vista */}
+        {(erros.length > 0 || (confirmarPadrao && padrao) || avisoFechar) && (
+          <div className="vest-mensagens">
+            {erros.length > 0 && (
+              <div className="vest-erros" role="alert">
+                <p>
+                  {tipoErro === "servidor" ? (
+                    <strong>O servidor não salvou o elenco.</strong>
+                  ) : (
+                    <>
+                      <strong>Não deu pra salvar.</strong> Corrija {erros.length === 1 ? "o item" : `os ${erros.length} itens`}:
+                    </>
+                  )}
+                </p>
+                <ul>
+                  {erros.map((e) => {
+                    const key = lerErro(e).key;
+                    const texto = mensagemDeErro(e, elencoMostrado);
+                    return (
+                      <li key={e}>
+                        {key && key !== atual && agzinhoDe(base, key) ? (
+                          <button type="button" className="vest-erro-link" onClick={() => setAtual(key)}>
+                            {texto}
+                          </button>
+                        ) : (
+                          texto
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
 
-        {confirmarPadrao && padrao && (
-          <div className="vest-confirma" role="group" aria-labelledby={`${id}-confirma`}>
-            <p id={`${id}-confirma`}>
-              Voltar {apelidoDe(atual)} ao visual padrão ({padrao.apelido})? Nome, apelido, pele, cabelo, roupa e acessórios voltam ao que eram. Só
-              vale depois de salvar.
-            </p>
-            <div className="vest-linha-botoes">
-              <button ref={confirmaRef} type="button" className="btn" onClick={voltarAoPadrao}>
-                Sim, voltar ao padrão
-              </button>
-              <button type="button" className="btn ghost" onClick={() => setConfirmarPadrao(false)}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
+            {confirmarPadrao && padrao && (
+              <div className="vest-confirma" role="group" aria-labelledby={`${id}-confirma`}>
+                <p id={`${id}-confirma`}>
+                  Voltar {apelidoDe(atual)} ao visual padrão ({padrao.apelido})? Nome, apelido, pele, cabelo, roupa e acessórios voltam ao que eram. Só
+                  vale depois de salvar.
+                </p>
+                <div className="vest-linha-botoes">
+                  <button ref={confirmaRef} type="button" className="btn" onClick={voltarAoPadrao}>
+                    Sim, voltar ao padrão
+                  </button>
+                  <button type="button" className="btn ghost" onClick={() => setConfirmarPadrao(false)}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
 
-        {avisoFechar && (
-          <div className="vest-confirma" role="group" aria-labelledby={`${id}-aviso`}>
-            <p id={`${id}-aviso`}>
-              Tem alteração não salva em {sujas.map(apelidoDe).join(", ")}. Fechar descarta essas alterações.
-            </p>
-            <div className="vest-linha-botoes">
-              <button ref={avisoRef} type="button" className="btn ghost" onClick={() => setAvisoFechar(false)}>
-                Continuar editando
-              </button>
-              <button type="button" className="btn" onClick={fechar}>
-                Descartar e fechar
-              </button>
-            </div>
+            {avisoFechar && (
+              <div className="vest-confirma" role="group" aria-labelledby={`${id}-aviso`}>
+                <p id={`${id}-aviso`}>
+                  Tem alteração não salva em {sujas.map(apelidoDe).join(", ")}. Fechar descarta essas alterações.
+                </p>
+                <div className="vest-linha-botoes">
+                  <button ref={avisoRef} type="button" className="btn ghost" onClick={() => setAvisoFechar(false)}>
+                    Continuar editando
+                  </button>
+                  <button type="button" className="btn" onClick={fechar}>
+                    Descartar e fechar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
