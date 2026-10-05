@@ -223,6 +223,82 @@ h2 {
   color: var(--muted);
 }
 
+/* seções recolhíveis do painel: o título inteiro é o botão */
+.secao-toggle {
+  display: inline-flex;
+  white-space: nowrap;
+  align-items: center;
+  gap: 8px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.secao-toggle:hover {
+  background: var(--bg-3);
+}
+
+.secao-toggle .count {
+  background: none;
+  padding: 0;
+  color: var(--muted);
+}
+
+/* setinha: aponta pra direita fechada, pra baixo aberta */
+.secao-seta {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid currentColor;
+  transition: transform 0.15s;
+}
+
+.secao-toggle[aria-expanded="true"] .secao-seta {
+  transform: rotate(90deg);
+}
+
+.secao-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.secao-topo h2 {
+  margin: 0;
+}
+
+.btn-tecnico {
+  white-space: nowrap;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-tecnico:hover {
+  border-color: var(--navy-500);
+  color: var(--text);
+}
+
+.btn-tecnico.ligado {
+  border-color: var(--navy-100);
+  background: var(--bg-3);
+  color: var(--text);
+}
+
 .conn {
   position: absolute;
   top: 0;
@@ -386,6 +462,10 @@ h2 {
   .alert {
     animation: none;
   }
+
+  .secao-seta {
+    transition: none;
+  }
 }
 
 .actions {
@@ -464,11 +544,11 @@ h2 {
 
 .agent-row {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 9px 10px;
+  padding: 5px 8px 5px 5px;
   border: 1px solid transparent;
   border-radius: 4px;
   background: var(--bg-3);
@@ -490,10 +570,21 @@ h2 {
   opacity: 0.45;
 }
 
-.swatch {
-  width: 10px;
-  height: 28px;
-  border-radius: 2px;
+/* retratinho num "porta-retrato" com a cor do papel embaixo */
+.agent-foto {
+  display: block;
+  width: 28px;
+  height: 30px;
+  overflow: hidden;
+  border-bottom: 3px solid;
+  border-radius: 3px;
+  background: var(--photo-bg);
+}
+
+.mini-retrato {
+  display: block;
+  margin: -1px 0 0 -4px;
+  image-rendering: pixelated;
 }
 
 .agent-main {
@@ -514,20 +605,23 @@ h2 {
   color: var(--muted);
 }
 
-.agent-activity {
+.agent-cargo {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .pill {
-  padding: 2px 8px;
+  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   border-radius: 3px;
   font-family: var(--sans);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11px;
   white-space: nowrap;
   background: var(--bg-2);
   color: var(--muted);
@@ -934,6 +1028,11 @@ h2 {
   flex-direction: column;
 }
 
+.feed-section.fechada {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
 .feed {
   flex: 1;
   margin: 0;
@@ -981,6 +1080,56 @@ h2 {
 
 .kind-message .icon {
   color: var(--red);
+}
+
+/* modo simples: frase pra quem não é de TI, em fonte de leitura; o terminal fica pros detalhes técnicos */
+.feed-simples {
+  grid-template-columns: auto 20px 1fr;
+  align-items: baseline;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.feed-simples time {
+  font-size: 12px;
+}
+
+.feed-simples .icon {
+  font-size: 13px;
+}
+
+/* destaques: faixa na esquerda + fundo + negrito + ícone próprio (nunca só a cor) */
+.feed-simples.dest {
+  margin: 3px -6px;
+  padding: 6px 6px 6px 4px;
+  border-left: 3px solid;
+  border-radius: 2px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.dest.dest-precisa {
+  border-color: var(--waiting);
+  background: rgba(255, 138, 0, 0.12);
+}
+
+.dest.dest-precisa b {
+  color: var(--waiting);
+}
+
+.dest.dest-etapa {
+  border-color: var(--blue);
+  background: rgba(90, 174, 240, 0.12);
+}
+
+.dest.dest-concluido {
+  border-color: var(--green);
+  background: rgba(63, 191, 134, 0.14);
+}
+
+.dest.dest-terminou {
+  border-color: var(--green);
 }
 
 /* ---------------------------------------------------------------- vestiário */

@@ -10,6 +10,7 @@ import path from "node:path";
 import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ServerMessage } from "../shared/types.ts";
 import { DEFAULT_ROSTER, agzinhoDoPapel, type AGzinho, type Roster } from "../shared/roster.ts";
 import { PROGRESS_NADA, ProgressTracker, sameProgress, type TarefasSalvas } from "./progress.ts";
+import { comoAtividade, fraseEvento, fraseFerramenta, nomeCurto, simplificarAtividade, type Evento } from "./frases.ts";
 
 /** Formato (parcial) do JSON que o Claude Code manda no stdin de cada hook. */
 export interface HookInput {
@@ -148,6 +149,8 @@ export class OfficeState {
   private agents = new Map<string, Agent>();
   private feed: FeedItem[] = [];
   private feedSeq = 0;
+  /** atividade simples dada junto com a técnica (ferramenta, permissão...); vale enquanto a técnica for a mesma */
+  private simplesDada = new Map<string, { de: string; simples: string }>();
   private listeners = new Set<Listener>();
   private pending = new Map<string, PendingSpawn>(); // tool_use_id -> spawn ainda sem SubagentStart
   private removalTimers = new Map<string, Timer>();
@@ -203,7 +206,7 @@ export class OfficeState {
   snapshot(): ServerMessage {
     return {
       type: "snapshot",
-      agents: [...this.agents.values()],
+      agents: [...this.agents.values()].map((a) => this.comSimples(a)),
       feed: this.feed.slice(-60),
       roster: this.roster,
       config: this.config,
@@ -407,17 +410,19 @@ export class OfficeState {
         // (o compact automático chega no meio do trabalho); só quem já estava ocioso ganha o texto novo
         if (!herdou && existia && (input.source === "compact" || input.source === "resume")) {
           if (lead.status === "ocioso") this.update(lead, "ocioso", input.source === "compact" ? "Resumiu a conversa" : "Voltou ao trabalho");
-          this.pushFeed(lead, input.source === "compact" ? "resumiu a conversa (compact)" : "retomou a sessão", "info");
+          this.pushFeed(lead, input.source === "compact" ? "resumiu a conversa (compact)" : "retomou a sessão", "info", {
+            tipo: input.source === "compact" ? "resumiu" : "voltou",
+          });
           break;
         }
         if (input.source === "clear" && !herdou) this.clearsSemTime.set(input.session_id, { cwd: input.cwd, at: this.now() });
         if (herdou) {
           this.update(lead, "ocioso", "Começou uma conversa nova");
-          this.pushFeed(lead, "limpou a conversa (/clear): o time continua", "info");
+          this.pushFeed(lead, "limpou a conversa (/clear): o time continua", "info", { tipo: "conversaNova" });
           break;
         }
         this.update(lead, "ocioso", input.source === "resume" ? "Voltou ao trabalho" : "Chegou no escritório");
-        this.pushFeed(lead, `entrou no projeto ${lead.project}`, "info");
+        this.pushFeed(lead, `entrou no projeto ${lead.project}`, "info", { tipo: "chegou" });
         break;
       }
 
@@ -425,7 +430,7 @@ export class OfficeState {
         const lead = this.ensureLeader(input);
         const prompt = String(input.user_prompt ?? input.prompt ?? "").trim();
         this.update(lead, "pensando", "Lendo seu pedido...");
-        this.pushFeed(lead, prompt ? `recebeu: “${truncate(prompt, 90)}”` : "recebeu um pedido", "message");
+        this.pushFeed(lead, prompt ? `recebeu: “${truncate(prompt, 90)}”` : "recebeu um pedido", "message", { tipo: "pedido" });
         break;
       }
 
@@ -449,12 +454,15 @@ export class OfficeState {
 
         if (tool === "AskUserQuestion") {
           this.update(agent, "esperando", "Tem uma pergunta pra você");
-          this.pushFeed(agent, "está esperando sua resposta", "alert");
+          this.pushFeed(agent, "está esperando sua resposta", "alert", { tipo: "pergunta" });
           break;
         }
 
-        this.update(agent, "trabalhando", describeTool(tool, toolInput));
-        this.pushFeed(agent, describeTool(tool, toolInput), "tool");
+        const ag = agent.agzinho ? this.findAgzinho(agent.agzinho) : undefined;
+        const frase = fraseFerramenta(tool, toolInput, { genero: ag?.genero, papel: agent.role });
+        this.update(agent, "trabalhando", describeTool(tool, toolInput), comoAtividade(frase.simples));
+        // o SendMessage já virou linha de recado (handleSendMessage): não repete "Mandando mensagem"
+        if (tool !== "SendMessage") this.pushFeed(agent, describeTool(tool, toolInput), "tool", { tipo: "ferramenta", tool, input: toolInput });
         break;
       }
 
@@ -469,8 +477,14 @@ export class OfficeState {
         const agent = this.agentFor(input, { religa: false });
         if (!agent || agent.status === "ocioso") break;
         // de resto, trabalho ganha do descanso: o Post também é trabalho (nunca vira ocioso nem "pensando")
-        this.update(agent, "trabalhando", ev === "PostToolUseFailure" ? `Deu erro em ${tool}, ajustando...` : agent.activity);
-        if (ev === "PostToolUseFailure") this.pushFeed(agent, `${tool} falhou`, "alert");
+        const falhou = ev === "PostToolUseFailure";
+        this.update(
+          agent,
+          "trabalhando",
+          falhou ? `Deu erro em ${tool}, ajustando...` : agent.activity,
+          falhou ? "Deu um problema, tentando de outro jeito" : undefined,
+        );
+        if (ev === "PostToolUseFailure") this.pushFeed(agent, `${tool} falhou`, "alert", { tipo: "falhou" });
         break;
       }
 
@@ -478,8 +492,8 @@ export class OfficeState {
         const agent = this.agentFor(input);
         if (!agent) break;
         const what = describeTool(input.tool_name ?? "?", input.tool_input ?? {});
-        this.update(agent, "esperando", `Pedindo permissão: ${what}`);
-        this.pushFeed(agent, `pediu permissão → ${what}`, "alert");
+        this.update(agent, "esperando", `Pedindo permissão: ${what}`, "Precisa da sua autorização");
+        this.pushFeed(agent, `pediu permissão → ${what}`, "alert", { tipo: "autorizacao" });
         break;
       }
 
@@ -495,10 +509,10 @@ export class OfficeState {
           this.update(agent, "ocioso", "Esperando seu próximo pedido");
         } else if (needsYou) {
           this.update(agent, "esperando", "Precisa de você!");
-          this.pushFeed(agent, msg ? `avisou: ${truncate(msg, 80)}` : "precisa de você", "alert");
+          this.pushFeed(agent, msg ? `avisou: ${truncate(msg, 80)}` : "precisa de você", "alert", { tipo: "precisa" });
         } else if (msg) {
           // auth_success, elicitation_complete, agent_completed, quota_*...: só informa
-          this.pushFeed(agent, `avisou: ${truncate(msg, 80)}`, "info");
+          this.pushFeed(agent, `avisou: ${truncate(msg, 80)}`, "info", { tipo: "aviso" });
         }
         break;
       }
@@ -558,7 +572,7 @@ export class OfficeState {
       case "Stop": {
         const lead = this.ensureLeader(input);
         this.update(lead, "ocioso", "Terminou, esperando você");
-        this.pushFeed(lead, "terminou a vez dele", "done");
+        this.pushFeed(lead, "terminou a vez dele", "done", { tipo: "terminouVez" });
         break;
       }
 
@@ -948,7 +962,10 @@ export class OfficeState {
     const { agent, returning } = this.assignAgzinho(sessionId, type, alias, description, cwd);
     this.rebindAlias(agent, alias, type);
     const what = description ? `: ${truncate(description, 70)}` : "";
-    this.pushFeed(agent, returning ? `foi chamado de novo${what}` : description ? `entrou para${what}` : "entrou no escritório", "spawn");
+    this.pushFeed(agent, returning ? `foi chamado de novo${what}` : description ? `entrou para${what}` : "entrou no escritório", "spawn", {
+      tipo: "chamado",
+      deNovo: returning,
+    });
     return agent;
   }
 
@@ -994,7 +1011,7 @@ export class OfficeState {
       agent.tasksDone += 1;
       if (agent.agzinho) {
         this.update(agent, "ocioso", "De boa");
-        this.pushFeed(agent, "entregou o trabalho", "done");
+        this.pushFeed(agent, "entregou o trabalho", "done", { tipo: "terminouParte" });
       } else {
         // visitante extra (sem AGzinho livre) não fica: senão eles se acumulam no escritório
         // (evento dele antes de sumir cancela a saída; depois, o agent_id entra de novo)
@@ -1135,10 +1152,15 @@ export class OfficeState {
     const byId = this.agentByAlias(String(toolInput.to ?? ""));
     const to = byId ?? all.find((a) => matches(a) && a.sessionId === from.sessionId) ?? all.find(matches);
     if (to) this.emit({ type: "chat", fromId: from.id, toId: to.id, text: truncate(text, 80) });
-    this.pushFeed(from, `→ ${to?.name ?? (toName || "time")}: ${truncate(text, 80)}`, "message");
+    this.pushFeed(from, `→ ${to?.name ?? (toName || "time")}: ${truncate(text, 80)}`, "message", {
+      tipo: "recado",
+      para: to ? this.nomeCurto(to) : undefined,
+    });
   }
 
-  private update(agent: Agent, status: AgentStatus, activity: string) {
+  /** `simples`: a atividade sem jargão; sem ela, a técnica serve se não tiver jargão (comSimples) */
+  private update(agent: Agent, status: AgentStatus, activity: string, simples?: string) {
+    if (simples) this.simplesDada.set(agent.id, { de: activity, simples });
     // quem está chegando continua "chegando" no front até sentar; o front decide a animação
     agent.status = agent.status === "saindo" ? "saindo" : status;
     agent.activity = activity;
@@ -1152,7 +1174,10 @@ export class OfficeState {
     agent.activity = activity;
     agent.updatedAt = this.now();
     this.emit({ type: "agent", agent });
-    this.pushFeed(agent, activity.toLowerCase(), "done");
+    this.pushFeed(agent, activity.toLowerCase(), "done", {
+      tipo: "saiu",
+      motivo: activity.startsWith("Entregou") ? "entregou" : /sem sinal/i.test(activity) ? "semSinal" : "embora",
+    });
     const t = this.relogio.setTimeout(() => this.remove(agent.id), LEAVE_DELAY_MS);
     this.removalTimers.set(agent.id, t);
   }
@@ -1169,6 +1194,7 @@ export class OfficeState {
       this.aliases.delete(alias);
       this.stopped.delete(alias);
     }
+    this.simplesDada.delete(id);
     this.bindings.delete(id);
     for (const [sessionId, visual] of this.lideres) if (visual === id) this.lideres.delete(sessionId);
     if (this.agents.delete(id)) this.emit({ type: "remove", id });
@@ -1176,7 +1202,17 @@ export class OfficeState {
 
   // ---------------------------------------------------------------- feed
 
-  private pushFeed(agent: Agent, text: string, kind: FeedItem["kind"]) {
+  /** Nome curto do feed simples: o apelido do AGzinho ("Guto") ou o primeiro nome. */
+  private nomeCurto(agent: Agent): string {
+    const ag = agent.agzinho ? this.findAgzinho(agent.agzinho) : undefined;
+    return nomeCurto(agent.name, ag?.apelido);
+  }
+
+  /** `text` é a versão técnica; `assunto` gera a versão simples (server/frases.ts). */
+  private pushFeed(agent: Agent, text: string, kind: FeedItem["kind"], assunto: Evento | { tipo: "ferramenta"; tool: string; input: Record<string, unknown> }) {
+    const ag = agent.agzinho ? this.findAgzinho(agent.agzinho) : undefined;
+    const quem = { genero: ag?.genero, papel: agent.role };
+    const frase = assunto.tipo === "ferramenta" ? fraseFerramenta(assunto.tool, assunto.input, quem) : fraseEvento(assunto, quem);
     const item: FeedItem = {
       id: ++this.feedSeq,
       at: this.now(),
@@ -1185,13 +1221,25 @@ export class OfficeState {
       role: agent.role,
       text,
       kind,
+      simples: frase.simples,
+      quem: nomeCurto(agent.name, ag?.apelido),
+      categoria: frase.categoria,
+      ...(frase.contaComo ? { contaComo: frase.contaComo } : {}),
     };
     this.feed.push(item);
     if (this.feed.length > FEED_LIMIT) this.feed.splice(0, this.feed.length - FEED_LIMIT);
     this.emit({ type: "feed", item });
   }
 
+  /** Preenche activitySimples (balão, crachá e lista do time) a partir da atividade técnica atual. */
+  private comSimples(agent: Agent): Agent {
+    const dada = this.simplesDada.get(agent.id);
+    agent.activitySimples = dada && dada.de === agent.activity ? dada.simples : simplificarAtividade(agent.activity, agent.status);
+    return agent;
+  }
+
   private emit(msg: ServerMessage) {
+    if (msg.type === "agent") this.comSimples(msg.agent);
     for (const fn of this.listeners) fn(msg);
     // status de agente muda a fase (reserva sem lista) e o "de boa"
     if (msg.type === "agent" || msg.type === "remove") this.refreshProgress();
@@ -1208,8 +1256,23 @@ export class OfficeState {
       soltar(this.progressTimer);
     }
     if (sameProgress(progress, this.progress)) return;
+    const antes = this.progress;
     this.progress = progress;
+    this.contarEtapa(antes, progress);
     for (const fn of this.listeners) fn({ type: "progress", progress });
+  }
+
+  /** Etapa concluída na lista do líder vira linha de destaque no feed (e a lista inteira, "trabalho concluído"). */
+  private contarEtapa(antes: Progress, agora: Progress) {
+    if (antes.fonte !== "tarefas" || agora.fonte !== "tarefas" || !agora.sessionId || antes.sessionId !== agora.sessionId) return;
+    if (agora.concluidas <= antes.concluidas || agora.total === 0) return;
+    const lead = this.agents.get(this.leaderId(agora.sessionId));
+    if (!lead) return;
+    if (agora.concluidas === agora.total) {
+      this.pushFeed(lead, `concluiu as ${agora.total} etapas da lista`, "done", { tipo: "tudoConcluido", total: agora.total });
+    } else {
+      this.pushFeed(lead, `concluiu a etapa ${agora.concluidas} de ${agora.total}`, "done", { tipo: "etapa", etapa: agora.concluidas, total: agora.total });
+    }
   }
 }
 

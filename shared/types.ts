@@ -28,6 +28,8 @@ export interface Agent {
   status: AgentStatus;
   /** o que está fazendo agora, em português ("Editando App.tsx") */
   activity: string;
+  /** a mesma atividade sem jargão ("Fazendo mudanças no sistema"); estado salvo antigo não tem */
+  activitySimples?: string;
   /** pasta do projeto onde a sessão está rodando */
   project: string;
   startedAt: number;
@@ -45,14 +47,46 @@ export interface OfficeConfig {
   sessionTimeoutMs: number;
 }
 
+/**
+ * Assunto da linha do feed (server/frases.ts). Linhas seguidas do mesmo AGzinho e do mesmo assunto
+ * se juntam no front; "precisa", "etapa", "concluido" e "terminou" ganham destaque.
+ */
+export type FeedCategoria =
+  | "estudo"
+  | "busca"
+  | "mudanca"
+  | "teste"
+  | "comando"
+  | "internet"
+  | "tarefas"
+  | "recado"
+  | "ferramenta"
+  | "chegada"
+  | "pedido"
+  | "precisa"
+  | "erro"
+  | "info"
+  | "terminou"
+  | "etapa"
+  | "concluido"
+  | "saiu";
+
 export interface FeedItem {
   id: number;
   at: number;
   agentId: string;
   agentName: string;
   role: string;
+  /** versão técnica, a de sempre ("Editando state.ts", "Rodando: npm test") */
   text: string;
   kind: "info" | "tool" | "spawn" | "done" | "alert" | "message";
+  /** versão simples, sem jargão e sem o nome ("está fazendo mudanças no sistema"); feed salvo antigo não tem */
+  simples?: string;
+  /** nome curto da versão simples ("Guto", "Marina") */
+  quem?: string;
+  categoria?: FeedCategoria;
+  /** o que contar quando linhas iguais se juntam ("arquivos" → "(12 arquivos)"); sem ele não junta */
+  contaComo?: string;
 }
 
 /**
