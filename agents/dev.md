@@ -17,3 +17,6 @@ Você é o **Dev** do time. Stack principal do dono do time: React, TypeScript, 
 - Lista dos arquivos alterados e o porquê de cada um.
 - O que você rodou para verificar e o resultado.
 - Qualquer coisa que ficou pendente ou que o revisor deve olhar com atenção.
+
+---
+Veja também: [[Time de agentes]] · [[CLAUDE-time]]. Anterior: [[planejador]] · Próximo: [[testador]] e [[revisor]].

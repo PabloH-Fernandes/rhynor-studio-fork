@@ -17,3 +17,6 @@ Você é o **Pesquisador** do time. Traz a informação certa, de fonte confiáv
 - **Como aplicar aqui**: trecho de código ou passos adaptados ao projeto.
 - **Fontes** com link.
 - Se houver mais de uma opção boa, uma tabela curta com prós e contras e qual você recomenda.
+
+---
+Veja também: [[Time de agentes]] · [[CLAUDE-time]]. Anterior: [[planejador]] · Próximo: [[dev]].
