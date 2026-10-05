@@ -25,11 +25,14 @@
   --photo-bg: #e6edf6;
   --clip-metal: #c4cdd9;
   --clip-metal-edge: #6f7f96;
-  --idle-gray: #9aa3b2; /* bolinha "de boa" */
   --cordao-visitante: #a3a8b5;
   --pixel: "Press Start 2P", monospace;
   --term: "VT323", monospace;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --sombra-dura: #000814; /* sombra de jogo: dura, sem blur */
+  /* texto corrido do painel em pixel legível: a VT323 a 20px equivale a ~14px de sans */
+  --fs-texto: 20px;
+  --fs-menor: 18px;
   color-scheme: dark;
 }
 
@@ -126,9 +129,6 @@ html.vest-aberto body {
   padding: 20px 22px;
   text-align: center;
   background: rgba(5, 23, 51, 0.96); /* navy900 (--bg-2) a 96% */
-  border: 1px solid var(--navy-500);
-  border-radius: 4px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 .empty p {
@@ -164,6 +164,54 @@ code {
   background: var(--bg-2);
   border-left: 1px solid var(--line);
   overflow-y: auto;
+  /* texto corrido em pixel legível; pixel art não tem negrito: nada de negrito "falso" borrado */
+  font-family: var(--term);
+  font-size: var(--fs-texto);
+  line-height: 1.15;
+  font-synthesis: none;
+}
+
+/*
+ * Moldura de caixa de diálogo de jogo, feita só com sombras sem blur: borda em degraus (o canto
+ * fica "mordido"), relevo interno opcional e uma sombra dura embaixo. Cada peça ajusta --b
+ * (espessura), --mc (cor da moldura), --bisel/--luz/--fundo (relevo) e --sy (altura da sombra).
+ * Sombra não ocupa espaço: em volta de cada peça precisa sobrar --b + --sy (os gaps já dão).
+ */
+.empty,
+.progresso,
+.alert,
+.btn,
+.btn-tecnico,
+.agent-row,
+.cracha-cartao,
+.cracha-foto,
+.feed,
+.vest,
+.vest-x {
+  --b: 3px;
+  --mc: var(--white);
+  --bisel: 0px;
+  --luz: transparent;
+  --fundo: transparent;
+  --sy: 4px;
+  border: 0;
+  border-radius: 0;
+  box-shadow:
+    inset 0 var(--bisel) var(--luz),
+    inset 0 calc(-1 * var(--bisel)) var(--fundo),
+    0 calc(-1 * var(--b)) var(--mc),
+    0 var(--b) var(--mc),
+    calc(-1 * var(--b)) 0 var(--mc),
+    var(--b) 0 var(--mc),
+    0 calc(var(--b) + var(--sy)) var(--sombra-dura);
+}
+
+/* o anel de foco passa por fora da moldura */
+.btn:focus-visible,
+.btn-tecnico:focus-visible,
+.agent-row:focus-visible,
+.vest-x:focus-visible {
+  outline-offset: calc(var(--b) + 2px);
 }
 
 /* o indicador online/offline fica fora do fluxo, no canto: o subtítulo usa a largura toda */
@@ -180,14 +228,14 @@ code {
 
 .brand-mark {
   flex-shrink: 0;
-  border-radius: 4px;
-  box-shadow: 0 0 0 1px var(--white);
+  box-shadow: 0 0 0 2px var(--white);
 }
 
 h1 {
   margin: 0 0 6px;
-  padding-right: 84px; /* espaço do .conn, só na linha do título */
+  padding-right: 88px; /* espaço do .conn, só na linha do título */
   font-family: var(--pixel);
+  font-weight: 400;
   font-size: 11px;
   line-height: 1.6;
   color: var(--text);
@@ -196,26 +244,25 @@ h1 {
 .sub {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-menor);
 }
 
 h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 10px;
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 13px;
+  margin: 0 0 12px;
+  font-family: var(--pixel);
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 1.6;
   color: var(--navy-100);
 }
 
 .count {
   padding: 1px 7px;
-  border-radius: 3px;
   background: var(--bg-3);
   color: var(--text);
-  font-size: 12px;
 }
 
 .muted {
@@ -229,10 +276,10 @@ h2 {
   white-space: nowrap;
   align-items: center;
   gap: 8px;
+  min-height: 28px;
   margin: -4px -6px;
   padding: 4px 6px;
   border: 0;
-  border-radius: 3px;
   background: none;
   color: inherit;
   font: inherit;
@@ -249,14 +296,32 @@ h2 {
   color: var(--muted);
 }
 
-/* setinha: aponta pra direita fechada, pra baixo aberta */
+/* setinha em pixel (3 colunas de 2px): aponta pra direita fechada, pra baixo aberta */
 .secao-seta {
-  width: 0;
-  height: 0;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 6px solid currentColor;
-  transition: transform 0.15s;
+  position: relative;
+  flex-shrink: 0;
+  width: 6px;
+  height: 10px;
+  transition: transform 0.15s steps(2);
+}
+
+.secao-seta::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 2px;
+  background: currentColor;
+  box-shadow:
+    0 2px,
+    0 4px,
+    0 6px,
+    0 8px,
+    2px 2px,
+    2px 4px,
+    2px 6px,
+    4px 4px;
 }
 
 .secao-toggle[aria-expanded="true"] .secao-seta {
@@ -277,24 +342,26 @@ h2 {
 }
 
 .btn-tecnico {
+  --b: 2px;
+  --mc: var(--line);
+  --sy: 0px;
   white-space: nowrap;
+  min-height: 28px;
   padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-menor);
   cursor: pointer;
 }
 
 .btn-tecnico:hover {
-  border-color: var(--navy-500);
+  --mc: var(--navy-500);
   color: var(--text);
 }
 
 .btn-tecnico.ligado {
-  border-color: var(--navy-100);
+  --mc: var(--navy-100);
   background: var(--bg-3);
   color: var(--text);
 }
@@ -307,25 +374,21 @@ h2 {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  padding: 3px 9px;
-  border-radius: 99px;
+  padding: 2px 8px 3px;
   background: var(--bg-3);
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 12px;
+  font-size: var(--fs-menor);
+  line-height: 1;
   color: var(--muted);
 }
 
 .conn i {
   width: 8px;
   height: 8px;
-  border-radius: 2px;
   background: var(--muted);
 }
 
 .conn-online i {
   background: var(--green);
-  box-shadow: 0 0 8px var(--green);
 }
 
 .conn-offline i {
@@ -335,13 +398,12 @@ h2 {
 /* quadro de etapas: o quadro branco da parede do escritório, com moldura de alumínio */
 .progresso {
   --board-frame: #8a96a8; /* gray400, a moldura do quadro no canvas */
+  --mc: var(--board-frame);
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
   padding: 10px 12px 12px;
-  border: 2px solid var(--board-frame);
-  border-radius: 3px;
   background: var(--white);
   color: var(--badge-ink);
 }
@@ -349,8 +411,8 @@ h2 {
 .progresso-titulo {
   margin: 0;
   min-width: 0;
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: var(--fs-menor);
+  line-height: 1.1;
   overflow-wrap: anywhere;
 }
 
@@ -410,7 +472,7 @@ h2 {
 
 .progresso-nota {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-menor);
   color: var(--badge-ink-soft);
 }
 
@@ -421,8 +483,7 @@ h2 {
   gap: 2px;
   padding: 10px 12px 10px 40px;
   position: relative;
-  border: 2px solid var(--waiting);
-  border-radius: 4px;
+  --mc: var(--waiting);
   background: var(--bg-3);
   animation: pulse 1.6s ease-in-out infinite;
 }
@@ -436,7 +497,6 @@ h2 {
   height: 20px;
   display: grid;
   place-items: center;
-  border-radius: 2px;
   background: var(--waiting);
   color: var(--bg-2);
   font-family: var(--pixel);
@@ -444,12 +504,15 @@ h2 {
 }
 
 .alert strong {
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1;
   color: var(--text);
 }
 
 .alert span {
   color: var(--navy-100);
-  font-size: 13px;
+  font-size: var(--fs-menor);
 }
 
 @keyframes pulse {
@@ -471,64 +534,88 @@ h2 {
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 14px 12px;
 }
 
-/* secundário (padrão): navy600 com texto branco */
+/*
+ * Botão de jogo: moldura escura de 2px, relevo (luz em cima, sombra embaixo) e sombra dura onde o
+ * botão "afunda" ao ser clicado. Secundário (padrão): navy600 com texto branco.
+ */
 .btn {
+  --b: 2px;
+  --mc: var(--sombra-dura);
+  --bisel: 3px;
+  --luz: var(--navy-500);
+  --fundo: var(--line);
+  --sy: 3px;
   flex: 1;
-  padding: 9px 12px;
-  border: 1px solid var(--navy-600);
-  border-radius: 4px;
+  min-height: 36px;
+  padding: 5px 12px 6px;
   background: var(--navy-600);
   color: var(--white);
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 1.4;
+  font-family: var(--term);
+  font-weight: 400;
+  font-size: var(--fs-texto);
+  line-height: 1;
   cursor: pointer;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3);
-  transition: transform 0.08s, background-color 0.15s, border-color 0.15s;
+  transition: transform 0.05s steps(1), background-color 0.1s;
 }
 
 .btn:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--navy-600-hover);
-  border-color: var(--navy-600-hover);
 }
 
 .btn:active:not(:disabled, [aria-disabled="true"]) {
-  transform: translateY(1px);
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  --sy: 0px;
+  transform: translateY(3px);
 }
 
 .btn:disabled,
 .btn[aria-disabled="true"] {
+  --sy: 0px;
+  --luz: transparent;
+  --fundo: transparent;
   opacity: 0.5;
   cursor: default;
 }
 
 .btn.primary {
+  --luz: var(--white);
+  --fundo: #a9bcd8; /* navy100 escurecido: o pé do botão branco */
   background: var(--white);
-  border-color: var(--white);
   color: var(--bg-2);
 }
 
 .btn.primary:hover:not(:disabled, [aria-disabled="true"]) {
+  --luz: var(--navy-100);
   background: var(--navy-100);
-  border-color: var(--navy-100);
 }
 
+/* discreto: só a moldura, sem relevo */
 .btn.ghost {
+  --mc: var(--navy-500);
+  --luz: transparent;
+  --fundo: transparent;
   flex: 0 0 auto;
-  background: transparent;
-  border-color: var(--navy-500);
+  background: var(--bg-2);
   color: var(--navy-100);
-  box-shadow: none;
 }
 
 .btn.ghost:hover:not(:disabled, [aria-disabled="true"]) {
+  --mc: var(--navy-100);
   background: var(--bg-3);
-  border-color: var(--navy-100);
+}
+
+/* sem afundar: o botão só perde a sombra (depois das regras do .btn pra vencer na cascata;
+   vale pra todo .btn, inclusive os do vestiário) */
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+
+  .btn:active:not(:disabled, [aria-disabled="true"]) {
+    transform: none;
+  }
 }
 
 /* ---------------------------------------------------------------- time */
@@ -536,7 +623,7 @@ h2 {
 .team {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -549,21 +636,23 @@ h2 {
   gap: 8px;
   width: 100%;
   padding: 5px 8px 5px 5px;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  --b: 2px;
+  --mc: var(--line);
+  --sy: 2px;
   background: var(--bg-3);
   color: inherit;
   font: inherit;
+  line-height: 1.05;
   text-align: left;
   cursor: pointer;
 }
 
 .agent-row:hover {
-  border-color: var(--navy-500);
+  --mc: var(--navy-500);
 }
 
 .agent-row.selected {
-  border-color: var(--white);
+  --mc: var(--white);
 }
 
 .agent-row.st-saindo {
@@ -577,7 +666,6 @@ h2 {
   height: 30px;
   overflow: hidden;
   border-bottom: 3px solid;
-  border-radius: 3px;
   background: var(--photo-bg);
 }
 
@@ -587,14 +675,34 @@ h2 {
   image-rendering: pixelated;
 }
 
+/* nome e selo na 1ª linha; a função desce e usa a largura toda (não corta "Desenvolvedora") */
 .agent-main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+  display: contents;
+}
+
+.agent-foto {
+  grid-row: 1 / 3;
 }
 
 .agent-name {
-  font-weight: 600;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.agent-cargo {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  min-width: 0;
+}
+
+.agent-row .pill {
+  grid-column: 3;
+  grid-row: 1;
+  flex-shrink: 0;
+}
+
+.agent-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -607,21 +715,19 @@ h2 {
 
 .agent-cargo {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 17px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .pill {
-  padding: 2px 6px;
+  padding: 2px 6px 3px 5px;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  border-radius: 3px;
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 11px;
+  gap: 5px;
+  font-size: 17px;
+  line-height: 1;
   white-space: nowrap;
   background: var(--bg-2);
   color: var(--muted);
@@ -729,9 +835,9 @@ h2 {
   bottom: -4px;
   width: 18px;
   height: 18px;
-  border: 1px solid var(--clip-metal-edge);
-  border-radius: 3px 3px 2px 2px;
-  background: linear-gradient(var(--white), var(--clip-metal) 55%);
+  border: 2px solid var(--clip-metal-edge);
+  /* metal em duas faixas, sem degradê suave */
+  background: linear-gradient(var(--white) 0 6px, var(--clip-metal) 6px);
 }
 
 /* argola da presilha entrando no furo */
@@ -744,17 +850,15 @@ h2 {
   height: 7px;
   border: 2px solid var(--clip-metal-edge);
   border-top: 0;
-  border-radius: 0 0 3px 3px;
 }
 
+/* ficha de personagem: cartão branco com moldura em degraus na cor do cordão */
 .cracha-cartao {
+  --mc: var(--cordao);
+  --sy: 6px;
   overflow: hidden;
-  border-radius: 8px;
   background: var(--white);
   color: var(--badge-ink);
-  box-shadow:
-    0 0 0 1px var(--line),
-    0 14px 30px rgba(0, 0, 0, 0.45);
 }
 
 /* furo do cordão: o marinho do painel aparecendo através do cartão */
@@ -762,7 +866,6 @@ h2 {
   width: 34px;
   height: 6px;
   margin: 6px auto 5px;
-  border-radius: 3px;
   background: var(--bg-2);
 }
 
@@ -798,14 +901,12 @@ h2 {
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  border: 2px solid transparent;
   background: transparent;
   color: var(--white);
   font: 400 22px/1 var(--sans);
   cursor: pointer;
   touch-action: manipulation;
-  transition: background-color 0.15s, border-color 0.15s;
 }
 
 /* × sobre a faixa marinho: o anel fica dentro do botão */
@@ -826,11 +927,14 @@ h2 {
   text-align: center;
 }
 
-/* foto 3x4: fundo claro de estúdio, moldura fina, busto encostado embaixo */
+/* foto 3x4: o "slot" do retrato, fundo claro de estúdio, moldura marinho, busto encostado embaixo */
 .cracha-foto {
-  padding: 10px 10px 0;
-  border: 1px solid var(--navy-500);
-  border-radius: 2px;
+  --mc: var(--bg-2);
+  --sy: 0px;
+  --bisel: 3px;
+  --luz: var(--white);
+  margin-top: 3px;
+  padding: 10px 12px 0;
   background: var(--photo-bg);
   line-height: 0;
 }
@@ -842,12 +946,12 @@ h2 {
 
 .cracha .cracha-nome {
   display: block;
-  margin: 14px 0 2px;
+  margin: 16px 0 6px;
   max-width: 100%;
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 18px;
-  line-height: 1.25;
+  font-family: var(--pixel);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--badge-ink);
   text-wrap: balance;
   overflow-wrap: anywhere;
@@ -855,15 +959,13 @@ h2 {
 
 .cracha-cargo {
   margin: 0;
-  font-size: 13px;
   color: var(--badge-ink-soft);
 }
 
 .cracha-matricula {
   margin: 10px 0 0;
   padding: 0 8px;
-  border: 1px solid var(--badge-ink);
-  border-radius: 2px;
+  border: 2px solid var(--badge-ink);
   font-family: var(--term);
   font-size: 20px;
   line-height: 1.2;
@@ -876,8 +978,7 @@ h2 {
 .cracha-selo {
   margin: 10px 0 0;
   padding: 5px 10px 4px;
-  border: 1px solid var(--badge-ink);
-  border-radius: 2px;
+  border: 2px solid var(--badge-ink);
   background: var(--cordao-visitante);
   color: var(--badge-ink);
   font-family: var(--pixel);
@@ -899,7 +1000,7 @@ h2 {
   width: 100%;
   margin: 16px 0 0;
   padding-top: 14px;
-  border-top: 1px dashed var(--badge-rule);
+  border-top: 2px dashed var(--badge-rule);
   text-align: left;
 }
 
@@ -925,52 +1026,84 @@ h2 {
   margin-bottom: 2px;
 }
 
-.cracha-status dd {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.cracha-dot {
-  flex-shrink: 0;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--idle-gray);
-  /* anel marinho: a bolinha branca (chegando/saindo) aparece no cartão branco */
-  box-shadow: 0 0 0 1.5px var(--badge-ink);
-}
-
-.dot-trabalhando {
-  background: var(--green);
-}
-
-.dot-pensando {
-  background: var(--blue);
-}
-
-.dot-esperando {
-  background: var(--waiting);
-}
-
-.dot-chegando,
-.dot-saindo {
-  background: var(--white);
-}
-
-.cracha-agora dd {
-  font-weight: 500;
+/* no cartão branco o selo do status fica sobre marinho, igual ao da lista do time */
+.cracha .pill {
+  background: var(--bg-2);
 }
 
 .cracha-stat,
 .cracha-projeto {
-  font-size: 13px;
+  font-size: var(--fs-menor);
 }
 
 .cracha-stat dd {
-  font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+/* barrinha de XP: bandeja marinho, segmentos de pixel na cor do cordão (10 por nível) */
+.cracha-xp {
+  width: 100%;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 2px dashed var(--badge-rule);
+  text-align: left;
+}
+
+.cracha-xp-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+  font: inherit;
+}
+
+.cracha-xp-titulo {
+  color: var(--badge-ink-soft);
+}
+
+.cracha-xp-nivel,
+.cracha-xp-num {
+  flex-shrink: 0;
+  font-family: var(--pixel);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--badge-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.cracha-xp-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cracha-xp-barra {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  padding: 2px;
+  background: var(--badge-ink);
+}
+
+.cracha-xp-barra i {
+  height: 12px;
+  background: var(--navy-600);
+}
+
+.cracha-xp-barra i.cheio {
+  background: var(--cordao);
+  box-shadow:
+    inset 0 3px rgba(255, 255, 255, 0.4),
+    inset 0 -3px rgba(0, 0, 0, 0.25);
+}
+
+.cracha-xp-legenda {
+  margin: 6px 0 0;
+  font-size: var(--fs-menor);
+  color: var(--badge-ink-soft);
 }
 
 /* "O que eu faço": a função em linguagem simples, abaixo dos dados do dia */
@@ -978,24 +1111,21 @@ h2 {
   width: 100%;
   margin: 14px 0 0;
   padding-top: 12px;
-  border-top: 1px dashed var(--badge-rule);
+  border-top: 2px dashed var(--badge-rule);
   text-align: left;
-  font-size: 13px;
 }
 
 .cracha-funcao-titulo {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--badge-ink-soft);
+  margin: 0 0 8px;
+  font-family: var(--pixel);
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--badge-ink);
 }
 
 .cracha-funcao-frase {
   margin: 0;
-  font-weight: 500;
-  line-height: 1.4;
 }
 
 .cracha-funcao-sub {
@@ -1006,7 +1136,7 @@ h2 {
 .cracha-funcao-lista {
   margin: 0;
   padding-left: 18px;
-  line-height: 1.4;
+  list-style: square;
 }
 
 .cracha-funcao-lista li::marker {
@@ -1036,11 +1166,10 @@ h2 {
 .feed {
   flex: 1;
   margin: 0;
+  margin: 3px;
   padding: 10px 12px;
   list-style: none;
-  border-radius: 4px;
   background: var(--bg);
-  border: 1px solid var(--line);
   font-family: var(--term);
   font-size: 17px;
   line-height: 1.15;
@@ -1086,26 +1215,23 @@ h2 {
 .feed-simples {
   grid-template-columns: auto 20px 1fr;
   align-items: baseline;
-  font-family: var(--sans);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 19px;
+  line-height: 1.15;
 }
 
 .feed-simples time {
-  font-size: 12px;
+  font-size: 17px;
 }
 
 .feed-simples .icon {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 /* destaques: faixa na esquerda + fundo + negrito + ícone próprio (nunca só a cor) */
 .feed-simples.dest {
   margin: 3px -6px;
   padding: 6px 6px 6px 4px;
-  border-left: 3px solid;
-  border-radius: 2px;
-  font-weight: 600;
+  border-left: 4px solid;
   color: var(--white);
 }
 
@@ -1134,21 +1260,24 @@ h2 {
 
 /* ---------------------------------------------------------------- vestiário */
 
-/* o botão do painel ocupa a linha de baixo inteira */
-.actions .btn-vestiario {
+/* "Rodar simulação" ocupa a primeira linha inteira (o texto em pixel não cabe ao lado de "Limpar");
+   embaixo, "Limpar" e "Vestiário" dividem a linha */
+.actions > .btn:first-child {
   flex: 1 1 100%;
+}
+
+.actions .btn-vestiario {
+  flex: 1 1 auto;
 }
 
 .vest {
   width: min(1120px, calc(100vw - 32px));
   max-width: none;
   max-height: calc(100dvh - 32px);
+  --sy: 8px;
   padding: 0;
-  border: 1px solid var(--navy-500);
-  border-radius: 6px;
   background: var(--bg-2);
   color: var(--text);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
   overflow: hidden;
 }
 
@@ -1193,9 +1322,11 @@ h2 {
   flex-shrink: 0;
   width: 36px;
   height: 36px;
+  --b: 2px;
+  --mc: var(--line);
+  --sy: 0px;
+  margin: 2px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: 4px;
   background: transparent;
   color: var(--white);
   font: 400 24px/1 var(--sans);
@@ -1204,8 +1335,8 @@ h2 {
 }
 
 .vest-x:hover {
+  --mc: var(--navy-500);
   background: var(--navy-600);
-  border-color: var(--navy-500);
 }
 
 .vest-corpo {
@@ -1214,6 +1345,8 @@ h2 {
   min-height: 96px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* o anel de foco (2px + folga) não fica cortado na borda ao rolar até um campo */
+  scroll-padding-block: 12px;
 }
 
 /* ---- elenco à esquerda */
@@ -1585,7 +1718,7 @@ h2 {
 .vest-linha-botoes {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
 
 .vest-linha-botoes .btn {
@@ -1672,7 +1805,7 @@ h2 {
 }
 
 .provador .provador-pausa {
-  font-size: 12px;
+  font-size: var(--fs-menor);
 }
 
 /* ---- rodapé */
@@ -1749,7 +1882,7 @@ h2 {
 .vest-acoes-esq,
 .vest-acoes-dir {
   display: flex;
-  gap: 8px;
+  gap: 12px;
 }
 
 .vest-acoes .btn {
@@ -1767,6 +1900,13 @@ h2 {
   color: var(--muted);
   font-size: 13px;
   text-align: right;
+}
+
+/* pixel: nada de canto arredondado no vestiário (o duplo .vest vence as regras de uma classe) */
+.vest.vest *,
+.vest.vest *::before,
+.vest.vest *::after {
+  border-radius: 0;
 }
 
 @media (max-height: 560px) {

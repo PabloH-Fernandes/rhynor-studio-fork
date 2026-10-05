@@ -1,14 +1,17 @@
 // Crachá AG do agente selecionado (no lugar do antigo "Detalhes"): cordão na cor do papel,
 // faixa marinho com o símbolo AG Pocket, retrato pixel art e o que ele está fazendo agora.
+// Montado como ficha de personagem de jogo: retrato grande, nível e barrinha de "XP" das entregas do dia.
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Agent, Roster } from "../../../shared/types";
 import { oQueFacoPadrao } from "../../../shared/roster";
 import { agzinhoOf, lookFor } from "../office/engine";
 import { PORTRAIT_H, PORTRAIT_W, drawPortrait } from "../office/sprites";
+import { XP_POR_NIVEL, legendaXp, xpDasEntregas } from "../xp";
+import { IconeStatus } from "./IconePixel";
 
-/** cada pixel da arte vira ~5x5 pixels CSS na foto 3x4 */
-const FOTO_ESCALA = 5;
+/** cada pixel da arte vira ~6x6 pixels CSS na foto 3x4 (retrato grande da ficha) */
+const FOTO_ESCALA = 6;
 /** "Agora" do descanso vem do engine (não do servidor): confere a cada ~1 s */
 const REST_POLL_MS = 1000;
 /** "No escritório há" muda de minuto em minuto: 30 s basta */
@@ -149,21 +152,20 @@ export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPerso
               <p className="cracha-selo">Visitante</p>
             )}
 
+            <Xp entregas={agent.tasksDone} id={`${titleId}-xp`} />
+
             <dl className="cracha-dados">
               <div className="cracha-status">
                 <dt className="sr-only">Status</dt>
                 <dd aria-live="polite">
-                  <i className={`cracha-dot dot-${agent.status}`} aria-hidden="true" />
-                  {statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}
+                  <span className={`pill pill-${agent.status}`}>
+                    <IconeStatus status={agent.status} /> {statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}
+                  </span>
                 </dd>
               </div>
               <div className="cracha-agora">
                 <dt>Agora:</dt>
                 <dd>{agora}</dd>
-              </div>
-              <div className="cracha-stat">
-                <dt>Entregas hoje:</dt>
-                <dd>{agent.tasksDone}</dd>
               </div>
               <div className="cracha-stat">
                 <dt>No escritório há:</dt>
@@ -207,6 +209,42 @@ export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPerso
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+/** barrinha de "XP": as entregas do dia em segmentos de pixel, 10 por nível */
+function Xp({ entregas, id }: { entregas: number; id: string }) {
+  const xp = xpDasEntregas(entregas);
+  const legenda = legendaXp(xp);
+  return (
+    <section className="cracha-xp" aria-labelledby={id}>
+      <h3 className="cracha-xp-topo">
+        <span id={id} className="cracha-xp-titulo">
+          Entregas do dia
+        </span>
+        {/* nível só depois da 10ª entrega: antes disso a barra é o caminho pro Nível 1 */}
+        {xp.nivel > 0 && <span className="cracha-xp-nivel">Nível {xp.nivel}</span>}
+      </h3>
+      <div className="cracha-xp-linha">
+        <div
+          className="cracha-xp-barra"
+          role="progressbar"
+          aria-labelledby={id}
+          aria-valuemin={0}
+          aria-valuemax={XP_POR_NIVEL}
+          aria-valuenow={xp.noNivel}
+          aria-valuetext={`${xp.noNivel} de ${XP_POR_NIVEL} entregas pro Nível ${xp.nivel + 1}`}
+        >
+          {Array.from({ length: XP_POR_NIVEL }, (_, i) => (
+            <i key={i} className={i < xp.noNivel ? "cheio" : undefined} />
+          ))}
+        </div>
+        <span className="cracha-xp-num" aria-hidden="true">
+          {xp.noNivel}/{XP_POR_NIVEL}
+        </span>
+      </div>
+      <p className="cracha-xp-legenda">{legenda}</p>
     </section>
   );
 }

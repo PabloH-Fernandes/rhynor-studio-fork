@@ -2,15 +2,14 @@
 // ("AGzinhos na Etapa 4 de 7 · Construção de novas funções" e a barra de 10 segmentos).
 
 import type { Progress } from "../../../shared/types";
-import { SEGMENTOS, segmentosCheios, textoDoProgresso } from "../progresso";
+import { IconeStatus } from "./IconePixel";
+import { SEGMENTOS, segmentosCheios, separarContagem, textoDoProgresso } from "../progresso";
 
 export function Progresso({ progress }: { progress: Progress | null }) {
   const t = textoDoProgresso(progress ?? { fonte: "nada", etapa: 0, total: 0, concluidas: 0, titulo: "" });
   const cheios = segmentosCheios(t.valor, t.max);
   // "N de N" (e o ✓) não quebra no meio: em painel estreito desce inteiro pra linha de baixo
-  const num = /^(.*?)(d+ de d+)$/.exec(t.titulo);
-  const frase = num ? num[1] : t.titulo;
-  const contagem = num ? num[2] : "";
+  const { frase, contagem } = separarContagem(t.titulo);
   const valorTexto = t.estado === "concluido" ? `${t.max} de ${t.max} etapas concluídas` : `Etapa ${t.valor} de ${t.max}${t.detalhe ? `: ${t.detalhe}` : ""}`;
 
   return (
@@ -25,7 +24,12 @@ export function Progresso({ progress }: { progress: Progress | null }) {
               {t.estado === "concluido" && <span aria-hidden="true"> ✓</span>}
             </span>
           )}
-          {t.estado === "nada" && <span aria-hidden="true"> ☕</span>}
+          {t.estado === "nada" && (
+            <>
+              {" "}
+              <IconeStatus status="ocioso" />
+            </>
+          )}
         </span>
         {/* o detalhe vai na linha de baixo; o " · " fica só pro leitor de tela, como uma frase */}
         {t.detalhe && (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Agent, AgentStatus, FeedItem, Roster } from "../../shared/types";
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
 import { Cracha } from "./components/Cracha";
+import { IconeStatus } from "./components/IconePixel";
 import { MiniRetrato } from "./components/MiniRetrato";
 import { Progresso } from "./components/Progresso";
 import { Vestiario } from "./components/Vestiario";
@@ -21,16 +22,6 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
   esperando: "te esperando",
   ocioso: "de boa",
   saindo: "saindo",
-};
-
-/** ícone junto do texto: o status não depende só da cor */
-const STATUS_ICON: Record<AgentStatus, string> = {
-  chegando: "🚶",
-  trabalhando: "⚡",
-  pensando: "💭",
-  esperando: "🙋",
-  ocioso: "☕",
-  saindo: "👋",
 };
 
 const KIND_ICON: Record<FeedItem["kind"], string> = {
@@ -263,7 +254,8 @@ function AgentRow({ agent, roster, selected, onClick }: { agent: Agent; roster: 
           </span>
         </span>
         <span className={`pill pill-${agent.status}`}>
-          <span aria-hidden="true">{STATUS_ICON[agent.status]}</span> {STATUS_LABEL[agent.status]}
+          {/* ícone junto do texto: o status não depende só da cor */}
+          <IconeStatus status={agent.status} /> {STATUS_LABEL[agent.status]}
         </span>
       </button>
     </li>
