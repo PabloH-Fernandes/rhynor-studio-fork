@@ -54,6 +54,8 @@ Copie o conteúdo de `team/CLAUDE-time.md` para o seu `~/.claude/CLAUDE.md`. Ou 
 npm run dev        # servidor + Vite com hot reload em http://localhost:5173
 ```
 
+> **Dica:** se o time estiver editando o próprio AG Pocket, rode o escritório com `npm run build && npm start` em vez de `npm run dev`. O `tsx watch` reinicia o servidor a cada mudança em `server/` ou `shared/`. Com a persistência ninguém some, mas o último ~1 s antes do reinício pode se perder.
+
 ### Desligando
 ```bash
 npm run uninstall-hooks
@@ -82,14 +84,17 @@ Cada agente do Claude Code vira um AGzinho do **elenco fixo**. O elenco padrão 
 | Sofia Arruda | SOFIA | Consultora (convidada) | polo marinho + crachá de visitante | caneca |
 
 Como a escalação funciona:
-- **O mesmo papel volta como a mesma pessoa.** Toda vez que o `dev` aparece, é a Bia; o `revisor` é sempre a Lúcia, em qualquer sessão.
+- **O mesmo papel volta como a mesma pessoa.** Toda vez que o `dev` aparece, é a Bia; o `revisor` é sempre a Lúcia, em qualquer sessão. O mesmo agente chamado de novo volta **à mesma mesa**.
+- **Cada evento mexe só no AGzinho do próprio `agent_id`.** Um subagente nunca "puxa" o estado de outro.
 - **Trabalho em paralelo ganha variação.** Se dois devs (ou dois pesquisadores) trabalham ao mesmo tempo, o segundo é a Yasmin (Dev 2) e o Tomás (Pesquisa 2), com visual próprio, em vez de um clone.
 - **Convidados por tipo de agente.** Agentes de fora do time entram como visitantes: `Explore` é a Iara, `general-purpose` é o Jorge e qualquer outro tipo (como `Plan`) é a Sofia.
 - **Visitantes extras saem ao entregar.** Se chegam mais convidados do que mesas de visita, os extras ficam só enquanto trabalham e vão embora ao entregar.
 
 ## Ciclo de vida
 
-- **Os AGzinhos ficam até o `SessionEnd`.** Terminar a tarefa não manda ninguém embora: o time fica no escritório, de boa, até a sessão acabar.
+- **Os AGzinhos ficam até o `SessionEnd`.** Terminar a tarefa (`Stop`) não manda ninguém embora: o time fica no escritório, de boa, até a sessão acabar.
+- **Reiniciar não manda ninguém embora.** O estado do escritório fica em `data/escritorio.json` (fora do git), salvo ~1 s depois de cada mudança e ao desligar o servidor. Mude o caminho com `AGPOCKET_ESTADO`. O arquivo guarda as atividades **com caminhos de arquivos**, e se o projeto estiver numa pasta sincronizada (OneDrive, por exemplo) ele sobe junto: atenção.
+- **`/compact` e `/resume` mantêm o time.** O `/clear` **transfere** o time para a conversa nova (mesmo projeto, em até 30 s).
 - **Sessão sem sinal expira.** Se o Claude Code fechar sem mandar o `SessionEnd` (terminal fechado na marra, queda de energia), a sessão sai sozinha depois de `AG_SESSION_TIMEOUT_MIN` minutos sem nenhum evento (padrão: **30**). Quem está **esperando você** (o **!**) nunca expira, e quem tem ferramenta em andamento espera 4x mais.
 
   ```powershell
@@ -102,7 +107,7 @@ Como a escalação funciona:
   ```
   Valor vazio usa o padrão; valor inválido (zero, negativo, texto) avisa no console e também usa o padrão.
 - **Sessão real vence a simulação.** O Guto da simulação não disputa com o Guto de uma sessão real: se uma sessão de verdade está rodando, ela fica com o papel de líder.
-- **"Limpar" cancela a simulação** em andamento (os timers dela são desligados) e esvazia o escritório.
+- **"Limpar" cancela a simulação** em andamento (os timers dela são desligados), esvazia o escritório e apaga também o `data/escritorio.json`.
 
 ## Vida no escritório
 
@@ -117,12 +122,13 @@ Quem está de boa não fica parado. O agendador (`web/src/office/activities.ts`)
 - **Regar** a planta;
 - **Espreguiçar**.
 
-O **trabalho sempre tem prioridade**: quando chega tarefa, quem está descansando larga o que está fazendo e volta pra mesa. Os balões de fala do papo são discretos e **não se sobrepõem** (o motor segura um intervalo por AGzinho e enfileira os balões, em `web/src/office/bubbles.ts`).
+O **trabalho sempre ganha do descanso**: quando chega tarefa, quem está descansando larga o que está fazendo e volta pra mesa (o descanso só começa depois de uns 20 s sem trabalho). Os balões de fala do papo são discretos e **não se sobrepõem** (o motor segura um intervalo por AGzinho e enfileira os balões, em `web/src/office/bubbles.ts`).
 
 ## Crachá e Vestiário
 
-- **Crachá:** clique num AGzinho no escritório ou na lista "Time" do painel. Abre o crachá AG com nome, cargo, matrícula, personalidade e o estado atual.
-- **Vestiário:** botão **Vestiário** no painel, ou **Personalizar** no crachá. Dá pra mudar **nome, apelido, gênero, tom de pele, cabelo (estilo e cor), roupa, destaque e acessórios**, com a pré-visualização do sprite ao lado.
+- **Mesas com a função:** cada mesa mostra a função de quem a usa (LÍDER, PLANEJAMENTO, PESQUISA, DESENVOLVIMENTO, TESTES, REVISÃO, DOCUMENTAÇÃO, CONVIDADO ou LIVRE). Quando não cabe, abrevia ("DESENVOLV. 2"); a segunda mesa de visita é "CONVIDADO 2". O apelido não aparece na mesa.
+- **Crachá:** clique num AGzinho no escritório ou na lista "Time" do painel. Abre uma ficha de RPG com nome, cargo, matrícula, personalidade, o estado atual, **"O que eu faço"**, **"Sou responsável por"** e a barra de entregas do dia (10 por nível; "Nível N" só aparece a partir da 10ª entrega).
+- **Vestiário:** botão **Vestiário** no painel, ou **Personalizar** no crachá. Dá pra mudar **nome, apelido, gênero, tom de pele, cabelo (estilo e cor), roupa, destaque, acessórios e os textos "O que eu faço" e "Sou responsável por"** (campos `oQueFaco` e `responsabilidades` do elenco), com a pré-visualização do sprite ao lado.
 
 Regras de uniforme (o vestiário só oferece o que é permitido e o servidor confere de novo):
 - **Terno só no líder.** O líder não usa outra roupa.
@@ -183,11 +189,21 @@ npm run replay -- data/eventos/2026-10-05.jsonl                            # lin
 npm run replay -- --anonimizar data/eventos/2026-10-05.jsonl saida.jsonl   # cópia sem dados pessoais
 ```
 
-Atenção: o arquivo guarda prompts, comandos, pastas e caminhos da sua máquina. **Nunca compartilhe o arquivo cru**; para virar fixture de teste (`server/fixtures/sessoes/`), use só a cópia anonimizada.
+Atenção: o arquivo guarda prompts, comandos, pastas e caminhos da sua máquina. **Nunca compartilhe o arquivo cru**; para virar fixture de teste (`server/fixtures/sessoes/`), use só a cópia anonimizada. Os testes de sessões reais usam essas fixtures via `reproduzir()` (`server/replay.ts`).
+
+## Painel lateral (para quem não é de TI)
+
+- **Time** e **O que tá rolando** são seções recolhíveis; o navegador lembra se você as deixou abertas.
+- Cada linha do Time tem mini retrato, apelido, função e o status com ícone em pixel.
+- O feed usa **frases simples, sem jargão** ("Editando App.tsx" vira algo como "mexendo num arquivo"). Repetidos são agrupados, e há destaques: 🙋 precisa de você, 🏁 etapa concluída, 🎉 trabalho concluído, ✅ terminou a parte.
+- O botão **Ver detalhes técnicos** troca as frases simples pelas técnicas (balões, crachá e lista incluídos); **Ver frases simples** volta.
+- Visual de jogo em pixel: molduras em degrau, letras pixeladas e botões que afundam ao clicar.
+
+Para quem vai mexer: as frases ficam todas em `shared/frases.ts` (reexportadas por `server/frases.ts`); as fontes são Press Start 2P (títulos) e VT323 (texto).
 
 ## Simulação
 
-O botão **Rodar simulação** conta uma sessão inteira, de ~2 min 46 s:
+O botão **Rodar simulação** conta uma sessão inteira, passando pelas mesmas situações de uma sessão real (frases simples e destaques no painel, retomada de quem é chamado de novo, Dev 2 em paralelo):
 
 - o líder (Guto) recebe o pedido, monta uma lista de 6 tarefas e chama a Marina e o Caio; o quadro sai de "Planejamento" para "Etapa 1 de 6";
 - os dois entregam, comemoram e **ficam** no escritório, indo descansar;
@@ -280,7 +296,7 @@ O TypeScript reclama se faltar o passo 2 ou o 3.
   dev: polo(ROLE_COLORS.dev, "manga"),
   ```
 - `trim` é `"gola"`, `"manga"` ou `"lenco"`. Papéis sem entrada usam `uniforms.convidado`.
-- `ROLE_COLORS` (exposto como `theme.roleColors`) define a cor do papel: cordão, plaquinha da mesa e painel. `theme.deskLabels` define o texto da plaquinha.
+- `ROLE_COLORS` (exposto como `theme.roleColors`) define a cor do papel: cordão, plaquinha da mesa e painel. `theme.deskLabels` define o texto da plaquinha (a função da mesa).
 - Tons de pele e cabelo: `SKIN_TONES` e `HAIR_COLORS` em `shared/roster.ts` (o `theme.ts` reexporta como `SKINS` e `HAIRS`). Estilos de cabelo: `EstiloCabelo`, desenhados em `web/src/office/sprites.ts`.
 - Se mudar as regras de uniforme (quem pode usar terno, blazer etc.), é em `ROUPAS_PERMITIDAS` e `DESTAQUES_PERMITIDOS`.
 
@@ -300,12 +316,18 @@ Se você abrir várias sessões ao mesmo tempo, cada uma traz o seu líder.
 ## Testes
 
 ```bash
-npm test      # node:test via tsx, 162 testes
+npm test      # node:test via tsx
 npm run typecheck
 ```
 
 Os testes ficam ao lado do código que cobrem:
 - `server/state.test.ts`: ciclo de vida, timeout, sessões e eventos;
+- `server/sessoes.test.ts`, `server/bordas.test.ts`, `server/replay.test.ts`: sessões reproduzidas com `reproduzir()` (retomada, 3 em paralelo, eventos fora de ordem, reinício do servidor), a partir das fixtures anonimizadas em `server/fixtures/sessoes/`;
+- `server/persistencia.test.ts`: `data/escritorio.json`, /compact e /clear;
+- `server/gravador.test.ts`: o gravador de eventos;
+- `server/frases.test.ts`, `server/frases.extra.test.ts`: frases simples sem jargão;
+- `web/src/office/deskLabel.test.ts`: rótulos das mesas;
+- `web/src/xp.test.ts`: barra de entregas do crachá;
 - `server/progress.test.ts`: quadro de etapas (TodoWrite, TaskCreate/TaskUpdate, reserva por papel);
 - `server/roster.test.ts`: persistência do elenco e o `PUT /api/roster`;
 - `shared/roster.test.ts`: validação e regras de uniforme;
@@ -362,7 +384,11 @@ O documentador escreveu este README.
 - **O pareamento Start↔Agent depende da ordem de chegada** dos eventos: se o hook do `SubagentStart` e o do `Agent` chegarem trocados, um subagente pode ser ligado ao pedido errado.
 - **Em telas estreitas (< ~600 px)** o canvas é reduzido por CSS, e o pixel deixa de ser inteiro.
 - **`engine.ts`, `decor.ts`, `map.ts` e `activities.ts` são arquivos grandes** e pedem divisão.
-- **"Limpar" zera também a sessão real**, que volta no evento seguinte do Claude Code.
+- **"Limpar" zera também a sessão real** (e apaga o `data/escritorio.json`); ela volta no evento seguinte do Claude Code.
+- **Líder duplicado num `/clear` com eventos fora de ordem**: o líder antigo pode caminhar até a porta enquanto o novo já está na mesa.
+- **Perda de até ~1 s num desligamento forçado** (kill): o estado é salvo ~1 s após cada mudança, então o que veio depois do último salvamento some.
+- **Simulação não sobrevive a reinício**: os AGzinhos da simulação não são salvos de propósito; se o servidor reiniciar no meio dela, o escritório volta só com a sessão real.
+- **"Foi chamado de novo" repetido**: se o servidor reiniciar entre o líder chamar alguém e o primeiro passo dessa pessoa, a linha pode aparecer duas vezes no feed.
 
 ## Próximos passos (ideias)
 - Ligar o Obsidian como memória: um vault com `CLAUDE.md` que os agentes leem no começo e atualizam no fim.

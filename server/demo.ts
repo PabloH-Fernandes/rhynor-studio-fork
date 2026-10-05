@@ -3,20 +3,25 @@
 // Os timers ficam guardados para o "Limpar" (cancelDemo) parar tudo de verdade.
 //
 // Roteiro (~2 min 46 s), em segundos desde o "Rodar simulação":
-//   0–12    o líder recebe o pedido e chama pesquisador e planejador em paralelo (quadro: Ação → Planejamento)
+//   0–12    o líder recebe o pedido e chama pesquisador e planejador em paralelo (quadro: Ação → Planejamento);
+//           a Marina (planejadora) lê 5 arquivos seguidos, que viram 1 linha no feed ("está estudando o
+//           projeto (5 arquivos)"), e o pesquisador pesquisa na internet um tema curto ("validação de formulários")
 //   13–15   o líder monta a lista de 6 tarefas (quadro: Etapa 1 de 6)
-//   27      planejador e pesquisador entregam juntos: comemoram e FICAM; ~4 s depois vão descansar
+//   27      planejador e pesquisador entregam juntos: comemoram e FICAM; ~20 s depois vão descansar
 //   29–66   dev (Bia) e um 2º dev (Yasmin, dev-2) em paralelo, o testador, envelopes e o "!" de permissão (46 → 52)
+//   46      🙋 o testador pede autorização (PermissionRequest); você libera em 52
 //   69      dev-2, testador e dev entregam no mesmo instante: 5 AGzinhos de boa ao mesmo tempo por ~30 s
 //           (o agendador do front espera IDLE_GRACE de 4 s e só chama pra ping-pong/papo quem já passou
 //           dele: entregar junto é o que dá chance de grupo; com 68/68,5/69 s quase sempre saía tudo solo)
+//   76      a conversa do líder é resumida (SessionStart "compact"): ninguém sai, o time continua
 //   99      o líder retoma o pesquisador (SendMessage pro agent_id dele) no meio do descanso: larga tudo,
 //           volta pra mesma mesa e entrega (2 entregas, mesmo agent_id)
 //   117–145 revisor e depois documentador; o quadro chega a "concluíram 6 de 6"
+//           (no feed: ✅ a cada SubagentStop, 🏁 a cada etapa concluída e 🎉 quando a lista fecha)
 //   151     Stop do líder ("Terminou, esperando você"); ele também descansa um pouco
 //   166     SessionEnd: todo mundo vai até a porta
 
-import type { HookInput, OfficeState } from "./state.ts";
+import type { HookInput, OfficeState, Relogio, Timer } from "./state.ts";
 
 type Input = Omit<HookInput, "session_id" | "cwd">;
 /** [quando, em segundos desde o início; evento] */
@@ -26,31 +31,43 @@ type Who = [agentId: string, agentType: string];
 /** depois do Stop do líder, o time fica de boa no escritório por esse tempo antes do SessionEnd */
 export const DEMO_END_AFTER_STOP_MS = 15_000;
 
-const timers = new Set<NodeJS.Timeout>();
+/** só os timers: o servidor usa os globais; o teste pode usar o RelogioVirtual do replay */
+type Agenda = Pick<Relogio, "setTimeout" | "clearTimeout">;
+
+/** os globais, resolvidos na hora da chamada (os testes trocam o setTimeout pelo mock do node:test) */
+const AGENDA_PADRAO: Agenda = {
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (t) => clearTimeout(t as ReturnType<typeof setTimeout>),
+};
+
+const timers = new Set<Timer>();
+let agenda: Agenda = AGENDA_PADRAO;
 let activeSession: string | null = null;
 
 /** Para a simulação em andamento (nenhum evento dela chega depois). Devolve a sessão dela, se havia. */
 export function cancelDemo(): string | null {
-  for (const t of timers) clearTimeout(t);
+  for (const t of timers) agenda.clearTimeout(t);
   timers.clear();
   const session = activeSession;
   activeSession = null;
+  agenda = AGENDA_PADRAO;
   return session;
 }
 
 function schedule(ms: number, fn: () => void) {
-  const t = setTimeout(() => {
+  const t = agenda.setTimeout(() => {
     timers.delete(t);
     fn();
   }, ms);
   timers.add(t);
 }
 
-export function runDemo(state: OfficeState) {
+export function runDemo(state: OfficeState, relogio: Agenda = AGENDA_PADRAO) {
   cancelDemo();
+  agenda = relogio;
   const session_id = `demo-${Date.now().toString(36)}`;
   activeSession = session_id;
-  const cwd = "/home/pablo/projetos/portal-chamados";
+  const cwd = "/home/usuario/projetos/portal-chamados";
   let tid = 0;
   const tool = (name: string, input: Record<string, any>, agent?: Who): Input => ({
     hook_event_name: "PreToolUse",
@@ -117,9 +134,15 @@ export function runDemo(state: OfficeState) {
     [6.3, start(pesq)],
     [6.9, spawn("planejador", "Quebrar a feature em tarefas")],
     [7.2, start(plan)],
-    [10, tool("WebSearch", { query: "react hook form zod validação" }, pesq)],
+    // a Marina lê 5 arquivos seguidos: no feed vira "Marina está estudando o projeto (5 arquivos)"
+    [8, tool("Read", { file_path: "docs/requisitos.md" }, plan)],
+    [9, tool("Read", { file_path: "src/pages/Chamados.tsx" }, plan)],
+    // tema curto e sem nada técnico: "está pesquisando na internet sobre “validação de formulários”"
+    [10, tool("WebSearch", { query: "validação de formulários" }, pesq)],
+    [10.5, tool("Read", { file_path: "src/api/chamados.ts" }, plan)],
+    [11.3, tool("Read", { file_path: "src/components/Formulario.tsx" }, plan)],
     // o planejador é o último do time a mexer: o quadro (sem lista ainda) mostra "Planejamento"
-    [11.5, tool("Read", { file_path: "docs/requisitos.md" }, plan)],
+    [12, tool("Read", { file_path: "src/types/chamado.ts" }, plan)],
     ...taskCreate(13, "1", "Planejar a tela de chamados", "Planejando a tela de chamados"),
     ...taskCreate(13.4, "2", "Implementar o formulário", "Construindo o formulário"),
     ...taskCreate(13.8, "3", "Escrever os testes", "Escrevendo os testes"),
@@ -131,7 +154,7 @@ export function runDemo(state: OfficeState) {
     [19, tool("Write", { file_path: "docs/plano.md" }, plan)],
     [22, msg(pesq, "planejador", "zodResolver no useForm, schema em arquivo separado")],
     [24.5, msg(plan, "lider", "Plano pronto: 6 tarefas, começa pelo formulário")],
-    // b) os dois entregam no mesmo instante: comemoram e ficam (o descanso começa ~4 s depois)
+    // b) os dois entregam no mesmo instante: comemoram e ficam (o descanso começa ~20 s depois)
     [27, stop(plan)],
     [27, stop(pesq)],
     ...taskUpdate(28, "1", "completed"),
@@ -168,12 +191,14 @@ export function runDemo(state: OfficeState) {
     ...taskUpdate(70.3, "3", "completed"),
     ...taskUpdate(70.6, "4", "in_progress"),
     [73, tool("Read", { file_path: "src/api/anexos.ts" })],
+    // a conversa do líder fica grande e é resumida no meio do trabalho: o time todo continua
+    [76, { hook_event_name: "SessionStart", source: "compact" }],
     [80, tool("Grep", { pattern: "multipart" })],
     [88, tool("Read", { file_path: "server/routes/chamados.ts" })],
     // e) ~20 s depois dos grupos formados, o líder retoma o pesquisador (SendMessage pro agent_id
     // dele) no meio do descanso: mesmo agent_id, mesmo AGzinho, larga tudo e volta pra mesa
     [98.7, tool("SendMessage", { to: pesq[0], message: "Ver limite de tamanho do upload de anexos" })],
-    [99, tool("WebSearch", { query: "multer limite de tamanho arquivo" }, pesq)],
+    [99, tool("WebSearch", { query: "limite de tamanho de anexos" }, pesq)],
     [106, tool("WebFetch", { url: "https://github.com/expressjs/multer" }, pesq)],
     [109, tool("Read", { file_path: "server/routes/anexos.ts" }, pesq)],
     [112.5, msg(pesq, "lider", "Limite de 10 MB com multer, valide o tipo no front")],

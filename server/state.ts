@@ -170,6 +170,11 @@ export class OfficeState {
    * fica ocioso e ligado a eles, mas pode ser reaproveitado se não houver outro livre
    */
   private stopped = new Set<string>();
+  /**
+   * aliases parados que já ganharam a linha "foi chamado de novo" (pelo SendMessage do líder) e
+   * ainda não voltaram: o 1º evento dele depois não repete a linha
+   */
+  private chamadosDeNovo = new Set<string>();
   /** session_id → último evento recebido */
   private lastSeen = new Map<string, number>();
   /** session_id → id visual do líder, quando não é s:<session_id> (o time herdado de um /clear) */
@@ -351,6 +356,7 @@ export class OfficeState {
     this.bindings.clear();
     this.retired.clear();
     this.stopped.clear();
+    this.chamadosDeNovo.clear();
     this.lastSeen.clear();
     this.lideres.clear();
     this.tasks.reset();
@@ -369,6 +375,7 @@ export class OfficeState {
     this.bindings.clear();
     this.retired.clear();
     this.stopped.clear();
+    this.chamadosDeNovo.clear();
     this.lastSeen.clear();
     for (const t of this.transicoes.values()) this.relogio.clearTimeout(t.timer);
     this.transicoes.clear();
@@ -528,6 +535,8 @@ export class OfficeState {
             // Só casa com um "Agent" pendente pelo tool_use_id (por tipo, roubaria o de um novo)
             const pend = this.takePending(input.session_id, type, input.tool_use_id, false);
             this.revive(known);
+            this.avisarChamadoDeNovo(known, id);
+            this.chamadosDeNovo.delete(id);
             this.update(known, "trabalhando", pend?.description ? truncate(pend.description, 60) : "Voltou ao trabalho");
             this.markAwaitingSpawn(known, false);
             break;
@@ -812,7 +821,8 @@ export class OfficeState {
         // evento novo de quem já tinha entregue: voltou a trabalhar (o handler põe o status).
         // Com religa: false (PostToolUse), só identifica: não retoma quem parou
         if (religa) {
-          this.stopped.delete(input.agent_id);
+          if (this.stopped.delete(input.agent_id)) this.avisarChamadoDeNovo(sub, input.agent_id);
+          this.chamadosDeNovo.delete(input.agent_id);
           this.revive(sub);
         }
         return sub;
@@ -1019,6 +1029,14 @@ export class OfficeState {
       }
     }
     this.stopped.add(alias);
+    this.chamadosDeNovo.delete(alias);
+  }
+
+  /** Linha "foi chamado de novo" de quem tinha entregue e foi retomado: uma só por retomada. */
+  private avisarChamadoDeNovo(agent: Agent, alias: string) {
+    if (this.chamadosDeNovo.has(alias)) return;
+    this.chamadosDeNovo.add(alias);
+    this.pushFeed(agent, "foi chamado de novo", "spawn", { tipo: "chamado", deNovo: true });
   }
 
   private retire(alias: string) {
@@ -1149,7 +1167,10 @@ export class OfficeState {
     };
     const all = [...this.agents.values()];
     // o líder retoma um subagente pelo agent_id ({to: agent_id}): é o boneco ligado a ele
-    const byId = this.agentByAlias(String(toolInput.to ?? ""));
+    const toAlias = String(toolInput.to ?? "");
+    const byId = this.agentByAlias(toAlias);
+    // quem já tinha entregue foi chamado de novo: a linha sai agora (o 1º evento dele não repete)
+    if (byId && this.stopped.has(toAlias)) this.avisarChamadoDeNovo(byId, toAlias);
     const to = byId ?? all.find((a) => matches(a) && a.sessionId === from.sessionId) ?? all.find(matches);
     if (to) this.emit({ type: "chat", fromId: from.id, toId: to.id, text: truncate(text, 80) });
     this.pushFeed(from, `→ ${to?.name ?? (toName || "time")}: ${truncate(text, 80)}`, "message", {
@@ -1193,6 +1214,7 @@ export class OfficeState {
       if (visual !== id) continue;
       this.aliases.delete(alias);
       this.stopped.delete(alias);
+      this.chamadosDeNovo.delete(alias);
     }
     this.simplesDada.delete(id);
     this.bindings.delete(id);

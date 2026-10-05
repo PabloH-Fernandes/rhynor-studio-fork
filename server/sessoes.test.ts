@@ -89,3 +89,19 @@ test("bug 2: evento de outro agent_id (sem agent_type) não mexe na Bia; sem age
   assert.equal(lider.activity, describeTool("Read", { file_path: "/home/usuario/projeto-exemplo/README.md" }));
   assert.equal(agentes(state).filter((a) => a.activity === lider.activity).length, 1);
 });
+
+test("retomada por SendMessage: 1 linha \"foi chamada de novo\" por retomada (SendMessage + 1º evento não duplicam)", () => {
+  const linhas = carregar("retomada-sendmessage.jsonl");
+  const { state } = reproduzir(linhas);
+  const snap = state.snapshot();
+  if (snap.type !== "snapshot") throw new Error("devia ser snapshot");
+  const deNovo = snap.feed.filter((f) => f.agentId === "ag:dev" && f.categoria === "chegada" && /de novo/.test(f.simples ?? ""));
+  // a fixture tem 2 retomadas da Bia, cada uma com SendMessage do líder e depois eventos dela
+  assert.deepEqual(
+    deNovo.map((f) => [f.quem, f.simples, f.text]),
+    [
+      ["Bia", "foi chamada de novo para ajudar", "foi chamado de novo"],
+      ["Bia", "foi chamada de novo para ajudar", "foi chamado de novo"],
+    ],
+  );
+});
