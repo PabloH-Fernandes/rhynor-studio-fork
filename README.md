@@ -173,15 +173,17 @@ $env:CLAUDE_CODE_ENABLE_TODO_TOOLS="1"
 
 Fontes: https://code.claude.com/docs/en/agent-sdk/todo-tracking e https://code.claude.com/docs/en/env-vars
 
-### Debug: `AG_HOOK_LOG=1`
+### Gravador de eventos: `AGPOCKET_GRAVAR=1`
 
-Liga a gravação de **só os eventos de ferramentas de tarefa** em `data/hooks.jsonl` (uma linha por evento), pra investigar o formato que o Claude Code mandou.
+Grava **cada evento** que chega dos hooks em `data/eventos/AAAA-MM-DD.jsonl` (uma linha por evento, com a hora de chegada), pra investigar o que aconteceu numa sessão real. Desligado por padrão e fora do git. (`AG_HOOK_LOG=1` ainda funciona, mas está obsoleto.)
 
 ```powershell
-$env:AG_HOOK_LOG = "1"; npm start
+$env:AGPOCKET_GRAVAR = "1"; npm start
+npm run replay -- data/eventos/2026-10-05.jsonl                            # linha do tempo e estado final
+npm run replay -- --anonimizar data/eventos/2026-10-05.jsonl saida.jsonl   # cópia sem dados pessoais
 ```
 
-Atenção: o arquivo guarda texto de tarefas, pastas e caminhos da sua máquina. **Nunca compartilhe o `hooks.jsonl`**, apague depois do uso e, se virar fixture de teste, limpe os dados pessoais à mão.
+Atenção: o arquivo guarda prompts, comandos, pastas e caminhos da sua máquina. **Nunca compartilhe o arquivo cru**; para virar fixture de teste (`server/fixtures/sessoes/`), use só a cópia anonimizada.
 
 ## Simulação
 
