@@ -12,8 +12,8 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 
 | Pasta | O que é |
 |---|---|
-| `agents/` | Os 6 subagentes do time (planejador, pesquisador, dev, testador, revisor, documentador) |
-| `team/CLAUDE-time.md` | Instruções pro Claude principal saber quando chamar cada um (e montar a lista de tarefas) |
+| `agents/` | Os 6 subagentes do time ([[planejador]], [[pesquisador]], [[dev]], [[testador]], [[revisor]], [[documentador]]) |
+| `team/CLAUDE-time.md` | Instruções pro Claude principal saber quando chamar cada um e montar a lista de tarefas ([[CLAUDE-time]]) |
 | `hooks/hook.mjs` | O hook: pega cada evento do Claude Code e manda pro servidor |
 | `server/` | Recebe os eventos, traduz em "quem está fazendo o quê", guarda o elenco e transmite |
 | `shared/roster.ts` | Elenco padrão dos AGzinhos e as regras de validação (roda no servidor e no navegador) |
@@ -391,7 +391,7 @@ O documentador escreveu este README.
 - **"Foi chamado de novo" repetido**: se o servidor reiniciar entre o líder chamar alguém e o primeiro passo dessa pessoa, a linha pode aparecer duas vezes no feed.
 
 ## Próximos passos (ideias)
-- Ligar o Obsidian como memória: um vault com `CLAUDE.md` que os agentes leem no começo e atualizam no fim.
+- ~~Ligar o Obsidian como memória~~ (feito): o vault tem `memoria/` e o protocolo está em `team/CLAUDE-time.md`.
 - Ativar **agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`): cada colega vira uma sessão própria e as mensagens entre eles (ferramenta `SendMessage`) viram envelopes voando. Como é experimental, pode precisar de ajuste conforme o formato dos eventos mudar.
 - Sons (teclado, notificação quando alguém levanta o **!**).
 - Dividir os arquivos grandes do `web/src/office/` e fazer a decoração respeitar `prefers-reduced-motion`.

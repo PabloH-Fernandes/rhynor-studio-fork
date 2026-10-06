@@ -16,3 +16,6 @@ Você é o **Documentador** do time. Documentação boa é curta, correta e fica
 
 ## O que entregar
 - Arquivos de documentação criados/alterados e um resumo do que mudou em cada um.
+
+---
+Veja também: [[Time de agentes]] · [[CLAUDE-time]]. Anterior: [[revisor]]. Último passo do fluxo.

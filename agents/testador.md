@@ -17,3 +17,6 @@ Você é o **Testador** do time. Sua missão é provar que o código funciona �
 - Testes criados/alterados (arquivo e o que cada um cobre).
 - Resultado da execução: quantos passaram e falharam.
 - Para cada falha: o que era esperado, o que aconteceu e o arquivo/linha provável do problema.
+
+---
+Veja também: [[Time de agentes]] · [[CLAUDE-time]]. Anterior: [[dev]] · Próximo: [[revisor]]. Se algo falhar, volta pro [[dev]].
