@@ -256,6 +256,13 @@ Também aceita `HH:MM`. Valor inválido é ignorado e vale a hora real.
 
 **Animações:** o agente **espreguiça** ao ficar livre e **comemora com confete** ao entregar a tarefa. Com `prefers-reduced-motion` ativado no sistema, as duas viram um gesto curto de braços, sem pulo. O canvas sempre desenha em **escala inteira**, pra manter os pixels nítidos.
 
+**Zoom e navegação:** o escritório é uma câmera livre (lógica em `web/src/office/camera.ts`, zoom de 50% a 600% por CSS transform, sem redesenhar o canvas).
+- **Mouse:** roda dá zoom no ponto do cursor; arrastar move; duplo clique alterna 2x e "ajustar".
+- **Trackpad e toque:** pinça (ou Ctrl + roda) dá zoom; um dedo arrasta; duplo toque alterna 2x e "ajustar".
+- **Teclado:** setas movem, `+`/`-` dão zoom, `0` ajusta.
+- Botão **Ajustar** e o rótulo ZOOM no canto. Arrastar não seleciona AGzinho; um clique simples seleciona após ~300 ms (espera o duplo clique). Respeita `prefers-reduced-motion`.
+- Nos botões e no teclado o zoom para em escala inteira; no zoom intermediário (roda, pinça) os pixels ficam um pouco menos nítidos.
+
 ## Como personalizar
 
 Tudo visual fica em `web/src/theme.ts`. O resto do código lê de lá. Quem são os AGzinhos fica no elenco (abaixo).
@@ -331,6 +338,7 @@ Os testes ficam ao lado do código que cobrem:
 - `server/progress.test.ts`: quadro de etapas (TodoWrite, TaskCreate/TaskUpdate, reserva por papel);
 - `server/roster.test.ts`: persistência do elenco e o `PUT /api/roster`;
 - `shared/roster.test.ts`: validação e regras de uniforme;
+- `web/src/office/camera.test.ts`: câmera do zoom (limites, ajuste, zoom no cursor, mola);
 - `web/src/office/activities.test.ts`, `bubbles.test.ts`, `overlay.test.ts`: atividades de descanso, balões e camadas da tela;
 - `web/src/components/vestiarioLogic.test.ts`: lógica do vestiário;
 - `web/src/progresso.test.ts`: o quadro na tela.

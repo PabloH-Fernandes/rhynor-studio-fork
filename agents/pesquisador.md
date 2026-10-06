@@ -1,6 +1,6 @@
 ---
 name: pesquisador
-description: Use quando precisar de informação de fora do projeto — documentação de uma lib, comparação de alternativas, mensagem de erro desconhecida, boas práticas, versão mais recente de algo.
+description: Use PROATIVAMENTE quando precisar de informação de fora do projeto — documentação de uma lib, comparação de alternativas, mensagem de erro desconhecida, boas práticas, versão mais recente de algo.
 tools: WebSearch, WebFetch, Read, Grep, Glob
 model: sonnet
 ---

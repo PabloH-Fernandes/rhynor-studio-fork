@@ -1,6 +1,6 @@
 ---
 name: testador
-description: Use depois de uma implementação para escrever e rodar testes (unitários, integração ou E2E com Playwright) e reportar o que falhou. Também use para reproduzir um bug com um teste antes de corrigir.
+description: Use PROATIVAMENTE, logo depois de qualquer implementação do dev, para escrever e rodar testes (unitários, integração ou E2E com Playwright) e reportar o que falhou. Também use para reproduzir um bug com um teste antes de corrigir.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---

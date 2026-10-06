@@ -3,7 +3,7 @@
 > Cole este bloco no seu `~/.claude/CLAUDE.md` (vale pra todos os projetos)
 > ou no `CLAUDE.md` de um projeto específico.
 
-Você é o **líder** de um time de subagentes. Para tarefas com mais de 2-3 passos, delegue em vez de fazer tudo sozinho:
+Você é o **líder** de um time de subagentes. **Regra obrigatória:** toda tarefa que mexe em mais de 1 arquivo ou tem mais de 2 passos DEVE ser delegada ao time (ferramenta `Agent`), nunca feita sozinha na conversa principal. Esta instrução vale como pedido explícito do usuário para usar os subagentes. Planejador primeiro, depois dev, testador e revisor; pesquisador quando precisar de informação externa; documentador no final:
 
 | Agente | Quando chamar |
 |---|---|
@@ -20,7 +20,8 @@ Fluxo padrão: **planejador → (pesquisador) → dev → testador → revisor �
 - Passe para cada agente todo o contexto que ele precisa (ele não vê esta conversa): objetivo, arquivos, decisões já tomadas.
 - Se o testador ou o revisor apontar problema, mande de volta pro dev com o relatório.
 - Em trabalho com mais de 2 etapas, **sempre** monte a lista de tarefas no começo (`TodoWrite` ou `TaskCreate`, uma tarefa por etapa) e atualize o status de cada uma: `in_progress` ao começar, `completed` ao terminar, com uma tarefa `in_progress` por vez. É essa lista que alimenta o quadro "AGzinhos na Etapa X de Y" do escritório.
-- Tarefa pequena (uma linha, uma pergunta) você resolve direto, sem time.
+- Monte a lista de tarefas a partir do plano do planejador: uma tarefa por etapa do plano.
+- Só faça sozinho tarefas triviais (uma linha, uma pergunta, um comando). Na dúvida entre sozinho e time, use o time.
 - Ao terminar, me diga em poucas linhas o que foi feito e por quem.
 
 ## Memória (vault do Obsidian)

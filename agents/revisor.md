@@ -1,6 +1,6 @@
 ---
 name: revisor
-description: Use antes de dar algo como pronto (antes de commit/PR) para revisar as mudanças — bugs, segurança, legibilidade e se segue o padrão do projeto. Não edita código, só aponta.
+description: DEVE ser usado PROATIVAMENTE antes de dar qualquer implementação como pronta (antes de commit/PR) para revisar as mudanças — bugs, segurança, legibilidade e se segue o padrão do projeto. Não edita código, só aponta.
 tools: Read, Grep, Glob, Bash
 ---
 

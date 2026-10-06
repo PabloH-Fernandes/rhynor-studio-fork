@@ -110,6 +110,142 @@ html.vest-aberto body {
   min-height: 0;
 }
 
+.office-zoom-host {
+  flex: 1;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.office-wrap-zoom {
+  position: relative;
+  overflow: hidden;
+  touch-action: none; /* arraste e pinça são do escritório (a página não rola por cima dele) */
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.office-wrap-zoom:active {
+  cursor: grabbing;
+}
+
+.office-wrap-zoom:focus-visible {
+  outline: 3px solid var(--white);
+  outline-offset: -3px;
+}
+
+.office-wrap-zoom .office-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  flex: none;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* cartão do zoom: moldura em degraus como o resto, com rótulo pixel */
+.zoom-controls {
+  --b: 2px;
+  --mc: var(--white);
+  --sy: 3px;
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px 8px 8px;
+  background: var(--bg-2);
+  box-shadow:
+    0 calc(-1 * var(--b)) var(--mc),
+    0 var(--b) var(--mc),
+    calc(-1 * var(--b)) 0 var(--mc),
+    var(--b) 0 var(--mc),
+    0 calc(var(--b) + var(--sy)) var(--sombra-dura);
+}
+
+.zoom-rotulo {
+  font-family: var(--pixel);
+  font-size: 8px;
+  line-height: 1;
+  color: var(--navy-100);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.zoom-botoes {
+  display: flex;
+  gap: 8px;
+}
+
+.zoom-controls button {
+  --b: 2px;
+  --mc: var(--sombra-dura);
+  --bisel: 3px;
+  --luz: var(--navy-500);
+  --fundo: var(--line);
+  --sy: 3px;
+  border: 0;
+  border-radius: 0;
+  box-shadow:
+    inset 0 var(--bisel) var(--luz),
+    inset 0 calc(-1 * var(--bisel)) var(--fundo),
+    0 calc(-1 * var(--b)) var(--mc),
+    0 var(--b) var(--mc),
+    calc(-1 * var(--b)) 0 var(--mc),
+    var(--b) 0 var(--mc),
+    0 calc(var(--b) + var(--sy)) var(--sombra-dura);
+  min-width: 36px;
+  min-height: 32px;
+  padding: 4px 10px 5px;
+  background: var(--navy-600);
+  color: var(--white);
+  font-family: var(--term);
+  font-size: var(--fs-menor);
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.05s steps(1), background-color 0.1s;
+}
+
+.zoom-controls button:hover:not(:disabled) {
+  background: var(--navy-600-hover);
+}
+
+.zoom-controls button:active:not(:disabled) {
+  --sy: 0px;
+  transform: translateY(3px);
+}
+
+.zoom-controls button:disabled {
+  --sy: 0px;
+  --luz: transparent;
+  --fundo: transparent;
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 900px) {
+  /* no celular os controles saem de cima do escritório: ficam numa faixa abaixo dele */
+  .office-zoom-host {
+    flex-direction: column;
+  }
+
+  .zoom-controls {
+    position: static;
+    align-self: center;
+    margin: 10px 0 12px;
+  }
+
+  .zoom-controls button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 .office-canvas {
   image-rendering: pixelated;
   border-radius: 2px;
@@ -210,7 +346,8 @@ code {
 .btn:focus-visible,
 .btn-tecnico:focus-visible,
 .agent-row:focus-visible,
-.vest-x:focus-visible {
+.vest-x:focus-visible,
+.zoom-controls button:focus-visible {
   outline-offset: calc(var(--b) + 2px);
 }
 
@@ -614,6 +751,14 @@ h2 {
   }
 
   .btn:active:not(:disabled, [aria-disabled="true"]) {
+    transform: none;
+  }
+
+  .zoom-controls button {
+    transition: none;
+  }
+
+  .zoom-controls button:active:not(:disabled) {
     transform: none;
   }
 }

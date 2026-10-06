@@ -1,6 +1,6 @@
 ---
 name: planejador
-description: Use ANTES de começar qualquer feature, refatoração ou tarefa com mais de 2-3 passos. Lê o código e quebra o pedido em tarefas pequenas e ordenadas, com os arquivos envolvidos e os riscos. Não escreve código.
+description: DEVE ser usado ANTES de começar qualquer feature, refatoração ou tarefa que mexa em mais de 1 arquivo ou tenha mais de 2 passos. Use PROATIVAMENTE, sem esperar o usuário pedir. Lê o código e quebra o pedido em tarefas pequenas e ordenadas, com os arquivos envolvidos e os riscos. Não escreve código.
 tools: Read, Grep, Glob, WebSearch
 ---
 

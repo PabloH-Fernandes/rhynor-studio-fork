@@ -1,6 +1,6 @@
 ---
 name: documentador
-description: Use depois que uma feature fica pronta para atualizar README, comentários de API, changelog e notas do projeto. Também use para documentar um módulo existente que ninguém entende.
+description: Use PROATIVAMENTE no final de toda tarefa do time, depois que a feature fica pronta e revisada, para atualizar README, comentários de API, changelog e notas do projeto. Também use para documentar um módulo existente que ninguém entende.
 tools: Read, Grep, Glob, Edit, Write
 model: sonnet
 ---
