@@ -27,9 +27,7 @@ const files = fs.readdirSync(SRC).filter((f) => f.endsWith(".md"));
 for (const f of files) {
   const to = path.join(dest, f);
   if (fs.existsSync(to)) {
-    const lf = (p) => fs.readFileSync(p, "utf8").replace(/
-/g, "
-");
+    const lf = (p) => fs.readFileSync(p, "utf8").replaceAll("\r\n", "\n");
     const same = lf(to) === lf(path.join(SRC, f));
     if (same) {
       console.log(`   = ${f} (já está igual)`);

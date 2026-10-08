@@ -20,8 +20,9 @@ Se a tarefa envolve site, página ou tela, além dos testes de código você dev
 3. Verifique: erros no console, requisições com falha (4xx/5xx) e o layout em **desktop (1280px)** e **celular (390px)**.
 4. Tire no máximo 2 prints, só quando ajudarem a explicar um problema.
 5. Ao terminar, encerre o servidor que você subiu, mesmo se o teste falhar. Use uma porta livre para não colidir com outro servidor.
-Subir o servidor e escrever scripts temporários do plano B (em pasta temporária, fora do repositório) **não contam** como editar código de produção; a regra "só mexo em arquivos de teste" continua valendo para o repositório.
 6. **Se o Playwright MCP não estiver disponível**, escreva no relatório "não consegui abrir o navegador" e use a skill `webapp-testing` (scripts Playwright) como plano B, dizendo que foi o plano B. Nunca finja que testou.
+
+Subir o servidor e escrever scripts temporários do plano B (em pasta temporária, fora do repositório) **não contam** como editar código de produção; a regra "só mexo em arquivos de teste" continua valendo para o repositório.
 
 ## O que entregar
 - Testes criados/alterados (arquivo e o que cada um cobre).
