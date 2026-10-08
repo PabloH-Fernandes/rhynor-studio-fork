@@ -552,7 +552,11 @@ export const BOARD_TRAY = { x: BOARD.x + 6, y: BOARD.y + BOARD.h, w: 22, h: 2 } 
 
 export interface BoardData {
   progresso: TextoProgresso;
+  /** só o time (líder e os 6 papéis); visitante não entra */
   total: number;
+  /** visitantes que aparecem no mapa (no máximo 3) */
+  visitors: number;
+  /** quem está trabalhando no mapa: time + visitantes visíveis */
   working: number;
   waiting: number;
 }
@@ -655,8 +659,10 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
   const cy = pr.max > 0 ? y + 25 : y + 17;
   ctx.font = small;
   const espera = data.waiting > 0 ? ` · ESPERA ${data.waiting}` : "";
-  let base = `TIME ${data.total} · FAZENDO ${data.working}`;
-  if (ctx.measureText(base + espera).width > maxW) base = `TIME ${data.total} · FAZ. ${data.working}`;
+  // "TIME 7 · VISITANTES 2 · FAZENDO 3" (sem visitantes, o trecho some); se não couber, abrevia
+  const cabe = (t: string) => ctx.measureText(t + espera).width <= maxW;
+  const com = (visit: string, faz: string) => `TIME ${data.total}${data.visitors > 0 ? ` · ${visit} ${data.visitors}` : ""} · ${faz} ${data.working}`;
+  const base = [com("VISITANTES", "FAZENDO"), com("VISITANTES", "FAZ."), com("VIS.", "FAZ.")].find(cabe) ?? com("VIS.", "FAZ.");
   ctx.fillStyle = palette.gray600;
   ctx.fillText(base, left, cy);
   if (espera) {

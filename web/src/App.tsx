@@ -13,6 +13,7 @@ import { roleColor, theme } from "./theme";
 import { useOffice } from "./useOffice";
 import { usePreferencia } from "./usePreferencia";
 import { nomeCurto } from "../../shared/frases";
+import { ehVisitante } from "../../shared/visitante";
 import { agruparFeed, destaqueDe, fraseDaLinha, iconeDe, type LinhaFeed } from "./feedLogic";
 
 const STATUS_LABEL: Record<AgentStatus, string> = {
@@ -65,6 +66,12 @@ export default function App() {
       }),
     [list],
   );
+  // visitante (agente de fora do time) tem grupo próprio e não conta no "Time · N"; os que passam de
+  // 3 (excedente) não aparecem no mapa nem na lista: só o contador "+N visitantes"
+  const time = useMemo(() => sorted.filter((a) => !ehVisitante(a)), [sorted]);
+  const visitantes = useMemo(() => sorted.filter((a) => ehVisitante(a)), [sorted]);
+  const visitantesNaTela = useMemo(() => visitantes.filter((a) => !a.excedente), [visitantes]);
+  const excedentes = visitantes.length - visitantesNaTela.length;
   const selected = selectedId ? list.find((a) => a.id === selectedId) : undefined;
   // quem saiu do escritório deixa de estar selecionado (o feed não fica preso nele e, se o mesmo id
   // voltar, o crachá não reabre sozinho)
@@ -72,6 +79,7 @@ export default function App() {
     if (selectedId && !agents[selectedId]) setSelectedId(null);
   }, [agents, selectedId]);
   const [timeAberto, alternarTime] = usePreferencia("agpocket.painel.time", true);
+  const [visitantesAberto, alternarVisitantes] = usePreferencia("agpocket.painel.visitantes", false);
   const [feedAberto, alternarFeed] = usePreferencia("agpocket.painel.feed", true);
   const feedVisivel = useMemo(() => feed.filter((f) => !selectedId || f.agentId === selectedId), [feed, selectedId]);
   // modo simples: repetições seguidas do mesmo AGzinho viram uma linha só, a mais nova em cima
@@ -158,13 +166,13 @@ export default function App() {
           <h2>
             <button className="secao-toggle" aria-expanded={timeAberto} aria-controls="secao-time" onClick={alternarTime}>
               <span className="secao-seta" aria-hidden="true" />
-              Time <span className="count">· {list.length}</span>
+              Time <span className="count">· {time.length}</span>
             </button>
           </h2>
           <div id="secao-time" hidden={!timeAberto}>
-            {sorted.length === 0 && <p className="muted">Ninguém no escritório agora.</p>}
+            {time.length === 0 && <p className="muted">Ninguém no escritório agora.</p>}
             <ul className="team">
-              {sorted.map((a) => (
+              {time.map((a) => (
                 <AgentRow
                   key={a.id}
                   agent={a}
@@ -176,6 +184,31 @@ export default function App() {
             </ul>
           </div>
         </section>
+
+        {visitantes.length > 0 && (
+          <section className="secao">
+            <h2>
+              <button className="secao-toggle" aria-expanded={visitantesAberto} aria-controls="secao-visitantes" onClick={alternarVisitantes}>
+                <span className="secao-seta" aria-hidden="true" />
+                Visitantes <span className="count">({visitantes.length})</span>
+              </button>
+            </h2>
+            <div id="secao-visitantes" hidden={!visitantesAberto}>
+              <ul className="team">
+                {visitantesNaTela.map((a) => (
+                  <AgentRow
+                    key={a.id}
+                    agent={a}
+                    roster={roster}
+                    selected={a.id === selectedId}
+                    onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
+                  />
+                ))}
+              </ul>
+              {excedentes > 0 && <p className="muted">+{excedentes} {excedentes === 1 ? "visitante" : "visitantes"}</p>}
+            </div>
+          </section>
+        )}
 
         {selected && (
           <Cracha

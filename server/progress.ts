@@ -22,6 +22,7 @@
 // Módulo puro: sem timers nem I/O. O relógio vem de quem chama (server/state.ts).
 
 import type { Agent, Progress } from "../shared/types.ts";
+import { ehVisitante } from "../shared/visitante.ts";
 
 export type { Progress } from "../shared/types.ts";
 
@@ -47,7 +48,7 @@ export const FASE_DO_PAPEL: Record<string, string> = {
   revisor: "Revisão",
   documentador: "Documentação",
 };
-/** líder, convidados e visitantes trabalhando sem nenhum papel do time ativo */
+/** líder (ou convidado que lidera uma 2ª sessão) trabalhando sem nenhum papel do time ativo; visitantes não contam */
 export const FASE_GERAL = "Ação";
 
 export const PROGRESS_NADA: Progress = { fonte: "nada", etapa: 0, total: 0, concluidas: 0, titulo: "" };
@@ -214,7 +215,8 @@ export class ProgressTracker {
     const ultimo = new Map<string, number>();
     const ativos = new Map<string, Agent[]>();
     for (const a of agents) {
-      if (a.status === "saindo") continue;
+      // visitante não conta na fase nem serve de pool (passa pouco tempo e não é do time)
+      if (a.status === "saindo" || ehVisitante(a)) continue;
       ultimo.set(a.sessionId, Math.max(ultimo.get(a.sessionId) ?? 0, a.updatedAt));
       if (ATIVO.has(a.status) || (a.status === "chegando" && a.parentId)) {
         const list = ativos.get(a.sessionId) ?? [];

@@ -98,7 +98,9 @@ Como a escalação funciona:
 - **Cada evento mexe só no AGzinho do próprio `agent_id`.** Um subagente nunca "puxa" o estado de outro.
 - **Trabalho em paralelo ganha variação.** Se dois devs (ou dois pesquisadores) trabalham ao mesmo tempo, o segundo é a Yasmin (Dev 2) e o Tomás (Pesquisa 2), com visual próprio, em vez de um clone.
 - **Convidados por tipo de agente.** Agentes de fora do time entram como visitantes: `Explore` é a Iara, `general-purpose` é o Jorge e qualquer outro tipo (como `Plan`) é a Sofia.
-- **Visitantes extras saem ao entregar.** Se chegam mais convidados do que mesas de visita, os extras ficam só enquanto trabalham e vão embora ao entregar.
+- **Visitantes são temporários.** Visitante é todo subagente de fora do time (Iara, Jorge, Sofia e os extras `ag:extra:<id>`). Ele usa uma mesa de visita e, no `SubagentStop`, **sai andando até a porta** (nunca fica "de boa": isso é só do time). Sem `SubagentStop`, sai sozinho depois de **3 min sem eventos** (`VISITANTE_SEM_EVENTO_MS`), a não ser que esteja esperando você. Depois de sair, o `agent_id` fica "aposentado" por ~60 s: evento atrasado dele não o traz de volta; só um `SubagentStart` do mesmo id reabre.
+- **No máximo 3 visitantes na tela.** Os que passam disso continuam no estado, mas não aparecem no mapa (o painel mostra só "+N visitantes"); o 4º entra quando um dos 3 sai, por ordem de chegada.
+- **Visitante não conta no TIME.** O quadro da parede mostra `TIME 7 · VISITANTES 2 · FAZENDO 3`: `TIME` só tem o time (o trecho `VISITANTES` some quando não há nenhum), e `FAZENDO` é quem está trabalhando no mapa (time + visitantes visíveis). O painel separa "Time · N" do grupo recolhível "Visitantes (N)" (fechado por padrão). Visitante também não conta na fase do quadro de etapas e não é gravado em `data/escritorio.json` (não volta num reinício do servidor).
 
 ## Ciclo de vida
 

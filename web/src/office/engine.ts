@@ -5,6 +5,7 @@
 import type { AGzinho, Acessorio, Agent, Progress, Roster } from "../../../shared/types";
 import { textoDoProgresso, type TextoProgresso } from "../progresso";
 import { HAIR_STYLE_INDEX } from "../../../shared/roster";
+import { ehVisitante } from "../../../shared/visitante";
 import { rotulosDasMesas } from "./deskLabel";
 import { HAIRS, SKINS, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
 import { AreaLayer, bakeCount, bakeDrawing, drawBaked, type Baked } from "./bake";
@@ -423,7 +424,9 @@ export class OfficeEngine {
 
   // ------------------------------------------------------------ dados do servidor
 
-  sync(agents: Agent[]) {
+  sync(todos: Agent[]) {
+    // visitante excedente (além dos 3 da tela) não é desenhado; ele entra quando um dos 3 sai
+    const agents = todos.filter((a) => !a.excedente);
     const ids = new Set(agents.map((a) => a.id));
     for (const v of this.visuals.values()) if (!ids.has(v.agent.id)) this.startLeaving(v);
     for (const a of agents) this.upsert(a, true);
@@ -573,7 +576,8 @@ export class OfficeEngine {
       actors.push({
         id: v.agent.id,
         session: v.agent.sessionId,
-        idle: v.agent.status === "ocioso",
+        // visitante nunca entra no descanso (sai ao entregar; "de boa" é só do elenco fixo)
+        idle: v.agent.status === "ocioso" && !ehVisitante(v.agent),
         idleSince: v.idleSince,
         workedAt: BUSY.has(v.agent.status) ? now : v.workedAt,
         leaving: v.leaving,
@@ -704,9 +708,11 @@ export class OfficeEngine {
     this.drawClockLayer(ctx);
 
     const active = visuals.filter((v) => !v.leaving);
+    // TIME não conta visitante; FAZENDO é quem está trabalhando no mapa (time + visitantes visíveis)
     this.drawBoardLayer(ctx, {
       progresso: this.progresso,
-      total: active.length,
+      total: active.filter((v) => !ehVisitante(v.agent)).length,
+      visitors: active.filter((v) => ehVisitante(v.agent)).length,
       working: active.filter((v) => v.agent.status === "trabalhando" || v.agent.status === "pensando").length,
       waiting: active.filter((v) => v.agent.status === "esperando").length,
     });

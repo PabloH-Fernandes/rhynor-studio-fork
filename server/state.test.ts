@@ -110,15 +110,161 @@ test("convidados: Explore → Iara, Plan e tipo desconhecido → Sofia, general-
 
   start("p1", "Plan");
   assert.equal(byId("ag:curinga")?.name, "Sofia Arruda");
+  // visitante não fica de boa: a Sofia sai andando e some depois da animação
   stop("p1", "Plan");
+  assert.equal(byId("ag:curinga")?.status, "saindo");
+  advance(7000);
+  assert.equal(byId("ag:curinga"), undefined);
 
   start("g1", "general-purpose");
   assert.equal(byId("ag:general-purpose")?.name, "Jorge Batista");
 
-  // Iara e Jorge com agent_id ativo; a Sofia só com o p1, que entregou: sem alternativa, é ela
+  // Iara e Jorge com agent_id ativo; a Sofia já saiu e está livre de novo
   start("x1", "superpowers:code-reviewer");
-  assert.equal(byId("ag:curinga")?.status, "pensando", "o tipo desconhecido reaproveita a Sofia de boa");
+  assert.equal(byId("ag:curinga")?.status, "chegando", "o tipo desconhecido usa a Sofia livre");
   assert.equal(subs().length, 3);
+});
+
+test("visitante (Iara, Jorge, Sofia) sai andando ao SubagentStop; nunca fica de boa", () => {
+  start("e1", "Explore");
+  start("g1", "general-purpose");
+  stop("e1", "Explore");
+  stop("g1", "general-purpose");
+  assert.equal(byId("ag:explore")?.status, "saindo");
+  assert.equal(byId("ag:general-purpose")?.status, "saindo");
+  assert.ok(![...agents()].some((a) => a.parentId && a.status === "ocioso"), "nenhum visitante de boa");
+  advance(7000);
+  assert.equal(subs().length, 0);
+});
+
+test("visitante sem SubagentStop sai sozinho após 3 min sem evento; cada evento zera a contagem", () => {
+  start("e1", "Explore");
+  advance(2 * MIN);
+  hook("PreToolUse", { agent_id: "e1", agent_type: "Explore", tool_name: "Read", tool_input: { file_path: "a.ts" } });
+  advance(2 * MIN + 59_000);
+  assert.equal(byId("ag:explore")?.status, "trabalhando", "2min59 depois do último evento ainda fica");
+  advance(2000);
+  assert.equal(byId("ag:explore")?.status, "saindo");
+  assert.equal(byId("ag:explore")?.activity, "Saiu (sem sinal)");
+  advance(7000);
+  assert.equal(byId("ag:explore"), undefined);
+});
+
+test("visitante esperando você nunca expira; depois que responde, volta a valer o limite", () => {
+  start("e1", "Explore");
+  hook("PermissionRequest", { agent_id: "e1", agent_type: "Explore", tool_name: "Bash", tool_input: { command: "ls" } });
+  advance(20 * MIN);
+  state.sweep();
+  assert.equal(byId("ag:explore")?.status, "esperando");
+  hook("PreToolUse", { agent_id: "e1", agent_type: "Explore", tool_name: "Read", tool_input: { file_path: "a.ts" } });
+  advance(3 * MIN + 1000);
+  assert.equal(byId("ag:explore")?.status, "saindo");
+});
+
+test("sweep() também tira o visitante parado (relógio trocado, sem timers)", () => {
+  start("e1", "Explore");
+  t += 3 * MIN + 1;
+  state.sweep();
+  assert.equal(byId("ag:explore")?.status, "saindo");
+});
+
+/** os 3 convidados ocupados + um tipo desconhecido: o 4º vira visitante extra (ag:extra:<id>) */
+function encherVisitantes() {
+  start("e1", "Explore");
+  start("g1", "general-purpose");
+  start("p1", "Plan");
+  start("x1", "superpowers:code-reviewer");
+}
+
+test("evento tardio de visitante que saiu não recria o ag:extra; só um SubagentStart reabre", () => {
+  encherVisitantes();
+  assert.ok(byId("ag:extra:x1"));
+  stop("x1", "superpowers:code-reviewer");
+  // dentro da animação de saída: não cancela a saída
+  hook("PreToolUse", { agent_id: "x1", tool_name: "Read", tool_input: { file_path: "a.ts" } });
+  assert.equal(byId("ag:extra:x1")?.status, "saindo");
+  advance(7000);
+  assert.equal(byId("ag:extra:x1"), undefined);
+  for (const ev of ["PreToolUse", "PostToolUse", "PermissionRequest", "Notification"]) {
+    hook(ev, { agent_id: "x1", agent_type: "superpowers:code-reviewer", tool_name: "Read", tool_input: { file_path: "a.ts" }, message: "oi", notification_type: "agent_needs_input" });
+  }
+  hook("SubagentStop", { agent_id: "x1" });
+  assert.equal(byId("ag:extra:x1"), undefined, "evento tardio não reencarna o visitante");
+  // passado o período de retirada, volta a valer a regra comum
+  advance(60_000);
+  start("x1", "superpowers:code-reviewer");
+  assert.equal(byId("ag:extra:x1")?.status, "chegando", "SubagentStart explícito reabre");
+});
+
+test("SubagentStart do mesmo id logo depois de sair (ainda retirado) reabre o visitante", () => {
+  encherVisitantes();
+  stop("x1", "superpowers:code-reviewer");
+  advance(7000);
+  assert.equal(byId("ag:extra:x1"), undefined);
+  start("x1", "superpowers:code-reviewer");
+  assert.ok(byId("ag:extra:x1"));
+  assert.notEqual(byId("ag:extra:x1")?.status, "saindo");
+});
+
+test("no máximo 3 visitantes na tela: o 4º fica como excedente e entra quando um dos 3 sai", () => {
+  const avisos: Agent[] = [];
+  state.subscribe((m) => {
+    if (m.type === "agent") avisos.push({ ...m.agent });
+  });
+  encherVisitantes();
+  assert.deepEqual(
+    subs().map((a) => [a.id, !!a.excedente]),
+    [["ag:explore", false], ["ag:general-purpose", false], ["ag:curinga", false], ["ag:extra:x1", true]],
+  );
+  assert.equal(avisos.find((a) => a.id === "ag:extra:x1")?.excedente, true, "já nasce marcado nos avisos às telas");
+  stop("e1", "Explore");
+  // a Iara ainda anda até a porta e ocupa o lugar
+  assert.equal(byId("ag:extra:x1")?.excedente, true);
+  advance(7000);
+  assert.equal(byId("ag:explore"), undefined);
+  assert.equal(byId("ag:extra:x1")?.excedente, undefined, "o 4º entra na tela quando a Iara sai");
+  assert.equal(subs().filter((a) => !a.excedente).length, 3);
+});
+
+test("visitante não conta na fase do quadro: só visitantes trabalhando = ninguém; com um dev, a fase é a dele", () => {
+  start("e1", "Explore");
+  hook("PreToolUse", { agent_id: "e1", agent_type: "Explore", tool_name: "Read", tool_input: { file_path: "a.ts" } });
+  hook("Stop"); // o líder também não conta: sobra só o visitante trabalhando
+  assert.equal(state.getProgress().fonte, "nada");
+  start("d1", "dev");
+  hook("PreToolUse", { agent_id: "d1", agent_type: "dev", tool_name: "Edit", tool_input: { file_path: "a.ts" } });
+  assert.equal(state.getProgress().titulo, "Construção");
+  stop("d1", "dev");
+  assert.equal(byId("ag:dev")?.status, "ocioso", "o time continua de boa");
+});
+
+test("visitantes não são gravados nem restaurados; o time sim", () => {
+  hook("SessionStart");
+  start("d1", "dev");
+  start("e1", "Explore");
+  encherVisitantes();
+  const salvo = state.serializar();
+  assert.ok(salvo.agents.some((a) => a.id === "ag:dev"));
+  assert.deepEqual(salvo.agents.filter((a) => a.parentId && a.id !== "ag:dev").map((a) => a.id), []);
+  assert.ok(![...salvo.aliases, ...salvo.bindings].some(([, v]) => JSON.stringify(v).includes("extra") || JSON.stringify(v).includes("explore")));
+  const outro = new OfficeState({ now: () => t, sweepEveryMs: 0 });
+  outro.restaurar(JSON.parse(JSON.stringify(salvo)));
+  const snap = outro.snapshot();
+  const ids = snap.type === "snapshot" ? snap.agents.map((a) => a.id) : [];
+  assert.ok(ids.includes("ag:dev"));
+  assert.ok(!ids.some((id) => id === "ag:explore" || id.startsWith("ag:extra:") || id === "ag:curinga"));
+});
+
+test("restaurar ignora visitante mesmo que o arquivo tenha um", () => {
+  hook("SessionStart");
+  start("e1", "Explore");
+  const salvo = JSON.parse(JSON.stringify(state.serializar()));
+  const iara = { ...structuredClone(byId("ag:explore")!) };
+  salvo.agents.push(iara);
+  const outro = new OfficeState({ now: () => t, sweepEveryMs: 0 });
+  outro.restaurar(salvo);
+  const snap = outro.snapshot();
+  assert.ok(snap.type === "snapshot" && !snap.agents.some((a) => a.id === "ag:explore"));
 });
 
 test("bug 2: agent_id que já entregou, sem agent_type e 3 min depois, é a Bia (não a Sofia); outro dev da sessão também volta pra Bia", () => {

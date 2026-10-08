@@ -36,6 +36,11 @@ export interface Agent {
   updatedAt: number;
   /** quando foi chamado pela última vez (criação ou SubagentStart de novo) */
   boundAt: number;
+  /**
+   * visitante além dos 3 que cabem na tela: continua no estado mas não é desenhado no mapa, e o
+   * painel só conta ("+N visitantes"). Entra quando um dos 3 sai (ordem de chegada).
+   */
+  excedente?: boolean;
   /** entregas no dia `tasksDay` (zera na virada do dia) */
   tasksDone: number;
   /** dia das entregas, AAAA-MM-DD no fuso do servidor */

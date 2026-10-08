@@ -4,11 +4,13 @@
 // Cada subagente vira um AGzinho do elenco, com id visual estável (ag:<key>): o mesmo
 // papel chamado de novo volta a ser a mesma pessoa. Quem termina fica "de boa" no
 // escritório; todo mundo de uma sessão só vai embora no SessionEnd ou quando a sessão
-// passa tempo demais sem nenhum evento.
+// passa tempo demais sem nenhum evento. Exceção: visitante (Iara, Jorge, Sofia e extras, os agentes
+// de fora do time) não fica de boa: sai andando ao entregar ou após 3 min sem evento, e só 3 cabem na tela.
 
 import path from "node:path";
 import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ServerMessage } from "../shared/types.ts";
 import { DEFAULT_ROSTER, agzinhoDoPapel, type AGzinho, type Roster } from "../shared/roster.ts";
+import { MAX_VISITANTES_NA_TELA, ehVisitante } from "../shared/visitante.ts";
 import { PROGRESS_NADA, ProgressTracker, sameProgress, type TarefasSalvas } from "./progress.ts";
 import { comoAtividade, fraseEvento, fraseFerramenta, nomeCurto, simplificarAtividade, type Evento } from "./frases.ts";
 
@@ -55,6 +57,13 @@ const ARRIVE_MS = 12_000;
 const FALLBACK_SPAWN_MS = 1500; // se o SubagentStart não chegar, cria pelo tool_use_id
 const RETIRE_MS = 2 * 60_000; // eventos atrasados de uma sessão encerrada (SessionEnd) são ignorados por esse tempo
 const SWEEP_EVERY_MS = 60_000;
+/** visitante sem SubagentStop e sem nenhum evento por esse tempo sai sozinho (exceto se estiver esperando você) */
+export const VISITANTE_SEM_EVENTO_MS = 3 * 60_000;
+/**
+ * depois que um visitante sai, o agent_id dele fica em `retired` por esse tempo: evento tardio
+ * (PreToolUse, SubagentHandback...) não recria o ag:extra:*; só um SubagentStart do mesmo id reabre
+ */
+export const VISITANTE_RETIRE_MS = 60_000;
 /** /clear: o SessionEnd (reason "clear") espera o SessionStart da conversa nova por esse tempo */
 export const TRANSICAO_MS = 30_000;
 /** /clear com os hooks fora de ordem: SessionStart "clear" até esse tempo antes do SessionEnd "clear" ainda funde */
@@ -155,6 +164,8 @@ export class OfficeState {
   private pending = new Map<string, PendingSpawn>(); // tool_use_id -> spawn ainda sem SubagentStart
   private removalTimers = new Map<string, Timer>();
   private arrivalTimers = new Map<string, Timer>();
+  /** visitante (id visual) → timer da saída por falta de evento (VISITANTE_SEM_EVENTO_MS) */
+  private visitorTimers = new Map<string, Timer>();
   private roster: Roster = structuredClone(DEFAULT_ROSTER);
   /** agent_id ou "t:"+tool_use_id → id visual (ag:dev, ag:dev-2...) */
   private aliases = new Map<string, string>();
@@ -246,7 +257,8 @@ export class OfficeState {
    */
   serializar(): EstadoSalvo {
     const real = (sessionId: string) => !isDemo(sessionId);
-    const agents = [...this.agents.values()].filter((a) => real(a.sessionId) && a.status !== "saindo");
+    // visitante é passageiro (sai ao entregar ou em 3 min): não é gravado
+    const agents = [...this.agents.values()].filter((a) => real(a.sessionId) && a.status !== "saindo" && !ehVisitante(a));
     const ids = new Set(agents.map((a) => a.id));
     const daDemo = new Set([...this.agents.values()].filter((a) => isDemo(a.sessionId)).map((a) => a.id));
     return {
@@ -291,7 +303,7 @@ export class OfficeState {
     const num = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
     const txt = (x: unknown): x is string => typeof x === "string";
 
-    const agents = lista(dados.agents, agenteValido).filter((a) => !isDemo(a.sessionId) && a.status !== "saindo");
+    const agents = lista(dados.agents, agenteValido).filter((a) => !isDemo(a.sessionId) && a.status !== "saindo" && !ehVisitante(a));
     const seen = new Map(lista(dados.lastSeen, par(num)));
     const transicoes = lista(dados.transicoes, (x): x is { sessionId: string; cwd?: string; ate: number } =>
       isObj(x) && txt(x.sessionId) && num(x.ate) && (x.cwd === undefined || txt(x.cwd)),
@@ -346,8 +358,10 @@ export class OfficeState {
     for (const t of this.arrivalTimers.values()) this.relogio.clearTimeout(t);
     for (const p of this.pending.values()) this.relogio.clearTimeout(p.timer);
     for (const t of this.transicoes.values()) this.relogio.clearTimeout(t.timer);
+    for (const t of this.visitorTimers.values()) this.relogio.clearTimeout(t);
     this.removalTimers.clear();
     this.arrivalTimers.clear();
+    this.visitorTimers.clear();
     this.pending.clear();
     this.transicoes.clear();
     this.clearsSemTime.clear();
@@ -368,8 +382,10 @@ export class OfficeState {
     for (const t of this.removalTimers.values()) this.relogio.clearTimeout(t);
     for (const t of this.arrivalTimers.values()) this.relogio.clearTimeout(t);
     for (const p of this.pending.values()) this.relogio.clearTimeout(p.timer);
+    for (const t of this.visitorTimers.values()) this.relogio.clearTimeout(t);
     this.removalTimers.clear();
     this.arrivalTimers.clear();
+    this.visitorTimers.clear();
     this.pending.clear();
     this.aliases.clear();
     this.bindings.clear();
@@ -526,7 +542,10 @@ export class OfficeState {
 
       case "SubagentStart": {
         const id = input.agent_id;
-        if (!id || this.isRetired(id)) break;
+        if (!id) break;
+        // SubagentStart explícito reabre um visitante que acabou de sair (a sessão encerrada já foi
+        // barrada lá em cima, no handleHook)
+        this.retired.delete(id);
         const type = String(input.agent_type ?? "general-purpose");
         const known = this.agentByAlias(id);
         if (known) {
@@ -636,6 +655,63 @@ export class OfficeState {
     for (const [sessionId, seen] of [...this.lastSeen]) {
       if (this.semSinal(sessionId, seen, now)) this.endSession(sessionId, "Saiu (sessão sem sinal)", { retire: false });
     }
+    // visitantes sem evento há VISITANTE_SEM_EVENTO_MS (o timer de cada um faz o mesmo na hora certa;
+    // aqui é a rede de segurança para quem roda só com o `now` trocado)
+    for (const a of [...this.agents.values()]) if (this.visitanteExpirou(a, now)) this.sairVisitante(a, "Saiu (sem sinal)");
+  }
+
+  /** visitante parado além do limite (quem espera você nunca expira; quem já está saindo, também não) */
+  private visitanteExpirou(a: Agent, now: number): boolean {
+    if (!ehVisitante(a) || a.status === "saindo" || a.status === "esperando") return false;
+    return now - a.updatedAt >= VISITANTE_SEM_EVENTO_MS;
+  }
+
+  /** (re)arma a saída do visitante por falta de evento, contada do último evento dele */
+  private vigiarVisitante(a: Agent) {
+    const antigo = this.visitorTimers.get(a.id);
+    if (antigo !== undefined) this.relogio.clearTimeout(antigo);
+    this.visitorTimers.delete(a.id);
+    if (!ehVisitante(a) || a.status === "saindo") return;
+    const espera = Math.max(0, a.updatedAt + VISITANTE_SEM_EVENTO_MS - this.now());
+    const timer = this.relogio.setTimeout(() => {
+      this.visitorTimers.delete(a.id);
+      if (this.agents.get(a.id) !== a) return;
+      if (this.visitanteExpirou(a, this.now())) this.sairVisitante(a, "Saiu (sem sinal)");
+      else if (a.status !== "esperando" && a.status !== "saindo") this.vigiarVisitante(a); // chegou evento no meio
+    }, espera);
+    soltar(timer);
+    this.visitorTimers.set(a.id, timer);
+  }
+
+  /**
+   * Visitante vai embora andando até a porta (entregou ou ficou sem sinal) e o agent_id dele fica
+   * em `retired` por VISITANTE_RETIRE_MS: evento tardio não o recria (só um SubagentStart reabre).
+   */
+  private sairVisitante(agent: Agent, activity: string) {
+    for (const [alias, visual] of this.aliases) {
+      if (visual !== agent.id) continue;
+      this.retire(alias, VISITANTE_RETIRE_MS);
+      this.stopped.add(alias);
+    }
+    this.leave(agent, activity);
+  }
+
+  /**
+   * Marca quais visitantes cabem na tela: os MAX_VISITANTES_NA_TELA primeiros por ordem de chegada
+   * (quem está saindo ainda ocupa o lugar, pois continua andando no mapa); o resto é `excedente`.
+   * Devolve os agentes cuja marca mudou.
+   */
+  private reordenarVisitantes(): Agent[] {
+    const mudaram: Agent[] = [];
+    const visitantes = [...this.agents.values()].filter(ehVisitante).sort((a, b) => a.boundAt - b.boundAt);
+    visitantes.forEach((a, i) => {
+      const excedente = i >= MAX_VISITANTES_NA_TELA;
+      if (Boolean(a.excedente) === excedente) return;
+      if (excedente) a.excedente = true;
+      else delete a.excedente;
+      mudaram.push(a);
+    });
+    return mudaram;
   }
 
   /** a sessão passou do timeout sem evento (com alguém esperando você, nunca; trabalhando, 4x) */
@@ -816,6 +892,9 @@ export class OfficeState {
    */
   private agentFor(input: HookInput, { religa = true }: { religa?: boolean } = {}): Agent | undefined {
     if (input.agent_id) {
+      // quem acabou de sair (visitante que entregou ou ficou sem sinal) ou de sessão encerrada:
+      // evento tardio não recria nem retoma; só o SubagentStart reabre (ele limpa o `retired`)
+      if (this.isRetired(input.agent_id)) return undefined;
       const sub = this.agentByAlias(input.agent_id);
       if (sub) {
         // evento novo de quem já tinha entregue: voltou a trabalhar (o handler põe o status).
@@ -827,7 +906,6 @@ export class OfficeState {
         }
         return sub;
       }
-      if (this.isRetired(input.agent_id)) return undefined;
       // apareceu pelo próprio evento: ainda não foi casado com nenhum PreToolUse Agent
       const agent = this.bindSubagent(input.session_id, input.agent_id, String(input.agent_type ?? "general-purpose"), "", input.cwd);
       this.markAwaitingSpawn(agent, true);
@@ -995,7 +1073,8 @@ export class OfficeState {
   }
 
   /**
-   * Subagente que ia embora (visitante extra que entregou) recebeu evento novo: cancela a saída.
+   * Subagente que ia embora recebeu um SubagentStart de novo: cancela a saída (o evento comum de um
+ * visitante que acabou de sair é barrado em agentFor pelo `retired`).
    * Quem está saindo porque a sessão acabou não chega aqui (a sessão encerrada é ignorada antes).
    */
   private revive(agent: Agent) {
@@ -1019,12 +1098,15 @@ export class OfficeState {
         agent.tasksDone = 0;
       }
       agent.tasksDone += 1;
-      if (agent.agzinho) {
+      if (ehVisitante(agent)) {
+        // visitante (Iara, Jorge, Sofia ou extra) não fica: sai andando até a porta. "De boa" é só do
+        // elenco fixo do time. O agent_id vai pra `retired`: evento tardio não o traz de volta
+        this.sairVisitante(agent, "Entregou o trabalho");
+      } else if (agent.agzinho) {
         this.update(agent, "ocioso", "De boa");
         this.pushFeed(agent, "entregou o trabalho", "done", { tipo: "terminouParte" });
       } else {
-        // visitante extra (sem AGzinho livre) não fica: senão eles se acumulam no escritório
-        // (evento dele antes de sumir cancela a saída; depois, o agent_id entra de novo)
+        // sem AGzinho livre e com papel do time: também não fica, senão acumula no escritório
         this.leave(agent, "Entregou o trabalho");
       }
     }
@@ -1039,8 +1121,8 @@ export class OfficeState {
     this.pushFeed(agent, "foi chamado de novo", "spawn", { tipo: "chamado", deNovo: true });
   }
 
-  private retire(alias: string) {
-    this.retired.set(alias, this.now() + RETIRE_MS);
+  private retire(alias: string, ms = RETIRE_MS) {
+    this.retired.set(alias, this.now() + ms);
   }
 
   private isRetired(alias: string): boolean {
@@ -1210,6 +1292,9 @@ export class OfficeState {
     const arrive = this.arrivalTimers.get(id);
     if (arrive) this.relogio.clearTimeout(arrive);
     this.arrivalTimers.delete(id);
+    const vigia = this.visitorTimers.get(id);
+    if (vigia !== undefined) this.relogio.clearTimeout(vigia);
+    this.visitorTimers.delete(id);
     for (const [alias, visual] of this.aliases) {
       if (visual !== id) continue;
       this.aliases.delete(alias);
@@ -1261,8 +1346,18 @@ export class OfficeState {
   }
 
   private emit(msg: ServerMessage) {
-    if (msg.type === "agent") this.comSimples(msg.agent);
+    if (msg.type === "agent") {
+      this.comSimples(msg.agent);
+      this.vigiarVisitante(msg.agent);
+    }
+    // quem cabe na tela é decidido antes de avisar: o agente novo já chega com a marca certa
+    const mudaram = msg.type === "agent" || msg.type === "remove" ? this.reordenarVisitantes() : [];
     for (const fn of this.listeners) fn(msg);
+    for (const a of mudaram) {
+      if (msg.type === "agent" && msg.agent === a) continue;
+      const aviso: ServerMessage = { type: "agent", agent: this.comSimples(a) };
+      for (const fn of this.listeners) fn(aviso);
+    }
     // status de agente muda a fase (reserva sem lista) e o "de boa"
     if (msg.type === "agent" || msg.type === "remove") this.refreshProgress();
   }
