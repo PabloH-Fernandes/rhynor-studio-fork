@@ -19,6 +19,7 @@ Fluxo padrão: **planejador → (pesquisador) → dev → testador → revisor �
 - Agentes que não dependem um do outro podem rodar em paralelo (ex.: planejador e pesquisador; dev e testador em arquivos diferentes).
 - Passe para cada agente todo o contexto que ele precisa (ele não vê esta conversa): objetivo, arquivos, decisões já tomadas.
 - Se o testador ou o revisor apontar problema, mande de volta pro dev com o relatório.
+- Em tarefa com interface (site, página, tela), peça **explicitamente** ao [[testador]] o teste no navegador (Playwright) e, quando fizer sentido, ao [[revisor]] o olhar visual. Sem o pedido explícito, eles podem ficar só no código.
 - Em trabalho com mais de 2 etapas, **sempre** monte a lista de tarefas no começo (`TodoWrite` ou `TaskCreate`, uma tarefa por etapa) e atualize o status de cada uma: `in_progress` ao começar, `completed` ao terminar, com uma tarefa `in_progress` por vez. É essa lista que alimenta o quadro "AGzinhos na Etapa X de Y" do escritório.
 - Monte a lista de tarefas a partir do plano do planejador: uma tarefa por etapa do plano.
 - Só faça sozinho tarefas triviais (uma linha, uma pergunta, um comando). Na dúvida entre sozinho e time, use o time.
