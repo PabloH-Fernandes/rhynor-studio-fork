@@ -1,5 +1,7 @@
 # AG Pocket
 
+> Instalando em outro PC? Veja o [SETUP.md](SETUP.md).
+
 Um escritório pixel art que mostra seu time de agentes do Claude Code trabalhando em tempo real. Cada agente é um **AGzinho**: um personagem com nome, uniforme da sua função e jeito próprio. Ele senta na própria mesa, digita quando está usando ferramenta, levanta um **!** quando precisa de você, manda envelopes pros colegas e, quando fica de boa, vai tomar café, jogar ping-pong ou bater papo.
 
 ![Escritório rodando a simulação](docs/preview.png)
@@ -22,10 +24,17 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 | `web/src/theme.ts` | **Onde você personaliza** nome, logo, cores e uniformes |
 | `web/src/office/map.ts` | Planta do escritório (posição das mesas, móveis) |
 | `data/agzinhos.example.json` | Elenco de exemplo, versionado. O `data/agzinhos.json` real fica fora do git |
+| `setup/skills.json` | Catálogo do que o `npm run setup` instala (essenciais e extras de terceiros) |
+| `commands/` | Comando `/time` do Claude Code, copiado para `~/.claude/commands/` pelo setup |
+| `scripts/setup.mjs` | O instalador (`npm run setup`, `npm run setup:check`); veja o [SETUP.md](SETUP.md) |
 
 ## Rodando (5 minutos)
 
-Precisa de Node 20+ e do Claude Code instalado.
+Precisa de Node 20+ e do Claude Code instalado (e logado).
+
+**Jeito rápido:** `npm run setup` faz tudo abaixo de uma vez (dependências, agentes, hooks, `/time`, Playwright, plugins, build). Depois é só `npm start`. Opções e detalhes no [SETUP.md](SETUP.md); `npm run setup -- --dry-run` mostra o que ele faria sem escrever nada.
+
+**Manual (alternativa):**
 
 ```bash
 npm install
