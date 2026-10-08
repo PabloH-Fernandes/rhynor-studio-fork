@@ -11,9 +11,11 @@
     "install-hooks": "node scripts/install-hooks.mjs",
     "uninstall-hooks": "node scripts/install-hooks.mjs --remove",
     "install-agents": "node scripts/install-agents.mjs",
+    "setup": "node scripts/setup.mjs",
+    "setup:check": "node scripts/setup.mjs --check",
     "typecheck": "tsc --noEmit",
     "replay": "tsx server/replay.ts",
-    "test": "tsx --test \"server/**/*.test.ts\" \"shared/**/*.test.ts\" \"web/src/**/*.test.ts\""
+    "test": "tsx --test \"server/**/*.test.ts\" \"shared/**/*.test.ts\" \"web/src/**/*.test.ts\" \"scripts/**/*.test.mjs\""
   },
   "dependencies": {
     "express": "^4.21.2",
