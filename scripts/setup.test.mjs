@@ -23,6 +23,7 @@ import {
   navegadorDoServidor,
   parseFlags,
   skillStatus,
+  veredictoCheckSkill,
   validaCatalogo,
 } from "./setup.mjs";
 
@@ -227,4 +228,16 @@ test("validaCatalogo recusa metacaracteres de shell (comando aceita espaço)", (
   const mcp = { id: "m", tipo: "mcp", paraQue: "p", nome: "n", comando: "npx @p/m@latest", navegador: { padrao: "chrome" } };
   assert.deepEqual(erros(mcp), []);
   for (const c of ["&", "|", "%", '"', "^"]) assert.ok(erros({ ...mcp, comando: `npx x${c}y` }).length > 0, c);
+});
+
+test("veredictoCheckSkill: extra sem --completo não avisa; falta/erro de essencial contam", () => {
+  const check = { check: true, completo: false };
+  assert.equal(veredictoCheckSkill("fora", true, check), "pula");
+  assert.equal(veredictoCheckSkill("nao", true, check), "pula");
+  assert.equal(veredictoCheckSkill("fora", false, check), "aviso");
+  assert.equal(veredictoCheckSkill("nao", false, check), "falta");
+  assert.equal(veredictoCheckSkill("fora", true, { check: true, completo: true }), "aviso");
+  assert.equal(veredictoCheckSkill("nao", true, { check: true, completo: true }), "falta");
+  assert.equal(veredictoCheckSkill("sim", false, check), null);
+  assert.equal(veredictoCheckSkill("nao", false, { check: false }), null);
 });

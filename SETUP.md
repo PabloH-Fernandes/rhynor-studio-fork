@@ -93,15 +93,15 @@ Além do catálogo abaixo, o setup também faz estas coisas:
 
 | Item | Tipo | Para que serve | Onde fica |
 |---|---|---|---|
-| `superpowers` | plugin | Pacote de fluxos de trabalho (planejar, depurar, revisar) | `~/.claude/plugins/` |
+| `superpowers` | plugin (do marketplace `claude-plugins-official`, que o setup não adiciona; para remover: `claude plugin uninstall superpowers@claude-plugins-official`) | Pacote de fluxos de trabalho (planejar, depurar, revisar) | `~/.claude/plugins/` |
 | `agent-browser` | skill | Controla um navegador pela linha de comando | `~/.claude/skills/` |
 | `grill-me` | skill | O Claude te questiona até a ideia ficar clara | `~/.claude/skills/` |
 | `copywriting` | skill | Escrita de textos de marketing | `~/.claude/skills/` |
 | `nano-banana-2` | skill | Geração de imagens com IA (chama serviço externo) | `~/.claude/skills/` |
 | `ai-image-generation` | skill | Geração de imagens com IA (chama serviço externo) | `~/.claude/skills/` |
 | `remotion-motion-graphics` | skill (manual) | Vídeos e animações com Remotion. O setup só imprime a instrução: copie a pasta da skill de `haidrrrry/claude-remotion-skill` para `~/.claude/skills/` | `~/.claude/skills/` |
-| `andrej-karpathy-skills` | marketplace | Diretrizes de comportamento para o Claude errar menos ao programar | `~/.claude/plugins/` |
-| `Agent-Skills-for-Context-Engineering` | marketplace | Skills de engenharia de contexto para agentes | `~/.claude/plugins/` |
+| `karpathy-skills` | marketplace (repo `forrestchang/andrej-karpathy-skills`) | Diretrizes de comportamento para o Claude errar menos ao programar | `~/.claude/plugins/` |
+| `context-engineering-marketplace` | marketplace (repo `muratcankoylan/Agent-Skills-for-Context-Engineering`) | Skills de engenharia de contexto para agentes | `~/.claude/plugins/` |
 
 ## 6. O que NÃO vai pelo git (e como levar)
 
@@ -151,6 +151,8 @@ npm run setup -- --browser=chrome
 $env:AG_SETUP_TIMEOUT_S="600"; npm run setup
 ```
 
+Se um item estourar o tempo, o setup avisa "tempo esgotado" e mostra o comando manual. No Windows, o processo filho (npx/node) pode continuar rodando em segundo plano mesmo assim; confira no Gerenciador de Tarefas antes de tentar de novo.
+
 Se algum item falhar, o setup mostra o comando manual equivalente e segue com os outros. Rodar de novo só refaz o que faltou.
 
 ## 8. Como desinstalar
@@ -161,7 +163,7 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 4. Bloco do time: abra `~/.claude/CLAUDE.md` e apague tudo entre `<!-- ag-pocket:inicio -->` e `<!-- ag-pocket:fim -->`, inclusive as duas linhas de marcador.
 5. Variável de tarefas (opcional): remova `CLAUDE_CODE_ENABLE_TODO_TOOLS` de `env` no `~/.claude/settings.json`.
 6. Playwright: `claude mcp remove playwright --scope user`.
-7. Plugins e marketplaces, se quiser: `claude plugin uninstall <plugin>` e `claude plugin marketplace remove <nome>` (nomes na seção 5), ou use `/plugin` dentro do Claude Code. Skills avulsas ficam em `~/.claude/skills/` (e `~/.agents/skills/`): apague a pasta da skill.
+7. Plugins e marketplaces, se quiser: `claude plugin uninstall <plugin>` e `claude plugin marketplace remove <nome>` (nomes na seção 5; o `superpowers` sai com `claude plugin uninstall superpowers@claude-plugins-official`, e os marketplaces extras se chamam `karpathy-skills` e `context-engineering-marketplace`), ou use `/plugin` dentro do Claude Code. Skills avulsas ficam em `~/.claude/skills/` (e `~/.agents/skills/`): apague a pasta da skill.
 8. Por fim, apague a pasta do projeto.
 
 ## 9. Avisos

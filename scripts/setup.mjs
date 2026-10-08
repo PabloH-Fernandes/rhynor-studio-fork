@@ -330,6 +330,13 @@ export function skillStatus(home, skill) {
   return "nao";
 }
 
+/** --check de uma skill ainda não "sim": "pula" (extra sem --completo), "aviso" (só em ~/.agents), "falta" ou null (fora do --check). */
+export function veredictoCheckSkill(estado, extra, flags) {
+  if (!flags.check || estado === "sim") return null;
+  if (extra && !flags.completo) return "pula";
+  return estado === "fora" ? "aviso" : "falta";
+}
+
 function mcpsDeUsuario(home, avisa = () => {}) {
   const { dados } = leJsonAvisando(path.join(home, ".claude.json"), avisa);
   return dados.mcpServers && typeof dados.mcpServers === "object" ? dados.mcpServers : {};
@@ -344,10 +351,8 @@ function rodar(cmd, args, { timeout = TIMEOUT_ITEM_MS, cwd = ROOT, plataforma = 
   const r = precisaShell
     ? spawnSync(montaComando(cmd, args, plataforma), { ...opcoes, shell: true })
     : spawnSync(cmd, args, opcoes);
-  if (precisaShell && r.error?.code === "ETIMEDOUT" && r.pid) {
-    // o timeout só mata o cmd.exe; derruba a árvore (npx/node) para não deixar processo órfão
-    spawnSync("taskkill", ["/T", "/F", "/PID", String(r.pid)], { stdio: "ignore", windowsHide: true });
-  }
+  // Limitação conhecida (Windows): no timeout o spawnSync mata só o cmd.exe; o processo filho (npx/node)
+  // pode continuar em segundo plano. Não há como derrubar a árvore depois (o pid já morreu); ver SETUP.md.
   const saida = `${r.stdout ?? ""}${r.stderr ? `\n${r.stderr}` : ""}`.trim();
   const estourou = r.error?.code === "ETIMEDOUT" || (r.signal === "SIGTERM" && r.status === null);
   return {
@@ -652,7 +657,9 @@ function passoPlugins(ctx, L, cat) {
       const manual = `npx skills add ${item.repo} --skill ${item.skill}`;
       const estado = skillStatus(ctx.home, item.skill);
       if (estado === "sim") return L.ja(`skill ${item.skill}`);
-      if (estado === "fora" && ctx.flags.check) {
+      const veredito = veredictoCheckSkill(estado, extra, ctx.flags);
+      if (veredito === "pula") return L.pulou(rotulo, "extra; use --completo");
+      if (veredito === "aviso") {
         return L.aviso(`skill ${item.skill} existe só em ~/.agents/skills (fora do Claude); falta em ~/.claude/skills (${manual})`);
       }
       if (ctx.flags.check) return extra ? L.pulou(rotulo, "não instalado") : L.falta(`skill ${item.skill} não está instalada (${manual})`);
