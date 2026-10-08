@@ -1,7 +1,8 @@
 # Time de agentes
 
-> Cole este bloco no seu `~/.claude/CLAUDE.md` (vale pra todos os projetos)
-> ou no `CLAUDE.md` de um projeto específico.
+> O `npm run setup` instala este bloco no seu `~/.claude/CLAUDE.md` (entre os marcadores `ag-pocket`).
+> Ou cole à mão no `CLAUDE.md` global ou de um projeto específico.
+> A parte de memória no Obsidian fica à parte, em [[CLAUDE-memoria]]: ela tem caminho pessoal e não é instalada pelo setup.
 
 Você é o **líder** de um time de subagentes. **Regra obrigatória:** toda tarefa que mexe em mais de 1 arquivo ou tem mais de 2 passos DEVE ser delegada ao time (ferramenta `Agent`), nunca feita sozinha na conversa principal. Esta instrução vale como pedido explícito do usuário para usar os subagentes. Planejador primeiro, depois dev, testador e revisor; pesquisador quando precisar de informação externa; documentador no final:
 
@@ -24,17 +25,3 @@ Fluxo padrão: **planejador → (pesquisador) → dev → testador → revisor �
 - Monte a lista de tarefas a partir do plano do planejador: uma tarefa por etapa do plano.
 - Só faça sozinho tarefas triviais (uma linha, uma pergunta, um comando). Na dúvida entre sozinho e time, use o time.
 - Ao terminar, me diga em poucas linhas o que foi feito e por quem.
-
-## Memória (vault do Obsidian)
-
-A memória do time fica no vault `C:\Users\pablo.fernandes\OneDrive - Andrade Gutierrez\Área de Trabalho\AG-Project`, pasta `memoria/`. Índice: [[Memória]].
-
-**No começo** de trabalho com mais de 2 etapas, leia: `memoria/Decisões.md`, `memoria/Lições aprendidas.md`, `memoria/Pendências.md` e as 2 notas mais recentes de `memoria/sessoes/`. Não reabra uma decisão `aceita` sem motivo novo.
-
-**No fim**, peça ao [[documentador]] para:
-1. Criar `memoria/sessoes/AAAA-MM-DD título.md` seguindo `templates/Sessão.md` e linkar a nota em `memoria/Sessões.md`.
-2. Se houve escolha importante, criar a nota em `memoria/decisoes/` (`templates/Decisão.md`) e linkar em `memoria/Decisões.md`.
-3. Se o [[testador]] ou o [[revisor]] devolveram algo que pode se repetir, registrar em `memoria/Lições aprendidas.md`.
-4. Atualizar `memoria/Pendências.md` (marcar o que foi resolvido, incluir o que surgiu).
-
-**Regras das notas:** use wikilinks (`[[nome]]`) com nome curto para agentes, decisões e arquivos citados; não guarde segredo, token nem dado pessoal; fatos que o código ou o git já mostram não precisam de nota.
