@@ -1,0 +1,134 @@
+{
+  "versao": 1,
+  "essenciais": [
+    {
+      "id": "mkt-claude-code",
+      "tipo": "marketplace",
+      "paraQue": "Catálogo oficial de plugins do Claude Code (anthropics/claude-code)",
+      "repo": "anthropics/claude-code",
+      "nome": "claude-code-plugins"
+    },
+    {
+      "id": "plugin-frontend-design",
+      "tipo": "plugin",
+      "paraQue": "Ajuda o Claude a criar interfaces bonitas e diferentes do padrão genérico",
+      "plugin": "frontend-design",
+      "marketplace": "claude-code-plugins"
+    },
+    {
+      "id": "mkt-anthropic-skills",
+      "tipo": "marketplace",
+      "paraQue": "Catálogo de skills oficiais da Anthropic (anthropics/skills)",
+      "repo": "anthropics/skills",
+      "nome": "anthropic-agent-skills"
+    },
+    {
+      "id": "plugin-example-skills",
+      "tipo": "plugin",
+      "paraQue": "Skills de exemplo da Anthropic (theme-factory, webapp-testing e outras)",
+      "plugin": "example-skills",
+      "marketplace": "anthropic-agent-skills"
+    },
+    {
+      "id": "mcp-playwright",
+      "tipo": "mcp",
+      "paraQue": "Deixa o testador e o revisor abrirem o site num navegador de verdade",
+      "nome": "playwright",
+      "comando": "npx @playwright/mcp@latest",
+      "navegador": { "win32": "msedge", "padrao": "chrome" }
+    },
+    {
+      "id": "skill-web-design-guidelines",
+      "tipo": "skill",
+      "paraQue": "Revisa interface contra boas práticas de design e acessibilidade",
+      "repo": "https://github.com/vercel-labs/agent-skills",
+      "skill": "web-design-guidelines"
+    },
+    {
+      "id": "skill-brainstorming",
+      "tipo": "skill",
+      "paraQue": "Ajuda a explorar a ideia antes de sair implementando",
+      "repo": "https://github.com/obra/superpowers",
+      "skill": "brainstorming"
+    },
+    {
+      "id": "skill-webapp-testing",
+      "tipo": "skill",
+      "paraQue": "Plano B do testador: scripts Playwright para testar sites",
+      "repo": "https://github.com/anthropics/skills",
+      "skill": "webapp-testing"
+    },
+    {
+      "id": "skill-find-skills",
+      "tipo": "skill",
+      "paraQue": "Ajuda a achar e instalar outras skills",
+      "repo": "https://github.com/vercel-labs/skills",
+      "skill": "find-skills"
+    }
+  ],
+  "extras": [
+    {
+      "id": "plugin-superpowers",
+      "tipo": "plugin",
+      "paraQue": "Pacote de fluxos de trabalho (planejar, depurar, revisar) de terceiros",
+      "plugin": "superpowers",
+      "marketplace": "claude-plugins-official"
+    },
+    {
+      "id": "skill-agent-browser",
+      "tipo": "skill",
+      "paraQue": "Controla um navegador pela linha de comando (terceiros)",
+      "repo": "https://github.com/vercel-labs/agent-browser",
+      "skill": "agent-browser"
+    },
+    {
+      "id": "skill-grill-me",
+      "tipo": "skill",
+      "paraQue": "O Claude te questiona até a ideia ficar clara (terceiros)",
+      "repo": "https://github.com/mattpocock/skills",
+      "skill": "grill-me"
+    },
+    {
+      "id": "skill-copywriting",
+      "tipo": "skill",
+      "paraQue": "Escrita de textos de marketing (terceiros)",
+      "repo": "https://github.com/coreyhaines31/marketingskills",
+      "skill": "copywriting"
+    },
+    {
+      "id": "skill-nano-banana-2",
+      "tipo": "skill",
+      "paraQue": "Geração de imagens com IA (terceiros, chama serviço externo)",
+      "repo": "https://github.com/inference-sh/skills",
+      "skill": "nano-banana-2"
+    },
+    {
+      "id": "skill-ai-image-generation",
+      "tipo": "skill",
+      "paraQue": "Geração de imagens com IA (terceiros, chama serviço externo)",
+      "repo": "https://github.com/inference-sh/skills",
+      "skill": "ai-image-generation"
+    },
+    {
+      "id": "skill-remotion-motion-graphics",
+      "tipo": "skill-manual",
+      "paraQue": "Vídeos e animações com Remotion (terceiros)",
+      "repo": "haidrrrry/claude-remotion-skill",
+      "instrucao": "Não é marketplace: baixe o repositório haidrrrry/claude-remotion-skill e copie a pasta da skill para ~/.claude/skills/ (confira o README dele)."
+    },
+    {
+      "id": "mkt-karpathy-skills",
+      "tipo": "marketplace",
+      "paraQue": "Diretrizes de comportamento para o Claude errar menos ao programar (terceiros)",
+      "repo": "forrestchang/andrej-karpathy-skills",
+      "nome": "karpathy-skills"
+    },
+    {
+      "id": "mkt-context-engineering",
+      "tipo": "marketplace",
+      "paraQue": "Skills de engenharia de contexto para agentes (terceiros)",
+      "repo": "muratcankoylan/Agent-Skills-for-Context-Engineering",
+      "nome": "context-engineering-marketplace"
+    }
+  ]
+}
