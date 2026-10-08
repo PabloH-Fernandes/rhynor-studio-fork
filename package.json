@@ -15,6 +15,7 @@
     "setup:check": "node scripts/setup.mjs --check",
     "typecheck": "tsc --noEmit",
     "replay": "tsx server/replay.ts",
+    "diagnostico": "node scripts/diagnostico-eventos.mjs",
     "test": "tsx --test \"server/**/*.test.ts\" \"shared/**/*.test.ts\" \"web/src/**/*.test.ts\" \"scripts/**/*.test.mjs\""
   },
   "dependencies": {
