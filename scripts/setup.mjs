@@ -182,6 +182,10 @@ export function agentesEmDia(srcDir, destDir) {
   return { total: arquivos.length, pendentes };
 }
 
+const CAMPOS_DE_SHELL = ["repo", "nome", "plugin", "marketplace", "skill", "comando"];
+const METACARACTERES_SHELL = /["&|<>^%]/;
+const METACARACTERES_SHELL_OU_ESPACO = /["&|<>^%\s]/;
+
 /** Valida o catálogo; devolve a lista de problemas (vazia = válido). */
 export function validaCatalogo(cat) {
   const erros = [];
@@ -210,6 +214,12 @@ export function validaCatalogo(cat) {
       if (!TIPOS_ITEM.includes(item.tipo)) return erros.push(`${onde}: tipo inválido (${TIPOS_ITEM.join("|")})`);
       if (!str(item.paraQue)) erros.push(`${onde}: falta "paraQue"`);
       for (const campo of porTipo[item.tipo]) if (!str(item[campo])) erros.push(`${onde}: falta "${campo}"`);
+      // campos que viram argumento de comando (no Windows passam por cmd.exe): sem metacaracteres de shell
+      for (const campo of CAMPOS_DE_SHELL) {
+        if (typeof item[campo] !== "string") continue;
+        const proibido = campo === "comando" ? METACARACTERES_SHELL : METACARACTERES_SHELL_OU_ESPACO;
+        if (proibido.test(item[campo])) erros.push(`${onde}: "${campo}" tem caractere proibido (" & | < > ^ %${campo === "comando" ? "" : " ou espaço"})`);
+      }
       if (item.tipo === "mcp") {
         const nav = item.navegador;
         if (!nav || typeof nav !== "object" || !NAVEGADORES.includes(nav.padrao)) {
@@ -256,14 +266,24 @@ function carimbo() {
   return new Date().toISOString().replace(/[:.]/g, "-");
 }
 
-function leJson(arquivo) {
+/** Lê um JSON de configuração. `erro: true` = existe mas não é um objeto JSON válido (BOM UTF-8 é aceito). */
+export function leJson(arquivo) {
   if (!fs.existsSync(arquivo)) return { existe: false, dados: {} };
-  const texto = fs.readFileSync(arquivo, "utf8");
+  const texto = fs.readFileSync(arquivo, "utf8").replace(/^﻿/, "");
   try {
-    return { existe: true, dados: texto.trim() ? JSON.parse(texto) : {} };
+    const dados = texto.trim() ? JSON.parse(texto) : {};
+    if (!dados || typeof dados !== "object" || Array.isArray(dados)) return { existe: true, erro: true, dados: {} };
+    return { existe: true, dados };
   } catch {
     return { existe: true, erro: true, dados: {} };
   }
+}
+
+/** Como leJson, mas avisa (⚠) quando o arquivo existe e está inválido, em vez de tratar em silêncio como vazio. */
+function leJsonAvisando(arquivo, avisa) {
+  const r = leJson(arquivo);
+  if (r.erro) avisa(`${arquivo} tem JSON inválido; ignorei o conteúdo (nada foi alterado nele)`);
+  return r;
 }
 
 function backup(arquivo) {
@@ -272,31 +292,47 @@ function backup(arquivo) {
   return destino;
 }
 
-function marketplacesConhecidos(home) {
-  const { dados } = leJson(path.join(home, ".claude", "plugins", "known_marketplaces.json"));
-  const nomes = new Set(Object.keys(dados ?? {}));
-  const repos = new Set(Object.values(dados ?? {}).map((m) => m?.source?.repo).filter(Boolean));
+function marketplacesConhecidos(home, avisa = () => {}) {
+  const { dados } = leJsonAvisando(path.join(home, ".claude", "plugins", "known_marketplaces.json"), avisa);
+  const nomes = new Set(Object.keys(dados));
+  const repos = new Set(Object.values(dados).map((m) => m?.source?.repo).filter(Boolean));
   return { nomes, repos };
 }
 
-function pluginsInstalados(home) {
+/**
+ * Ids de plugins instalados. `instalados` = conteúdo de installed_plugins.json (null se o arquivo não existe/é inválido).
+ * Conta só chave com ao menos uma entrada (e, quando a entrada tem "scope", de escopo "user").
+ * `enabledPlugins` do settings.json só vale como fallback quando não há installed_plugins.json.
+ */
+export function idsPluginsInstalados(instalados, settings) {
   const ids = new Set();
-  const { dados } = leJson(path.join(home, ".claude", "plugins", "installed_plugins.json"));
-  for (const id of Object.keys(dados?.plugins ?? {})) ids.add(id);
-  const { dados: settings } = leJson(path.join(home, ".claude", "settings.json"));
-  for (const [id, ligado] of Object.entries(settings?.enabledPlugins ?? {})) if (ligado) ids.add(id);
+  if (instalados) {
+    for (const [id, entradas] of Object.entries(instalados.plugins ?? {})) {
+      if (!Array.isArray(entradas)) continue;
+      if (entradas.some((e) => e && typeof e === "object" && (e.scope === undefined || e.scope === "user"))) ids.add(id);
+    }
+    return ids;
+  }
+  for (const [id, ligado] of Object.entries(settings?.enabledPlugins ?? {})) if (ligado === true) ids.add(id);
   return ids;
 }
 
-function skillInstalada(home, skill) {
-  return [path.join(home, ".claude", "skills", skill), path.join(home, ".agents", "skills", skill)].some((p) =>
-    fs.existsSync(p),
-  );
+function pluginsInstalados(home, avisa = () => {}) {
+  const inst = leJsonAvisando(path.join(home, ".claude", "plugins", "installed_plugins.json"), avisa);
+  const { dados: settings } = leJson(path.join(home, ".claude", "settings.json"));
+  return idsPluginsInstalados(inst.existe && !inst.erro ? inst.dados : null, settings);
 }
 
-function mcpsDeUsuario(home) {
-  const { dados } = leJson(path.join(home, ".claude.json"));
-  return dados?.mcpServers && typeof dados.mcpServers === "object" ? dados.mcpServers : {};
+/** "sim" = em ~/.claude/skills (destino de `-g -a claude-code`); "fora" = só em ~/.agents/skills; "nao". */
+export function skillStatus(home, skill) {
+  if (fs.existsSync(path.join(home, ".claude", "skills", skill))) return "sim";
+  if (fs.existsSync(path.join(home, ".agents", "skills", skill))) return "fora";
+  return "nao";
+}
+
+function mcpsDeUsuario(home, avisa = () => {}) {
+  const { dados } = leJsonAvisando(path.join(home, ".claude.json"), avisa);
+  return dados.mcpServers && typeof dados.mcpServers === "object" ? dados.mcpServers : {};
 }
 
 // ───────────────────────── execução de comandos ─────────────────────────
@@ -308,6 +344,10 @@ function rodar(cmd, args, { timeout = TIMEOUT_ITEM_MS, cwd = ROOT, plataforma = 
   const r = precisaShell
     ? spawnSync(montaComando(cmd, args, plataforma), { ...opcoes, shell: true })
     : spawnSync(cmd, args, opcoes);
+  if (precisaShell && r.error?.code === "ETIMEDOUT" && r.pid) {
+    // o timeout só mata o cmd.exe; derruba a árvore (npx/node) para não deixar processo órfão
+    spawnSync("taskkill", ["/T", "/F", "/PID", String(r.pid)], { stdio: "ignore", windowsHide: true });
+  }
   const saida = `${r.stdout ?? ""}${r.stderr ? `\n${r.stderr}` : ""}`.trim();
   const estourou = r.error?.code === "ETIMEDOUT" || (r.signal === "SIGTERM" && r.status === null);
   return {
@@ -543,7 +583,7 @@ function passoComandoTime(ctx, L) {
 function passoMcp(ctx, L, item) {
   L.titulo("8. Playwright MCP (escopo de usuário)");
   const navegador = escolheNavegador(ctx.plataforma, ctx.flags.browser, item.navegador);
-  const servidores = mcpsDeUsuario(ctx.home);
+  const servidores = mcpsDeUsuario(ctx.home, L.aviso);
   const atual = servidores[item.nome];
   const manual = montaComando("claude", ["mcp", "add", "--scope", "user", item.nome, "--", ...item.comando.split(" "), "--browser", navegador], "linux");
   if (atual) {
@@ -579,8 +619,8 @@ function passoPlugins(ctx, L, cat) {
   }
   const itens = cat.essenciais.filter((i) => i.tipo !== "mcp");
   const extras = cat.extras.filter((i) => i.tipo !== "mcp");
-  const conhecidos = marketplacesConhecidos(ctx.home);
-  const plugins = pluginsInstalados(ctx.home);
+  const conhecidos = marketplacesConhecidos(ctx.home, L.aviso);
+  const plugins = pluginsInstalados(ctx.home, L.aviso);
   const falhasMkt = new Set();
 
   const cuida = (item, extra) => {
@@ -610,13 +650,17 @@ function passoPlugins(ctx, L, cat) {
     }
     if (item.tipo === "skill") {
       const manual = `npx skills add ${item.repo} --skill ${item.skill}`;
-      if (skillInstalada(ctx.home, item.skill)) return L.ja(`skill ${item.skill}`);
+      const estado = skillStatus(ctx.home, item.skill);
+      if (estado === "sim") return L.ja(`skill ${item.skill}`);
+      if (estado === "fora" && ctx.flags.check) {
+        return L.aviso(`skill ${item.skill} existe só em ~/.agents/skills (fora do Claude); falta em ~/.claude/skills (${manual})`);
+      }
       if (ctx.flags.check) return extra ? L.pulou(rotulo, "não instalado") : L.falta(`skill ${item.skill} não está instalada (${manual})`);
       const args = ["--yes", "skills", "add", item.repo, "--skill", item.skill, "-g", "-a", "claude-code", "-y"];
       if (ctx.flags.dryRun) return L.faria(`npx ${args.join(" ")}`);
       const r = rodar("npx", args, { plataforma: ctx.plataforma });
       registraCert(ctx, r.saida);
-      if (r.ok && skillInstalada(ctx.home, item.skill)) return L.instalou(`skill ${item.skill}`);
+      if (r.ok && skillStatus(ctx.home, item.skill) === "sim") return L.instalou(`skill ${item.skill}`);
       return L.falhou(`skill ${item.skill}`, r.estourou ? `tempo esgotado (${TIMEOUT_ITEM_MS / 1000} s)` : ultimasLinhas(r.saida), manual);
     }
     // skill-manual: sem comando automático, vira instrução
@@ -741,7 +785,8 @@ export function setup(argv, { home = os.homedir(), plataforma = process.platform
     () => passoBuild(ctx, L) !== false,
   ];
   for (const passo of seguir) {
-    if (!passo()) {
+    // em --check um passo inválido vira ✖ e o diagnóstico dos demais itens segue
+    if (!passo() && !flags.check) {
       out("\n✖ Parei aqui para não sobrescrever nada. Corrija o problema acima e rode de novo.");
       return 1;
     }

@@ -14,12 +14,15 @@ import {
   dicaCert,
   escolheNavegador,
   hooksEmDia,
+  idsPluginsInstalados,
+  leJson,
   lerCatalogo,
   mcpExisteNaLista,
   montaBlocoTime,
   montaComando,
   navegadorDoServidor,
   parseFlags,
+  skillStatus,
   validaCatalogo,
 } from "./setup.mjs";
 
@@ -140,4 +143,88 @@ test("hooks: install-hooks real satisfaz hooksEmDia, e outra pasta não", () => 
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
+});
+
+test("setup sem claude/git no PATH para com exit 1, mensagem clara e não escreve nada", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "agp-home-"));
+  try {
+    const env = { ...process.env, HOME: home, USERPROFILE: home, PATH: path.join(home, "vazio") };
+    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts", "setup.mjs")], { env, encoding: "utf8" });
+    assert.equal(r.status, 1);
+    assert.match(r.stdout, /claude \(Claude Code\) não encontrado no PATH/);
+    assert.deepEqual(fs.readdirSync(home), []);
+    const c = spawnSync(process.execPath, [path.join(ROOT, "scripts", "setup.mjs"), "--check"], { env, encoding: "utf8" });
+    assert.equal(c.status, 1);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("setup.mjs nunca desliga a verificação SSL (só cita nas dicas)", () => {
+  const src = fs.readFileSync(path.join(ROOT, "scripts", "setup.mjs"), "utf8");
+  assert.doesNotMatch(src, /process\.env\.NODE_TLS_REJECT_UNAUTHORIZED\s*=|env:\s*\{[^}]*NODE_TLS_REJECT_UNAUTHORIZED|rejectUnauthorized\s*:\s*false/);
+  assert.doesNotMatch(src, /["'`]--insecure["'`]|["'`]strict-ssl["'`]/);
+});
+
+test("leJson: aceita BOM, recusa null/array/primitivo/inválido", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agp-json-"));
+  try {
+    const grava = (nome, txt) => {
+      const f = path.join(dir, nome);
+      fs.writeFileSync(f, txt);
+      return f;
+    };
+    assert.deepEqual(leJson(grava("bom.json", '﻿{"a":1}')), { existe: true, dados: { a: 1 } });
+    assert.equal(leJson(path.join(dir, "nao.json")).existe, false);
+    assert.deepEqual(leJson(grava("vazio.json", "  ")), { existe: true, dados: {} });
+    for (const txt of ["null", "[]", "42", '"x"', "{oops"]) {
+      const r = leJson(grava("x.json", txt));
+      assert.equal(r.erro, true, txt);
+      assert.deepEqual(r.dados, {});
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("idsPluginsInstalados: exige entrada em installed_plugins; enabledPlugins só sem o arquivo", () => {
+  const settings = { enabledPlugins: { "a@m": true, "b@m": false } };
+  assert.deepEqual([...idsPluginsInstalados(null, settings)], ["a@m"]);
+  const inst = {
+    plugins: {
+      "vazio@m": [],
+      "user@m": [{ scope: "user" }],
+      "proj@m": [{ scope: "project" }],
+      "semescopo@m": [{ version: "1" }],
+      "ruim@m": "x",
+    },
+  };
+  assert.deepEqual([...idsPluginsInstalados(inst, settings)].sort(), ["semescopo@m", "user@m"]);
+  assert.equal(idsPluginsInstalados({}, settings).size, 0);
+});
+
+test("skillStatus: só ~/.claude/skills conta; ~/.agents/skills é 'fora'", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "agp-skill-"));
+  try {
+    fs.mkdirSync(path.join(home, ".claude", "skills", "a"), { recursive: true });
+    fs.mkdirSync(path.join(home, ".agents", "skills", "b"), { recursive: true });
+    assert.equal(skillStatus(home, "a"), "sim");
+    assert.equal(skillStatus(home, "b"), "fora");
+    assert.equal(skillStatus(home, "c"), "nao");
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("validaCatalogo recusa metacaracteres de shell (comando aceita espaço)", () => {
+  const base = { id: "a", tipo: "skill", paraQue: "p & q", repo: "r", skill: "s" };
+  const erros = (item) => validaCatalogo({ versao: 1, essenciais: [item], extras: [] });
+  assert.deepEqual(erros(base), []);
+  for (const c of ['"', "&", "|", "<", ">", "^", "%", " "]) {
+    assert.ok(erros({ ...base, skill: `s${c}x` }).some((e) => /proibido/.test(e)), JSON.stringify(c));
+  }
+  assert.ok(erros({ ...base, repo: "https://x/y & calc" }).length > 0);
+  const mcp = { id: "m", tipo: "mcp", paraQue: "p", nome: "n", comando: "npx @p/m@latest", navegador: { padrao: "chrome" } };
+  assert.deepEqual(erros(mcp), []);
+  for (const c of ["&", "|", "%", '"', "^"]) assert.ok(erros({ ...mcp, comando: `npx x${c}y` }).length > 0, c);
 });
