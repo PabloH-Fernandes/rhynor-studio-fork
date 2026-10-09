@@ -5,5 +5,6 @@ web/dist/
 # elenco salvo pelo servidor (o exemplo versionado é o padrão)
 data/*
 !data/agzinhos.example.json
+referencias/*
 prints/
 /preview.png
