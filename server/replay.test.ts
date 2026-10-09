@@ -65,7 +65,11 @@ test("bug 4: servidor_iniciou com persistência mantém o time, os status e a li
   const resumo = (s: OfficeState) => agentes(s).map((a) => `${a.id}:${a.agzinho}:${a.status}:${a.activity}`).sort();
 
   const { state, linhaDoTempo } = reproduzir(comReinicio, { aoReiniciar: comPersistencia });
-  assert.deepEqual(resumo(state), resumo(antes));
+  // ninguém volta trabalhando/pensando depois do reinício (a ferramenta em andamento morreu com o processo)
+  assert.deepEqual(
+    resumo(state),
+    resumo(antes).map((l) => l.replace(/:(trabalhando|pensando):.*$/, ":ocioso:De boa")),
+  );
   assert.equal(state.getProgress().total, 2);
   const iReinicio = linhaDoTempo.findIndex((m) => m.status === "reiniciou");
   assert.ok(iReinicio >= 0);

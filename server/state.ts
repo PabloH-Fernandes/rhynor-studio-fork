@@ -68,8 +68,18 @@ export const VISITANTE_RETIRE_MS = 60_000;
 export const TRANSICAO_MS = 30_000;
 /** /clear com os hooks fora de ordem: SessionStart "clear" até esse tempo antes do SessionEnd "clear" ainda funde */
 export const CLEAR_ADIANTADO_MS = 5000;
-/** sessão com ferramenta em andamento (Pre sem Post) espera esse múltiplo do timeout */
+/** sessão com ferramenta realmente em andamento (Pre sem Post no mapa `emAndamento`) espera esse múltiplo do timeout */
 const BUSY_TIMEOUT_FACTOR = 4;
+/** "trabalhando" sem nenhum evento por esse tempo volta para "de boa" (ocioso) */
+export const TRABALHANDO_EXPIRA_MS = 2 * 60_000;
+/** o mesmo, quando a ferramenta em andamento é o Bash (build, testes e instalações demoram) */
+export const TRABALHANDO_BASH_MS = 10 * 60_000;
+/** depois do SubagentStop, eventos do mesmo agent_id nessa janela são atrasados: não retomam ninguém */
+export const JANELA_TARDIO_MS = 5000;
+/** quanto tempo a lembrança de "este agent_id já deu SubagentStop" vale para não criar fantasma */
+const PARADO_LEMBRA_MS = 10 * 60_000;
+/** ferramentas que não contam como trabalho em andamento (entregar o resultado e perguntar a você) */
+const FERRAMENTAS_SEM_TRABALHO = new Set(["SubagentHandback", "AskUserQuestion"]);
 export const DEFAULT_SESSION_TIMEOUT_MIN = 30;
 const FEED_LIMIT = 200;
 
@@ -77,6 +87,12 @@ const FEED_LIMIT = 200;
 const NEEDS_YOU = new Set(["permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input"]);
 
 type Listener = (msg: ServerMessage) => void;
+
+/** ferramenta que começou (PreToolUse) e ainda não terminou (PostToolUse) */
+interface EmAndamento {
+  tool: string;
+  at: number;
+}
 
 interface PendingSpawn {
   sessionId: string;
@@ -167,6 +183,12 @@ export class OfficeState {
   /** visitante (id visual) → timer da saída por falta de evento (VISITANTE_SEM_EVENTO_MS) */
   private visitorTimers = new Map<string, Timer>();
   private roster: Roster = structuredClone(DEFAULT_ROSTER);
+  /** id visual → (tool_use_id → ferramenta em andamento). Sempre por agente: nunca cruza agent_id nem sessão */
+  private emAndamento = new Map<string, Map<string, EmAndamento>>();
+  /** id visual → timer da expiração de "trabalhando" sem evento (TRABALHANDO_EXPIRA_MS / TRABALHANDO_BASH_MS) */
+  private trabalhoTimers = new Map<string, Timer>();
+  /** alias (agent_id) → quando deu SubagentStop: evento tardio dele não revive nem cria fantasma */
+  private paradoEm = new Map<string, number>();
   /** agent_id ou "t:"+tool_use_id → id visual (ag:dev, ag:dev-2...) */
   private aliases = new Map<string, string>();
   /** id visual → última ligação (pra achar quem acabou de chegar pelo SubagentStart) */
@@ -320,10 +342,11 @@ export class OfficeState {
 
     for (const a of agents) {
       if (!vivas.has(a.sessionId)) continue;
-      if (a.status === "chegando") {
-        // o timer de chegada morreu com o processo: já está na mesa
-        a.status = a.parentId ? "pensando" : "ocioso";
-        if (a.activity === "Chegando..." || a.activity === "Indo pra mesa...") a.activity = a.parentId ? "Pensando..." : "Esperando você";
+      if (a.status === "chegando" || a.status === "trabalhando" || a.status === "pensando") {
+        // os timers e as ferramentas em andamento morreram com o processo: ninguém volta "trabalhando"
+        // (o próximo evento de verdade o põe a trabalhar de novo)
+        a.status = "ocioso";
+        a.activity = "De boa";
       }
       const ag = a.agzinho ? this.findAgzinho(a.agzinho) : undefined;
       if (ag) a.name = ag.nome;
@@ -359,9 +382,13 @@ export class OfficeState {
     for (const p of this.pending.values()) this.relogio.clearTimeout(p.timer);
     for (const t of this.transicoes.values()) this.relogio.clearTimeout(t.timer);
     for (const t of this.visitorTimers.values()) this.relogio.clearTimeout(t);
+    for (const t of this.trabalhoTimers.values()) this.relogio.clearTimeout(t);
     this.removalTimers.clear();
     this.arrivalTimers.clear();
     this.visitorTimers.clear();
+    this.trabalhoTimers.clear();
+    this.emAndamento.clear();
+    this.paradoEm.clear();
     this.pending.clear();
     this.transicoes.clear();
     this.clearsSemTime.clear();
@@ -383,9 +410,13 @@ export class OfficeState {
     for (const t of this.arrivalTimers.values()) this.relogio.clearTimeout(t);
     for (const p of this.pending.values()) this.relogio.clearTimeout(p.timer);
     for (const t of this.visitorTimers.values()) this.relogio.clearTimeout(t);
+    for (const t of this.trabalhoTimers.values()) this.relogio.clearTimeout(t);
     this.removalTimers.clear();
     this.arrivalTimers.clear();
     this.visitorTimers.clear();
+    this.trabalhoTimers.clear();
+    this.emAndamento.clear();
+    this.paradoEm.clear();
     this.pending.clear();
     this.aliases.clear();
     this.bindings.clear();
@@ -459,9 +490,12 @@ export class OfficeState {
 
       case "PreToolUse": {
         const tool = input.tool_name ?? "?";
-        const agent = this.agentFor(input);
+        // entregar o resultado não retoma ninguém (o Handback chega colado no SubagentStop)
+        const agent = this.agentFor(input, { religa: tool !== "SubagentHandback" });
         if (!agent) break; // evento atrasado de quem já entregou
+        if (tool === "SubagentHandback" && input.agent_id && this.stopped.has(input.agent_id)) break;
         const toolInput = input.tool_input ?? {};
+        this.registrarFerramenta(agent, input, tool);
 
         if (SUBAGENT_TOOLS.has(tool) && !input.agent_id) {
           const type = String(toolInput.subagent_type ?? toolInput.name ?? "general-purpose");
@@ -498,6 +532,7 @@ export class OfficeState {
         // o fim de uma ferramenta não retoma ninguém: Post atrasado (depois do SubagentStop, do Stop
         // ou do TeammateIdle) não tira de "ocioso"; só PreToolUse e SubagentStart retomam
         const agent = this.agentFor(input, { religa: false });
+        if (agent) this.terminarFerramenta(agent, input, tool);
         if (!agent || agent.status === "ocioso") break;
         // de resto, trabalho ganha do descanso: o Post também é trabalho (nunca vira ocioso nem "pensando")
         const falhou = ev === "PostToolUseFailure";
@@ -546,6 +581,7 @@ export class OfficeState {
         // SubagentStart explícito reabre um visitante que acabou de sair (a sessão encerrada já foi
         // barrada lá em cima, no handleHook)
         this.retired.delete(id);
+        this.paradoEm.delete(id);
         const type = String(input.agent_type ?? "general-purpose");
         const known = this.agentByAlias(id);
         if (known) {
@@ -599,6 +635,7 @@ export class OfficeState {
 
       case "Stop": {
         const lead = this.ensureLeader(input);
+        this.encerrarVez(input.session_id);
         this.update(lead, "ocioso", "Terminou, esperando você");
         this.pushFeed(lead, "terminou a vez dele", "done", { tipo: "terminouVez" });
         break;
@@ -652,12 +689,93 @@ export class OfficeState {
   sweep() {
     const now = this.now();
     for (const [id, until] of this.retired) if (until <= now) this.retired.delete(id);
+    for (const [id, at] of this.paradoEm) if (now - at > PARADO_LEMBRA_MS) this.paradoEm.delete(id);
     for (const [sessionId, seen] of [...this.lastSeen]) {
       if (this.semSinal(sessionId, seen, now)) this.endSession(sessionId, "Saiu (sessão sem sinal)", { retire: false });
     }
     // visitantes sem evento há VISITANTE_SEM_EVENTO_MS (o timer de cada um faz o mesmo na hora certa;
     // aqui é a rede de segurança para quem roda só com o `now` trocado)
-    for (const a of [...this.agents.values()]) if (this.visitanteExpirou(a, now)) this.sairVisitante(a, "Saiu (sem sinal)");
+    for (const a of [...this.agents.values()]) {
+      if (this.visitanteExpirou(a, now)) this.sairVisitante(a, "Saiu (sem sinal)");
+      else if (this.trabalhoExpirou(a, now)) this.expirarTrabalho(a);
+    }
+  }
+
+  // ---------------------------------------------------------------- ferramentas em andamento
+
+  /** PreToolUse: a ferramenta passa a contar como trabalho em andamento deste agente (menos entregar/perguntar) */
+  private registrarFerramenta(agent: Agent, input: HookInput, tool: string) {
+    if (FERRAMENTAS_SEM_TRABALHO.has(tool)) return;
+    let mapa = this.emAndamento.get(agent.id);
+    if (!mapa) this.emAndamento.set(agent.id, (mapa = new Map()));
+    mapa.set(input.tool_use_id ?? `anon:${tool}`, { tool, at: this.now() });
+  }
+
+  /** PostToolUse / PostToolUseFailure: a ferramenta acabou */
+  private terminarFerramenta(agent: Agent, input: HookInput, tool: string) {
+    const mapa = this.emAndamento.get(agent.id);
+    if (!mapa) return;
+    mapa.delete(input.tool_use_id ?? `anon:${tool}`);
+    if (mapa.size === 0) this.emAndamento.delete(agent.id);
+  }
+
+  private temFerramenta(agentId: string): boolean {
+    return (this.emAndamento.get(agentId)?.size ?? 0) > 0;
+  }
+
+  /** limite sem evento para "trabalhando": 10 min com Bash em andamento, 2 min nos outros casos */
+  private limiteTrabalho(agentId: string): number {
+    for (const f of this.emAndamento.get(agentId)?.values() ?? []) if (f.tool === "Bash") return TRABALHANDO_BASH_MS;
+    return TRABALHANDO_EXPIRA_MS;
+  }
+
+  /** "trabalhando" sem evento além do limite (visitante tem a regra própria dos 3 min; "esperando" nunca expira) */
+  private trabalhoExpirou(a: Agent, now: number): boolean {
+    if (a.status !== "trabalhando" || ehVisitante(a)) return false;
+    return now - a.updatedAt >= this.limiteTrabalho(a.id);
+  }
+
+  /** volta para "de boa" (ocioso) e esquece as ferramentas em andamento: o Post nunca veio */
+  private expirarTrabalho(a: Agent) {
+    this.emAndamento.delete(a.id);
+    this.update(a, "ocioso", a.parentId ? "De boa" : "Esperando seu próximo pedido");
+  }
+
+  /** (re)arma a expiração de "trabalhando", contada do último evento do agente */
+  private vigiarTrabalho(a: Agent) {
+    const antigo = this.trabalhoTimers.get(a.id);
+    if (antigo !== undefined) this.relogio.clearTimeout(antigo);
+    this.trabalhoTimers.delete(a.id);
+    if (a.status !== "trabalhando" || ehVisitante(a)) return;
+    const espera = Math.max(0, a.updatedAt + this.limiteTrabalho(a.id) - this.now());
+    const timer = this.relogio.setTimeout(() => {
+      this.trabalhoTimers.delete(a.id);
+      if (this.agents.get(a.id) !== a) return;
+      if (this.trabalhoExpirou(a, this.now())) this.expirarTrabalho(a);
+      else this.vigiarTrabalho(a); // chegou evento no meio
+    }, espera);
+    soltar(timer);
+    this.trabalhoTimers.set(a.id, timer);
+  }
+
+  /**
+   * Stop do líder: acabou a vez da sessão. Ninguém dela continua "trabalhando"/"pensando": volta a
+   * "de boa"; visitantes saem; quem espera você continua esperando. Só mexe nos agentes desta sessão.
+   */
+  private encerrarVez(sessionId: string) {
+    for (const a of [...this.agents.values()]) {
+      if (a.sessionId !== sessionId || a.status === "saindo") continue;
+      this.emAndamento.delete(a.id);
+      if (a.status === "esperando") continue;
+      if (ehVisitante(a)) {
+        this.sairVisitante(a, "Foi embora");
+      } else if (a.parentId && a.status !== "ocioso") {
+        const arrive = this.arrivalTimers.get(a.id);
+        if (arrive !== undefined) this.relogio.clearTimeout(arrive);
+        this.arrivalTimers.delete(a.id);
+        this.update(a, "ocioso", "De boa");
+      }
+    }
   }
 
   /** visitante parado além do limite (quem espera você nunca expira; quem já está saindo, também não) */
@@ -718,7 +836,8 @@ export class OfficeState {
   private semSinal(sessionId: string, seen: number, now: number, agents: Iterable<Agent> = this.agents.values()): boolean {
     const team = [...agents].filter((a) => a.sessionId === sessionId);
     if (team.some((a) => a.status === "esperando")) return false;
-    const busy = team.some((a) => a.status === "trabalhando");
+    // só ferramenta realmente em andamento segura a sessão; fantasma "trabalhando" e visitante não
+    const busy = team.some((a) => !ehVisitante(a) && this.temFerramenta(a.id));
     return now - seen > this.config.sessionTimeoutMs * (busy ? BUSY_TIMEOUT_FACTOR : 1);
   }
 
@@ -896,6 +1015,11 @@ export class OfficeState {
       // evento tardio não recria nem retoma; só o SubagentStart reabre (ele limpa o `retired`)
       if (this.isRetired(input.agent_id)) return undefined;
       const sub = this.agentByAlias(input.agent_id);
+      // acabou de dar SubagentStop: evento tardio (Pre/Permission...) não o retoma; só o SubagentStart
+      const parou = this.paradoEm.get(input.agent_id);
+      if (religa && sub && parou !== undefined && this.stopped.has(input.agent_id) && this.now() - parou < JANELA_TARDIO_MS) return undefined;
+      // id já parado e sem boneco (reaproveitado ou removido): não cria fantasma
+      if (!sub && parou !== undefined && this.now() - parou < PARADO_LEMBRA_MS) return undefined;
       if (sub) {
         // evento novo de quem já tinha entregue: voltou a trabalhar (o handler põe o status).
         // Com religa: false (PostToolUse), só identifica: não retoma quem parou
@@ -1091,6 +1215,8 @@ export class OfficeState {
    * continua ligado (até o fim da sessão): se o líder retomar o agente, o mesmo boneco volta.
    */
   private finishWork(agent: Agent, alias: string) {
+    this.emAndamento.delete(agent.id);
+    this.paradoEm.set(alias, this.now());
     if (agent.status !== "saindo") {
       const today = dayKey(this.now());
       if (agent.tasksDay !== today) {
@@ -1273,6 +1399,7 @@ export class OfficeState {
 
   private leave(agent: Agent, activity: string) {
     if (agent.status === "saindo") return;
+    this.emAndamento.delete(agent.id);
     agent.status = "saindo";
     agent.activity = activity;
     agent.updatedAt = this.now();
@@ -1295,6 +1422,10 @@ export class OfficeState {
     const vigia = this.visitorTimers.get(id);
     if (vigia !== undefined) this.relogio.clearTimeout(vigia);
     this.visitorTimers.delete(id);
+    const trabalho = this.trabalhoTimers.get(id);
+    if (trabalho !== undefined) this.relogio.clearTimeout(trabalho);
+    this.trabalhoTimers.delete(id);
+    this.emAndamento.delete(id);
     for (const [alias, visual] of this.aliases) {
       if (visual !== id) continue;
       this.aliases.delete(alias);
@@ -1349,6 +1480,7 @@ export class OfficeState {
     if (msg.type === "agent") {
       this.comSimples(msg.agent);
       this.vigiarVisitante(msg.agent);
+      this.vigiarTrabalho(msg.agent);
     }
     // quem cabe na tela é decidido antes de avisar: o agente novo já chega com a marca certa
     const mudaram = msg.type === "agent" || msg.type === "remove" ? this.reordenarVisitantes() : [];

@@ -105,9 +105,11 @@ Como a escalação funciona:
 ## Ciclo de vida
 
 - **Os AGzinhos ficam até o `SessionEnd`.** Terminar a tarefa (`Stop`) não manda ninguém embora: o time fica no escritório, de boa, até a sessão acabar.
+- **"Trabalhando" só vale com ferramenta em andamento ou evento recente.** O servidor guarda, por agente, as ferramentas que começaram (`PreToolUse`) e ainda não terminaram (`PostToolUse`/falha). Sem nenhum evento por **2 min** (`TRABALHANDO_EXPIRA_MS`), ou **10 min** se a ferramenta em andamento for o `Bash` (`TRABALHANDO_BASH_MS`), o agente volta para "De boa". Entregar o resultado (`SubagentHandback`) e perguntar a você (`AskUserQuestion`) não contam como trabalho; "esperando" (!) nunca expira. O `Stop` do líder faz todo mundo **daquela sessão** voltar para "de boa" (visitantes saem; quem espera você continua esperando). Evento atrasado de quem acabou de dar `SubagentStop` (até ~5 s, `JANELA_TARDIO_MS`) não o traz de volta; só o `SubagentStart` retoma. Visitante sai com 3 min sem eventos (ver acima).
+- **Ao restaurar, ninguém volta trabalhando.** `trabalhando` e `pensando` do `data/escritorio.json` viram "De boa" e as ferramentas em andamento não são restauradas (o formato do arquivo não mudou); o próximo evento de verdade põe o agente para trabalhar de novo.
 - **Reiniciar não manda ninguém embora.** O estado do escritório fica em `data/escritorio.json` (fora do git), salvo ~1 s depois de cada mudança e ao desligar o servidor. Mude o caminho com `AGPOCKET_ESTADO`. O arquivo guarda as atividades **com caminhos de arquivos**, e se o projeto estiver numa pasta sincronizada (OneDrive, por exemplo) ele sobe junto: atenção.
 - **`/compact` e `/resume` mantêm o time.** O `/clear` **transfere** o time para a conversa nova (mesmo projeto, em até 30 s).
-- **Sessão sem sinal expira.** Se o Claude Code fechar sem mandar o `SessionEnd` (terminal fechado na marra, queda de energia), a sessão sai sozinha depois de `AG_SESSION_TIMEOUT_MIN` minutos sem nenhum evento (padrão: **30**). Quem está **esperando você** (o **!**) nunca expira, e quem tem ferramenta em andamento espera 4x mais.
+- **Sessão sem sinal expira.** Se o Claude Code fechar sem mandar o `SessionEnd` (terminal fechado na marra, queda de energia), a sessão sai sozinha depois de `AG_SESSION_TIMEOUT_MIN` minutos sem nenhum evento (padrão: **30**). Quem está **esperando você** (o **!**) nunca expira, e a sessão com ferramenta realmente em andamento (mapa acima; não basta o status "trabalhando", e visitante não conta) espera 4x mais.
 
   ```powershell
   # PowerShell

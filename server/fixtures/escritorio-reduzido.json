@@ -1,0 +1,65 @@
+{
+  "v": 1,
+  "salvoEm": 1791205206000,
+  "agents": [
+    {
+      "id": "s:sessao-fixture",
+      "sessionId": "sessao-fixture",
+      "role": "lider",
+      "name": "Augusto Vilela",
+      "agzinho": "lider",
+      "status": "pensando",
+      "activity": "Coordenando: chamou Dev",
+      "project": "projeto",
+      "startedAt": 1791205200000,
+      "updatedAt": 1791205205000,
+      "boundAt": 1791205200000,
+      "tasksDone": 0,
+      "tasksDay": "2026-10-09"
+    },
+    {
+      "id": "ag:dev",
+      "sessionId": "sessao-fixture",
+      "parentId": "s:sessao-fixture",
+      "role": "dev",
+      "name": "Beatriz Lima",
+      "agzinho": "dev",
+      "status": "trabalhando",
+      "activity": "Rodar os testes",
+      "project": "projeto",
+      "startedAt": 1791205200000,
+      "updatedAt": 1791205205000,
+      "boundAt": 1791205200000,
+      "tasksDone": 1,
+      "tasksDay": "2026-10-09"
+    }
+  ],
+  "feed": [],
+  "feedSeq": 0,
+  "aliases": [
+    [
+      "ag-dev",
+      "ag:dev"
+    ]
+  ],
+  "bindings": [
+    [
+      "ag:dev",
+      {
+        "type": "dev",
+        "alias": "ag-dev"
+      }
+    ]
+  ],
+  "retired": [],
+  "stopped": [],
+  "lastSeen": [
+    [
+      "sessao-fixture",
+      1791205205000
+    ]
+  ],
+  "lideres": [],
+  "transicoes": [],
+  "tarefas": []
+}

@@ -88,7 +88,7 @@ test("Start → Stop → Start do mesmo agent_id volta o mesmo AGzinho; agent_id
   const biaAntes = { ...byId("ag:dev")! };
   hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/b.ts" } });
   assert.deepEqual(byId("ag:dev"), biaAntes, "evento do a1 não mexe na Bia do a2");
-  assert.equal(byId("ag:extra:a1")?.status, "trabalhando", "o a1 de volta ganha outro boneco");
+  assert.equal(byId("ag:extra:a1"), undefined, "evento do a1 já parado não cria fantasma (só um SubagentStart reabre)");
 });
 
 test("dois devs ao mesmo tempo viram ag:dev e ag:dev-2", () => {
@@ -350,14 +350,16 @@ test("subagente sem evento nenhum não fica 'chegando' pra sempre: vira 'pensand
   assert.equal(byId("ag:revisor")!.status, "trabalhando");
 });
 
-test("timeout da sessão: ferramenta sem Post segura até 4x o limite", () => {
+test("timeout da sessão: ferramenta realmente em andamento segura até 4x o limite", () => {
   hook("SessionStart");
   start("a1", "dev");
   hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Bash", tool_input: { command: "npm test" } });
-  advance(31 * MIN);
+  // o relógio pula sem disparar os timers: só o sweep decide
+  t += 31 * MIN;
   state.sweep();
-  assert.equal(byId("ag:dev")!.status, "trabalhando", "ainda não pode encerrar em 31 min");
-  advance(90 * MIN);
+  assert.notEqual(byId("ag:dev")!.status, "saindo", "ainda não pode encerrar em 31 min");
+  assert.equal(byId("ag:dev")!.status, "ocioso", "mas o Bash sem evento há 10 min já voltou a de boa");
+  t += 90 * MIN;
   state.sweep();
   assert.equal(byId("ag:dev")!.status, "saindo");
 });
@@ -666,4 +668,132 @@ test("sessão encerrada por timeout não é aposentada: um evento novo traz o l�
   advance(7000);
   hook("UserPromptSubmit", { prompt: "voltei" });
   assert.equal(byId(`s:${S1}`)?.status, "pensando");
+});
+
+// ---------------------------------------------------------------- trabalhando só com ferramenta ou evento recente
+
+const pre = (agent_id: string | undefined, tool: string, tool_use_id: string, session = S1) =>
+  hook("PreToolUse", { ...(agent_id ? { agent_id, agent_type: "dev" } : {}), tool_name: tool, tool_use_id, tool_input: { command: "x", file_path: "a.ts" } }, session);
+const post = (agent_id: string | undefined, tool: string, tool_use_id: string, session = S1) =>
+  hook("PostToolUse", { ...(agent_id ? { agent_id, agent_type: "dev" } : {}), tool_name: tool, tool_use_id }, session);
+
+test("Pre sem Post: sem nenhum evento por 2 min volta a de boa", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  pre("a1", "Read", "tu1");
+  advance(2 * MIN - 2000);
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+  advance(3000);
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+  assert.equal(byId("ag:dev")!.activity, "De boa");
+});
+
+test("Bash em andamento espera 10 min; um evento no meio renova a contagem", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  pre("a1", "Bash", "tu1");
+  advance(9 * MIN);
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+  advance(2 * MIN);
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+  // um Pre novo recomeça a contagem
+  pre("a1", "Read", "tu2");
+  advance(90_000);
+  pre("a1", "Read", "tu3");
+  advance(90_000);
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+});
+
+test("Post remove a ferramenta: sem outro evento, expira em 2 min (não 10)", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  pre("a1", "Bash", "tu1");
+  advance(MIN);
+  post("a1", "Bash", "tu1");
+  assert.equal(byId("ag:dev")!.status, "trabalhando", "o Post também é evento recente");
+  advance(2 * MIN + 1000);
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+});
+
+test("Handback não conta como trabalho; AskUserQuestion vira esperando e nunca expira", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  pre("a1", "SubagentHandback", "tu1");
+  advance(2 * MIN + 1000);
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+  hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "AskUserQuestion", tool_use_id: "tu2", tool_input: {} });
+  assert.equal(byId("ag:dev")!.status, "esperando");
+  advance(20 * MIN);
+  assert.equal(byId("ag:dev")!.status, "esperando");
+});
+
+test("Stop do líder zera a sessão e não toca em outra sessão; esperando continua esperando", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  start("a2", "testador");
+  pre("a1", "Edit", "tu1");
+  hook("PermissionRequest", { agent_id: "a2", agent_type: "testador", tool_name: "Bash", tool_input: { command: "x" } });
+  hook("SessionStart", {}, S2);
+  hook("SubagentStart", { agent_id: "b1", agent_type: "revisor" }, S2);
+  hook("PreToolUse", { agent_id: "b1", agent_type: "revisor", tool_name: "Read", tool_use_id: "tu9", tool_input: { file_path: "a.ts" } }, S2);
+  hook("Stop");
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+  assert.equal(byId("ag:dev")!.activity, "De boa");
+  assert.equal(byId("ag:testador")!.status, "esperando");
+  assert.equal(byId("ag:revisor")!.status, "trabalhando", "a outra sessão segue");
+  assert.equal(byId(`s:${S1}`)!.status, "ocioso");
+});
+
+test("Stop do líder: visitante da sessão sai", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  hook("SubagentStart", { agent_id: "x1", agent_type: "agente-de-fora" });
+  const visitante = subs().find((a) => a.id !== "ag:dev");
+  assert.ok(visitante);
+  hook("Stop");
+  assert.equal(byId(visitante.id)?.status, "saindo");
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+});
+
+test("PreToolUse tardio logo depois do SubagentStop não revive; SubagentStart retoma", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  pre("a1", "Read", "tu1");
+  stop("a1", "dev");
+  advance(1000);
+  pre("a1", "SubagentHandback", "tu2");
+  pre("a1", "Read", "tu3");
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+  assert.equal(subs().length, 1);
+  start("a1", "dev");
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+  // fora da janela, o Pre (sem Start) volta a valer
+  stop("a1", "dev");
+  advance(6000);
+  pre("a1", "Read", "tu4");
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+});
+
+test("fantasma 'trabalhando' sem Post não segura a sessão: com 30 min sem sinal ela sai", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  pre("a1", "Read", "tu1");
+  advance(31 * MIN); // o timer de 2 min já mandou o fantasma pra "de boa"
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+  state.sweep();
+  assert.equal(byId(`s:${S1}`)!.status, "saindo");
+});
+
+test("SessionEnd de uma sessão não mexe nas ferramentas em andamento de outra", () => {
+  hook("SessionStart");
+  hook("SessionStart", {}, S2);
+  start("a1", "dev");
+  hook("SubagentStart", { agent_id: "b1", agent_type: "revisor" }, S2);
+  pre("a1", "Bash", "tu1");
+  hook("PreToolUse", { agent_id: "b1", agent_type: "revisor", tool_name: "Read", tool_use_id: "tu1", tool_input: { file_path: "a.ts" } }, S2);
+  hook("SessionEnd", {}, S1);
+  advance(MIN);
+  assert.equal(byId("ag:revisor")!.status, "trabalhando");
+  advance(2 * MIN);
+  assert.equal(byId("ag:revisor")!.status, "ocioso");
 });

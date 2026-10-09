@@ -41,15 +41,18 @@ function comPersistencia(anterior: OfficeState, relogio: RelogioVirtual): Office
 }
 
 const resumo = (s: OfficeState) => agentes(s).map((a) => `${a.id}:${a.sessionId}:${a.status}`).sort();
+/** depois de um reinício ninguém volta trabalhando/pensando: a ferramenta em andamento morreu com o processo */
+const aposReinicio = (linhas: string[]) => linhas.map((l) => l.replace(/:(trabalhando|pensando|chegando)$/, ":ocioso"));
 const saidas = <T extends { status: string }>(linhaDoTempo: T[]) => linhaDoTempo.filter((m) => m.status === "saindo" || m.status === "saiu");
 
 test("reinício no meio do trabalho: mesmos AGzinhos e status; o próximo evento vai pro mesmo boneco", () => {
   const antes = reproduzir(trabalhando()).state;
   const linhas = [...trabalhando(), reinicio(10), ev(12, { hook_event_name: "PreToolUse", agent_id: "ag-dev", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "/x/a.ts" } })];
   const { state, linhaDoTempo } = reproduzir(linhas, { aoReiniciar: comPersistencia });
-  assert.deepEqual(resumo(state), resumo(antes));
+  // o dev já voltou a trabalhar com o Read depois do reinício; o líder não: o Bash dele morreu com o processo
+  assert.deepEqual(resumo(state), aposReinicio(resumo(antes)).map((l) => (l.startsWith("ag:dev:") ? l.replace(":ocioso", ":trabalhando") : l)));
   assert.equal(agentePorKey(state, "dev")?.activity.includes("a.ts"), true);
-  assert.equal(agentePorKey(state, "lider")?.status, "trabalhando");
+  assert.equal(agentePorKey(state, "lider")?.status, "ocioso");
   assert.deepEqual(saidas(linhaDoTempo), []);
   assert.ok(!linhaDoTempo.some((m) => m.status === "chegando" && m.t > T0 + 10_000));
 });
@@ -58,9 +61,10 @@ test("reinício logo depois do SubagentStart: quem estava 'chegando' volta já s
   const linhas = [...trabalhando().slice(0, 5), reinicio(4)];
   const { state, relogio } = reproduzir(linhas, { aoReiniciar: comPersistencia });
   const dev = agentePorKey(state, "dev");
-  assert.equal(dev?.status, "pensando");
+  assert.equal(dev?.status, "ocioso");
+  assert.equal(dev?.activity, "De boa");
   relogio.avancarAte(relogio.now() + 20_000); // nenhum timer órfão mexe nele
-  assert.equal(agentePorKey(state, "dev")?.status, "pensando");
+  assert.equal(agentePorKey(state, "dev")?.status, "ocioso");
 });
 
 // retomada do mesmo agent_id (SendMessage do líder depois do SubagentStop); um agent_id NOVO do
@@ -276,7 +280,7 @@ test("PersistenciaEstado: salva, carrega num estado novo e o limpar apaga o arqu
     const novo = new OfficeState({ relogio: new RelogioVirtual(T0 + 10_000), sweepEveryMs: 0 });
     novo.setRoster(structuredClone(DEFAULT_ROSTER));
     assert.equal(new PersistenciaEstado(novo, file).carregar(), 2);
-    assert.deepEqual(resumo(novo), resumo(state));
+    assert.deepEqual(resumo(novo), aposReinicio(resumo(state)), "trabalhando vira de boa ao restaurar");
     assert.ok(novo.getProgress().fonte !== undefined);
 
     p.salvarSync();
@@ -295,4 +299,20 @@ test("a simulação (demo) não é salva", () => {
   const salvo = state.serializar();
   assert.deepEqual(salvo.agents.map((a) => a.sessionId), ["real"]);
   assert.deepEqual(salvo.lastSeen.map(([s]) => s), ["real"]);
+});
+
+test("restaurar: o data/escritorio.json (cópia reduzida) volta com 'trabalhando' e 'pensando' como 'De boa'", () => {
+  const dados: unknown = JSON.parse(fs.readFileSync(new URL("./fixtures/escritorio-reduzido.json", import.meta.url), "utf8"));
+  const salvoEm = (dados as { salvoEm: number }).salvoEm;
+  const relogio = new RelogioVirtual(salvoEm + 5000);
+  const state = new OfficeState({ relogio, sweepEveryMs: 0 });
+  state.setRoster(structuredClone(DEFAULT_ROSTER));
+  assert.equal(state.restaurar(dados), 2);
+  assert.deepEqual(
+    agentes(state).map((a) => `${a.id}:${a.status}:${a.activity}`).sort(),
+    ["ag:dev:ocioso:De boa", "s:sessao-fixture:ocioso:De boa"],
+  );
+  // sem ferramenta em andamento: nada expira nem segura a sessão
+  relogio.avancarAte(relogio.now() + 5 * MIN);
+  assert.deepEqual(agentes(state).map((a) => a.status), ["ocioso", "ocioso"]);
 });
