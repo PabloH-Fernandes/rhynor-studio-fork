@@ -72,8 +72,13 @@ export const CLEAR_ADIANTADO_MS = 5000;
 const BUSY_TIMEOUT_FACTOR = 4;
 /** "trabalhando" sem nenhum evento por esse tempo volta para "de boa" (ocioso) */
 export const TRABALHANDO_EXPIRA_MS = 2 * 60_000;
-/** o mesmo, quando a ferramenta em andamento é o Bash (build, testes e instalações demoram) */
+/** o mesmo, quando a ferramenta em andamento é o Bash ou um Agent/Task (build, testes e subagentes demoram) */
 export const TRABALHANDO_BASH_MS = 10 * 60_000;
+/**
+ * "pensando" sem nenhum evento por esse tempo também volta para "de boa": o Esc no prompt não dispara
+ * Stop, e o líder ficaria "pensando" (contando em FAZENDO) até o fim da sessão
+ */
+export const PENSANDO_EXPIRA_MS = 5 * 60_000;
 /** depois do SubagentStop, eventos do mesmo agent_id nessa janela são atrasados: não retomam ninguém */
 export const JANELA_TARDIO_MS = 5000;
 /** quanto tempo a lembrança de "este agent_id já deu SubagentStop" vale para não criar fantasma */
@@ -346,7 +351,7 @@ export class OfficeState {
         // os timers e as ferramentas em andamento morreram com o processo: ninguém volta "trabalhando"
         // (o próximo evento de verdade o põe a trabalhar de novo)
         a.status = "ocioso";
-        a.activity = "De boa";
+        a.activity = a.parentId ? "De boa" : "Esperando seu próximo pedido";
       }
       const ag = a.agzinho ? this.findAgzinho(a.agzinho) : undefined;
       if (ag) a.name = ag.nome;
@@ -690,6 +695,7 @@ export class OfficeState {
     const now = this.now();
     for (const [id, until] of this.retired) if (until <= now) this.retired.delete(id);
     for (const [id, at] of this.paradoEm) if (now - at > PARADO_LEMBRA_MS) this.paradoEm.delete(id);
+    for (const id of [...this.emAndamento.keys()]) this.ferramentasAtivas(id); // poda o que passou de 10 min
     for (const [sessionId, seen] of [...this.lastSeen]) {
       if (this.semSinal(sessionId, seen, now)) this.endSession(sessionId, "Saiu (sessão sem sinal)", { retire: false });
     }
@@ -719,20 +725,36 @@ export class OfficeState {
     if (mapa.size === 0) this.emAndamento.delete(agent.id);
   }
 
+  /**
+   * As ferramentas em andamento do agente. Entrada com mais de TRABALHANDO_BASH_MS é descartada: o Post
+   * dela nunca veio (senão uma ferramenta esquecida seguraria o "trabalhando" e a sessão para sempre).
+   */
+  private ferramentasAtivas(agentId: string): EmAndamento[] {
+    const mapa = this.emAndamento.get(agentId);
+    if (!mapa) return [];
+    const now = this.now();
+    for (const [key, f] of mapa) if (now - f.at > TRABALHANDO_BASH_MS) mapa.delete(key);
+    if (mapa.size === 0) this.emAndamento.delete(agentId);
+    return [...mapa.values()];
+  }
+
   private temFerramenta(agentId: string): boolean {
-    return (this.emAndamento.get(agentId)?.size ?? 0) > 0;
+    return this.ferramentasAtivas(agentId).length > 0;
   }
 
-  /** limite sem evento para "trabalhando": 10 min com Bash em andamento, 2 min nos outros casos */
-  private limiteTrabalho(agentId: string): number {
-    for (const f of this.emAndamento.get(agentId)?.values() ?? []) if (f.tool === "Bash") return TRABALHANDO_BASH_MS;
-    return TRABALHANDO_EXPIRA_MS;
+  /**
+   * limite sem evento para "trabalhando"/"pensando": 10 min com Bash ou Agent/Task em andamento;
+   * senão 5 min "pensando" e 2 min "trabalhando"
+   */
+  private limiteTrabalho(a: Agent): number {
+    if (this.ferramentasAtivas(a.id).some((f) => f.tool === "Bash" || SUBAGENT_TOOLS.has(f.tool))) return TRABALHANDO_BASH_MS;
+    return a.status === "pensando" ? PENSANDO_EXPIRA_MS : TRABALHANDO_EXPIRA_MS;
   }
 
-  /** "trabalhando" sem evento além do limite (visitante tem a regra própria dos 3 min; "esperando" nunca expira) */
+  /** "trabalhando"/"pensando" sem evento além do limite (visitante tem a regra própria dos 3 min; "esperando" nunca expira) */
   private trabalhoExpirou(a: Agent, now: number): boolean {
-    if (a.status !== "trabalhando" || ehVisitante(a)) return false;
-    return now - a.updatedAt >= this.limiteTrabalho(a.id);
+    if ((a.status !== "trabalhando" && a.status !== "pensando") || ehVisitante(a)) return false;
+    return now - a.updatedAt >= this.limiteTrabalho(a);
   }
 
   /** volta para "de boa" (ocioso) e esquece as ferramentas em andamento: o Post nunca veio */
@@ -746,8 +768,8 @@ export class OfficeState {
     const antigo = this.trabalhoTimers.get(a.id);
     if (antigo !== undefined) this.relogio.clearTimeout(antigo);
     this.trabalhoTimers.delete(a.id);
-    if (a.status !== "trabalhando" || ehVisitante(a)) return;
-    const espera = Math.max(0, a.updatedAt + this.limiteTrabalho(a.id) - this.now());
+    if ((a.status !== "trabalhando" && a.status !== "pensando") || ehVisitante(a)) return;
+    const espera = Math.max(0, a.updatedAt + this.limiteTrabalho(a) - this.now());
     const timer = this.relogio.setTimeout(() => {
       this.trabalhoTimers.delete(a.id);
       if (this.agents.get(a.id) !== a) return;
@@ -765,11 +787,18 @@ export class OfficeState {
   private encerrarVez(sessionId: string) {
     for (const a of [...this.agents.values()]) {
       if (a.sessionId !== sessionId || a.status === "saindo") continue;
-      this.emAndamento.delete(a.id);
-      if (a.status === "esperando") continue;
+      if (a.status === "esperando") {
+        this.emAndamento.delete(a.id);
+        continue;
+      }
       if (ehVisitante(a)) {
-        this.sairVisitante(a, "Foi embora");
-      } else if (a.parentId && a.status !== "ocioso") {
+        // visitante com ferramenta em andamento segue em background: SubagentStop e os 3 min cobrem a saída
+        if (this.temFerramenta(a.id) && a.status !== "ocioso") continue;
+        this.sairVisitante(a, "Foi embora", { definitiva: false });
+        continue;
+      }
+      this.emAndamento.delete(a.id);
+      if (a.parentId && a.status !== "ocioso") {
         const arrive = this.arrivalTimers.get(a.id);
         if (arrive !== undefined) this.relogio.clearTimeout(arrive);
         this.arrivalTimers.delete(a.id);
@@ -804,24 +833,27 @@ export class OfficeState {
   /**
    * Visitante vai embora andando até a porta (entregou ou ficou sem sinal) e o agent_id dele fica
    * em `retired` por VISITANTE_RETIRE_MS: evento tardio não o recria (só um SubagentStart reabre).
+   * Sempre grava `paradoEm` (um SubagentStart reabre). Com `definitiva: false` (Stop do líder, o
+   * visitante pode seguir vivo) não usa o `retired`, para não bloquear os eventos dele por 60 s.
    */
-  private sairVisitante(agent: Agent, activity: string) {
+  private sairVisitante(agent: Agent, activity: string, { definitiva = true }: { definitiva?: boolean } = {}) {
     for (const [alias, visual] of this.aliases) {
       if (visual !== agent.id) continue;
-      this.retire(alias, VISITANTE_RETIRE_MS);
+      if (definitiva) this.retire(alias, VISITANTE_RETIRE_MS);
+      this.paradoEm.set(alias, this.now());
       this.stopped.add(alias);
     }
     this.leave(agent, activity);
   }
 
   /**
-   * Marca quais visitantes cabem na tela: os MAX_VISITANTES_NA_TELA primeiros por ordem de chegada
+   * Marca quais visitantes cabem na tela: os MAX_VISITANTES_NA_TELA primeiros por ordem da primeira chegada (startedAt: o boundAt muda a cada SubagentStart)
    * (quem está saindo ainda ocupa o lugar, pois continua andando no mapa); o resto é `excedente`.
    * Devolve os agentes cuja marca mudou.
    */
   private reordenarVisitantes(): Agent[] {
     const mudaram: Agent[] = [];
-    const visitantes = [...this.agents.values()].filter(ehVisitante).sort((a, b) => a.boundAt - b.boundAt);
+    const visitantes = [...this.agents.values()].filter(ehVisitante).sort((a, b) => a.startedAt - b.startedAt);
     visitantes.forEach((a, i) => {
       const excedente = i >= MAX_VISITANTES_NA_TELA;
       if (Boolean(a.excedente) === excedente) return;
@@ -1198,7 +1230,7 @@ export class OfficeState {
 
   /**
    * Subagente que ia embora recebeu um SubagentStart de novo: cancela a saída (o evento comum de um
- * visitante que acabou de sair é barrado em agentFor pelo `retired`).
+   * visitante que acabou de sair é barrado em agentFor pelo `retired`).
    * Quem está saindo porque a sessão acabou não chega aqui (a sessão encerrada é ignorada antes).
    */
   private revive(agent: Agent) {

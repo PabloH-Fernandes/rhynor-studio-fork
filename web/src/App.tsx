@@ -12,7 +12,7 @@ import { GALLERY_ENABLED } from "./office/gallery";
 import { roleColor, theme } from "./theme";
 import { useOffice } from "./useOffice";
 import { usePreferencia, usePreferenciaTexto } from "./usePreferencia";
-import { TODAS, filtrarPorProjeto, progressoDoFiltro, projetoEfetivo, projetosDe } from "./projetoLogic";
+import { TODAS, esperandoDe, filtrarPorProjeto, progressoDoFiltro, projetoEfetivo, projetosDe, textoEspera } from "./projetoLogic";
 import { nomeCurto } from "../../shared/frases";
 import { ehVisitante } from "../../shared/visitante";
 import { agruparFeed, destaqueDe, fraseDaLinha, iconeDe, type LinhaFeed } from "./feedLogic";
@@ -91,7 +91,8 @@ export default function App() {
   const feedVisivel = useMemo(() => feed.filter((f) => !selectedId || f.agentId === selectedId), [feed, selectedId]);
   // modo simples: repetições seguidas do mesmo AGzinho viram uma linha só, a mais nova em cima
   const linhasSimples = useMemo(() => agruparFeed(feedVisivel).reverse().slice(0, 80), [feedVisivel]);
-  const waiting = visiveis.filter((a) => a.status === "esperando").length;
+  // o aviso "te esperando" olha TODOS os agentes: o filtro de projeto não esconde um pedido seu
+  const espera = useMemo(() => esperandoDe(list, projeto), [list, projeto]);
 
   const call = async (path: string) => {
     setBusy(true);
@@ -153,15 +154,16 @@ export default function App() {
               {projetos.map((p) => (
                 <option key={p} value={p}>
                   só o projeto {p}
+                  {espera.projetos.includes(p) ? " · te esperando" : ""}
                 </option>
               ))}
             </select>
           </label>
         )}
 
-        {waiting > 0 && (
+        {espera.total > 0 && (
           <div className="alert">
-            <strong>{waiting === 1 ? "1 agente" : `${waiting} agentes`} te esperando</strong>
+            <strong>{textoEspera(espera)}</strong>
             <span>Volta no terminal do Claude Code pra responder.</span>
           </div>
         )}

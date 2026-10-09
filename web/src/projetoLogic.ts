@@ -35,3 +35,33 @@ export function progressoDoFiltro(progress: Progress | null, visiveis: readonly 
   if (progress.fonte === "nada") return progress;
   return progress.sessionId && visiveis.some((a) => a.sessionId === progress.sessionId) ? progress : PROGRESSO_NADA;
 }
+
+/** quem está esperando você, contando TODOS os agentes (o filtro de projeto não esconde um pedido seu) */
+export interface Espera {
+  total: number;
+  /** esperando em projeto diferente do escolhido no filtro (0 com "todas") */
+  fora: number;
+  /** projetos com alguém esperando, em ordem alfabética */
+  projetos: string[];
+  /** projetos de quem espera fora do filtro, em ordem alfabética */
+  projetosFora: string[];
+}
+
+export function esperandoDe(agents: readonly Pick<Agent, "status" | "project">[], projeto: string): Espera {
+  const esperando = agents.filter((a) => a.status === "esperando");
+  const foraDoFiltro = projeto === TODAS ? [] : esperando.filter((a) => a.project !== projeto);
+  return {
+    total: esperando.length,
+    fora: foraDoFiltro.length,
+    projetos: projetosDe(esperando),
+    projetosFora: projetosDe(foraDoFiltro),
+  };
+}
+
+/** "2 agentes te esperando (1 em outro projeto: api)"; sem ninguém fora do filtro, não tem parênteses */
+export function textoEspera(e: Espera): string {
+  const quem = e.total === 1 ? "1 agente" : `${e.total} agentes`;
+  if (e.fora === 0) return `${quem} te esperando`;
+  const onde = e.projetosFora.length > 0 ? `: ${e.projetosFora.join(", ")}` : "";
+  return `${quem} te esperando (${e.fora} em ${e.fora === 1 ? "outro projeto" : "outros projetos"}${onde})`;
+}

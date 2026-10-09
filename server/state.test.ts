@@ -3,7 +3,7 @@ import { afterEach, beforeEach, mock, test } from "node:test";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
 import type { Agent } from "../shared/types.ts";
 import { DEMO_END_AFTER_STOP_MS, cancelDemo, runDemo } from "./demo.ts";
-import { OfficeState, type HookInput } from "./state.ts";
+import { OfficeState, VISITANTE_RETIRE_MS, type HookInput } from "./state.ts";
 
 const S1 = "sessao-1";
 const S2 = "sessao-2";
@@ -328,8 +328,8 @@ test("timeout da sessão: 30 min sem nenhum evento encerra a sessão inteira", (
   start("a1", "dev");
   advance(29 * MIN);
   state.sweep();
-  // sem evento próprio ele já passou de "chegando" pra "pensando" (ARRIVE_MS), mas continua lá
-  assert.equal(byId("ag:dev")!.status, "pensando");
+  // sem evento próprio ele passou de "chegando" pra "pensando" (ARRIVE_MS) e, depois de 5 min, pra "de boa"
+  assert.equal(byId("ag:dev")!.status, "ocioso");
   advance(2 * MIN);
   state.sweep();
   assert.ok(agents().every((a) => a.status === "saindo"));
@@ -350,17 +350,18 @@ test("subagente sem evento nenhum não fica 'chegando' pra sempre: vira 'pensand
   assert.equal(byId("ag:revisor")!.status, "trabalhando");
 });
 
-test("timeout da sessão: ferramenta realmente em andamento segura até 4x o limite", () => {
+test("timeout da sessão: ferramenta em andamento segura até 4x o limite, mas só por 10 min", () => {
+  state = new OfficeState({ now: () => t, sweepEveryMs: 0, sessionTimeoutMs: 5 * MIN });
   hook("SessionStart");
   start("a1", "dev");
   hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Bash", tool_input: { command: "npm test" } });
   // o relógio pula sem disparar os timers: só o sweep decide
-  t += 31 * MIN;
+  t += 8 * MIN;
   state.sweep();
-  assert.notEqual(byId("ag:dev")!.status, "saindo", "ainda não pode encerrar em 31 min");
-  assert.equal(byId("ag:dev")!.status, "ocioso", "mas o Bash sem evento há 10 min já voltou a de boa");
-  t += 90 * MIN;
+  assert.equal(byId("ag:dev")!.status, "trabalhando", "passou do timeout (5 min), mas o Bash segura a sessão");
+  t += 3 * MIN;
   state.sweep();
+  // a entrada com mais de 10 min é descartada: o Post nunca veio e ela não segura mais nada
   assert.equal(byId("ag:dev")!.status, "saindo");
 });
 
@@ -832,4 +833,123 @@ test("timeout: esperando você nunca expira, mesmo com o quadro de etapas", () =
   advance(3 * 60 * MIN);
   state.sweep();
   assert.equal(byId("s:" + S1)?.status, "esperando");
+});
+
+// ---------------------------------------------------------------- correções da revisão (pensando, background, filtro)
+
+/** os campos privados que os testes espiam (retired: quem foi barrado por saída definitiva) */
+const privado = () => state as unknown as { retired: Map<string, number>; paradoEm: Map<string, number>; emAndamento: Map<string, unknown> };
+
+test("líder 'pensando' (Esc no prompt, sem Stop) volta a esperar o pedido em 5 min", () => {
+  hook("UserPromptSubmit", { prompt: "faz isso" });
+  const lider = `s:${S1}`;
+  assert.equal(byId(lider)!.status, "pensando");
+  advance(5 * MIN - 2000);
+  assert.equal(byId(lider)!.status, "pensando");
+  advance(3000);
+  assert.equal(byId(lider)!.status, "ocioso");
+  assert.equal(byId(lider)!.activity, "Esperando seu próximo pedido");
+});
+
+test("sweep() também expira o 'pensando' (relógio trocado, sem timers)", () => {
+  hook("UserPromptSubmit", { prompt: "faz isso" });
+  t += 5 * MIN + 1;
+  state.sweep();
+  assert.equal(byId(`s:${S1}`)!.status, "ocioso");
+});
+
+test("Agent/Task em andamento conta como Bash: 10 min em vez de 2", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  pre("a1", "Task", "tu1");
+  advance(9 * MIN);
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+  advance(2 * MIN);
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+});
+
+test("Agent em andamento no líder pensando também espera 10 min", () => {
+  hook("UserPromptSubmit", { prompt: "chama o time" });
+  pre(undefined, "Agent", "tu1");
+  const lider = `s:${S1}`;
+  advance(9 * MIN);
+  assert.notEqual(byId(lider)!.status, "ocioso", "o líder espera o subagente voltar");
+  advance(2 * MIN);
+  assert.equal(byId(lider)!.status, "ocioso");
+});
+
+test("ferramenta em andamento com mais de 10 min é podada: não segura o limite nem a sessão", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  pre("a1", "Bash", "tu-esquecido");
+  // 12 min de Read/Post (sem nunca fechar o Bash): o Bash esquecido fica velho
+  for (let i = 0; i < 8; i++) {
+    advance(90_000);
+    pre("a1", "Read", `r${i}`);
+    post("a1", "Read", `r${i}`);
+  }
+  assert.equal(byId("ag:dev")!.status, "trabalhando");
+  // sem a poda o Bash seguraria 10 min; podado, vale o limite comum de 2 min
+  advance(2 * MIN + 1000);
+  assert.equal(byId("ag:dev")!.status, "ocioso");
+  assert.equal(privado().emAndamento.size, 0, "a entrada velha não fica na memória");
+});
+
+test("Stop do líder não expulsa visitante com ferramenta em andamento; sem ferramenta ele sai sem ficar retirado", () => {
+  hook("SessionStart");
+  start("a1", "dev");
+  hook("SubagentStart", { agent_id: "x1", agent_type: "agente-de-fora" });
+  hook("SubagentStart", { agent_id: "x2", agent_type: "outro-de-fora" });
+  const visitantes = subs().filter((a) => a.id !== "ag:dev");
+  assert.equal(visitantes.length, 2);
+  hook("PreToolUse", { agent_id: "x1", agent_type: "agente-de-fora", tool_name: "Bash", tool_use_id: "v1", tool_input: { command: "npm test" } });
+  hook("Stop");
+  const x1 = byId("ag:extra:x1") ?? visitantes.map((a) => byId(a.id)).find((a) => a?.status === "trabalhando");
+  assert.equal(x1?.status, "trabalhando", "o visitante em background segue trabalhando");
+  const saiu = visitantes.map((a) => byId(a.id)).filter((a) => a?.status === "saindo");
+  assert.equal(saiu.length, 1, "o outro, sem ferramenta, foi embora");
+  assert.equal(privado().retired.size, 0, "essa saída não bloqueia os eventos dele por 60 s");
+  // o Post do visitante em background continua valendo e o SubagentStop o tira de verdade
+  hook("PostToolUse", { agent_id: "x1", agent_type: "agente-de-fora", tool_name: "Bash", tool_use_id: "v1" });
+  assert.equal(byId(x1!.id)!.status, "trabalhando");
+  hook("SubagentStop", { agent_id: "x1", agent_type: "agente-de-fora" });
+  assert.equal(byId(x1!.id)!.status, "saindo");
+  assert.ok(privado().retired.size > 0, "a entrega é saída definitiva");
+});
+
+test("visitante em background sem ferramenta e ocioso sai no Stop; sem Stop ainda cai nos 3 min", () => {
+  hook("SessionStart");
+  hook("SubagentStart", { agent_id: "x1", agent_type: "agente-de-fora" });
+  hook("PreToolUse", { agent_id: "x1", agent_type: "agente-de-fora", tool_name: "Bash", tool_use_id: "v1", tool_input: { command: "sleep 9" } });
+  hook("Stop");
+  assert.equal(byId("ag:extra:x1")?.status ?? subs()[0]?.status, "trabalhando");
+  advance(3 * MIN + 1000);
+  assert.equal(subs()[0]?.status, "saindo", "os 3 min sem evento cobrem o esquecido");
+});
+
+test("visitante que sai por 'sem sinal' grava paradoEm: evento tardio depois do retired não o recria", () => {
+  encherVisitantes();
+  advance(3 * MIN + 13_000);
+  assert.equal(byId("ag:extra:x1")?.activity, "Saiu (sem sinal)");
+  advance(7000);
+  assert.equal(byId("ag:extra:x1"), undefined);
+  advance(VISITANTE_RETIRE_MS + 1000); // o retired já venceu
+  hook("PreToolUse", { agent_id: "x1", agent_type: "superpowers:code-reviewer", tool_name: "Read", tool_input: { file_path: "a.ts" } });
+  assert.equal(byId("ag:extra:x1"), undefined, "o paradoEm segura o fantasma");
+  start("x1", "superpowers:code-reviewer");
+  assert.equal(subs().length, 1, "SubagentStart continua reabrindo (agora num convidado livre)");
+  assert.equal(subs()[0].status, "chegando");
+});
+
+test("visitante visível que reatualiza o boundAt não vira excedente: a ordem é a da primeira chegada", () => {
+  encherVisitantes();
+  assert.equal(byId("ag:extra:x1")?.excedente, true);
+  // um SubagentStart que reaproveita o boneco (assignAgzinho) joga o boundAt para agora
+  const iara = (state as unknown as { agents: Map<string, Agent> }).agents.get("ag:explore")!;
+  advance(5000);
+  iara.boundAt = t;
+  hook("PreToolUse", { agent_id: "e1", agent_type: "Explore", tool_name: "Read", tool_input: { file_path: "a.ts" } });
+  assert.equal(byId("ag:explore")?.excedente, undefined, "a Iara continua entre os 3 primeiros");
+  assert.equal(byId("ag:extra:x1")?.excedente, true, "o 4º segue de fora");
+  assert.equal(subs().filter((a) => !a.excedente).length, 3);
 });

@@ -301,7 +301,7 @@ test("a simulação (demo) não é salva", () => {
   assert.deepEqual(salvo.lastSeen.map(([s]) => s), ["real"]);
 });
 
-test("restaurar: o data/escritorio.json (cópia reduzida) volta com 'trabalhando' e 'pensando' como 'De boa'", () => {
+test("restaurar: o data/escritorio.json (cópia reduzida) volta com 'trabalhando' e 'pensando' como ocioso (líder: 'Esperando seu próximo pedido')", () => {
   const dados: unknown = JSON.parse(fs.readFileSync(new URL("./fixtures/escritorio-reduzido.json", import.meta.url), "utf8"));
   const salvoEm = (dados as { salvoEm: number }).salvoEm;
   const relogio = new RelogioVirtual(salvoEm + 5000);
@@ -310,7 +310,7 @@ test("restaurar: o data/escritorio.json (cópia reduzida) volta com 'trabalhando
   assert.equal(state.restaurar(dados), 2);
   assert.deepEqual(
     agentes(state).map((a) => `${a.id}:${a.status}:${a.activity}`).sort(),
-    ["ag:dev:ocioso:De boa", "s:sessao-fixture:ocioso:De boa"],
+    ["ag:dev:ocioso:De boa", "s:sessao-fixture:ocioso:Esperando seu próximo pedido"],
   );
   // sem ferramenta em andamento: nada expira nem segura a sessão
   relogio.avancarAte(relogio.now() + 5 * MIN);

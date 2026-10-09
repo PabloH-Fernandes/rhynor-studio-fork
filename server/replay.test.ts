@@ -68,7 +68,7 @@ test("bug 4: servidor_iniciou com persistência mantém o time, os status e a li
   // ninguém volta trabalhando/pensando depois do reinício (a ferramenta em andamento morreu com o processo)
   assert.deepEqual(
     resumo(state),
-    resumo(antes).map((l) => l.replace(/:(trabalhando|pensando):.*$/, ":ocioso:De boa")),
+    resumo(antes).map((l) => l.replace(/:(trabalhando|pensando):.*$/, l.startsWith("s:") ? ":ocioso:Esperando seu próximo pedido" : ":ocioso:De boa")),
   );
   assert.equal(state.getProgress().total, 2);
   const iReinicio = linhaDoTempo.findIndex((m) => m.status === "reiniciou");
