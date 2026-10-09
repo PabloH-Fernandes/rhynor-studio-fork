@@ -17,6 +17,22 @@ export type BubbleStyle = "trabalho" | "chat" | "descanso";
  */
 export const noLigatures = (s: string) => s.replace(/f(?=[A-Za-z])/g, "f‌");
 
+const PROJETO_MAX = 14;
+
+/**
+ * Textos possíveis da etiqueta de nome, do mais largo ao mais curto (o layout usa o primeiro que
+ * couber). Só o líder leva o projeto ("Claude (líder) · pasta"); subagente herda e fica sem.
+ */
+export function textosDoNome(nome: string, projeto: string | undefined, lider: boolean): string[] {
+  const full = noLigatures(nome);
+  const first = full.split(" ")[0];
+  const base = first && first !== full ? [full, first] : [full];
+  const proj = projeto?.trim();
+  if (!lider || !proj) return base;
+  const curto = proj.length > PROJETO_MAX ? `${proj.slice(0, PROJETO_MAX - 2)}..` : proj;
+  return [`${full} · ${noLigatures(curto)}`, ...base];
+}
+
 export const WORK_FONT = "8px VT323, monospace";
 export const WORK_MAX_W = 120;
 /** balão de descanso: letra menor, uma linha, no máximo ~80 px */

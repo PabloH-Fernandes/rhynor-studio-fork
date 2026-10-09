@@ -296,6 +296,12 @@ O TypeScript reclama se faltar o passo 2 ou o 3.
 ### Tempo de sessão
 `AG_SESSION_TIMEOUT_MIN` (minutos, padrão 30). Veja "Ciclo de vida".
 
+### Várias sessões e projetos
+Cada sessão do Claude Code mostra o **projeto** (nome da pasta do `cwd`) na etiqueta de nome do líder no mapa e no crachá; os subagentes herdam o projeto do líder. Com mais de um projeto aberto, o painel mostra **Mostrar: todas as sessões / só o projeto X**. O filtro vale para o painel, o mapa e o quadro da parede, e o navegador lembra a escolha (`agpocket.painel.projeto`). Se o projeto escolhido não estiver mais no escritório, aparece "todas" sem apagar a escolha (ele volta se o projeto voltar). A lógica fica em `web/src/projetoLogic.ts`.
+
+### `AGPOCKET_IGNORAR_PRINT`: não implementado (de propósito)
+A ideia seria descartar as sessões de `claude -p` (modo não interativo). Não dá para identificá-las pelos eventos: o JSON dos hooks traz só `session_id`, `transcript_path`, `cwd`, `permission_mode`, `hook_event_name` (mais `agent_id`/`agent_type` em subagentes e `source`/`model` no `SessionStart`), e nenhum campo diz como o Claude foi iniciado (conferido na documentação de hooks, https://code.claude.com/docs/en/hooks, e em `HookInput` em `server/state.ts`). `permission_mode` é o modo de permissão, não o de execução, e `source` diz só se é início, retomada ou `/clear`. Como também não há gravação real que prove outro sinal, não foi criada heurística: ela esconderia sessões de verdade. Se a Anthropic passar a mandar esse campo, é só descartar o `session_id` em `server/index.ts` antes da fila.
+
 ### Trocar a logo
 1. Coloque a nova PNG em `web/public/` (ex.: `logo-minha-empresa.png`).
 2. Aponte para ela em `theme.logoUrl`:

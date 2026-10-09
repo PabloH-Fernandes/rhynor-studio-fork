@@ -797,3 +797,39 @@ test("SessionEnd de uma sessão não mexe nas ferramentas em andamento de outra"
   advance(2 * MIN);
   assert.equal(byId("ag:revisor")!.status, "ocioso");
 });
+
+// ---- Etapa 4: projeto por sessão e timeout de 30 min (confere que o quadro de etapas não segura a sessão)
+
+const TODOS = [
+  { content: "Planejar", status: "completed", activeForm: "Planejando" },
+  { content: "Implementar", status: "in_progress", activeForm: "Implementando" },
+];
+
+test("projeto: o líder usa a pasta do cwd e o subagente herda o projeto do líder", () => {
+  hook("UserPromptSubmit", { prompt: "oi", cwd: "/home/pablo/loja-virtual" });
+  start("a1", "dev");
+  assert.equal(byId("s:" + S1)?.project, "loja-virtual");
+  assert.equal(byId("ag:dev")?.project, "loja-virtual");
+  hook("UserPromptSubmit", { prompt: "oi", cwd: "/home/pablo/api" }, S2);
+  assert.equal(byId("s:" + S2)?.project, "api");
+});
+
+test("timeout: sessão com quadro de etapas (TodoWrite) sem evento por 30 min encerra", () => {
+  hook("UserPromptSubmit", { prompt: "oi" });
+  hook("PostToolUse", { tool_name: "TodoWrite", tool_input: { todos: TODOS } });
+  advance(29 * MIN);
+  state.sweep();
+  assert.notEqual(byId("s:" + S1)?.status, "saindo", "com 29 min ainda vale");
+  advance(2 * MIN);
+  state.sweep();
+  assert.equal(byId("s:" + S1)?.status, "saindo");
+});
+
+test("timeout: esperando você nunca expira, mesmo com o quadro de etapas", () => {
+  hook("UserPromptSubmit", { prompt: "oi" });
+  hook("PostToolUse", { tool_name: "TodoWrite", tool_input: { todos: TODOS } });
+  hook("PermissionRequest", { tool_name: "Bash", tool_input: { command: "ls" } });
+  advance(3 * 60 * MIN);
+  state.sweep();
+  assert.equal(byId("s:" + S1)?.status, "esperando");
+});

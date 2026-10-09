@@ -25,3 +25,30 @@ export function usePreferencia(chave: string, padrao: boolean): [boolean, () => 
   }, [chave]);
   return [valor, alternar];
 }
+
+/**
+ * Texto lembrado neste navegador (projeto escolhido no painel...). Mesmo cuidado do
+ * `usePreferencia`: sem storage, vale o padrao. Quem le decide se o valor ainda serve; gravar
+ * outra coisa e a unica forma de mudar o que ficou salvo.
+ */
+export function usePreferenciaTexto(chave: string, padrao: string): [string, (v: string) => void] {
+  const [valor, setValor] = useState(() => {
+    try {
+      return window.localStorage.getItem(chave) ?? padrao;
+    } catch {
+      return padrao;
+    }
+  });
+  const gravar = useCallback(
+    (v: string) => {
+      setValor(v);
+      try {
+        window.localStorage.setItem(chave, v);
+      } catch {
+        // sem storage: so nao lembra
+      }
+    },
+    [chave],
+  );
+  return [valor, gravar];
+}

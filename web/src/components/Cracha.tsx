@@ -171,7 +171,7 @@ export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPerso
                 <dt>No escritório há:</dt>
                 <dd>{tempoDesde(agent.startedAt, now)}</dd>
               </div>
-              {!agent.parentId && agent.project && (
+              {agent.project && (
                 <div className="cracha-projeto">
                   <dt>Projeto:</dt>
                   <dd translate="no">{agent.project}</dd>

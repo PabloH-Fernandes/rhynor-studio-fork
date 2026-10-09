@@ -24,6 +24,7 @@ import {
   drawThinkDots,
   drawWaitBadge,
   noLigatures,
+  textosDoNome,
   wrap,
   type BubbleStyle,
 } from "./overlay";
@@ -1179,14 +1180,14 @@ export class OfficeEngine {
 
   /** nome inteiro e, sem lugar pra ele, só o primeiro nome ("Tomás", "Bia") */
   private nameTexts(agent: Agent): readonly string[] {
-    let texts = this.nameCache.get(agent.name);
+    const lider = !agent.parentId;
+    const key = lider ? `${agent.name}|${agent.project}` : agent.name;
+    let texts = this.nameCache.get(key);
     if (!texts) {
-      // a VT323 junta "fi" numa ligadura ("Sofia" virava "Soña"): quebra antes de medir
-      const full = noLigatures(agent.name);
-      const first = full.split(" ")[0];
-      texts = first && first !== full ? [full, first] : [full];
+      // a VT323 junta "fi" numa ligadura ("Sofia" virava "Sona"): textosDoNome quebra antes de medir
+      texts = textosDoNome(agent.name, agent.project, lider);
       if (this.nameCache.size > 200) this.nameCache.clear();
-      this.nameCache.set(agent.name, texts);
+      this.nameCache.set(key, texts);
     }
     return texts;
   }

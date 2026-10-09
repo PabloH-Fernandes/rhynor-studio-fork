@@ -11,7 +11,8 @@ import { SpriteGallery } from "./SpriteGallery";
 import { GALLERY_ENABLED } from "./office/gallery";
 import { roleColor, theme } from "./theme";
 import { useOffice } from "./useOffice";
-import { usePreferencia } from "./usePreferencia";
+import { usePreferencia, usePreferenciaTexto } from "./usePreferencia";
+import { TODAS, filtrarPorProjeto, progressoDoFiltro, projetoEfetivo, projetosDe } from "./projetoLogic";
 import { nomeCurto } from "../../shared/frases";
 import { ehVisitante } from "../../shared/visitante";
 import { agruparFeed, destaqueDe, fraseDaLinha, iconeDe, type LinhaFeed } from "./feedLogic";
@@ -58,13 +59,19 @@ export default function App() {
     () => Object.values(agents).map((a) => (tecnico || !a.activitySimples ? a : { ...a, activity: a.activitySimples })),
     [agents, tecnico],
   );
+  // filtro por projeto (vale para o painel, o mapa e o quadro); o salvo que sumiu vira "todas" sem apagar a preferência
+  const [projetoSalvo, setProjetoSalvo] = usePreferenciaTexto("agpocket.painel.projeto", TODAS);
+  const projetos = useMemo(() => projetosDe(list), [list]);
+  const projeto = projetoEfetivo(projetoSalvo, projetos);
+  const visiveis = useMemo(() => filtrarPorProjeto(list, projeto), [list, projeto]);
+  const progressoVisivel = useMemo(() => progressoDoFiltro(progress, visiveis, projeto), [progress, visiveis, projeto]);
   const sorted = useMemo(
     () =>
-      [...list].sort((a, b) => {
+      [...visiveis].sort((a, b) => {
         const lead = Number(!!a.parentId) - Number(!!b.parentId);
         return lead !== 0 ? lead : a.startedAt - b.startedAt;
       }),
-    [list],
+    [visiveis],
   );
   // visitante (agente de fora do time) tem grupo próprio e não conta no "Time · N"; os que passam de
   // 3 (excedente) não aparecem no mapa nem na lista: só o contador "+N visitantes"
@@ -72,19 +79,19 @@ export default function App() {
   const visitantes = useMemo(() => sorted.filter((a) => ehVisitante(a)), [sorted]);
   const visitantesNaTela = useMemo(() => visitantes.filter((a) => !a.excedente), [visitantes]);
   const excedentes = visitantes.length - visitantesNaTela.length;
-  const selected = selectedId ? list.find((a) => a.id === selectedId) : undefined;
+  const selected = selectedId ? visiveis.find((a) => a.id === selectedId) : undefined;
   // quem saiu do escritório deixa de estar selecionado (o feed não fica preso nele e, se o mesmo id
   // voltar, o crachá não reabre sozinho)
   useEffect(() => {
-    if (selectedId && !agents[selectedId]) setSelectedId(null);
-  }, [agents, selectedId]);
+    if (selectedId && (!agents[selectedId] || (projeto !== TODAS && agents[selectedId].project !== projeto))) setSelectedId(null);
+  }, [agents, selectedId, projeto]);
   const [timeAberto, alternarTime] = usePreferencia("agpocket.painel.time", true);
   const [visitantesAberto, alternarVisitantes] = usePreferencia("agpocket.painel.visitantes", false);
   const [feedAberto, alternarFeed] = usePreferencia("agpocket.painel.feed", true);
   const feedVisivel = useMemo(() => feed.filter((f) => !selectedId || f.agentId === selectedId), [feed, selectedId]);
   // modo simples: repetições seguidas do mesmo AGzinho viram uma linha só, a mais nova em cima
   const linhasSimples = useMemo(() => agruparFeed(feedVisivel).reverse().slice(0, 80), [feedVisivel]);
-  const waiting = list.filter((a) => a.status === "esperando").length;
+  const waiting = visiveis.filter((a) => a.status === "esperando").length;
 
   const call = async (path: string) => {
     setBusy(true);
@@ -101,7 +108,7 @@ export default function App() {
         {GALLERY_ENABLED ? (
           <SpriteGallery roster={roster} />
         ) : (
-          <OfficeCanvas ref={officeRef} agents={list} roster={roster} progress={progress} selectedId={selectedId} onSelect={selectFromCanvas} />
+          <OfficeCanvas ref={officeRef} agents={visiveis} roster={roster} progress={progressoVisivel} selectedId={selectedId} onSelect={selectFromCanvas} />
         )}
         {!GALLERY_ENABLED && list.length === 0 && conn === "online" && (
           <div className="empty">
@@ -136,7 +143,21 @@ export default function App() {
           </span>
         </header>
 
-        <Progresso progress={progress} />
+        <Progresso progress={progressoVisivel} />
+
+        {projetos.length > 0 && (
+          <label className="filtro-projeto">
+            <span>Mostrar:</span>
+            <select value={projeto} onChange={(e) => setProjetoSalvo(e.target.value)} translate="no">
+              <option value={TODAS}>todas as sessões</option>
+              {projetos.map((p) => (
+                <option key={p} value={p}>
+                  só o projeto {p}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {waiting > 0 && (
           <div className="alert">

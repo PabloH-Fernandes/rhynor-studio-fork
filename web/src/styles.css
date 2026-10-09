@@ -503,6 +503,29 @@ h2 {
   color: var(--text);
 }
 
+.filtro-projeto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: var(--fs-menor);
+}
+
+.filtro-projeto select {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  padding: 3px 6px;
+  border: 2px solid var(--line);
+  background: var(--bg-3);
+  color: var(--text);
+  font: inherit;
+}
+
+.filtro-projeto select:hover {
+  border-color: var(--navy-500);
+}
+
 .conn {
   position: absolute;
   top: 0;
