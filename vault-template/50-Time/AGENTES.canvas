@@ -1,0 +1,37 @@
+{
+	"nodes":[
+		{"id":"grp-estrela","type":"group","x":-760,"y":-520,"width":1520,"height":800,"label":"Quem fala com quem (subagentes: formato estrela)"},
+		{"id":"grp-fluxo","type":"group","x":-760,"y":360,"width":1520,"height":300,"label":"Ordem do trabalho (o líder chama um de cada vez)"},
+		{"id":"voce","type":"text","text":"## Você\nDá a missão e aprova.","x":-130,"y":-480,"width":260,"height":80},
+		{"id":"lider","type":"text","text":"## [[Líder]]\nSessão principal do Claude Code.\nRecebe a missão, chama cada agente e junta os resultados.","x":-160,"y":-220,"width":320,"height":160,"color":"5"},
+		{"id":"planejador","type":"text","text":"### [[planejador]]\nQuebra o pedido em etapas.\nSó leitura","x":-720,"y":-420,"width":320,"height":140,"color":"4"},
+		{"id":"pesquisador","type":"text","text":"### [[pesquisador]]\nBusca referências e boas práticas.\nConsulta `40-Conhecimento/` antes","x":-720,"y":-200,"width":320,"height":140,"color":"4"},
+		{"id":"dev","type":"text","text":"### [[dev]]\nEscreve o código.\nTodas as ferramentas","x":-720,"y":20,"width":320,"height":140,"color":"4"},
+		{"id":"testador","type":"text","text":"### [[testador]]\nTesta se tudo funciona.","x":400,"y":-420,"width":320,"height":140,"color":"4"},
+		{"id":"revisor","type":"text","text":"### [[revisor]]\nRevisa a qualidade antes de entregar.\nSó leitura + Bash","x":400,"y":-200,"width":320,"height":140,"color":"4"},
+		{"id":"documentador","type":"text","text":"### [[documentador]]\nEscreve a documentação e atualiza a memória.","x":400,"y":20,"width":320,"height":140,"color":"4"},
+		{"id":"f1","type":"text","text":"**1. Planejar**","x":-720,"y":420,"width":200,"height":70,"color":"3"},
+		{"id":"f2","type":"text","text":"**2. Pesquisar**","x":-480,"y":420,"width":200,"height":70,"color":"3"},
+		{"id":"f3","type":"text","text":"**3. Construir**","x":-240,"y":420,"width":200,"height":70,"color":"3"},
+		{"id":"f4","type":"text","text":"**4. Testar**","x":0,"y":420,"width":200,"height":70,"color":"3"},
+		{"id":"f5","type":"text","text":"**5. Revisar**","x":240,"y":420,"width":200,"height":70,"color":"3"},
+		{"id":"f6","type":"text","text":"**6. Documentar**","x":480,"y":420,"width":200,"height":70,"color":"3"},
+		{"id":"nota","type":"text","text":"Os subagentes **não conversam entre si**: tudo passa pelo líder. No fim, o documentador grava na memória do time ([[Memória]]).","x":-720,"y":680,"width":1400,"height":70}
+	],
+	"edges":[
+		{"id":"e-voce","fromNode":"voce","fromSide":"bottom","toNode":"lider","toSide":"top","fromEnd":"arrow"},
+		{"id":"e-pl","fromNode":"lider","fromSide":"left","toNode":"planejador","toSide":"right","fromEnd":"arrow"},
+		{"id":"e-pe","fromNode":"lider","fromSide":"left","toNode":"pesquisador","toSide":"right","fromEnd":"arrow"},
+		{"id":"e-dv","fromNode":"lider","fromSide":"left","toNode":"dev","toSide":"right","fromEnd":"arrow"},
+		{"id":"e-te","fromNode":"lider","fromSide":"right","toNode":"testador","toSide":"left","fromEnd":"arrow"},
+		{"id":"e-re","fromNode":"lider","fromSide":"right","toNode":"revisor","toSide":"left","fromEnd":"arrow"},
+		{"id":"e-do","fromNode":"lider","fromSide":"right","toNode":"documentador","toSide":"left","fromEnd":"arrow"},
+		{"id":"e-f12","fromNode":"f1","fromSide":"right","toNode":"f2","toSide":"left"},
+		{"id":"e-f23","fromNode":"f2","fromSide":"right","toNode":"f3","toSide":"left"},
+		{"id":"e-f34","fromNode":"f3","fromSide":"right","toNode":"f4","toSide":"left"},
+		{"id":"e-f45","fromNode":"f4","fromSide":"right","toNode":"f5","toSide":"left"},
+		{"id":"e-f56","fromNode":"f5","fromSide":"right","toNode":"f6","toSide":"left"},
+		{"id":"e-volta1","fromNode":"f4","fromSide":"bottom","toNode":"f3","toSide":"bottom","color":"1","label":"achou problema"},
+		{"id":"e-volta2","fromNode":"f5","fromSide":"bottom","toNode":"f3","toSide":"bottom","color":"1","label":"pediu ajuste"}
+	]
+}
