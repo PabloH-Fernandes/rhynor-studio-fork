@@ -130,9 +130,14 @@ export function montaBlocoMemoria(fonte) {
 
 /**
  * Aplica uma seção marcada num CLAUDE.md (por padrão, a do time). `textoAtual` é null se o arquivo não existe.
+ * Seção nova entra logo depois do marcador `depoisDe` quando ele existe no texto; senão, no fim do arquivo.
  * Retorna { acao: "criar" | "igual" | "atualizar" | "anexar" | "erro", texto, aviso?, mensagem? }.
  */
-export function aplicaBloco(textoAtual, bloco, { inicio = MARCA_INICIO, fim: marcaFim = MARCA_FIM, tituloAntigo = "Time de AGzinhos" } = {}) {
+export function aplicaBloco(
+  textoAtual,
+  bloco,
+  { inicio = MARCA_INICIO, fim: marcaFim = MARCA_FIM, tituloAntigo = "Time de AGzinhos", depoisDe = null } = {},
+) {
   const secao = `${inicio}\n${normalizaLf(bloco).trim()}\n${marcaFim}`;
   if (textoAtual === null || textoAtual === undefined) return { acao: "criar", texto: `${secao}\n` };
 
@@ -144,8 +149,17 @@ export function aplicaBloco(textoAtual, bloco, { inicio = MARCA_INICIO, fim: mar
 
   if (i < 0 && f < 0) {
     const temAntiga = atual.includes(tituloAntigo);
-    const base = atual.trim() === "" ? "" : `${atual.trimEnd()}\n\n`;
-    const r = { acao: "anexar", texto: `${base}${secao}\n`.replace(/\n/g, eol) };
+    const ancora = depoisDe ? atual.indexOf(depoisDe) : -1;
+    let novo;
+    if (ancora >= 0) {
+      const corte = ancora + depoisDe.length;
+      const resto = atual.slice(corte).replace(/^\n+/, "");
+      novo = `${atual.slice(0, corte)}\n\n${secao}\n${resto ? `\n${resto}` : ""}`;
+    } else {
+      const base = atual.trim() === "" ? "" : `${atual.trimEnd()}\n\n`;
+      novo = `${base}${secao}\n`;
+    }
+    const r = { acao: "anexar", texto: novo.replace(/\n/g, eol) };
     if (temAntiga) {
       r.aviso = `o CLAUDE.md já tem uma seção "${tituloAntigo}" sem marcadores: o bloco novo vai ao lado dela (nada é apagado) e pode haver duplicata. Apague a antiga à mão se quiser.`;
     }
@@ -179,18 +193,24 @@ const MEMORIA_LEGADA = [
   "**Regras das notas:** use wikilinks (`[[nome]]`) com nome curto para agentes, decisões e arquivos citados; não guarde segredo, token nem dado pessoal; fatos que o código ou o git já mostram não precisam de nota.",
 ];
 
+const nivelTitulo = (l) => /^(#{1,6})\s/.exec(l)?.[1].length ?? 0;
+/** Chave para comparar títulos de avisos: sem "#", espaços e BOM. */
+const chaveTitulo = (t) => t.replace(/^﻿/, "").replace(/^#+\s*/, "").trim();
+
 /**
  * Tira do CLAUDE.md as cópias SEM marcadores dos blocos do AG Pocket (coladas à mão antes do setup).
- * Uma seção vai do título (`legados[].titulo`) até o próximo título, marcador ou fim do arquivo, e só sai
- * se TODA linha não vazia dela for conhecida (`legados[].linhas`: textos exatos ou regex). Se houver uma
- * linha que não reconheço (algo escrito à mão), a seção fica e vira aviso. Trechos entre marcadores
- * nunca são tocados. Retorna { texto, removidas: [titulo], mantidas: [titulo] }.
+ * Uma seção vai do título (`legados[].titulo`) até o próximo título de nível igual ou maior (`#` encerra
+ * `##`), o próximo título que também é legado conhecido, um marcador ou o fim do arquivo. Ela só sai se TODA
+ * linha não vazia for conhecida (`legados[].linhas`: textos exatos ou regex). Com uma linha que não
+ * reconheço (algo escrito à mão), ou com `soAvisa: true`, a seção fica inteira e vai para `mantidas`.
+ * Trechos entre marcadores nunca são tocados.
+ * Retorna { texto, removidas: [{ titulo, linhas }], mantidas: [{ titulo, motivo: "desconhecida" | "soAvisa" }] }.
  */
 export function removeCopiasAntigas(textoAtual, legados, marcadores = [MARCA_INICIO, MARCA_FIM, MARCA_MEMORIA_INICIO, MARCA_MEMORIA_FIM]) {
   const eol = textoAtual.includes("\r\n") ? "\r\n" : "\n";
   const linhas = normalizaLf(textoAtual).split("\n");
   const ehMarcador = (l) => marcadores.includes(l.trim());
-  const ehTitulo = (l) => /^#{1,6}\s/.test(l);
+  const legadoDe = (l) => legados.find((g) => l.replace(/^﻿/, "").trimEnd() === g.titulo);
   const removidas = [];
   const mantidas = [];
   const saida = [];
@@ -203,19 +223,26 @@ export function removeCopiasAntigas(textoAtual, legados, marcadores = [MARCA_INI
       n++;
       continue;
     }
-    const legado = !dentro && legados.find((g) => l.replace(/^﻿/, "").trimEnd() === g.titulo);
+    const legado = !dentro && legadoDe(l);
     if (!legado) {
       saida.push(l);
       n++;
       continue;
     }
+    const nivel = nivelTitulo(legado.titulo);
     let fim = n + 1;
-    while (fim < linhas.length && !ehTitulo(linhas[fim]) && !ehMarcador(linhas[fim])) fim++;
+    while (fim < linhas.length) {
+      const x = linhas[fim];
+      const nx = nivelTitulo(x);
+      if (ehMarcador(x) || (nx && (nx <= nivel || legadoDe(x)))) break;
+      fim++;
+    }
     const secao = linhas.slice(n, fim);
-    const conhecida = (x) => legado.linhas.some((m) => (typeof m === "string" ? m.trim() === x : m.test(x)));
-    if (secao.every((x) => x.trim() === "" || conhecida(x.trim()))) removidas.push(legado.titulo);
-    else {
-      mantidas.push(legado.titulo);
+    const conhecida = (x) => (legado.linhas ?? []).some((m) => (typeof m === "string" ? m.trim() === x : m.test(x)));
+    if (!legado.soAvisa && secao.every((x) => x.trim() === "" || conhecida(x.trim()))) {
+      removidas.push({ titulo: legado.titulo, linhas: secao });
+    } else {
+      mantidas.push({ titulo: legado.titulo, motivo: legado.soAvisa ? "soAvisa" : "desconhecida" });
       saida.push(...secao);
     }
     n = fim;
@@ -223,41 +250,70 @@ export function removeCopiasAntigas(textoAtual, legados, marcadores = [MARCA_INI
   return { texto: saida.join("\n").replace(/\n/g, eol), removidas, mantidas };
 }
 
+const TITULO_MEMORIA_ANTIGA = "## Memória (vault do Obsidian)";
+
 /**
  * O CLAUDE.md global inteiro como o setup deixa: sem as cópias antigas sem marcadores, com o bloco do
- * time e, depois dele, o bloco de memória (cada um entre os seus marcadores). `textoAtual` é null se o
- * arquivo não existe. Retorna { acao: "criar" | "igual" | "atualizar" | "erro", texto, partes, avisos, mensagem? }.
+ * time e o bloco de memória (cada um entre os seus marcadores). O de memória entra logo depois do
+ * marcador de fim do time; sem ele, no fim do arquivo. A memória antiga (caminho fixo) só sai com
+ * `vaultConfigurado` (AGPOCKET_VAULT no settings.json, ou gravado agora pelo passo do vault).
+ * `textoAtual` é null se o arquivo não existe.
+ * Retorna { acao: "criar" | "igual" | "atualizar" | "erro", texto, partes, avisos, mensagem? }.
  */
-export function aplicaClaudeMd(textoAtual, blocoTime, blocoMemoria) {
+export function aplicaClaudeMd(textoAtual, blocoTime, blocoMemoria, { vaultConfigurado = true } = {}) {
   const linhasDe = (b) => normalizaLf(b).split("\n").filter((x) => x.trim());
   const legados = [
     { titulo: "# Time de AGzinhos", linhas: linhasDe(blocoTime) },
-    { titulo: "## Memória (vault do Obsidian)", linhas: MEMORIA_LEGADA },
+    { titulo: TITULO_MEMORIA_ANTIGA, linhas: MEMORIA_LEGADA, soAvisa: !vaultConfigurado },
     { titulo: "# Memória do time", linhas: linhasDe(blocoMemoria) },
+    // cópias coladas direto das fontes em team/ (com o cabeçalho de explicação): só aviso
+    { titulo: "# Time de agentes", soAvisa: true },
+    { titulo: "# Memória do time (vault do Obsidian)", soAvisa: true },
   ];
-  const avisos = [];
+  const avisos = new Map(); // chave do título → mensagem (um aviso por seção)
+  const avisa = (titulo, msg) => {
+    const k = chaveTitulo(titulo);
+    if (!avisos.has(k)) avisos.set(k, msg);
+  };
   let texto = textoAtual;
   let removidas = [];
   if (texto !== null && texto !== undefined) {
     const limpo = removeCopiasAntigas(texto, legados);
     texto = limpo.texto;
-    removidas = limpo.removidas;
-    for (const t of limpo.mantidas) {
-      avisos.push(`o CLAUDE.md tem uma seção "${t}" sem marcadores com texto que não reconheço (escrito à mão?): deixei como está. Apague à mão se for duplicata.`);
+    removidas = limpo.removidas.map((r) => r.titulo);
+    for (const r of limpo.removidas) {
+      if (r.titulo !== TITULO_MEMORIA_ANTIGA) continue;
+      const caminho = r.linhas.map((x) => /vault `([^`]+)`, pasta `memoria\/`/.exec(x)?.[1]).find(Boolean);
+      if (caminho) {
+        const sep = caminho.includes("\\") ? "\\" : "/";
+        avisa(`${TITULO_MEMORIA_ANTIGA} (caminho)`, `a memória antiga apontava para ${caminho.replace(/[\\/]+$/, "")}${sep}memoria; migre o que faltar para o vault novo (AGPOCKET_VAULT)`);
+      }
+    }
+    for (const m of limpo.mantidas) {
+      if (m.titulo === TITULO_MEMORIA_ANTIGA && !vaultConfigurado) {
+        avisa(m.titulo, `mantive a seção "${m.titulo}" (caminho fixo): AGPOCKET_VAULT ainda não está no settings.json. Configure o vault e rode o setup de novo.`);
+      } else if (m.motivo === "soAvisa") {
+        avisa(m.titulo, `o CLAUDE.md tem uma seção "${m.titulo}" sem marcadores (cópia colada de team/?): deixei como está. O setup já instala esse bloco entre marcadores; apague a cópia à mão.`);
+      } else {
+        avisa(m.titulo, `o CLAUDE.md tem uma seção "${m.titulo}" sem marcadores com texto que não reconheço (escrito à mão?): deixei como está. Apague à mão se for duplicata.`);
+      }
     }
   }
   const time = aplicaBloco(texto, blocoTime);
-  if (time.acao === "erro") return { acao: "erro", texto: textoAtual, mensagem: time.mensagem, avisos };
+  if (time.acao === "erro") return { acao: "erro", texto: textoAtual, mensagem: time.mensagem, avisos: [...avisos.values()] };
   const memoria = aplicaBloco(time.texto, blocoMemoria, {
     inicio: MARCA_MEMORIA_INICIO,
     fim: MARCA_MEMORIA_FIM,
-    tituloAntigo: "## Memória (vault do Obsidian)",
+    tituloAntigo: TITULO_MEMORIA_ANTIGA,
+    depoisDe: MARCA_FIM,
   });
-  if (memoria.acao === "erro") return { acao: "erro", texto: textoAtual, mensagem: memoria.mensagem, avisos };
-  if (!avisos.length) for (const r of [time, memoria]) if (r.aviso) avisos.push(r.aviso);
+  if (memoria.acao === "erro") return { acao: "erro", texto: textoAtual, mensagem: memoria.mensagem, avisos: [...avisos.values()] };
+  if (time.aviso) avisa("Time de AGzinhos", time.aviso);
+  if (memoria.aviso) avisa(TITULO_MEMORIA_ANTIGA, memoria.aviso);
   const partes = { removidas, time: time.acao, memoria: memoria.acao };
-  if (textoAtual === null || textoAtual === undefined) return { acao: "criar", texto: memoria.texto, partes, avisos };
-  return { acao: memoria.texto === textoAtual ? "igual" : "atualizar", texto: memoria.texto, partes, avisos };
+  const lista = [...avisos.values()];
+  if (textoAtual === null || textoAtual === undefined) return { acao: "criar", texto: memoria.texto, partes, avisos: lista };
+  return { acao: memoria.texto === textoAtual ? "igual" : "atualizar", texto: memoria.texto, partes, avisos: lista };
 }
 
 /** Garante env.CLAUDE_CODE_ENABLE_TODO_TOOLS="1" sem mexer no resto. */
@@ -830,7 +886,10 @@ export function passoVault(ctx, L) {
   if (!r.mudou) L.ja("env.AGPOCKET_VAULT");
   else if (c.estado === "incompleto") L.aviso("não gravei env.AGPOCKET_VAULT: complete o vault (ou escolha outro com --vault=) e rode de novo");
   else if (ctx.flags.check) L.falta("falta env.AGPOCKET_VAULT no settings.json");
-  else if (ctx.flags.dryRun) L.faria(`gravar env.AGPOCKET_VAULT=${v.caminho} no settings.json (com backup)`);
+  else if (ctx.flags.dryRun) {
+    L.faria(`gravar env.AGPOCKET_VAULT=${v.caminho} no settings.json (com backup)`);
+    ctx.vaultEnvPendente = true; // o passo do CLAUDE.md simula o que faria com o vault já configurado
+  }
   else {
     gravaSettings(ctx, s, r.settings);
     L.instalou("env.AGPOCKET_VAULT");
@@ -853,7 +912,12 @@ export function passoClaudeMd(ctx, L) {
   const blocoTime = montaBlocoTime(fs.readFileSync(path.join(ROOT, "team", "CLAUDE-time.md"), "utf8"));
   const blocoMemoria = montaBlocoMemoria(fs.readFileSync(path.join(ROOT, "team", "CLAUDE-memoria.md"), "utf8"));
   const atual = fs.existsSync(arquivo) ? fs.readFileSync(arquivo, "utf8") : null;
-  const r = aplicaClaudeMd(atual, blocoTime, blocoMemoria);
+  // a memória antiga (caminho fixo) só sai quando o vault novo está configurado: no settings.json, ou
+  // gravado agora pelo passo do vault (em --dry-run, quando ele gravaria)
+  const s = leJson(ctx.settingsFile);
+  const vaultEnv = s.dados?.env?.AGPOCKET_VAULT;
+  const vaultConfigurado = (typeof vaultEnv === "string" && vaultEnv.trim() !== "") || ctx.vaultEnvPendente === true;
+  const r = aplicaClaudeMd(atual, blocoTime, blocoMemoria, { vaultConfigurado });
   if (r.acao === "erro") {
     L.falta(r.mensagem);
     return false;
@@ -871,7 +935,7 @@ export function passoClaudeMd(ctx, L) {
     return true;
   }
   if (ctx.flags.dryRun) {
-    L.faria(`${r.acao === "criar" ? "criar o CLAUDE.md e " : ""}${mudancas} (com backup)`);
+    L.faria(`${r.acao === "criar" ? "criar o CLAUDE.md e " : ""}${mudancas}${atual !== null ? " (com backup)" : ""}`);
     avisos();
     return true;
   }

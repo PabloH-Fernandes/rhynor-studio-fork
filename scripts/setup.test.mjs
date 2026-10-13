@@ -14,6 +14,7 @@ import {
   aplicaClaudeMd,
   descreveClaudeMd,
   montaBlocoMemoria,
+  normalizaLf,
   passoClaudeMd,
   removeCopiasAntigas,
   aplicaEnv,
@@ -714,7 +715,7 @@ test("aplicaClaudeMd: caso real (cópia antiga do time + memória antiga + bloco
   const r = aplicaClaudeMd(atual, BLOCO_TIME, BLOCO_MEMORIA);
   assert.equal(r.acao, "atualizar");
   assert.deepEqual(r.partes, { removidas: ["# Time de AGzinhos", "## Memória (vault do Obsidian)"], time: "igual", memoria: "anexar" });
-  assert.deepEqual(r.avisos, []);
+  assert.deepEqual(r.avisos, ["a memória antiga apontava para D:\\Qualquer Pasta\\Cérebro\\memoria; migre o que faltar para o vault novo (AGPOCKET_VAULT)"]);
   assert.equal(conta(r.texto, "# Time de AGzinhos"), 1);
   assert.equal(conta(r.texto, "# Memória do time"), 1);
   assert.doesNotMatch(r.texto, /`memoria\/|Qualquer Pasta/);
@@ -751,7 +752,68 @@ test("aplicaClaudeMd: nada escrito à mão se perde", () => {
   const t = aplicaClaudeMd(timeMeu, BLOCO_TIME, BLOCO_MEMORIA);
   assert.ok(t.texto.includes("- Sempre rode o lint antes."));
   assert.equal(t.partes.removidas.length, 0);
-  assert.match(t.avisos.join(" "), /Time de AGzinhos/);
+  assert.equal(t.avisos.length, 1, "um aviso só por seção (remoção e aplicaBloco juntos, sem duplicata)");
+  assert.match(t.avisos[0], /Time de AGzinhos.*não reconheço/);
+
+  // subtítulo escrito à mão dentro da cópia antiga do time: faz parte da seção, então ela fica inteira
+  const comSub = `${TIME_ANTIGO}## Minhas notas\n\n- nunca use any\n\n${MEMORIA_ANTIGA}`;
+  const s = aplicaClaudeMd(comSub, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.ok(s.texto.includes(`${TIME_ANTIGO}## Minhas notas\n\n- nunca use any\n`), "título e subtítulo ficam juntos");
+  assert.deepEqual(s.partes.removidas, ["## Memória (vault do Obsidian)"], "a memória antiga continua sendo uma seção separada");
+  assert.match(s.avisos.join(" "), /Time de AGzinhos.*não reconheço/);
+});
+
+test("aplicaClaudeMd: memória antiga só sai com AGPOCKET_VAULT configurado", () => {
+  const atual = `${TIME_ANTIGO}${MEMORIA_ANTIGA}\n${MARCADO_TIME}`;
+  const sem = aplicaClaudeMd(atual, BLOCO_TIME, BLOCO_MEMORIA, { vaultConfigurado: false });
+  assert.deepEqual(sem.partes.removidas, ["# Time de AGzinhos"]);
+  assert.ok(sem.texto.includes(MEMORIA_ANTIGA.trimEnd()), "a seção antiga fica byte a byte");
+  assert.ok(sem.texto.includes(MARCA_MEMORIA_INICIO), "o bloco novo entra mesmo assim");
+  assert.equal(sem.avisos.length, 1);
+  assert.match(sem.avisos[0], /mantive a seção "## Memória \(vault do Obsidian\)".*AGPOCKET_VAULT ainda não está/);
+
+  const com = aplicaClaudeMd(atual, BLOCO_TIME, BLOCO_MEMORIA, { vaultConfigurado: true });
+  assert.deepEqual(com.partes.removidas, ["# Time de AGzinhos", "## Memória (vault do Obsidian)"]);
+  assert.match(com.avisos.join(" "), /apontava para D:\\Qualquer Pasta\\Cérebro\\memoria/);
+});
+
+test("aplicaClaudeMd: bloco de memória entra logo depois do bloco do time; sem ele, no fim", () => {
+  const depois = "# Minhas regras\n\nfim do arquivo\n";
+  const r = aplicaClaudeMd(`${MARCADO_TIME}\n${depois}`, BLOCO_TIME, BLOCO_MEMORIA);
+  const [iFimTime, iMem, iFimMem, iMeu] = [MARCA_FIM, MARCA_MEMORIA_INICIO, MARCA_MEMORIA_FIM, "# Minhas regras"].map((m) => r.texto.indexOf(m));
+  assert.ok(iFimTime < iMem && iFimMem < iMeu, "time → memória → texto do usuário");
+  assert.ok(r.texto.startsWith(`${MARCADO_TIME}\n${MARCA_MEMORIA_INICIO}`));
+  assert.ok(r.texto.endsWith(`${MARCA_MEMORIA_FIM}\n\n${depois}`));
+  assert.equal(aplicaClaudeMd(r.texto, BLOCO_TIME, BLOCO_MEMORIA).acao, "igual");
+
+  const opcoes = { inicio: MARCA_MEMORIA_INICIO, fim: MARCA_MEMORIA_FIM, depoisDe: MARCA_FIM };
+  const semTime = aplicaBloco("# Só meu\n\ntexto\n", "# Memória do time\n\nx", opcoes);
+  assert.ok(semTime.texto.startsWith("# Só meu\n\ntexto\n\n") && semTime.texto.endsWith(`${MARCA_MEMORIA_FIM}\n`));
+  const crlf = aplicaBloco(`${MARCADO_TIME}\n${depois}`.replace(/\n/g, "\r\n"), "# Memória do time\n\nx", opcoes);
+  assert.ok(!/[^\r]\n/.test(crlf.texto), "mantém CRLF");
+});
+
+test("aplicaClaudeMd: cópias coladas das fontes novas (team/) são detectadas e só avisam", () => {
+  const fonteTime = fs.readFileSync(path.join(ROOT, "team", "CLAUDE-time.md"), "utf8");
+  const fonteMemoria = fs.readFileSync(path.join(ROOT, "team", "CLAUDE-memoria.md"), "utf8");
+  for (const [fonte, titulo] of [
+    [fonteTime, "# Time de agentes"],
+    [fonteMemoria, "# Memória do time (vault do Obsidian)"],
+  ]) {
+    const r = aplicaClaudeMd(`${normalizaLf(fonte)}\n${MARCADO_TIME}`, BLOCO_TIME, BLOCO_MEMORIA);
+    assert.ok(r.texto.startsWith(normalizaLf(fonte)), `${titulo}: a cópia fica`);
+    assert.deepEqual(r.partes.removidas, []);
+    assert.equal(r.avisos.length, 1, titulo);
+    assert.ok(r.avisos[0].includes(`"${titulo}"`) && /cópia colada/.test(r.avisos[0]), r.avisos[0]);
+  }
+  // o bloco instalado colado fora dos marcadores, sem nada a mais: sai (é igual ao que o setup põe)
+  const exata = aplicaClaudeMd(`${BLOCO_MEMORIA}\n\n${MARCADO_TIME}`, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.deepEqual(exata.partes.removidas, ["# Memória do time"]);
+  assert.equal(conta(exata.texto, "# Memória do time"), 1);
+  // com uma linha a mais: fica e avisa
+  const editada = aplicaClaudeMd(`${BLOCO_MEMORIA}\nminha linha\n\n${MARCADO_TIME}`, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.equal(conta(editada.texto, "# Memória do time"), 2);
+  assert.match(editada.avisos.join(" "), /"# Memória do time".*não reconheço/);
 });
 
 test("aplicaClaudeMd: criar do zero, marcadores quebrados e trechos marcados nunca são tocados", () => {
@@ -786,20 +848,22 @@ function rodaPassoClaudeMd(flags, home) {
 }
 
 test("passoClaudeMd: --dry-run e --check não escrevem; instalação faz backup e depois fica idempotente", () => {
-  comHome((home) => {
+  comHome((home, settings) => {
     const arquivo = path.join(home, ".claude", "CLAUDE.md");
     fs.mkdirSync(path.dirname(arquivo), { recursive: true });
+    fs.writeFileSync(settings, JSON.stringify({ env: { AGPOCKET_VAULT: path.join(home, "Cérebro") } }));
     const original = `${TIME_ANTIGO}${MEMORIA_ANTIGA}\n${MARCADO_TIME}`.replace(/\n/g, "\r\n");
     fs.writeFileSync(arquivo, original);
 
     const d = rodaPassoClaudeMd({ dryRun: true }, home);
     assert.equal(d.ok, true);
-    assert.match(d.stdout, /faria: .*tirar a cópia antiga.*anexar o bloco de memória/);
+    assert.match(d.stdout, /faria: .*tirar a cópia antiga.*anexar o bloco de memória \(com backup\)/);
+    assert.match(d.stdout, /⚠ a memória antiga apontava para D:\\Qualquer Pasta\\Cérebro\\memoria/);
     const c = rodaPassoClaudeMd({ check: true }, home);
     assert.match(c.stdout, /CLAUDE\.md desatualizado/);
     assert.ok(c.ctx.erros > 0);
     assert.equal(fs.readFileSync(arquivo, "utf8"), original);
-    assert.deepEqual(fs.readdirSync(path.dirname(arquivo)), ["CLAUDE.md"]);
+    assert.deepEqual(fs.readdirSync(path.dirname(arquivo)).sort(), ["CLAUDE.md", "settings.json"]);
 
     const i = rodaPassoClaudeMd({}, home);
     assert.equal(i.ok, true);
@@ -815,5 +879,42 @@ test("passoClaudeMd: --dry-run e --check não escrevem; instalação faz backup 
     assert.equal(fs.readFileSync(arquivo, "utf8"), instalado);
     assert.equal(fs.readdirSync(path.dirname(arquivo)).filter((f) => f.includes(".backup-")).length, 1);
     assert.equal(rodaPassoClaudeMd({ check: true }, home).ctx.erros, 0);
+  });
+});
+
+test("passoClaudeMd: sem AGPOCKET_VAULT mantém a memória antiga; o --dry-run do vault conta como configurado", () => {
+  comHome((home) => {
+    const arquivo = path.join(home, ".claude", "CLAUDE.md");
+    fs.mkdirSync(path.dirname(arquivo), { recursive: true });
+    fs.writeFileSync(arquivo, `${MEMORIA_ANTIGA}\n${MARCADO_TIME}`);
+
+    const sem = rodaPassoClaudeMd({}, home);
+    assert.equal(sem.ok, true);
+    assert.match(sem.stdout, /⚠ mantive a seção "## Memória \(vault do Obsidian\)"/);
+    const instalado = fs.readFileSync(arquivo, "utf8");
+    assert.ok(instalado.includes(MEMORIA_ANTIGA.trimEnd()) && instalado.includes(MARCA_MEMORIA_INICIO));
+
+    // o passo do vault em --dry-run diria que grava AGPOCKET_VAULT: a simulação do CLAUDE.md já tira a seção
+    const ctx = criaContexto({ ...parseFlags([]), dryRun: true }, home, process.platform);
+    ctx.vaultEnvPendente = true;
+    const linhas = [];
+    const log = console.log;
+    console.log = (s) => linhas.push(String(s));
+    try {
+      passoClaudeMd(ctx, logs(ctx));
+    } finally {
+      console.log = log;
+    }
+    assert.match(linhas.join("\n"), /faria: tirar a cópia antiga sem marcadores "## Memória \(vault do Obsidian\)"/);
+    assert.equal(fs.readFileSync(arquivo, "utf8"), instalado);
+  });
+});
+
+test("passoClaudeMd: --dry-run sem CLAUDE.md não promete backup", () => {
+  comHome((home) => {
+    const d = rodaPassoClaudeMd({ dryRun: true }, home);
+    assert.match(d.stdout, /faria: criar o CLAUDE\.md e criar o bloco do time; anexar o bloco de memória$/m);
+    assert.doesNotMatch(d.stdout, /com backup/);
+    assert.equal(fs.existsSync(path.join(home, ".claude")), false);
   });
 });

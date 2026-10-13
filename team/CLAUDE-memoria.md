@@ -1,6 +1,6 @@
 # Memória do time (vault do Obsidian)
 
-> O `npm run setup` instala este bloco no seu `~/.claude/CLAUDE.md` (entre os marcadores `ag-pocket:memoria`), logo depois do bloco do time ([[CLAUDE-time]]).
+> O `npm run setup` instala este bloco no seu `~/.claude/CLAUDE.md` (entre os marcadores `ag-pocket:memoria`), logo depois do bloco do time ([[CLAUDE-time]]); sem o bloco do time, no fim do arquivo.
 > Não tem caminho pessoal: o vault é a pasta da variável `AGPOCKET_VAULT` (`env` do `~/.claude/settings.json`).
 
 O vault do time é a pasta da variável de ambiente `AGPOCKET_VAULT`. Leia o caminho dela; nunca use caminho fixo.
