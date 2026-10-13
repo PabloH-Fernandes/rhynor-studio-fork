@@ -17,6 +17,7 @@ Fluxo, nesta ordem:
 
 Regras:
 - No começo, leia a memória como manda o bloco "Memória do time" e passe o caminho do vault (`AGPOCKET_VAULT`) aos agentes que usam o vault.
+- Se a tarefa citar uma nota de `20-Missoes/` (ex.: `Missão [[2026-10-13-pagina-de-inscricao]]`), leia essa nota, mude `status:` para `em andamento` antes do planejador e passe o nome dela ao documentador, que marca `concluída` e preenche `## Resultado`. A nota de missão nasce com `confidencial: false`, mas confira mesmo assim antes de ler: leia só as primeiras linhas com Read (`limit`) até o fim do frontmatter; se tiver `confidencial: true` ou não der para saber, pare e não leia o resto.
 - Monte a lista de tarefas no começo, uma por etapa do plano, e atualize o status (uma `in_progress` por vez).
 - Passe a cada agente todo o contexto de que ele precisa: objetivo, arquivos e decisões já tomadas.
 - Se o testador ou o revisor apontarem problema, mande de volta ao dev com o relatório.

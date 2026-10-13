@@ -941,11 +941,12 @@ const COMANDOS = fs.readdirSync(path.join(ROOT, "commands")).filter((f) => f.end
 
 test("passoComandos: dry-run não cria nada; instala os comandos, fica idempotente e faz backup do diferente", () => {
   comHome((home) => {
-    assert.ok(COMANDOS.includes("time.md") && COMANDOS.includes("memoria.md"));
+    assert.ok(["memoria.md", "reuniao.md", "time.md"].every((f) => COMANDOS.includes(f)));
     const dest = path.join(home, ".claude", "commands");
 
     const d = rodaPassoComandos({ dryRun: true }, home);
-    assert.match(d.stdout, /8\. Comandos \(\/time, \/memoria\)/);
+    assert.ok(d.stdout.includes(`8. Comandos (${COMANDOS.map((f) => `/${f.slice(0, -3)}`).join(", ")})`), "título montado dos arquivos");
+    assert.match(d.stdout, /8\. Comandos \(\/memoria, \/reuniao, \/time\)/);
     assert.match(d.stdout, /faria: copiar commands\/memoria\.md/);
     assert.deepEqual(fs.readdirSync(home), []);
     const c = rodaPassoComandos({ check: true }, home);
@@ -988,6 +989,54 @@ test("conteúdo: /memoria, pesquisador e documentador seguem as regras do vault"
 
   const documentador = le("agents", "documentador.md");
   assert.ok(documentador.includes("20-Missoes/") && documentador.includes("confidencial: true"));
+  assert.ok(documentador.includes("status: concluída") && documentador.includes("## Resultado"), "documentador fecha a missão");
+});
+
+test("conteúdo: /reuniao segue as regras do vault e nunca começa nada sozinho", () => {
+  const r = fs.readFileSync(path.join(ROOT, "commands", "reuniao.md"), "utf8");
+  for (const t of ["$ARGUMENTS", "AGPOCKET_VAULT", "00-Inbox", "10-Reunioes/", "20-Missoes/", "confidencial: true", "origem: facilitator", "🤖", "🙋", "❓", "/time ", "a fazer", "processadas"]) {
+    assert.ok(r.includes(t), `reuniao.md sem "${t}"`);
+  }
+  assert.match(r, /NUNCA use Glob nem Grep/);
+  assert.match(r, /nunca comece nada sozinho/i);
+  assert.match(r, /^argument-hint: "\[texto colado \| caminho em 00-Inbox\]"$/m);
+  assert.doesNotMatch(r, /[A-Z]:\\(Users|Área)|\/Users\/|\/home\/|pablo|AG-Cerebro/i, "reuniao.md não pode ter caminho fixo");
+  assert.doesNotMatch(r, /^allowed-tools:/m);
+  assert.doesNotMatch(r, /\$\d/, "$ seguido de dígito vira argumento no Claude Code");
+  const n = normalizaLf(r);
+  assert.equal((n.match(/```powershell\n/g) ?? []).length, (n.match(/```bash\n/g) ?? []).length, "cada bloco PowerShell tem o bash equivalente");
+});
+
+test("vault-template: modelos de Missão e Reunião seguem o formato do /reuniao", () => {
+  const le = (n) => normalizaLf(fs.readFileSync(path.join(ROOT, "vault-template", "Templates", n), "utf8"));
+  const missao = le("Missão.md");
+  for (const t of ["reuniao:", "reuniao_titulo:", "classe:", "a fazer", "em andamento", "concluída"]) {
+    assert.ok(missao.includes(t), `Missão.md sem "${t}"`);
+  }
+  assert.match(missao, /^status: a fazer$/m);
+  assert.match(missao, /## Tarefas\n- \[ \]/);
+  const reuniao = le("Reunião.md");
+  for (const t of ["## Decisões", "## Tarefas", "## Dúvidas"]) assert.ok(reuniao.includes(t), `Reunião.md sem "${t}"`);
+  assert.match(reuniao, /^status: rascunho$/m);
+});
+
+test("docs/exemplos/ata-ficticia.md segue o formato de entrada do /reuniao, sem e-mail nem telefone", () => {
+  const t = normalizaLf(fs.readFileSync(path.join(ROOT, "docs", "exemplos", "ata-ficticia.md"), "utf8"));
+  const fm = t.match(/^---\n([\s\S]*?)\n---\n/);
+  assert.ok(fm, "ata sem frontmatter");
+  for (const k of ["tipo", "projeto", "data", "status", "origem", "tags", "confidencial"]) {
+    assert.match(fm[1], new RegExp(`^${k}:`, "m"), `ata sem ${k}`);
+  }
+  assert.match(fm[1], /^tipo: ata$/m);
+  assert.match(fm[1], /^confidencial: true$/m);
+  for (const s of ["## Pauta", "## Decisões", "## Tarefas", "## Transcrição"]) assert.ok(t.includes(s), `ata sem ${s}`);
+  assert.doesNotMatch(t, /@[\w.-]+\.\w{2,}/, "ata com e-mail");
+  assert.doesNotMatch(t, /\(?\d{2}\)?\s?\d{4,5}-?\d{4}/, "ata com telefone");
+});
+
+test("conteúdo: /time abre e fecha a missão de 20-Missoes/", () => {
+  const t = fs.readFileSync(path.join(ROOT, "commands", "time.md"), "utf8");
+  assert.ok(t.includes("20-Missoes/") && t.includes("em andamento"));
 });
 
 const MEMORIA_MD = fs.readFileSync(path.join(ROOT, "commands", "memoria.md"), "utf8").replace(/\r\n/g, "\n");

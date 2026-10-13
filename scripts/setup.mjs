@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Instala o AG Pocket num PC novo: time de agentes, hooks, configuração global do Claude Code,
-// comandos globais (commands/*.md: /time, /memoria), Playwright MCP, plugins e skills, e deixa o escritório
+// comandos globais (commands/*.md: /memoria, /reuniao, /time), Playwright MCP, plugins e skills, e deixa o escritório
 // pronto para `npm start`.
 //
 //   npm run setup                  → instala só os itens essenciais
@@ -953,13 +953,14 @@ export function passoClaudeMd(ctx, L) {
 
 /** Copia cada commands/*.md do repositório para ~/.claude/commands/ (o que já está igual fica; diferente ganha backup). */
 export function passoComandos(ctx, L) {
-  L.titulo("8. Comandos (/time, /memoria)");
   const src = path.join(ROOT, "commands");
   const dest = path.join(ctx.claudeDir, "commands");
+  const nome = (f) => `/${f.slice(0, -3)}`;
+  const lista = fs.existsSync(src) ? fs.readdirSync(src).filter((x) => x.endsWith(".md")).sort().map(nome) : [];
+  L.titulo(lista.length ? `8. Comandos (${lista.join(", ")})` : "8. Comandos");
   if (!fs.existsSync(src)) return L.falta("a pasta commands/ não existe no repositório");
   const { total, pendentes } = arquivosMdEmDia(src, dest);
   if (total === 0) return L.falta("commands/ não tem nenhum .md");
-  const nome = (f) => `/${f.slice(0, -3)}`;
   for (const f of fs.readdirSync(src).filter((x) => x.endsWith(".md") && !pendentes.includes(x))) L.ja(nome(f), ", igual");
   for (const f of pendentes) {
     const to = path.join(dest, f);

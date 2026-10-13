@@ -30,7 +30,8 @@ Mapa curto. Os agentes leem **este arquivo primeiro** e depois só as notas de q
 1. **Início de missão:** ler este índice, depois só a nota do projeto atual (`30-Projetos/`), as [[Decisões]] e as [[Pendências]] relacionadas.
 2. **Fim de missão:** o [[documentador]] atualiza a nota da missão, a do projeto e a memória do time.
 3. **Consulta:** `/memoria <pergunta>` responde só com base no vault.
-4. Toda nota tem frontmatter: `tipo`, `projeto`, `data`, `status`, `origem`, `tags`, `confidencial`.
+4. **Reunião:** `/reuniao` transforma uma ata de `00-Inbox/` (ou texto colado) numa nota em `10-Reunioes/`, classifica as tarefas (🤖 time, 🙋 humano, ❓ dúvida) e, só para as que você escolher, cria missões em `20-Missoes/` com o `/time` sugerido. Nunca começa nada sozinho.
+5. Toda nota tem frontmatter: `tipo`, `projeto`, `data`, `status`, `origem`, `tags`, `confidencial`.
 
 ## Regra de confidencial
 
