@@ -488,3 +488,157 @@ test("veredictoCheckSkill: extra sem --completo não avisa; falta/erro de essenc
   assert.equal(veredictoCheckSkill("sim", false, check), null);
   assert.equal(veredictoCheckSkill("nao", false, { check: false }), null);
 });
+
+// ───────── vault: casos de borda de ponta a ponta (home temporário, nunca o ~/.claude real) ─────────
+
+function comHome(fn) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "agp-home-"));
+  try {
+    return fn(home, path.join(home, ".claude", "settings.json"));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
+function fotoDaPasta(dir) {
+  const foto = {};
+  for (const f of fs.readdirSync(dir, { recursive: true })) {
+    const p = path.join(dir, String(f));
+    foto[String(f)] = fs.statSync(p).isDirectory() ? "dir" : fs.readFileSync(p).toString("hex");
+  }
+  return foto;
+}
+
+test("vault-template: todo [[link]] resolve para nota do modelo ou é placeholder (só em Templates/); canvas coerente", () => {
+  const raiz = path.join(ROOT, "vault-template");
+  const arquivos = fs.readdirSync(raiz, { recursive: true }).map(String).filter((f) => /\.(md|canvas)$/.test(f));
+  const nomes = new Set(arquivos.map((f) => path.basename(f).replace(/\.(md|canvas)$/, "")));
+  const placeholder = /^(nome-|AAAA-)/;
+  for (const f of arquivos) {
+    const t = fs.readFileSync(path.join(raiz, f), "utf8");
+    for (const m of t.matchAll(/\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g)) {
+      const alvo = m[1].trim();
+      if (nomes.has(alvo)) continue;
+      assert.ok(placeholder.test(alvo) && f.startsWith("Templates"), `${f}: [[${alvo}]] não resolve`);
+    }
+  }
+  const canvas = JSON.parse(fs.readFileSync(path.join(raiz, "50-Time", "AGENTES.canvas"), "utf8"));
+  const ids = new Set(canvas.nodes.map((n) => n.id));
+  assert.equal(ids.size, canvas.nodes.length, "ids de nó repetidos");
+  for (const e of canvas.edges) assert.ok(ids.has(e.fromNode) && ids.has(e.toNode), `aresta ${e.id} aponta para nó inexistente`);
+});
+
+test("passoVault: vault existente com arquivo do usuário fica intacto byte a byte (completo e incompleto)", () => {
+  for (const completo of [true, false]) {
+    comHome((home, settings) => {
+      const v = path.join(home, "Vault do usuário");
+      if (completo) fs.cpSync(path.join(ROOT, "vault-template"), v, { recursive: true });
+      fs.mkdirSync(path.join(v, "minhas notas"), { recursive: true });
+      fs.writeFileSync(path.join(v, "minhas notas", "a ção.md"), Buffer.from([0xef, 0xbb, 0xbf, 0x61, 0x0d, 0x0a, 0xff, 0x00]));
+      fs.writeFileSync(path.join(v, "_indice.md"), "meu\r\nindice");
+      const antes = fotoDaPasta(v);
+      rodaPassoVault({ vault: v }, home);
+      assert.deepEqual(fotoDaPasta(v), antes);
+      assert.equal(fs.existsSync(settings), completo, "env só é gravado com vault completo");
+    });
+  }
+});
+
+test("passoVault: segunda rodada não muda nada (settings, vault, sem .tmp nem novo backup)", () => {
+  comHome((home, settings) => {
+    const v = path.join(home, "Área de Trabalho", "Meu Cérebro");
+    assert.equal(rodaPassoVault({ vault: v }, home).ok, true);
+    const [s1, f1, ls1] = [fs.readFileSync(settings), fotoDaPasta(v), fs.readdirSync(path.dirname(settings))];
+    assert.equal(rodaPassoVault({ vault: v }, home).ok, true);
+    assert.deepEqual(fs.readFileSync(settings), s1);
+    assert.deepEqual(fotoDaPasta(v), f1);
+    assert.deepEqual(fs.readdirSync(path.dirname(settings)), ls1);
+    assert.deepEqual(fs.readdirSync(path.dirname(v)).filter((f) => f.includes(".tmp")), []);
+  });
+});
+
+test("passoVault: AGPOCKET_VAULT do settings manda sobre --vault e não é trocado", () => {
+  comHome((home, settings) => {
+    const [v1, v2] = [path.join(home, "v1"), path.join(home, "v2")];
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, JSON.stringify({ env: { AGPOCKET_VAULT: v1 } }));
+    const antes = fs.readFileSync(settings);
+    const r = rodaPassoVault({ vault: v2 }, home);
+    assert.match(r.stdout, /--vault ignorado/);
+    assert.equal(fs.existsSync(v2), false);
+    assert.deepEqual(fs.readFileSync(settings), antes);
+  });
+});
+
+test("passoVault: recusa vault dentro do repositório (flag e settings), sem criar nada", () => {
+  comHome((home, settings) => {
+    for (const v of [path.join(ROOT, "meu-vault"), path.join(ROOT, "vault-template"), ROOT, path.join(ROOT, "x", "..", "y")]) {
+      const r = rodaPassoVault({ vault: v }, home);
+      assert.equal(r.ok, false, v);
+      assert.match(r.stdout, /dentro do repositório/);
+      assert.equal(fs.existsSync(settings), false);
+    }
+    assert.equal(fs.existsSync(path.join(ROOT, "meu-vault")), false);
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, JSON.stringify({ env: { AGPOCKET_VAULT: path.join(ROOT, "z") } }));
+    assert.equal(rodaPassoVault({}, home).ok, false);
+    assert.equal(fs.existsSync(path.join(ROOT, "z")), false);
+  });
+});
+
+test("passoVault: settings com BOM é lido e preservado; JSON inválido ou não-objeto para sem escrever", () => {
+  comHome((home, settings) => {
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, `\uFEFF${JSON.stringify({ model: "m", env: { B: "2" } })}`);
+    const v = path.join(home, "v bom");
+    assert.equal(rodaPassoVault({ vault: v }, home).ok, true);
+    assert.deepEqual(JSON.parse(fs.readFileSync(settings, "utf8")), { model: "m", env: { B: "2", AGPOCKET_VAULT: v } });
+  });
+  for (const ruim of ["{ quebrado", "[]", "null", "123", JSON.stringify({ env: [] })]) {
+    comHome((home, settings) => {
+      fs.mkdirSync(path.dirname(settings), { recursive: true });
+      fs.writeFileSync(settings, ruim);
+      const v = path.join(home, "v");
+      assert.equal(rodaPassoVault({ vault: v }, home).ok, false, ruim);
+      assert.equal(fs.existsSync(v), false);
+      assert.equal(fs.readFileSync(settings, "utf8"), ruim);
+      assert.deepEqual(fs.readdirSync(path.dirname(settings)), ["settings.json"]);
+    });
+  }
+});
+
+test("passoVault: ~ expande para o home; caminho relativo é recusado (flag e settings)", () => {
+  comHome((home, settings) => {
+    assert.equal(rodaPassoVault({ vault: "~/Meu Vault" }, home).ok, true);
+    assert.ok(fs.existsSync(path.join(home, "Meu Vault", "_indice.md")));
+    assert.equal(JSON.parse(fs.readFileSync(settings, "utf8")).env.AGPOCKET_VAULT, path.join(home, "Meu Vault"));
+  });
+  for (const rel of ["vault-rel", "./vault-rel", "..\vault-rel", "~vault-rel"]) {
+    comHome((home, settings) => {
+      assert.equal(rodaPassoVault({ vault: rel }, home).ok, false, rel);
+      assert.equal(fs.existsSync(settings), false);
+      assert.equal(fs.existsSync(path.resolve(rel)), false);
+    });
+  }
+  comHome((home, settings) => {
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, JSON.stringify({ env: { AGPOCKET_VAULT: "relativo/v" } }));
+    const r = rodaPassoVault({}, home);
+    assert.equal(r.ok, false);
+    assert.match(r.stdout, /AGPOCKET_VAULT/);
+  });
+});
+
+test("passoVault: falha ao criar não deixa .tmp nem grava env (pai é arquivo; destino é arquivo)", () => {
+  comHome((home, settings) => {
+    const pai = path.join(home, "arquivo");
+    fs.writeFileSync(pai, "x");
+    assert.equal(rodaPassoVault({ vault: path.join(pai, "vault") }, home).ok, false);
+    const dest = path.join(home, "dest");
+    fs.writeFileSync(dest, "arquivo");
+    assert.equal(rodaPassoVault({ vault: dest }, home).ok, false);
+    assert.equal(fs.readFileSync(dest, "utf8"), "arquivo");
+    assert.equal(fs.existsSync(settings), false);
+    assert.deepEqual(fs.readdirSync(home).filter((f) => f.includes(".tmp")), []);
+  });
+});
