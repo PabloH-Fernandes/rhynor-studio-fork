@@ -29,25 +29,25 @@ Passos:
      ```
    - Na ferramenta **Bash**, use esta versão (mesmas regras):
      ```bash
-     liberada() {
-       case "${1}" in */10-Reunioes/*) r=1 ;; *) r=0 ;; esac
-       awk -v reuniao="$r" '
-         { sub(/\r$/, "") }
-         NR == 1 { sub(/^\xef\xbb\xbf/, ""); if (!/^---[ \t]*$/) exit 1; next }
-         /^---[ \t]*$/ { fim = 1; exit }
-         { l = tolower($(0)) }
-         l ~ /^confidencial:[ \t]*["\047]?true["\047]?[ \t]*(#.*)?$/ { conf = 1 }
-         l ~ /^confidencial:[ \t]*["\047]?false["\047]?[ \t]*(#.*)?$/ { livre = 1 }
-         END { if (!fim || conf || (reuniao && !livre)) exit 1; exit 0 }
-       ' "${1}"
-     }
+     # um awk só para todas as notas (um por nota leva ~0,5 s cada no Windows): decide cada nota quando o arquivo troca e no END
+     liberadas='
+       function fecha() { if (arq != "" && fim && !conf && (arq !~ /\/10-Reunioes\// || livre)) printf "%s\0", arq }
+       FNR == 1 { fecha(); arq = FILENAME; fim = 0; conf = 0; livre = 0; sub(/^\xef\xbb\xbf/, "") }
+       { sub(/\r$/, "") }
+       FNR == 1 { if (!/^---[ \t]*$/) nextfile; next }
+       /^---[ \t]*$/ { fim = 1; nextfile }
+       { l = tolower($(0)) }
+       l ~ /^confidencial:[ \t]*["\047]?true["\047]?[ \t]*(#.*)?$/ { conf = 1 }
+       l ~ /^confidencial:[ \t]*["\047]?false["\047]?[ \t]*(#.*)?$/ { livre = 1 }
+       END { fecha() }
+     '
      cd "$AGPOCKET_VAULT" && find . -type f -name '*.md' -not -path './.obsidian/*' -not -path '*/Templates/*' -print0 |
-       while IFS= read -r -d '' f; do liberada "$f" && printf '%s\0' "$f"; done |
+       xargs -0 -r awk "$liberadas" |
        xargs -0 -r env LC_ALL=C.UTF-8 grep -cHiE 'termo1|termo2' -- |
        awk -F: '$NF > 0 { c = $NF; sub(/:[0-9]+$/, ""); print c "\t" $(0) }' | sort -nr | head -8
      ```
    - Se o shell falhar, leia as notas de entrada: `90-Memoria-do-time/Decisões.md`, `Pendências.md`, `Lições aprendidas.md`, `Sessões.md`, `40-Conhecimento/Conhecimento.md` e a nota do projeto em `30-Projetos/`.
-4. Leia com Read no máximo 5 notas, só os trechos que interessam. Sem conferir, só pode abrir nota que saiu da lista filtrada do passo 3. Qualquer outra (link do `_indice.md`, de um hub ou do passo de reserva) precisa ser conferida antes, só pelo frontmatter: rode a função `Liberada`/`liberada` acima na mesma chamada do shell, ou, sem shell, leia só as primeiras linhas com Read (`limit`) até o fim do frontmatter e aplique as mesmas regras. Se for confidencial ou não der para saber, pare e não leia o resto.
+4. Leia com Read no máximo 5 notas, só os trechos que interessam. Sem conferir, só pode abrir nota que saiu da lista filtrada do passo 3. Qualquer outra (link do `_indice.md`, de um hub ou do passo de reserva) precisa ser conferida antes, só pelo frontmatter: rode na mesma chamada do shell a função `Liberada` (PowerShell) ou `awk "$liberadas" <nota>` (bash, imprime o caminho só se a nota for liberada), ou, sem shell, leia só as primeiras linhas com Read (`limit`) até o fim do frontmatter e aplique as mesmas regras. Se for confidencial ou não der para saber, pare e não leia o resto.
 5. Responda curto, citando cada afirmação com a nota de onde ela veio, como `[[nome-da-nota]]`.
 6. Se não achar, diga "Não achei isso no vault" e sugira só uma pasta do `_indice.md` onde a informação poderia estar, sem afirmar o que tem nela. Nunca invente nem complete com conhecimento geral.
 

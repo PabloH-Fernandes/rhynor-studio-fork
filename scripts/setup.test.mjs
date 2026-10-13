@@ -1149,6 +1149,30 @@ test("/memoria: o bloco bash não vaza nota confidencial", { skip: !bash && "sem
   }
 });
 
+test("/memoria: o bloco bash usa um awk só e filtra ~100 notas em menos de 20 s", { skip: !bash && "sem Git Bash" }, () => {
+  const sh = blocoDe("bash");
+  assert.equal((sh.match(/\bawk\b/g) ?? []).length, 3, "um awk para o filtro (variável + chamada) e um para o resultado");
+  assert.doesNotMatch(sh, /while .*read/, "nada de laço com um processo por nota");
+  const v = vaultDeConfidenciais();
+  try {
+    for (let i = 0; i < 100; i++) {
+      const conf = i % 2 ? "true" : "false";
+      fs.writeFileSync(path.join(v, "40-Conhecimento", `n${i}.md`), `---\ntipo: x\nconfidencial: ${conf}\n---\nUma decisão ${i}.\n`);
+    }
+    const inicio = Date.now();
+    const codigo = blocoDe("bash").replace("'termo1|termo2'", "'decis.{1,2}o'").replace("head -8", "cat");
+    const r = spawnSync(bash, ["-c", codigo], { env: { ...process.env, AGPOCKET_VAULT: v.replace(/\\/g, "/") }, encoding: "utf8" });
+    const ms = Date.now() - inicio;
+    assert.equal(r.status, 0, r.stderr);
+    const achadas = r.stdout.split(/\r?\n/).filter(Boolean).map((l) => path.basename(l.split("\t")[1]));
+    assert.equal(achadas.length, ESPERADAS.length + 50, r.stdout);
+    assert.ok(achadas.every((n) => ESPERADAS.includes(n) || Number(n.slice(1, -3)) % 2 === 0), "nenhuma confidencial");
+    assert.ok(ms < 20000, `levou ${ms} ms`);
+  } finally {
+    fs.rmSync(v, { recursive: true, force: true });
+  }
+});
+
 test("passoComandos: comando do usuário com outro nome fica intacto (sem backup, sem cópia por cima), mesmo com --dry-run e --check", () => {
   comHome((home) => {
     const dest = path.join(home, ".claude", "commands");
