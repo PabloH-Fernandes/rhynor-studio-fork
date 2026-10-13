@@ -990,6 +990,116 @@ test("conteúdo: /memoria, pesquisador e documentador seguem as regras do vault"
   assert.ok(documentador.includes("20-Missoes/") && documentador.includes("confidencial: true"));
 });
 
+const MEMORIA_MD = fs.readFileSync(path.join(ROOT, "commands", "memoria.md"), "utf8").replace(/\r\n/g, "\n");
+const blocoDe = (lang) => MEMORIA_MD.match(new RegExp("```" + lang + "\\n([\\s\\S]*?)```"))?.[1].replace(/^ {5}/gm, "");
+
+test("conteúdo: /memoria filtra confidencial no PowerShell e no bash, e confere antes do Read", () => {
+  const ps = blocoDe("powershell");
+  const sh = blocoDe("bash");
+  assert.ok(ps && sh, "memoria.md precisa dos blocos powershell e bash");
+  // frontmatter inteiro (até o segundo ---), aspas, comentário, sem diferenciar maiúscula
+  assert.ok(ps.includes(`'^confidencial:\\s*["'']?true["'']?\\s*(#.*)?$'`), "padrão novo no PowerShell");
+  assert.match(ps, /-Encoding UTF8/);
+  assert.doesNotMatch(ps, /-TotalCount 15\b/, "não pode parar nas 15 primeiras linhas");
+  assert.match(ps, /10-Reunioes/);
+  assert.match(sh, /awk/);
+  assert.match(sh, /tolower/);
+  assert.match(sh, /10-Reunioes/);
+  assert.match(sh, /LC_ALL=C\.UTF-8/);
+  assert.match(sh, /--exclude-dir|-not -path '\.\/\.obsidian/);
+  // $1, $0 etc. são argumentos do comando no Claude Code: o texto não pode ter $ seguido de dígito
+  assert.doesNotMatch(MEMORIA_MD, /\$\d/);
+  assert.match(MEMORIA_MD, /ferramenta \*\*PowerShell\*\*/);
+  assert.match(MEMORIA_MD, /Nunca rode via `powershell -Command`/);
+  assert.match(MEMORIA_MD, /só pode abrir nota que saiu da lista filtrada/);
+  assert.match(MEMORIA_MD, /Read \(`limit`\)/);
+  assert.ok(MEMORIA_MD.includes("Lições aprendidas.md"), "Lições no passo de reserva");
+  assert.match(MEMORIA_MD, /sugira só uma pasta do `_indice\.md`/);
+});
+
+test("conteúdo: pesquisador só grava em 40-Conhecimento e com frontmatter completo; agentes conferem o frontmatter", () => {
+  const p = fs.readFileSync(path.join(ROOT, "agents", "pesquisador.md"), "utf8");
+  assert.match(p, /Se não souber o caminho do vault, não grave nada/);
+  assert.match(p, /caminho absoluto que comece com `<vault>\/40-Conhecimento\/`, sem `\.\.`/);
+  assert.match(p, /Nunca grave em `~\/\.claude` nem no repositório/);
+  for (const k of ["tipo: conhecimento", "`projeto`", "`data`", "`status: ativo`", "origem: pesquisa", "`tags`", "confidencial: false", "`fontes`"]) {
+    assert.ok(p.includes(k), `pesquisador sem ${k}`);
+  }
+  const d = fs.readFileSync(path.join(ROOT, "agents", "documentador.md"), "utf8");
+  assert.match(d, /Templates\/Projeto\.md/);
+  for (const t of [p, d]) {
+    assert.match(t, /primeiras linhas com Read \(`limit`\) até o fim do frontmatter/);
+    assert.match(t, /10-Reunioes\/` sem `confidencial: false` explícito/);
+  }
+});
+
+/** Vault de teste: só as notas "ok*" e "livre" podem aparecer na busca. */
+function vaultDeConfidenciais() {
+  const v = fs.mkdtempSync(path.join(os.tmpdir(), "agp-vault-"));
+  const corpo = "\n# t\n\nUma decisão aqui.\n";
+  const nota = (rel, txt) => {
+    fs.mkdirSync(path.dirname(path.join(v, rel)), { recursive: true });
+    fs.writeFileSync(path.join(v, rel), txt);
+  };
+  nota("30-Projetos/aspas.md", `---\ntipo: x\nconfidencial: "true"\n---${corpo}`);
+  nota("30-Projetos/comentario.md", `---\ntipo: x\nconfidencial: true # segredo\n---${corpo}`);
+  nota("30-Projetos/linha17.md", `---\n${Array.from({ length: 15 }, (_, i) => `campo${i}: a`).join("\n")}\nconfidencial: true\n---${corpo}`);
+  nota("30-Projetos/crlf.md", `---\ntipo: x\nconfidencial: true\n---${corpo}`.replace(/\n/g, "\r\n"));
+  nota("30-Projetos/maiuscula.md", `---\ntipo: x\nconfidencial: True\n---${corpo}`);
+  nota("30-Projetos/sem-frontmatter.md", "Uma decisão sem frontmatter.\n");
+  nota("10-Reunioes/sem-frontmatter.md", "Uma decisão da reunião.\n");
+  nota("10-Reunioes/sem-campo.md", `---\ntipo: reuniao\n---${corpo}`);
+  nota("10-Reunioes/livre.md", `---\ntipo: reuniao\nconfidencial: false # liberada\n---${corpo}`);
+  nota("40-Conhecimento/ok.md", `---\ntipo: x\nconfidencial: false\n---${corpo}`);
+  nota("40-Conhecimento/ok-crlf.md", `\uFEFF---\ntipo: x\nconfidencial: false\n---${corpo}`.replace(/\n/g, "\r\n"));
+  nota("Templates/modelo.md", `---\nconfidencial: false\n---${corpo}`);
+  return v;
+}
+const ESPERADAS = ["livre.md", "ok-crlf.md", "ok.md"];
+
+/** No Windows, o bash do Git for Windows (o `bash` do PATH pode ser o do WSL). */
+function gitBash() {
+  if (process.platform !== "win32") return "bash";
+  const r = spawnSync("git", ["--exec-path"], { encoding: "utf8" });
+  if (r.status !== 0) return null;
+  const raiz = path.resolve(r.stdout.trim(), "..", "..", "..");
+  return ["bin", path.join("usr", "bin")].map((d) => path.join(raiz, d, "bash.exe")).find((p) => fs.existsSync(p)) ?? null;
+}
+const bash = gitBash();
+
+test("/memoria: o bloco PowerShell não vaza nota confidencial", { skip: process.platform !== "win32" && "só no Windows" }, () => {
+  const v = vaultDeConfidenciais();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agp-ps-"));
+  try {
+    const script = path.join(dir, "busca.ps1");
+    const codigo = blocoDe("powershell").replace("'termo1|termo2'", "'decis[aã]o'").trimEnd() + " | ForEach-Object { $_.Name }\n";
+    fs.writeFileSync(script, `\uFEFF${codigo}`);
+    const r = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script], {
+      env: { ...process.env, AGPOCKET_VAULT: v },
+      encoding: "utf8",
+    });
+    assert.equal(r.status, 0, r.stderr);
+    const achadas = r.stdout.split(/\r?\n/).filter(Boolean).map((l) => path.basename(l.trim())).sort();
+    assert.deepEqual(achadas, ESPERADAS, r.stdout);
+  } finally {
+    fs.rmSync(v, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("/memoria: o bloco bash não vaza nota confidencial", { skip: !bash && "sem Git Bash" }, () => {
+  const v = vaultDeConfidenciais();
+  try {
+    const codigo = blocoDe("bash").replace("'termo1|termo2'", "'decis.{1,2}o'");
+    const r = spawnSync(bash, ["-c", codigo], { env: { ...process.env, AGPOCKET_VAULT: v.replace(/\\/g, "/") }, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    const achadas = r.stdout.split(/\r?\n/).filter(Boolean).map((l) => path.basename(l.split("\t")[1])).sort();
+    assert.deepEqual(achadas, ESPERADAS, r.stdout);
+  } finally {
+    fs.rmSync(v, { recursive: true, force: true });
+  }
+});
+
 test("passoComandos: comando do usuário com outro nome fica intacto (sem backup, sem cópia por cima), mesmo com --dry-run e --check", () => {
   comHome((home) => {
     const dest = path.join(home, ".claude", "commands");

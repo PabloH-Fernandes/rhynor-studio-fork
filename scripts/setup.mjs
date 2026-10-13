@@ -457,8 +457,8 @@ export function hooksEmDia(settings, root) {
   return Object.keys(hooks).every((ev) => EVENTOS_HOOK.includes(ev) || nossos(ev).length === 0);
 }
 
-/** Compara os agentes do repositório com os instalados (conteúdo igual, CRLF normalizado). */
-export function agentesEmDia(srcDir, destDir) {
+/** Compara os .md de uma pasta do repositório (agents/, commands/) com os instalados (conteúdo igual, CRLF normalizado). */
+export function arquivosMdEmDia(srcDir, destDir) {
   const arquivos = fs.readdirSync(srcDir).filter((f) => f.endsWith(".md"));
   const pendentes = arquivos.filter((f) => {
     const to = path.join(destDir, f);
@@ -468,8 +468,8 @@ export function agentesEmDia(srcDir, destDir) {
   return { total: arquivos.length, pendentes };
 }
 
-/** Mesma comparação, para qualquer pasta de .md (ex.: commands/). */
-export const arquivosMdEmDia = agentesEmDia;
+/** Apelido usado pelo passo dos agentes. */
+export const agentesEmDia = arquivosMdEmDia;
 
 const CAMPOS_DE_SHELL = ["repo", "nome", "plugin", "marketplace", "skill", "comando"];
 const METACARACTERES_SHELL = /["&|<>^%]/;
