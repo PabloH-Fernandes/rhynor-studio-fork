@@ -8,6 +8,10 @@
 //   npm run setup:check            → só confere (não instala nem escreve nada)
 //   --sem-plugins                  → pula marketplaces, plugins e skills (rede restrita)
 //   --browser=chrome|msedge|firefox|webkit  → navegador do Playwright MCP
+//   --vault=<pasta>                → onde criar o vault (se AGPOCKET_VAULT ainda não estiver no settings.json)
+//
+// Vault (segundo cérebro): o caminho fica em env.AGPOCKET_VAULT do ~/.claude/settings.json. Se a pasta não
+// existir, é criada a partir de vault-template/; se já existir, só é conferida (nunca sobrescrita).
 //
 // Node puro, sem dependência. Idempotente: rodar de novo não duplica nem reinstala o que já está em dia.
 // Nunca desliga a verificação de certificado (SSL): em rede com proxy, só sugere NODE_OPTIONS=--use-system-ca.
@@ -52,7 +56,7 @@ export function normalizaLf(texto) {
 
 /** Lê as flags da linha de comando. Flags desconhecidas ou inválidas vão em `erros`. */
 export function parseFlags(argv) {
-  const f = { dryRun: false, check: false, completo: false, semPlugins: false, ajuda: false, browser: null, erros: [] };
+  const f = { dryRun: false, check: false, completo: false, semPlugins: false, ajuda: false, browser: null, vault: null, erros: [] };
   for (const a of argv) {
     if (a === "--dry-run") f.dryRun = true;
     else if (a === "--check") f.check = true;
@@ -63,6 +67,10 @@ export function parseFlags(argv) {
       const b = a.slice("--browser=".length);
       if (NAVEGADORES.includes(b)) f.browser = b;
       else f.erros.push(`--browser inválido: "${b}" (use ${NAVEGADORES.join(", ")})`);
+    } else if (a.startsWith("--vault=")) {
+      const v = a.slice("--vault=".length).trim();
+      if (v) f.vault = v;
+      else f.erros.push("--vault precisa de um caminho (--vault=<pasta>)");
     } else f.erros.push(`flag desconhecida: ${a}`);
   }
   return f;
@@ -154,6 +162,65 @@ export function aplicaEnv(settings) {
   }
   if (env?.CLAUDE_CODE_ENABLE_TODO_TOOLS === "1") return { mudou: false, settings };
   return { mudou: true, settings: { ...settings, env: { ...(env ?? {}), CLAUDE_CODE_ENABLE_TODO_TOOLS: "1" } } };
+}
+
+/** Pastas e arquivos que um vault do AG Pocket precisa ter (conferência leve, nunca altera nada). */
+export const ESTRUTURA_VAULT = ["_indice.md", "00-Inbox", "10-Reunioes", "20-Missoes", "30-Projetos", "40-Conhecimento", "50-Time", "90-Memoria-do-time", "Templates"];
+
+/** O caminho `filho` está dentro de `pai` (ou é o próprio)? Compara sem diferenciar maiúsculas no Windows. */
+export function estaDentro(filho, pai, plataforma = process.platform) {
+  const norm = (p) => (plataforma === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p));
+  const rel = path.relative(norm(pai), norm(filho));
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
+ * Onde fica o vault: AGPOCKET_VAULT do env do settings.json manda; senão a flag --vault; senão a pasta
+ * "AG-Cerebro" ao lado do repositório. Nunca dentro do repositório. Não toca no disco.
+ */
+export function resolveVault(settings, flagVault, root, plataforma = process.platform) {
+  const env = settings?.env;
+  if (env !== undefined && (env === null || typeof env !== "object" || Array.isArray(env))) {
+    return { erro: 'o campo "env" do settings.json não é um objeto' };
+  }
+  const doSettings = typeof env?.AGPOCKET_VAULT === "string" ? env.AGPOCKET_VAULT.trim() : "";
+  let caminho;
+  let origem;
+  if (doSettings) [caminho, origem] = [doSettings, "settings"];
+  else if (flagVault) [caminho, origem] = [flagVault, "flag"];
+  else [caminho, origem] = [path.join(path.dirname(root), "AG-Cerebro"), "padrao"];
+  caminho = path.resolve(caminho);
+  if (estaDentro(caminho, root, plataforma)) {
+    return { erro: `o vault não pode ficar dentro do repositório (${caminho}). Use --vault=<outra pasta>` };
+  }
+  return { caminho, origem, diverge: origem === "settings" && !!flagVault && path.resolve(flagVault) !== caminho };
+}
+
+/** Grava env.AGPOCKET_VAULT sem mexer no resto. Se já houver um valor, não troca (o settings manda). */
+export function aplicaVaultEnv(settings, caminho) {
+  const env = settings.env;
+  if (env !== undefined && (env === null || typeof env !== "object" || Array.isArray(env))) {
+    return { erro: 'o campo "env" do settings.json não é um objeto' };
+  }
+  if (typeof env?.AGPOCKET_VAULT === "string" && env.AGPOCKET_VAULT.trim()) return { mudou: false, settings };
+  return { mudou: true, settings: { ...settings, env: { ...(env ?? {}), AGPOCKET_VAULT: caminho } } };
+}
+
+/** Estado da pasta do vault: "ausente", "arquivo" (é um arquivo, não pasta), "ok" ou "incompleto" (com a lista do que falta). */
+export function confereVault(caminho) {
+  if (!fs.existsSync(caminho)) return { estado: "ausente", faltando: [] };
+  if (!fs.statSync(caminho).isDirectory()) return { estado: "arquivo", faltando: [] };
+  const faltando = ESTRUTURA_VAULT.filter((n) => !fs.existsSync(path.join(caminho, n)));
+  return { estado: faltando.length ? "incompleto" : "ok", faltando };
+}
+
+/** Copia o modelo para uma pasta que NÃO existe. Recusa se o destino já existe; nunca sobrescreve arquivo. */
+export function criaVault(modelo, destino) {
+  if (fs.existsSync(destino)) return { criou: false, motivo: "o destino já existe" };
+  if (!fs.existsSync(modelo)) return { criou: false, motivo: "o modelo não existe" };
+  fs.mkdirSync(path.dirname(destino), { recursive: true });
+  fs.cpSync(modelo, destino, { recursive: true, force: false, errorOnExist: false });
+  return { criou: true };
 }
 
 /** Os 12 eventos com exatamente 1 hook nosso, com o comando exato desta pasta (ROOT diferente = precisa reinstalar). */
@@ -536,8 +603,70 @@ function passoSettingsEnv(ctx, L) {
   return true;
 }
 
+function passoVault(ctx, L) {
+  L.titulo("6. Vault (segundo cérebro, AGPOCKET_VAULT)");
+  const s = leJson(ctx.settingsFile);
+  if (s.erro) {
+    L.falta(`${ctx.settingsFile} tem JSON inválido. Corrija o arquivo e rode de novo (nada foi alterado).`);
+    return false;
+  }
+  const v = resolveVault(s.dados, ctx.flags.vault, ROOT, ctx.plataforma);
+  if (v.erro) {
+    L.falta(`${v.erro}.`);
+    return false;
+  }
+  const origem = { settings: "AGPOCKET_VAULT do settings.json", flag: "--vault", padrao: "padrão (AG-Cerebro ao lado do repositório)" }[v.origem];
+  out(`  Vault: ${v.caminho} [${origem}]`);
+  if (v.diverge) L.aviso(`--vault ignorado: o settings.json já aponta para outro vault (${v.caminho})`);
+
+  // 1) a pasta: copia o modelo só se ela não existir; se existir, apenas confere
+  const c = confereVault(v.caminho);
+  const modelo = path.join(ROOT, "vault-template");
+  if (c.estado === "arquivo") {
+    L.falta(`${v.caminho} é um arquivo, não uma pasta`);
+    return false;
+  }
+  if (c.estado === "ausente") {
+    if (!fs.existsSync(modelo)) {
+      L.falta("vault-template/ não existe no repositório");
+      return false;
+    }
+    if (ctx.flags.check) L.falta(`o vault ainda não existe em ${v.caminho} (o setup cria a partir de vault-template/)`);
+    else if (ctx.flags.dryRun) L.faria(`criar o vault em ${v.caminho} a partir de vault-template/`);
+    else {
+      const r = criaVault(modelo, v.caminho);
+      if (!r.criou) {
+        L.falhou("vault", r.motivo);
+        return false;
+      }
+      L.instalou(`vault em ${v.caminho}`);
+    }
+  } else if (c.estado === "ok") {
+    L.ja("vault", ", só conferi; não alterei nada");
+  } else {
+    L.aviso(`o vault já existe e não tem a estrutura completa (falta: ${c.faltando.join(", ")}); não alterei nada dentro dele`);
+  }
+
+  // 2) o caminho no settings.json (depois da pasta, para o settings nunca apontar para o vazio)
+  const r = aplicaVaultEnv(s.dados, v.caminho);
+  if (r.erro) {
+    L.falta(`${r.erro}. Corrija à mão e rode de novo (nada foi alterado).`);
+    return false;
+  }
+  if (!r.mudou) L.ja("env.AGPOCKET_VAULT");
+  else if (ctx.flags.check) L.falta("falta env.AGPOCKET_VAULT no settings.json");
+  else if (ctx.flags.dryRun) L.faria(`gravar env.AGPOCKET_VAULT=${v.caminho} no settings.json (com backup)`);
+  else {
+    fs.mkdirSync(ctx.claudeDir, { recursive: true });
+    if (s.existe) backup(ctx.settingsFile);
+    fs.writeFileSync(ctx.settingsFile, `${JSON.stringify(r.settings, null, 2)}\n`);
+    L.instalou("env.AGPOCKET_VAULT");
+  }
+  return true;
+}
+
 function passoClaudeMd(ctx, L) {
-  L.titulo("6. CLAUDE.md global (bloco do time)");
+  L.titulo("7. CLAUDE.md global (bloco do time)");
   const arquivo = path.join(ctx.claudeDir, "CLAUDE.md");
   const bloco = montaBlocoTime(fs.readFileSync(path.join(ROOT, "team", "CLAUDE-time.md"), "utf8"));
   const atual = fs.existsSync(arquivo) ? fs.readFileSync(arquivo, "utf8") : null;
@@ -569,7 +698,7 @@ function passoClaudeMd(ctx, L) {
 }
 
 function passoComandoTime(ctx, L) {
-  L.titulo("7. Comando /time");
+  L.titulo("8. Comando /time");
   const src = path.join(ROOT, "commands", "time.md");
   const dest = path.join(ctx.claudeDir, "commands", "time.md");
   if (!fs.existsSync(src)) return L.falta("commands/time.md não existe no repositório");
@@ -586,7 +715,7 @@ function passoComandoTime(ctx, L) {
 }
 
 function passoMcp(ctx, L, item) {
-  L.titulo("8. Playwright MCP (escopo de usuário)");
+  L.titulo("9. Playwright MCP (escopo de usuário)");
   const navegador = escolheNavegador(ctx.plataforma, ctx.flags.browser, item.navegador);
   const servidores = mcpsDeUsuario(ctx.home, L.aviso);
   const atual = servidores[item.nome];
@@ -613,7 +742,7 @@ function passoMcp(ctx, L, item) {
 }
 
 function passoPlugins(ctx, L, cat) {
-  L.titulo("9. Marketplaces, plugins e skills");
+  L.titulo("10. Marketplaces, plugins e skills");
   if (ctx.flags.semPlugins && !ctx.flags.check) {
     L.aviso("--sem-plugins: pulei marketplaces, plugins e skills");
     ctx.rel.pulado.push("marketplaces, plugins e skills");
@@ -688,7 +817,7 @@ function passoPlugins(ctx, L, cat) {
 }
 
 function passoDados(ctx, L) {
-  L.titulo("10. Elenco (data/agzinhos.json)");
+  L.titulo("11. Elenco (data/agzinhos.json)");
   const alvo = path.join(ROOT, "data", "agzinhos.json");
   const exemplo = path.join(ROOT, "data", "agzinhos.example.json");
   if (fs.existsSync(alvo)) return L.ja("data/agzinhos.json", ", não sobrescrevo");
@@ -700,7 +829,7 @@ function passoDados(ctx, L) {
 }
 
 function passoBuild(ctx, L) {
-  L.titulo("11. Build do escritório (npm run build)");
+  L.titulo("12. Build do escritório (npm run build)");
   if (ctx.flags.check) return out("  - não executado em --check");
   if (ctx.flags.dryRun) return L.faria("npm run build");
   if (!fs.existsSync(path.join(ROOT, "node_modules"))) return L.falhou("build", "sem node_modules", "npm install && npm run build");
@@ -745,7 +874,9 @@ const AJUDA = `Uso: npm run setup -- [opções]
   --check          só confere (o mesmo que npm run setup:check)
   --completo       instala também os extras (skills/plugins de terceiros)
   --sem-plugins    pula marketplaces, plugins e skills
-  --browser=NAV    navegador do Playwright MCP: ${NAVEGADORES.join(" | ")}`;
+  --browser=NAV    navegador do Playwright MCP: ${NAVEGADORES.join(" | ")}
+  --vault=PASTA    onde criar o vault (só vale se AGPOCKET_VAULT ainda não estiver no settings.json;
+                   padrão: AG-Cerebro ao lado do repositório). Vault existente nunca é sobrescrito.`;
 
 /** Roda o setup e devolve o código de saída. */
 export function setup(argv, { home = os.homedir(), plataforma = process.platform } = {}) {
@@ -784,6 +915,7 @@ export function setup(argv, { home = os.homedir(), plataforma = process.platform
     () => passoAgentes(ctx, L) !== false,
     () => passoHooks(ctx, L),
     () => passoSettingsEnv(ctx, L),
+    () => passoVault(ctx, L),
     () => passoClaudeMd(ctx, L),
     () => passoComandoTime(ctx, L) !== false,
     () => (itemMcp ? passoMcp(ctx, L, itemMcp) !== false : true),

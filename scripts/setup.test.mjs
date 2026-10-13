@@ -10,6 +10,12 @@ import {
   MARCA_FIM,
   aplicaBloco,
   aplicaEnv,
+  aplicaVaultEnv,
+  confereVault,
+  criaVault,
+  estaDentro,
+  resolveVault,
+  ESTRUTURA_VAULT,
   detectaErroCert,
   dicaCert,
   escolheNavegador,
@@ -156,6 +162,136 @@ test("setup sem claude/git no PATH para com exit 1, mensagem clara e não escrev
     assert.deepEqual(fs.readdirSync(home), []);
     const c = spawnSync(process.execPath, [path.join(ROOT, "scripts", "setup.mjs"), "--check"], { env, encoding: "utf8" });
     assert.equal(c.status, 1);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("parseFlags: --vault com caminho e vazio", () => {
+  assert.equal(parseFlags(["--vault=C:\\Área de Trabalho\\Meu Cérebro"]).vault, "C:\\Área de Trabalho\\Meu Cérebro");
+  assert.equal(parseFlags([]).vault, null);
+  assert.equal(parseFlags(["--vault="]).erros.length, 1);
+});
+
+test("resolveVault: settings manda, depois a flag, depois AG-Cerebro irmão do repositório", () => {
+  const root = path.resolve(os.tmpdir(), "Área de Trabalho", "AG-Project", "escritorio-ia");
+  const irmao = path.resolve(os.tmpdir(), "Área de Trabalho", "AG-Project", "AG-Cerebro");
+  assert.deepEqual(resolveVault({}, null, root), { caminho: irmao, origem: "padrao", diverge: false });
+  const flag = path.resolve(os.tmpdir(), "Outro Cérebro");
+  assert.equal(resolveVault({ env: {} }, flag, root).origem, "flag");
+  assert.equal(resolveVault({ env: {} }, flag, root).caminho, flag);
+  const doSettings = path.resolve(os.tmpdir(), "Já Configurado");
+  const s = resolveVault({ env: { AGPOCKET_VAULT: doSettings } }, flag, root);
+  assert.equal(s.caminho, doSettings);
+  assert.equal(s.origem, "settings");
+  assert.equal(s.diverge, true);
+  assert.equal(resolveVault({ env: { AGPOCKET_VAULT: doSettings } }, doSettings, root).diverge, false);
+  assert.equal(resolveVault({ env: { AGPOCKET_VAULT: "  " } }, null, root).origem, "padrao");
+  assert.ok(resolveVault({ env: "oops" }, null, root).erro);
+  // dentro do repositório: recusado
+  assert.ok(resolveVault({}, path.join(root, "vault"), root).erro);
+  assert.ok(resolveVault({ env: { AGPOCKET_VAULT: root } }, null, root).erro);
+});
+
+test("estaDentro: Windows sem diferenciar maiúsculas; pasta irmã com prefixo igual não conta", () => {
+  const raiz = path.resolve(os.tmpdir(), "repo");
+  assert.equal(estaDentro(path.join(raiz, "a"), raiz), true);
+  assert.equal(estaDentro(raiz, raiz), true);
+  assert.equal(estaDentro(`${raiz}-irmao`, raiz), false);
+  assert.equal(estaDentro(path.dirname(raiz), raiz), false);
+  assert.equal(estaDentro(path.join(raiz.toUpperCase(), "x"), raiz, "win32"), process.platform === "win32");
+});
+
+test("aplicaVaultEnv preserva o resto, não troca valor existente e é idempotente", () => {
+  const caminho = "C:\\Users\\fulano\\Área de Trabalho\\AG-Cerebro";
+  const base = { model: "x", env: { CLAUDE_CODE_ENABLE_TODO_TOOLS: "1" }, hooks: { Stop: [] } };
+  const r = aplicaVaultEnv(base, caminho);
+  assert.equal(r.mudou, true);
+  assert.deepEqual(r.settings, { ...base, env: { CLAUDE_CODE_ENABLE_TODO_TOOLS: "1", AGPOCKET_VAULT: caminho } });
+  assert.equal(base.env.AGPOCKET_VAULT, undefined, "não muta a entrada");
+  assert.equal(aplicaVaultEnv(r.settings, caminho).mudou, false);
+  assert.equal(aplicaVaultEnv(r.settings, "D:\\outro").mudou, false);
+  // sobrevive à ida e volta pelo JSON (espaço e acento)
+  assert.equal(JSON.parse(JSON.stringify(r.settings)).env.AGPOCKET_VAULT, caminho);
+  assert.equal(aplicaVaultEnv({}, caminho).mudou, true);
+  assert.ok(aplicaVaultEnv({ env: [] }, caminho).erro);
+});
+
+test("criaVault/confereVault: cria do modelo real (espaço e acento), não sobrescreve, idempotente", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agp-vault-"));
+  try {
+    const modelo = path.join(ROOT, "vault-template");
+    const destino = path.join(tmp, "Área de Trabalho", "Meu Cérebro");
+    assert.equal(confereVault(destino).estado, "ausente");
+    assert.deepEqual(criaVault(modelo, destino), { criou: true });
+    assert.deepEqual(confereVault(destino), { estado: "ok", faltando: [] });
+    for (const n of ESTRUTURA_VAULT) assert.ok(fs.existsSync(path.join(destino, n)), n);
+    assert.ok(fs.existsSync(path.join(destino, "50-Time", "AGENTES.canvas")));
+    assert.ok(fs.existsSync(path.join(destino, ".obsidian", "app.json")));
+
+    // pasta existente fica intocada, mesmo com conteúdo diferente do modelo
+    const indice = path.join(destino, "_indice.md");
+    fs.writeFileSync(indice, "meu conteúdo");
+    const antes = fs.readdirSync(destino).sort();
+    assert.equal(criaVault(modelo, destino).criou, false);
+    assert.equal(fs.readFileSync(indice, "utf8"), "meu conteúdo");
+    assert.deepEqual(fs.readdirSync(destino).sort(), antes);
+
+    // vault "de outro jeito": só conferido, nada criado dentro
+    const outro = path.join(tmp, "vault antigo");
+    fs.mkdirSync(path.join(outro, "memoria"), { recursive: true });
+    const c = confereVault(outro);
+    assert.equal(c.estado, "incompleto");
+    assert.ok(c.faltando.includes("_indice.md"));
+    assert.equal(criaVault(modelo, outro).criou, false);
+    assert.deepEqual(fs.readdirSync(outro), ["memoria"]);
+
+    // é um arquivo, não pasta
+    const arq = path.join(tmp, "arquivo.md");
+    fs.writeFileSync(arq, "x");
+    assert.equal(confereVault(arq).estado, "arquivo");
+    // modelo inexistente
+    assert.equal(criaVault(path.join(tmp, "nao-existe"), path.join(tmp, "novo")).criou, false);
+    assert.equal(fs.existsSync(path.join(tmp, "novo")), false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("vault-template: toda nota .md tem o frontmatter padrão e nada de segredo", () => {
+  const raiz = path.join(ROOT, "vault-template");
+  const notas = fs.readdirSync(raiz, { recursive: true }).filter((f) => String(f).endsWith(".md"));
+  assert.ok(notas.length >= 20);
+  for (const n of notas) {
+    const t = fs.readFileSync(path.join(raiz, n), "utf8").replace(/\r\n/g, "\n");
+    const fm = t.match(/^---\n([\s\S]*?)\n---\n/);
+    assert.ok(fm, `${n} sem frontmatter`);
+    for (const k of ["tipo", "projeto", "data", "status", "origem", "tags", "confidencial"]) {
+      assert.match(fm[1], new RegExp(`^${k}:`, "m"), `${n} sem ${k}`);
+    }
+    assert.doesNotMatch(t, /@[\w.-]+\.\w{2,}|token\s*[:=]\s*\S{8,}|senha\s*[:=]/i, `${n} parece ter dado sensível`);
+  }
+  const reuniao = fs.readFileSync(path.join(raiz, "Templates", "Reunião.md"), "utf8");
+  assert.match(reuniao, /^confidencial: true$/m);
+  JSON.parse(fs.readFileSync(path.join(raiz, "50-Time", "AGENTES.canvas"), "utf8"));
+  const app = JSON.parse(fs.readFileSync(path.join(raiz, ".obsidian", "app.json"), "utf8"));
+  assert.deepEqual(
+    [app.newLinkFormat, app.useMarkdownLinks, app.alwaysUpdateLinks],
+    ["shortest", false, true],
+  );
+});
+
+test("setup --check e --dry-run não criam o vault nem gravam AGPOCKET_VAULT", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "agp-home-"));
+  const vault = path.join(home, "Área de Trabalho", "Cérebro Teste");
+  try {
+    const env = { ...process.env, HOME: home, USERPROFILE: home, PATH: path.join(home, "vazio") };
+    for (const modo of ["--check", "--dry-run"]) {
+      const r = spawnSync(process.execPath, [path.join(ROOT, "scripts", "setup.mjs"), modo, `--vault=${vault}`], { env, encoding: "utf8" });
+      if (modo === "--check") assert.match(r.stdout, /Vault: .*Cérebro Teste/);
+      assert.equal(fs.existsSync(vault), false, modo);
+      assert.equal(fs.existsSync(path.join(home, ".claude", "settings.json")), false, modo);
+    }
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
