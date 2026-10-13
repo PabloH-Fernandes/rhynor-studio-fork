@@ -1,19 +1,12 @@
 # Memória do time (vault do Obsidian)
 
-> Bloco OPCIONAL e pessoal: contém o caminho do vault de quem montou o time.
-> O `npm run setup` NÃO instala este arquivo. Se quiser usar, copie para o seu `~/.claude/CLAUDE.md`
-> trocando o caminho pelo do seu vault. Complementa o bloco [[CLAUDE-time]].
+> O `npm run setup` instala este bloco no seu `~/.claude/CLAUDE.md` (entre os marcadores `ag-pocket:memoria`), logo depois do bloco do time ([[CLAUDE-time]]).
+> Não tem caminho pessoal: o vault é a pasta da variável `AGPOCKET_VAULT` (`env` do `~/.claude/settings.json`).
 
-## Memória (vault do Obsidian)
+O vault do time é a pasta da variável de ambiente `AGPOCKET_VAULT`. Leia o caminho dela; nunca use caminho fixo.
 
-A memória do time fica no vault `C:\Users\pablo.fernandes\OneDrive - Andrade Gutierrez\Área de Trabalho\AG-Project`, pasta `memoria/`. Índice: [[Memória]].
+**No começo** de trabalho com mais de 2 etapas, leia só: `_indice.md`, a nota do projeto em `30-Projetos/` e, em `90-Memoria-do-time/`, `Decisões.md`, `Pendências.md`, `Lições aprendidas.md` e as 2 sessões mais recentes de `sessoes/`. Não leia o vault inteiro nem reabra decisão `aceita` sem motivo novo.
 
-**No começo** de trabalho com mais de 2 etapas, leia: `memoria/Decisões.md`, `memoria/Lições aprendidas.md`, `memoria/Pendências.md` e as 2 notas mais recentes de `memoria/sessoes/`. Não reabra uma decisão `aceita` sem motivo novo.
+**No fim**, o [[documentador]] cria a sessão em `90-Memoria-do-time/sessoes/` a partir de `Templates/Sessão.md` e atualiza os hubs (`Sessões.md`, `Decisões.md`, `Lições aprendidas.md`, `Pendências.md`).
 
-**No fim**, peça ao [[documentador]] para:
-1. Criar `memoria/sessoes/AAAA-MM-DD título.md` seguindo `templates/Sessão.md` e linkar a nota em `memoria/Sessões.md`.
-2. Se houve escolha importante, criar a nota em `memoria/decisoes/` (`templates/Decisão.md`) e linkar em `memoria/Decisões.md`.
-3. Se o [[testador]] ou o [[revisor]] devolveram algo que pode se repetir, registrar em `memoria/Lições aprendidas.md`.
-4. Atualizar `memoria/Pendências.md` (marcar o que foi resolvido, incluir o que surgiu).
-
-**Regras das notas:** use wikilinks (`[[nome]]`) com nome curto para agentes, decisões e arquivos citados; não guarde segredo, token nem dado pessoal; fatos que o código ou o git já mostram não precisam de nota.
+**Privacidade:** nota com `confidencial: true` não é lida. Nunca guarde segredo (senha, token, chave) nem dado pessoal no vault.

@@ -16,7 +16,7 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 |---|---|
 | `agents/` | Os 6 subagentes do time ([[planejador]], [[pesquisador]], [[dev]], [[testador]], [[revisor]], [[documentador]]) |
 | `team/CLAUDE-time.md` | Instruções pro Claude principal saber quando chamar cada um e montar a lista de tarefas ([[CLAUDE-time]]) |
-| `team/CLAUDE-memoria.md` | Bloco opcional e pessoal da memória no Obsidian (tem caminho do vault; o setup não instala) ([[CLAUDE-memoria]]) |
+| `team/CLAUDE-memoria.md` | Bloco de memória no Obsidian; o vault vem de `AGPOCKET_VAULT` e o setup instala ([[CLAUDE-memoria]]) |
 | `hooks/hook.mjs` | O hook: pega cada evento do Claude Code e manda pro servidor |
 | `server/` | Recebe os eventos, traduz em "quem está fazendo o quê", guarda o elenco e transmite |
 | `shared/roster.ts` | Elenco padrão dos AGzinhos e as regras de validação (roda no servidor e no navegador) |

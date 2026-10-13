@@ -15,4 +15,4 @@ Sessão principal do Claude Code. Recebe a missão, chama cada agente na ordem e
 - Instruções do time (bloco instalado no CLAUDE.md global).
 - Lê o [[_indice]] no começo e pede ao [[documentador]] o registro no fim.
 
-Mapa do time: [[AGENTES]] · Voltar: [[_indice]]
+Mapa do time: [[AGENTES.canvas|AGENTES]] · Voltar: [[_indice]]

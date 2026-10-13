@@ -15,4 +15,4 @@ Escreve e roda testes; em tarefa com interface, testa no navegador.
 - Reporta o que falhou e devolve ao [[dev]].
 - Entra logo depois do dev.
 
-Mapa do time: [[AGENTES]] · Voltar: [[_indice]]
+Mapa do time: [[AGENTES.canvas|AGENTES]] · Voltar: [[_indice]]

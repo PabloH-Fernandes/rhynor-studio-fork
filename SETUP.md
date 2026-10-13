@@ -69,6 +69,7 @@ Além do catálogo abaixo, o setup também faz estas coisas:
 | Hooks que mandam os eventos ao escritório | `~/.claude/settings.json` |
 | `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` (lista de tarefas, usada pelo quadro de etapas) | `~/.claude/settings.json`, em `env` |
 | Bloco do time (`team/CLAUDE-time.md`) entre `<!-- ag-pocket:inicio -->` e `<!-- ag-pocket:fim -->` | `~/.claude/CLAUDE.md` |
+| Bloco de memória (`team/CLAUDE-memoria.md`) entre `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`. Cópias antigas sem marcadores saem só se o setup reconhecer todas as linhas (com backup) | `~/.claude/CLAUDE.md` |
 | Comando `/time` | `~/.claude/commands/time.md` |
 | Elenco inicial, copiado de `data/agzinhos.example.json` (se ainda não existir) | `data/agzinhos.json` |
 | Build do escritório | `web/dist/` |
@@ -160,7 +161,7 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 1. Hooks: `npm run uninstall-hooks` (tira só as entradas do AG Pocket do `~/.claude/settings.json`).
 2. Agentes: apague de `~/.claude/agents/` os 6 arquivos `planejador.md`, `pesquisador.md`, `dev.md`, `testador.md`, `revisor.md` e `documentador.md`.
 3. Comando: apague `~/.claude/commands/time.md`.
-4. Bloco do time: abra `~/.claude/CLAUDE.md` e apague tudo entre `<!-- ag-pocket:inicio -->` e `<!-- ag-pocket:fim -->`, inclusive as duas linhas de marcador.
+4. Blocos do time e de memória: abra `~/.claude/CLAUDE.md` e apague tudo entre `<!-- ag-pocket:inicio -->` e `<!-- ag-pocket:fim -->` e entre `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`, inclusive as linhas de marcador.
 5. Variável de tarefas (opcional): remova `CLAUDE_CODE_ENABLE_TODO_TOOLS` de `env` no `~/.claude/settings.json`.
 6. Playwright: `claude mcp remove playwright --scope user`.
 7. Plugins e marketplaces, se quiser: `claude plugin uninstall <plugin>` e `claude plugin marketplace remove <nome>` (nomes na seção 5; o `superpowers` sai com `claude plugin uninstall superpowers@claude-plugins-official`, e os marketplaces extras se chamam `karpathy-skills` e `context-engineering-marketplace`), ou use `/plugin` dentro do Claude Code. Skills avulsas ficam em `~/.claude/skills/` (e `~/.agents/skills/`): apague a pasta da skill.
@@ -171,4 +172,4 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 - **O repositório é privado.** Ele guarda a identidade visual da empresa (logo e cores). Não torne público nem compartilhe fora da empresa.
 - **Antes de usar com dados da empresa**, confirme com a TI/segurança que os hooks, o servidor local e os plugins de terceiros são permitidos. Os hooks mandam cada evento do Claude Code (comandos, caminhos de arquivos, trechos de prompt) para o servidor local, que escuta só em `127.0.0.1`. O arquivo `data/escritorio.json` guarda esses caminhos e, em pasta sincronizada (OneDrive), sobe junto.
 - **Os extras são de terceiros e rodam com as suas permissões.** Use `--completo` só depois de revisar a lista da seção 5.
-- **A seção de Memória (Obsidian) é pessoal e não é instalada.** O `team/CLAUDE-memoria.md` contém o caminho do vault de quem montou o time. Se quiser usar, copie para o seu `~/.claude/CLAUDE.md` trocando o caminho pelo do seu vault.
+- **O bloco de memória (Obsidian) não tem caminho pessoal.** O `team/CLAUDE-memoria.md` manda ler o vault da variável `AGPOCKET_VAULT` (`env` do `~/.claude/settings.json`), que o passo do vault grava.

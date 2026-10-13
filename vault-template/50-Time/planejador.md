@@ -15,4 +15,4 @@ Quebra o pedido em tarefas pequenas e ordenadas, com arquivos envolvidos e risco
 - Só leitura. Não escreve código.
 - Entra primeiro, em qualquer feature ou refatoração.
 
-Mapa do time: [[AGENTES]] · Voltar: [[_indice]]
+Mapa do time: [[AGENTES.canvas|AGENTES]] · Voltar: [[_indice]]

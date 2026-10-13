@@ -8,7 +8,14 @@ import {
   ROOT,
   MARCA_INICIO,
   MARCA_FIM,
+  MARCA_MEMORIA_INICIO,
+  MARCA_MEMORIA_FIM,
   aplicaBloco,
+  aplicaClaudeMd,
+  descreveClaudeMd,
+  montaBlocoMemoria,
+  passoClaudeMd,
+  removeCopiasAntigas,
   aplicaEnv,
   aplicaVaultEnv,
   confereVault,
@@ -512,7 +519,11 @@ function fotoDaPasta(dir) {
 test("vault-template: todo [[link]] resolve para nota do modelo ou é placeholder (só em Templates/); canvas coerente", () => {
   const raiz = path.join(ROOT, "vault-template");
   const arquivos = fs.readdirSync(raiz, { recursive: true }).map(String).filter((f) => /\.(md|canvas)$/.test(f));
-  const nomes = new Set(arquivos.map((f) => path.basename(f).replace(/\.(md|canvas)$/, "")));
+  // como no Obsidian: [[nome]] sem extensão só acha .md; .canvas precisa da extensão ([[AGENTES.canvas|AGENTES]])
+  const nomes = new Set(arquivos.flatMap((f) => {
+    const base = path.basename(f);
+    return base.endsWith(".md") ? [base, base.slice(0, -3)] : [base];
+  }));
   const placeholder = /^(nome-|AAAA-)/;
   for (const f of arquivos) {
     const t = fs.readFileSync(path.join(raiz, f), "utf8");
@@ -640,5 +651,169 @@ test("passoVault: falha ao criar não deixa .tmp nem grava env (pai é arquivo; 
     assert.equal(fs.readFileSync(dest, "utf8"), "arquivo");
     assert.equal(fs.existsSync(settings), false);
     assert.deepEqual(fs.readdirSync(home).filter((f) => f.includes(".tmp")), []);
+  });
+});
+
+// ───────────────────────── bloco de memória no CLAUDE.md ─────────────────────────
+
+const BLOCO_TIME = montaBlocoTime(fs.readFileSync(path.join(ROOT, "team", "CLAUDE-time.md"), "utf8"));
+const BLOCO_MEMORIA = montaBlocoMemoria(fs.readFileSync(path.join(ROOT, "team", "CLAUDE-memoria.md"), "utf8"));
+
+/** A seção de memória que vinha de team/CLAUDE-memoria.md até a v3 (colada à mão, com o caminho de cada um). */
+const MEMORIA_ANTIGA = [
+  "## Memória (vault do Obsidian)",
+  "",
+  "A memória do time fica no vault `D:\\Qualquer Pasta\\Cérebro`, pasta `memoria/`. Índice: [[Memória]].",
+  "",
+  "**No começo** de trabalho com mais de 2 etapas, leia: `memoria/Decisões.md`, `memoria/Lições aprendidas.md`, `memoria/Pendências.md` e as 2 notas mais recentes de `memoria/sessoes/`. Não reabra uma decisão `aceita` sem motivo novo.",
+  "",
+  "**No fim**, peça ao [[documentador]] para:",
+  "1. Criar `memoria/sessoes/AAAA-MM-DD título.md` seguindo `templates/Sessão.md` e linkar a nota em `memoria/Sessões.md`.",
+  "2. Se houve escolha importante, criar a nota em `memoria/decisoes/` (`templates/Decisão.md`) e linkar em `memoria/Decisões.md`.",
+  "3. Se o [[testador]] ou o [[revisor]] devolveram algo que pode se repetir, registrar em `memoria/Lições aprendidas.md`.",
+  "4. Atualizar `memoria/Pendências.md` (marcar o que foi resolvido, incluir o que surgiu).",
+  "",
+  "**Regras das notas:** use wikilinks (`[[nome]]`) com nome curto para agentes, decisões e arquivos citados; não guarde segredo, token nem dado pessoal; fatos que o código ou o git já mostram não precisam de nota.",
+  "",
+].join("\n");
+
+/** Uma cópia antiga do bloco do time (sem um bullet que entrou depois), colada sem marcadores. */
+const TIME_ANTIGO = `${BLOCO_TIME.split("\n").filter((l) => !l.startsWith("- Em tarefa com interface")).join("\n")}\n\n`;
+const MARCADO_TIME = `${MARCA_INICIO}\n${BLOCO_TIME}\n${MARCA_FIM}\n`;
+const conta = (texto, trecho) => texto.split(trecho).length - 1;
+
+test("montaBlocoMemoria: curto, sem caminho fixo, aponta para a estrutura nova e para AGPOCKET_VAULT", () => {
+  const b = BLOCO_MEMORIA;
+  assert.ok(b.startsWith("# Memória do time\n\nO vault do time é a pasta"));
+  assert.ok(b.length < 1200, `bloco grande demais (${b.length} caracteres)`);
+  assert.doesNotMatch(b, /[A-Za-z]:\\|\/Users\/|\/home\/|pablo/i, "não pode ter caminho fixo");
+  assert.doesNotMatch(b, /`memoria\/|`templates\//, "nada da estrutura antiga");
+  for (const t of ["AGPOCKET_VAULT", "_indice.md", "30-Projetos/", "90-Memoria-do-time/", "Decisões.md", "Pendências.md", "Lições aprendidas.md", "Templates/Sessão.md", "confidencial: true", "[[documentador]]"]) {
+    assert.ok(b.includes(t), `falta "${t}"`);
+  }
+  assert.ok(!b.includes("> "), "o cabeçalho de explicação não entra no bloco");
+  assert.throws(() => montaBlocoMemoria("# outro arquivo"), /O vault do time é a pasta/);
+});
+
+test("aplicaBloco com os marcadores da memória convive com o bloco do time", () => {
+  const opcoes = { inicio: MARCA_MEMORIA_INICIO, fim: MARCA_MEMORIA_FIM, tituloAntigo: "## Memória (vault do Obsidian)" };
+  const r = aplicaBloco(MARCADO_TIME, "# Memória do time\n\nv1", opcoes);
+  assert.equal(r.acao, "anexar");
+  assert.equal(r.aviso, undefined);
+  assert.ok(r.texto.startsWith(MARCADO_TIME));
+  assert.equal(aplicaBloco(r.texto, "# Memória do time\n\nv1", opcoes).acao, "igual");
+  assert.equal(aplicaBloco(r.texto, BLOCO_TIME).acao, "igual", "o bloco do time não enxerga os marcadores da memória");
+  const v2 = aplicaBloco(r.texto, "# Memória do time\n\nv2", opcoes);
+  assert.equal(v2.acao, "atualizar");
+  assert.ok(v2.texto.startsWith(MARCADO_TIME) && v2.texto.includes("v2") && !v2.texto.includes("v1"));
+  assert.equal(aplicaBloco(`${MARCA_MEMORIA_FIM}\n${MARCA_MEMORIA_INICIO}`, "x", opcoes).acao, "erro");
+});
+
+test("aplicaClaudeMd: caso real (cópia antiga do time + memória antiga + bloco marcado) vira um time só + memória", () => {
+  const atual = `${TIME_ANTIGO}${MEMORIA_ANTIGA}\n${MARCADO_TIME}`.replace(/\n/g, "\r\n");
+  const r = aplicaClaudeMd(atual, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.equal(r.acao, "atualizar");
+  assert.deepEqual(r.partes, { removidas: ["# Time de AGzinhos", "## Memória (vault do Obsidian)"], time: "igual", memoria: "anexar" });
+  assert.deepEqual(r.avisos, []);
+  assert.equal(conta(r.texto, "# Time de AGzinhos"), 1);
+  assert.equal(conta(r.texto, "# Memória do time"), 1);
+  assert.doesNotMatch(r.texto, /`memoria\/|Qualquer Pasta/);
+  assert.ok(r.texto.indexOf(MARCA_FIM) < r.texto.indexOf(MARCA_MEMORIA_INICIO), "memória depois do time");
+  assert.ok(!/[^\r]\n/.test(r.texto), "mantém CRLF");
+  assert.deepEqual(descreveClaudeMd(r.partes), [
+    'tirar a cópia antiga sem marcadores "# Time de AGzinhos"',
+    'tirar a cópia antiga sem marcadores "## Memória (vault do Obsidian)"',
+    "anexar o bloco de memória",
+  ]);
+  const deNovo = aplicaClaudeMd(r.texto, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.equal(deNovo.acao, "igual", "idempotente");
+  assert.equal(deNovo.texto, r.texto);
+});
+
+test("aplicaClaudeMd: nada escrito à mão se perde", () => {
+  const meu = "# Minhas regras\n\nResponda em português.\n\n";
+  const depois = "\n## Atalhos meus\n\n- gs = git status\n";
+  const r = aplicaClaudeMd(`${meu}${TIME_ANTIGO}${MEMORIA_ANTIGA}${depois}`, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.ok(r.texto.startsWith(meu), "texto antes fica");
+  assert.ok(r.texto.includes("## Atalhos meus\n\n- gs = git status\n"), "texto depois fica");
+  assert.equal(conta(r.texto, "# Time de AGzinhos"), 1);
+
+  // uma linha que o setup não conhece dentro da cópia antiga: a seção fica inteira e vira aviso
+  const editada = MEMORIA_ANTIGA.replace("**No fim**", "Minha nota pessoal sobre o vault.\n\n**No fim**");
+  const k = aplicaClaudeMd(`${TIME_ANTIGO}${editada}`, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.deepEqual(k.partes.removidas, ["# Time de AGzinhos"]);
+  assert.ok(k.texto.includes(editada.trimEnd()), "a seção editada fica byte a byte");
+  assert.equal(k.avisos.length, 1);
+  assert.match(k.avisos[0], /Memória \(vault do Obsidian\).*não reconheço/);
+
+  // bullet escrito à mão dentro da cópia antiga do time
+  const timeMeu = TIME_ANTIGO.replace("- Ao terminar", "- Sempre rode o lint antes.\n- Ao terminar");
+  const t = aplicaClaudeMd(timeMeu, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.ok(t.texto.includes("- Sempre rode o lint antes."));
+  assert.equal(t.partes.removidas.length, 0);
+  assert.match(t.avisos.join(" "), /Time de AGzinhos/);
+});
+
+test("aplicaClaudeMd: criar do zero, marcadores quebrados e trechos marcados nunca são tocados", () => {
+  const novo = aplicaClaudeMd(null, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.equal(novo.acao, "criar");
+  assert.ok(novo.texto.startsWith(MARCA_INICIO) && novo.texto.trimEnd().endsWith(MARCA_MEMORIA_FIM));
+  assert.equal(aplicaClaudeMd(novo.texto, BLOCO_TIME, BLOCO_MEMORIA).acao, "igual");
+
+  const quebrado = `${TIME_ANTIGO}${MARCA_INICIO}\nmeio`;
+  const e = aplicaClaudeMd(quebrado, BLOCO_TIME, BLOCO_MEMORIA);
+  assert.equal(e.acao, "erro");
+  assert.equal(e.texto, quebrado);
+
+  // um título igual ao legado DENTRO dos marcadores não é cópia antiga
+  const dentro = `${MARCA_INICIO}\n# Time de AGzinhos\n\nvelho\n${MARCA_FIM}\n`;
+  const x = removeCopiasAntigas(dentro, [{ titulo: "# Time de AGzinhos", linhas: ["# Time de AGzinhos", "velho"] }]);
+  assert.equal(x.texto, dentro);
+  assert.deepEqual(x.removidas, []);
+});
+
+/** Roda o passoClaudeMd com um home temporário e devolve o que ele imprimiu. */
+function rodaPassoClaudeMd(flags, home) {
+  const ctx = criaContexto({ ...parseFlags([]), ...flags }, home, process.platform);
+  const linhas = [];
+  const log = console.log;
+  console.log = (s) => linhas.push(String(s));
+  try {
+    return { ok: passoClaudeMd(ctx, logs(ctx)), stdout: linhas.join("\n"), ctx };
+  } finally {
+    console.log = log;
+  }
+}
+
+test("passoClaudeMd: --dry-run e --check não escrevem; instalação faz backup e depois fica idempotente", () => {
+  comHome((home) => {
+    const arquivo = path.join(home, ".claude", "CLAUDE.md");
+    fs.mkdirSync(path.dirname(arquivo), { recursive: true });
+    const original = `${TIME_ANTIGO}${MEMORIA_ANTIGA}\n${MARCADO_TIME}`.replace(/\n/g, "\r\n");
+    fs.writeFileSync(arquivo, original);
+
+    const d = rodaPassoClaudeMd({ dryRun: true }, home);
+    assert.equal(d.ok, true);
+    assert.match(d.stdout, /faria: .*tirar a cópia antiga.*anexar o bloco de memória/);
+    const c = rodaPassoClaudeMd({ check: true }, home);
+    assert.match(c.stdout, /CLAUDE\.md desatualizado/);
+    assert.ok(c.ctx.erros > 0);
+    assert.equal(fs.readFileSync(arquivo, "utf8"), original);
+    assert.deepEqual(fs.readdirSync(path.dirname(arquivo)), ["CLAUDE.md"]);
+
+    const i = rodaPassoClaudeMd({}, home);
+    assert.equal(i.ok, true);
+    assert.match(i.stdout, /instalado agora/);
+    const backups = fs.readdirSync(path.dirname(arquivo)).filter((f) => f.includes(".backup-"));
+    assert.equal(backups.length, 1);
+    assert.equal(fs.readFileSync(path.join(path.dirname(arquivo), backups[0]), "utf8"), original);
+    const instalado = fs.readFileSync(arquivo, "utf8");
+    assert.ok(instalado.includes(MARCA_MEMORIA_INICIO) && conta(instalado, "# Time de AGzinhos") === 1);
+
+    const j = rodaPassoClaudeMd({}, home);
+    assert.match(j.stdout, /já existia, iguais/);
+    assert.equal(fs.readFileSync(arquivo, "utf8"), instalado);
+    assert.equal(fs.readdirSync(path.dirname(arquivo)).filter((f) => f.includes(".backup-")).length, 1);
+    assert.equal(rodaPassoClaudeMd({ check: true }, home).ctx.erros, 0);
   });
 });

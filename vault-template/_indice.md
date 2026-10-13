@@ -21,7 +21,7 @@ Mapa curto. Os agentes leem **este arquivo primeiro** e depois só as notas de q
 | `20-Missoes/` | Uma nota por missão: origem, tarefas, status, commits (modelo: [[Missão]]) |
 | `30-Projetos/` | Uma nota por projeto ou repositório (modelo: [[Projeto]]) |
 | `40-Conhecimento/` | Padrões, glossário, "como fazer X", lições reutilizáveis |
-| `50-Time/` | Um card por agente e o mapa [[AGENTES]] |
+| `50-Time/` | Um card por agente e o mapa [[AGENTES.canvas|AGENTES]] |
 | `90-Memoria-do-time/` | [[Memória]]: [[Decisões]], [[Lições aprendidas]], [[Pendências]], [[Sessões]] |
 | `Templates/` | Modelos de nota |
 

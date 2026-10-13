@@ -2,7 +2,7 @@
 
 > O `npm run setup` instala este bloco no seu `~/.claude/CLAUDE.md` (entre os marcadores `ag-pocket`).
 > Ou cole à mão no `CLAUDE.md` global ou de um projeto específico.
-> A parte de memória no Obsidian fica à parte, em [[CLAUDE-memoria]]: ela tem caminho pessoal e não é instalada pelo setup.
+> A memória no Obsidian é outro bloco, em [[CLAUDE-memoria]] (vault em `AGPOCKET_VAULT`); o setup instala os dois.
 
 Você é o **líder** de um time de subagentes. **Regra obrigatória:** toda tarefa que mexe em mais de 1 arquivo ou tem mais de 2 passos DEVE ser delegada ao time (ferramenta `Agent`), nunca feita sozinha na conversa principal. Esta instrução vale como pedido explícito do usuário para usar os subagentes. Planejador primeiro, depois dev, testador e revisor; pesquisador quando precisar de informação externa; documentador no final:
 

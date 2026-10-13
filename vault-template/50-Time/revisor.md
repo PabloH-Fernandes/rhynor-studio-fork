@@ -15,4 +15,4 @@ Revisa o diff: bugs, segurança, legibilidade e padrão do projeto.
 - Não edita código, só aponta.
 - Entra antes de dar qualquer entrega como pronta.
 
-Mapa do time: [[AGENTES]] · Voltar: [[_indice]]
+Mapa do time: [[AGENTES.canvas|AGENTES]] · Voltar: [[_indice]]
