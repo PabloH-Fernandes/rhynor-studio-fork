@@ -989,3 +989,20 @@ test("conteúdo: /memoria, pesquisador e documentador seguem as regras do vault"
   const documentador = le("agents", "documentador.md");
   assert.ok(documentador.includes("20-Missoes/") && documentador.includes("confidencial: true"));
 });
+
+test("passoComandos: comando do usuário com outro nome fica intacto (sem backup, sem cópia por cima), mesmo com --dry-run e --check", () => {
+  comHome((home) => {
+    const dest = path.join(home, ".claude", "commands");
+    fs.mkdirSync(dest, { recursive: true });
+    const meu = path.join(dest, "meu-comando.md");
+    fs.writeFileSync(meu, "meu comando");
+    const antes = fs.statSync(meu).mtimeMs;
+    rodaPassoComandos({ dryRun: true }, home);
+    rodaPassoComandos({ check: true }, home);
+    assert.deepEqual(fs.readdirSync(dest), ["meu-comando.md"], "dry-run e check não escrevem na pasta existente");
+    rodaPassoComandos({}, home);
+    assert.deepEqual(fs.readdirSync(dest).sort(), ["meu-comando.md", ...COMANDOS].sort());
+    assert.equal(fs.readFileSync(meu, "utf8"), "meu comando");
+    assert.equal(fs.statSync(meu).mtimeMs, antes);
+  });
+});
