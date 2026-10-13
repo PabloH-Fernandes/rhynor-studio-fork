@@ -32,7 +32,8 @@ Em uma ou duas linhas.
 - [ ]
 
 ## Comando sugerido
-`/time Missão [[AAAA-MM-DD-nome-da-missao]]: <descrição da missão>`
+`/time Missão [[AAAA-MM-DD-nome-da-missao]]: <descrição em 1 linha>. Projeto: <projeto>`
+(só para `classe: time`; para `humano` ou `duvida`, escreva o que falta antes)
 
 ## Resultado
 - Commits:

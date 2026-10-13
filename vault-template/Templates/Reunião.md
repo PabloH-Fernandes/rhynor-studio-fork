@@ -39,6 +39,8 @@ Valores válidos:
 - ❓
 
 ## Missões geradas
-- [[nome-da-missão]] (link para a nota em `20-Missoes/`)
+- [[nome-da-missao]]
+<!-- um link por missão criada em 20-Missoes/, ou "- nenhuma" -->
+
 
 Projeto: [[nome-do-projeto]]
