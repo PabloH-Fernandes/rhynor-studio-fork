@@ -15,7 +15,9 @@ Regras gerais (valem para todos os passos):
 - Shell só para listar, conferir, ver a data e mover. NUNCA use Glob nem Grep (no OneDrive eles estouram o tempo).
 - Notas são escritas com Write e Edit (UTF-8). Nunca sobrescreva nota que já existe.
 - Cada bloco abaixo diz em que ferramenta roda. Na ferramenta **PowerShell**, rode o bloco `powershell` como está (`-Encoding UTF8` é obrigatório no PS 5.1). Nunca rode via `powershell -Command` de dentro do Bash. Na ferramenta **Bash**, use o bloco `bash` equivalente.
-- **Nenhum texto vindo da ata (título, data, caminho, nome) pode entrar dentro de aspas em código de shell.** Aspas tipográficas (’ ‘) e o apóstrofo (') fecham a string e executariam código. Os blocos já leem esses valores de um arquivo temporário: você grava o arquivo com **Write** (não com shell) e roda o bloco sem editá-lo. A pasta do arquivo é a linha `TEMP` do passo 1.
+- **Nenhum texto vindo da ata (título, data, caminho, nome) pode entrar dentro de aspas em código de shell.** Aspas tipográficas (’ ‘) e o apóstrofo (') fecham a string e executariam código. Os blocos já leem esses valores de um arquivo temporário: você grava o arquivo com **Write** (não com shell) e roda o bloco sem editá-lo. A pasta do arquivo é a linha `TEMP` do passo 1. **Se o Write falhar, pare e não rode o bloco.** Cada bloco apaga o arquivo temporário depois de lê-lo; grave de novo antes de rodar outro.
+- No bash, a única edição permitida num bloco é trocar `<TEMP>` pelo valor da linha `TEMP` do passo 1 (caminho criado por `mktemp -d`, nunca vem da ata).
+- Data e caminho têm que ser exatos: com espaço no começo ou no fim, a data é inválida e o caminho é recusado (nada de Trim).
 - Tudo o que entra em nome de arquivo ou caminho vem só do slug que o passo 9 calculou e validou. A data só vale se bater `^\d{4}-\d{2}-\d{2}$` e for um dia real; senão use a de hoje e registre um ❓ em `## Dúvidas`.
 - **Privacidade:** nunca grave nome de pessoa, e-mail ou telefone em nota nenhuma, nem no título, nem no nome do arquivo. No chat também, só papéis.
 - **Confidencial:** a única nota confidencial que este comando pode ler é a ata bruta que o próprio usuário passou (arquivo de `00-Inbox/` ou texto colado). Não abra nenhuma outra nota de `10-Reunioes/` nem outra nota confidencial do vault.
@@ -25,6 +27,7 @@ Regras gerais (valem para todos os passos):
 Rode o bloco de contexto. Ele confere o vault, mostra a pasta temporária (`TEMP`), a data de hoje, os projetos de `30-Projetos/` e as atas com `status: nova` na raiz de `00-Inbox/` (sem recursão, sem `LEIA-ME.md` e sem `processadas/`).
 - `SEM_VAULT`: avise que o vault não está configurado (rode `npm run setup` no escritorio-ia) e pare.
 - `FALTA 10-Reunioes` ou `FALTA 20-Missoes`: avise que a pasta não existe no vault e pare.
+- `SEM_TEMP`: não deu para criar a pasta temporária; avise e pare.
 
 Ferramenta **PowerShell**:
 ```powershell
@@ -53,8 +56,8 @@ Ferramenta **Bash**:
 v="$AGPOCKET_VAULT"
 if [ -z "$v" ]; then echo SEM_VAULT; else
   for p in 10-Reunioes 20-Missoes; do [ -d "$v/$p" ] || echo "FALTA $p"; done
-  tmp="${TMPDIR:-/tmp}"
-  echo "TEMP $(cygpath -m "$tmp" 2>/dev/null || echo "$tmp")"
+  # pasta temporária própria e imprevisível (mktemp -d), não um nome fixo em /tmp
+  tmp=$(mktemp -d 2>/dev/null) && echo "TEMP $(cygpath -m "$tmp" 2>/dev/null || echo "$tmp")" || echo SEM_TEMP
   echo "HOJE $(date +%F)"
   for f in "$v"/30-Projetos/*.md; do [ -f "$f" ] && b="${f##*/}" && echo "PROJETO ${b%.md}"; done
   # um awk só para todos os arquivos; sem ENDFILE (ele só existe no gawk): decide na troca de arquivo e no END
@@ -75,39 +78,47 @@ fi
 
 - **Entrada vazia:** mostre as linhas `ATA` do passo 1 numeradas e pergunte qual usar, ou peça para colar o texto. Encerre o turno e espere. Sem nenhuma `ATA`, diga que o `00-Inbox/` não tem ata nova e peça para colar o texto.
 - **Uma linha só, terminada em `.md` ou `.txt`:** é caminho (`entrada: inbox`). Grave essa linha, exatamente como veio, com **Write** em `<TEMP>/reuniao-arquivo.txt` e rode o bloco abaixo. Caminho relativo vale a partir de `<vault>\00-Inbox\`. Só serve arquivo que existe dentro de `00-Inbox/` e que não seja link simbólico nem junction (nem esteja dentro de uma pasta que seja).
-  - `RECUSADO`: diga que só aceita arquivo comum de `00-Inbox/` e pare.
+  - `RECUSADO` (também para caminho inválido, como `::$DATA` ou `:ads:`): diga que só aceita arquivo comum de `00-Inbox/` e pare.
   - `JA_PROCESSADA`: diga que essa ata já foi processada (está em `processadas/`) e pare.
   - `OK <caminho>`: leia o arquivo inteiro com Read. **Exceção explícita:** esta ata bruta tem `confidencial: true` e mesmo assim pode ser lida, porque foi o próprio usuário que a passou. É o único caso.
 - **Qualquer outro caso:** é texto colado (`entrada: colado`, `fonte:` vazio).
 
 Ferramenta **PowerShell**:
 ```powershell
-$v = $env:AGPOCKET_VAULT
-$e = (Get-Content -LiteralPath (Join-Path ([IO.Path]::GetTempPath()) 'reuniao-arquivo.txt') -Encoding UTF8 -TotalCount 1).Trim()
-$inbox = [IO.Path]::GetFullPath((Join-Path $v '00-Inbox')).TrimEnd('\')
-$p = if ([IO.Path]::IsPathRooted($e)) { $e } elseif ($e -match '^00-Inbox[\\/]') { Join-Path $v $e } else { Join-Path $inbox $e }
-$p = [IO.Path]::GetFullPath($p)
-if (-not $p.StartsWith($inbox + '\', [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { 'RECUSADO' }
-else {
+$ErrorActionPreference = 'Stop'
+try {
+  $v = $env:AGPOCKET_VAULT
+  $f = Join-Path ([IO.Path]::GetTempPath()) 'reuniao-arquivo.txt'
+  $e = @(Get-Content -LiteralPath $f -Encoding UTF8 -TotalCount 1)[0]
+  Remove-Item -LiteralPath $f -Force
+  if ([string]::IsNullOrEmpty($e) -or $e -ne $e.Trim()) { throw 'entrada inválida' }
+  $inbox = [IO.Path]::GetFullPath((Join-Path $v '00-Inbox')).TrimEnd('\')
+  $p = if ([IO.Path]::IsPathRooted($e)) { $e } elseif ($e -match '^00-Inbox[\\/]') { Join-Path $v $e } else { Join-Path $inbox $e }
+  $p = [IO.Path]::GetFullPath($p)
+  if (-not $p.StartsWith($inbox + '\', [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { throw 'fora do Inbox' }
   $item = Get-Item -LiteralPath $p -Force
   $link = [bool]$item.LinkType -or [bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint)
   for ($d = $item.Directory; $d -and $d.FullName.TrimEnd('\') -ne $inbox; $d = $d.Parent) {
     if ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) { $link = $true }
   }
-  if ($link) { 'RECUSADO' }
-  elseif ($p.StartsWith($inbox + '\processadas\', [StringComparison]::OrdinalIgnoreCase)) { 'JA_PROCESSADA' }
-  else { "OK $p" }
-}
+  if ($link) { throw 'link' }
+  if ($p.StartsWith($inbox + '\processadas\', [StringComparison]::OrdinalIgnoreCase)) { 'JA_PROCESSADA' } else { "OK $p" }
+} catch { 'RECUSADO' }
 ```
 
 Ferramenta **Bash**:
 ```bash
-v="$AGPOCKET_VAULT"; tmp="${TMPDIR:-/tmp}"
-IFS= read -r e < "$tmp/reuniao-arquivo.txt"; e="${e%$'\r'}"
-case "$e" in /*|[A-Za-z]:*) p="$e" ;; 00-Inbox/*|00-Inbox\\*) p="$v/$e" ;; *) p="$v/00-Inbox/$e" ;; esac
-inbox=$(cd "$v/00-Inbox" 2>/dev/null && pwd -P); d=$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)
-if [ -z "$inbox" ] || [ -z "$d" ] || [ ! -f "$p" ] || [ -L "$p" ]; then echo RECUSADO
-else case "$d/" in "$inbox"/processadas/*) echo JA_PROCESSADA ;; "$inbox"/*) echo "OK $d/$(basename "$p")" ;; *) echo RECUSADO ;; esac; fi
+v="$AGPOCKET_VAULT"; tmp='<TEMP>'
+f="$tmp/reuniao-arquivo.txt"
+e=''; [ -f "$f" ] && IFS= read -r e < "$f"; rm -f -- "$f"
+e="${e%$'\r'}"
+case "$e" in ''|[[:space:]]*|*[[:space:]]) e='' ;; esac
+if [ -z "$e" ]; then echo RECUSADO; else
+  case "$e" in /*|[A-Za-z]:*) p="$e" ;; 00-Inbox/*|00-Inbox\\*) p="$v/$e" ;; *) p="$v/00-Inbox/$e" ;; esac
+  inbox=$(cd "$v/00-Inbox" 2>/dev/null && pwd -P); d=$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)
+  if [ -z "$inbox" ] || [ -z "$d" ] || [ ! -f "$p" ] || [ -L "$p" ]; then echo RECUSADO
+  else case "$d/" in "$inbox"/processadas/*) echo JA_PROCESSADA ;; "$inbox"/*) echo "OK $d/$(basename "$p")" ;; *) echo RECUSADO ;; esac; fi
+fi
 ```
 
 ## 3. Extrair
@@ -237,83 +248,100 @@ Para missão `humano` ou `duvida`, não sugira `/time`: avise que ela precisa de
 
 ## 9. Nome do arquivo
 
-`AAAA-MM-DD-<slug>.md`, com a data da reunião. O slug sai do título: minúsculas, sem acento, o que não for `[a-z0-9]` vira `-`, sem hífens repetidos nem nas pontas, até 50 caracteres cortando num hífen; se ficar vazio, `reuniao` (nota de reunião) ou `missao` (missão). Colisão: se o nome já existe em `10-Reunioes/` **ou** em `20-Missoes/`, use `-2`, `-3` etc. Nunca sobrescreva.
+`AAAA-MM-DD-<slug>.md`, com a data da reunião. O slug sai do título: minúsculas, sem acento, o que não for `[a-z0-9]` vira `-` (emoji incluído), sem hífens repetidos nem nas pontas, até 50 caracteres cortando num hífen; se ficar vazio, `reuniao` (nota de reunião) ou `missao` (missão). Colisão: se o nome já existe em `10-Reunioes/` **ou** em `20-Missoes/`, use `-2`, `-3` etc. Nunca sobrescreva.
 
 Grave com **Write** o arquivo `<TEMP>/reuniao-nomes.txt`, uma linha por valor, sem aspas nem escape:
 - linha 1: a data (`AAAA-MM-DD`);
 - linha 2: `reuniao` ou `missao`;
 - da linha 3 em diante: um título por linha, na ordem.
 
-Rode o bloco. Ele imprime um nome livre por título, sem `.md`. Se a primeira linha for `DATA_INVALIDA <hoje>`, a data era inválida: use `<hoje>` na nota e registre um ❓. Rode para a reunião antes de gravá-la, e para as missões depois que a reunião já foi gravada.
+Rode o bloco. Ele imprime um nome livre por título, sem `.md`. Se a primeira linha for `DATA_INVALIDA <hoje>`, a data era inválida: use `<hoje>` na nota e registre um ❓. `ERRO_ENTRADA` quer dizer que o arquivo não foi lido: grave de novo. Rode para a reunião antes de gravá-la, e para as missões depois que a reunião já foi gravada.
 
 Ferramenta **PowerShell**:
 ```powershell
-$v = $env:AGPOCKET_VAULT
-$l = @(Get-Content -LiteralPath (Join-Path ([IO.Path]::GetTempPath()) 'reuniao-nomes.txt') -Encoding UTF8)
-$data = $l[0].Trim(); $padrao = $l[1].Trim()
-if ($padrao -notin 'reuniao', 'missao') { $padrao = 'reuniao' }
-$dia = [datetime]::MinValue
-$valida = $data -match '^\d{4}-\d{2}-\d{2}$' -and [datetime]::TryParseExact($data, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$dia)
-if (-not $valida) { $data = Get-Date -Format 'yyyy-MM-dd'; "DATA_INVALIDA $data" }
-$usados = @{}
-foreach ($t in @($l | Select-Object -Skip 2)) {
-  $s = $t.Normalize([Text.NormalizationForm]::FormD) -replace '\p{Mn}', ''
-  $s = ($s.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
-  if ($s.Length -gt 50) { $c = $s.Substring(0, 51); $i = $c.LastIndexOf('-'); $s = if ($i -gt 0) { $c.Substring(0, $i) } else { $s.Substring(0, 50) } }
-  if (-not $s) { $s = $padrao }
-  $base = "$data-$s"; $n = $base; $k = 2
-  while ($usados[$n] -or (Test-Path -LiteralPath (Join-Path $v "10-Reunioes\$n.md")) -or (Test-Path -LiteralPath (Join-Path $v "20-Missoes\$n.md"))) { $n = "$base-$k"; $k++ }
-  $usados[$n] = $true
-  $n
-}
+$ErrorActionPreference = 'Stop'
+try {
+  $v = $env:AGPOCKET_VAULT
+  $f = Join-Path ([IO.Path]::GetTempPath()) 'reuniao-nomes.txt'
+  $l = @(Get-Content -LiteralPath $f -Encoding UTF8)
+  Remove-Item -LiteralPath $f -Force
+  if ($l.Count -lt 2) { throw 'entrada incompleta' }
+  $data = $l[0]; $padrao = $l[1]
+  if ($padrao -cnotin 'reuniao', 'missao') { $padrao = 'reuniao' }
+  $dia = [datetime]::MinValue
+  $valida = $data -cmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' -and [datetime]::TryParseExact($data, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$dia)
+  if (-not $valida) { $data = Get-Date -Format 'yyyy-MM-dd'; "DATA_INVALIDA $data" }
+  $usados = @{}
+  foreach ($t in @($l | Select-Object -Skip 2)) {
+    $s = $t.Normalize([Text.NormalizationForm]::FormD) -replace '\p{Mn}', ''
+    $s = ($s.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+    if ($s.Length -gt 50) { $c = $s.Substring(0, 51); $i = $c.LastIndexOf('-'); $s = if ($i -gt 0) { $c.Substring(0, $i) } else { $s.Substring(0, 50) } }
+    if (-not $s) { $s = $padrao }
+    $base = "$data-$s"; $n = $base; $k = 2
+    while ($usados[$n] -or (Test-Path -LiteralPath (Join-Path $v "10-Reunioes\$n.md")) -or (Test-Path -LiteralPath (Join-Path $v "20-Missoes\$n.md"))) { $n = "$base-$k"; $k++ }
+    $usados[$n] = $true
+    $n
+  }
+} catch { 'ERRO_ENTRADA' }
 ```
 
 Ferramenta **Bash**:
 ```bash
-v="$AGPOCKET_VAULT"; tmp="${TMPDIR:-/tmp}"
-{
-  IFS= read -r data; IFS= read -r padrao
-  data="${data%$'\r'}"; padrao="${padrao%$'\r'}"
-  case "$padrao" in reuniao|missao) ;; *) padrao=reuniao ;; esac
-  if ! printf '%s' "$data" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' || ! date -d "$data" +%F > /dev/null 2>&1; then
-    data=$(date +%F); echo "DATA_INVALIDA $data"
-  fi
-  usados=' '
-  while IFS= read -r t || [ -n "$t" ]; do
-    t="${t%$'\r'}"
-    s=$(printf '%s' "$t" | LC_ALL=C.UTF-8 sed 'y/ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ/AAAAAEEEEIIIIOOOOOUUUUCNaaaaaeeeeiiiiooooouuuucn/' | tr 'A-Z' 'a-z' | LC_ALL=C.UTF-8 sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-    if [ "${#s}" -gt 50 ]; then c="${s:0:51}"; case "$c" in *-*) s="${c%-*}" ;; *) s="${s:0:50}" ;; esac; fi
-    [ -n "$s" ] || s="$padrao"
-    base="$data-$s"; n="$base"; k=2
-    while [ -e "$v/10-Reunioes/$n.md" ] || [ -e "$v/20-Missoes/$n.md" ] || case "$usados" in *" $n "*) true ;; *) false ;; esac; do n="$base-$k"; k=$((k+1)); done
-    usados="$usados$n "
-    echo "$n"
-  done
-} < "$tmp/reuniao-nomes.txt"
+# date -d é GNU (Git Bash, Linux). Em BSD/macOS ele falha e a data cai em "hoje": é o lado seguro.
+v="$AGPOCKET_VAULT"; tmp='<TEMP>'
+f="$tmp/reuniao-nomes.txt"
+if [ ! -f "$f" ]; then echo ERRO_ENTRADA; else
+  dados=$(cat "$f"); rm -f -- "$f"
+  {
+    IFS= read -r data; IFS= read -r padrao
+    data="${data%$'\r'}"; padrao="${padrao%$'\r'}"
+    case "$padrao" in reuniao|missao) ;; *) padrao=reuniao ;; esac
+    if ! printf '%s' "$data" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' || ! date -d "$data" +%F > /dev/null 2>&1; then
+      data=$(date +%F); echo "DATA_INVALIDA $data"
+    fi
+    usados=' '
+    while IFS= read -r t || [ -n "$t" ]; do
+      t="${t%$'\r'}"
+      # o sed final roda em LC_ALL=C: todo byte fora de [a-z0-9] (emoji incluído) vira '-'
+      s=$(printf '%s' "$t" | LC_ALL=C.UTF-8 sed 'y/ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ/AAAAAEEEEIIIIOOOOOUUUUCNaaaaaeeeeiiiiooooouuuucn/' | tr 'A-Z' 'a-z' | LC_ALL=C sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+      if [ "${#s}" -gt 50 ]; then c="${s:0:51}"; case "$c" in *-*) s="${c%-*}" ;; *) s="${s:0:50}" ;; esac; fi
+      [ -n "$s" ] || s="$padrao"
+      base="$data-$s"; n="$base"; k=2
+      while [ -e "$v/10-Reunioes/$n.md" ] || [ -e "$v/20-Missoes/$n.md" ] || case "$usados" in *" $n "*) true ;; *) false ;; esac; do n="$base-$k"; k=$((k+1)); done
+      usados="$usados$n "
+      echo "$n"
+    done
+  } <<< "$dados"
+fi
 ```
 
 ## 10. Arquivar a ata (só quando a entrada foi arquivo)
 
 Depois da resposta do passo 6 (inclusive se for `nenhuma`). Grave com **Write** o arquivo `<TEMP>/reuniao-arquivar.txt` com duas linhas: o caminho que veio em `OK` no passo 2 e o nome da nota de reunião (sem `.md`). Rode o bloco. Ele, nesta ordem:
-1. recusa se a nota não for só letras, números e hífen, se o arquivo não estiver em `00-Inbox/` ou se for link;
-2. acerta o frontmatter da ata: `status: processada`, `reuniao: <nota>` e **`confidencial: true` sempre** (troca o valor se existir, acrescenta se faltar; sem frontmatter, cria um);
-3. cria `00-Inbox\processadas` e move a ata para lá (se o nome já existir, acrescenta `-2`, `-3`). **Nunca apaga** a ata.
+1. recusa se a nota não for só letras, números e hífen, se o caminho tiver espaço no começo ou no fim, se o arquivo não estiver em `00-Inbox/` ou se for link;
+2. acerta o frontmatter da ata: `status: processada`, `reuniao: <nota>` e **`confidencial: true` sempre** (troca o valor se existir, também em `confidencial : false`; acrescenta se faltar). Frontmatter sem o `---` de fechamento conta como "sem frontmatter": cria um novo no topo;
+3. **relê o frontmatter** e só segue se achar `confidencial: true`; se a reescrita ou a conferência falhar, imprime `RECUSADO` e a ata fica onde está;
+4. cria `00-Inbox\processadas` e move a ata para lá (se o nome já existir, acrescenta `-2`, `-3`). **Nunca apaga** a ata.
 
 Ferramenta **PowerShell**:
 ```powershell
-$v = $env:AGPOCKET_VAULT
-$l = @(Get-Content -LiteralPath (Join-Path ([IO.Path]::GetTempPath()) 'reuniao-arquivar.txt') -Encoding UTF8)
-$arq = [IO.Path]::GetFullPath($l[0].Trim()); $nota = $l[1].Trim()
-$inbox = [IO.Path]::GetFullPath((Join-Path $v '00-Inbox')).TrimEnd('\')
-$ok = $nota -match '^[0-9A-Za-z-]+$' -and $arq.StartsWith($inbox + '\', [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $arq -PathType Leaf)
-if ($ok) {
+$ErrorActionPreference = 'Stop'
+try {
+  $v = $env:AGPOCKET_VAULT
+  $f = Join-Path ([IO.Path]::GetTempPath()) 'reuniao-arquivar.txt'
+  $l = @(Get-Content -LiteralPath $f -Encoding UTF8 -TotalCount 2)
+  Remove-Item -LiteralPath $f -Force
+  $bruto = $l[0]; $nota = $l[1]
+  if ([string]::IsNullOrEmpty($bruto) -or $bruto -ne $bruto.Trim()) { throw 'caminho inválido' }
+  if ($nota -cnotmatch '^[0-9A-Za-z-]+$') { throw 'nota inválida' }
+  $arq = [IO.Path]::GetFullPath($bruto)
+  $inbox = [IO.Path]::GetFullPath((Join-Path $v '00-Inbox')).TrimEnd('\')
+  if (-not $arq.StartsWith($inbox + '\', [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $arq -PathType Leaf)) { throw 'fora do Inbox' }
   $item = Get-Item -LiteralPath $arq -Force
-  if ([bool]$item.LinkType -or [bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { $ok = $false }
+  if ([bool]$item.LinkType -or [bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'link' }
   for ($d = $item.Directory; $d -and $d.FullName.TrimEnd('\') -ne $inbox; $d = $d.Parent) {
-    if ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) { $ok = $false }
+    if ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'link na pasta' }
   }
-}
-if (-not $ok) { 'RECUSADO' } else {
   $raw = [IO.File]::ReadAllText($arq, [Text.Encoding]::UTF8)
   $nl = if ($raw.Contains("`r`n")) { "`r`n" } else { "`n" }
   $linhas = New-Object 'Collections.Generic.List[string]'
@@ -324,13 +352,23 @@ if (-not $ok) { 'RECUSADO' } else {
     $novos = [ordered]@{ status = 'processada'; reuniao = $nota; confidencial = 'true' }
     foreach ($c in $novos.Keys) {
       $achou = $false
-      for ($k = 1; $k -lt $fim; $k++) { if ($linhas[$k] -match ('^' + $c + ':')) { $linhas[$k] = "${c}: " + $novos[$c]; $achou = $true } }
+      for ($k = 1; $k -lt $fim; $k++) { if ($linhas[$k] -match ('^' + $c + '\s*:')) { $linhas[$k] = "${c}: " + $novos[$c]; $achou = $true } }
       if (-not $achou) { $linhas.Insert($fim, "${c}: " + $novos[$c]); $fim++ }
     }
   } else {
     $linhas.InsertRange(0, [string[]]@('---', 'tipo: ata', 'status: processada', "reuniao: $nota", 'confidencial: true', '---', ''))
   }
   [IO.File]::WriteAllText($arq, ($linhas -join $nl), (New-Object Text.UTF8Encoding $false))
+  # confere o que foi gravado: sem confidencial: true no frontmatter, não move
+  $chk = @(Get-Content -LiteralPath $arq -Encoding UTF8 -TotalCount 200)
+  $okc = $false
+  if ($chk.Count -gt 1 -and $chk[0].Trim() -eq '---') {
+    for ($k = 1; $k -lt $chk.Count; $k++) {
+      if ($chk[$k].Trim() -eq '---') { break }
+      if ($chk[$k] -match '^confidencial:\s*true\s*$') { $okc = $true }
+    }
+  }
+  if (-not $okc) { throw 'confidencial não gravado' }
   $dest = Join-Path $v '00-Inbox\processadas'
   New-Item -ItemType Directory -Force -Path $dest | Out-Null
   $base = [IO.Path]::GetFileNameWithoutExtension($arq); $ext = [IO.Path]::GetExtension($arq)
@@ -338,44 +376,64 @@ if (-not $ok) { 'RECUSADO' } else {
   while (Test-Path -LiteralPath $alvo) { $alvo = Join-Path $dest "$base-$k$ext"; $k++ }
   Move-Item -LiteralPath $arq -Destination $alvo
   "MOVIDO $alvo"
-}
+} catch { 'RECUSADO' }
 ```
 
 Ferramenta **Bash**:
 ```bash
-v="$AGPOCKET_VAULT"; tmp="${TMPDIR:-/tmp}"
-{ IFS= read -r arq; IFS= read -r nota; } < "$tmp/reuniao-arquivar.txt"
-arq="${arq%$'\r'}"; nota="${nota%$'\r'}"
-inbox=$(cd "$v/00-Inbox" 2>/dev/null && pwd -P); d=$(cd "$(dirname "$arq")" 2>/dev/null && pwd -P)
-if ! printf '%s' "$nota" | grep -Eq '^[0-9A-Za-z-]+$' || [ -z "$inbox" ] || [ -z "$d" ] || [ ! -f "$arq" ] || [ -L "$arq" ]; then echo RECUSADO
-else case "$d/" in "$inbox"/*) ok=1 ;; *) ok=0 ;; esac
-  if [ "$ok" = 0 ]; then echo RECUSADO; else
-    arq="$d/$(basename "$arq")"
-    awk -v nota="$nota" '
-      { sub(/\r$/, "") }
-      FNR == 1 {
-        sub(/^\xef\xbb\xbf/, "")
-        if ($(0) ~ /^---[ \t]*$/) { dentro = 1; print; next }
-        print "---"; print "tipo: ata"; print "status: processada"; print "reuniao: " nota; print "confidencial: true"; print "---"; print ""
-      }
-      dentro && /^---[ \t]*$/ {
-        if (!st) print "status: processada"
-        if (!re) print "reuniao: " nota
-        if (!co) print "confidencial: true"
-        dentro = 0; print; next
-      }
-      dentro && tolower($(0)) ~ /^status:/ { print "status: processada"; st = 1; next }
-      dentro && tolower($(0)) ~ /^reuniao:/ { print "reuniao: " nota; re = 1; next }
-      dentro && tolower($(0)) ~ /^confidencial:/ { print "confidencial: true"; co = 1; next }
-      { print }
-    ' "$arq" > "$arq.tmp-reuniao" && mv -f -- "$arq.tmp-reuniao" "$arq"
-    dest="$inbox/processadas"; mkdir -p "$dest"
-    nome="${arq##*/}"; base="${nome%.*}"; ext=".${nome##*.}"
-    alvo="$dest/$nome"; k=2
-    while [ -e "$alvo" ]; do alvo="$dest/$base-$k$ext"; k=$((k+1)); done
-    mv -n -- "$arq" "$alvo" && echo "MOVIDO $alvo"
-  fi
-fi
+# Mantém CRLF se a ata tinha (o BOM sai). Qualquer falha imprime RECUSADO e a ata não é movida.
+v="$AGPOCKET_VAULT"; tmp='<TEMP>'
+arquivar() {
+  local f="$tmp/reuniao-arquivar.txt" arq nota inbox d tem cr alvo dest nome base ext k
+  [ -f "$f" ] || return 1
+  { IFS= read -r arq; IFS= read -r nota; } < "$f"; rm -f -- "$f"
+  arq="${arq%$'\r'}"; nota="${nota%$'\r'}"
+  case "$arq" in ''|[[:space:]]*|*[[:space:]]) return 1 ;; esac
+  printf '%s' "$nota" | grep -Eq '^[0-9A-Za-z-]+$' || return 1
+  inbox=$(cd "$v/00-Inbox" 2>/dev/null && pwd -P) || return 1
+  d=$(cd "$(dirname "$arq")" 2>/dev/null && pwd -P) || return 1
+  [ -f "$arq" ] && [ ! -L "$arq" ] || return 1
+  case "$d/" in "$inbox"/*) ;; *) return 1 ;; esac
+  arq="$d/$(basename "$arq")"
+  # frontmatter sem o --- de fechamento conta como "sem frontmatter"
+  tem=$(awk '{ sub(/\r$/, "") } FNR == 1 { sub(/^\xef\xbb\xbf/, ""); if (!/^---[ \t]*$/) exit; next } /^---[ \t]*$/ { print 1; exit }' "$arq")
+  # o awk do Windows já tira o \r ao ler; por isso o CRLF é detectado fora dele, com od
+  cr=$(head -n 1 "$arq" | od -An -c | grep -c '\\r')
+  awk -v nota="$nota" -v tem="$tem" -v cr="$cr" '
+    BEGIN { ORS = (cr > 0) ? "\r\n" : "\n" }
+    { sub(/\r$/, "") }
+    FNR == 1 {
+      sub(/^\xef\xbb\xbf/, "")
+      if (tem == 1) { dentro = 1; print; next }
+      print "---"; print "tipo: ata"; print "status: processada"; print "reuniao: " nota; print "confidencial: true"; print "---"; print ""
+    }
+    dentro && /^---[ \t]*$/ {
+      if (!st) print "status: processada"
+      if (!re) print "reuniao: " nota
+      if (!co) print "confidencial: true"
+      dentro = 0; print; next
+    }
+    dentro && tolower($(0)) ~ /^status[ \t]*:/ { print "status: processada"; st = 1; next }
+    dentro && tolower($(0)) ~ /^reuniao[ \t]*:/ { print "reuniao: " nota; re = 1; next }
+    dentro && tolower($(0)) ~ /^confidencial[ \t]*:/ { print "confidencial: true"; co = 1; next }
+    { print }
+  ' "$arq" > "$arq.tmp-reuniao" || { rm -f -- "$arq.tmp-reuniao" 2> /dev/null; return 1; }
+  mv -f -- "$arq.tmp-reuniao" "$arq" || { rm -f -- "$arq.tmp-reuniao" 2> /dev/null; return 1; }
+  # relê o frontmatter: sem confidencial: true, não move
+  awk '
+    { sub(/\r$/, "") }
+    FNR == 1 { sub(/^\xef\xbb\xbf/, ""); if (!/^---[ \t]*$/) exit; next }
+    /^---[ \t]*$/ { exit }
+    tolower($(0)) ~ /^confidencial[ \t]*:[ \t]*true[ \t]*$/ { ok = 1 }
+    END { exit !ok }
+  ' "$arq" || return 1
+  dest="$inbox/processadas"; mkdir -p "$dest" || return 1
+  nome="${arq##*/}"; base="${nome%.*}"; ext=".${nome##*.}"
+  alvo="$dest/$nome"; k=2
+  while [ -e "$alvo" ]; do alvo="$dest/$base-$k$ext"; k=$((k+1)); done
+  mv -n -- "$arq" "$alvo" && echo "MOVIDO $alvo"
+}
+arquivar || echo RECUSADO
 ```
 
 ## 11. Fim

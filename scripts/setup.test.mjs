@@ -1221,7 +1221,8 @@ function ambienteReuniao() {
         encoding: "utf8",
       });
     }
-    return spawnSync(bash, ["-c", codigo], {
+    // no bash, o modelo troca <TEMP> pelo caminho que o bloco de contexto imprimiu (mktemp -d)
+    return spawnSync(bash, ["-c", codigo.replace("tmp='<TEMP>'", `tmp='${tmp.replace(/\\/g, "/")}'`)], {
       env: { ...process.env, AGPOCKET_VAULT: v.replace(/\\/g, "/"), TMPDIR: tmp.replace(/\\/g, "/") },
       encoding: "utf8",
     });
@@ -1300,7 +1301,10 @@ for (const [nomeShell, shell, opcoes] of SHELLS_REUNIAO) {
         assert.equal(r.status, 0, r.stderr);
         assert.match(r.stdout, /MOVIDO /, `${nome}: ${r.stdout}`);
         assert.equal(fs.existsSync(arq), false, `${nome} continua no Inbox`);
-        const novo = fs.readFileSync(path.join(a.v, "00-Inbox", "processadas", nome), "utf8").replace(/\r\n/g, "\n");
+        assert.equal(fs.existsSync(path.join(a.tmp, "reuniao-arquivar.txt")), false, "arquivo temporário apagado depois da leitura");
+        const bruto = fs.readFileSync(path.join(a.v, "00-Inbox", "processadas", nome), "utf8");
+        if (nome === "falso.md") assert.ok(!/[^\r]\n/.test(bruto), "CRLF preservado");
+        const novo = bruto.replace(/\r\n/g, "\n");
         const fm = novo.replace(/^\uFEFF/, "").match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? "";
         assert.match(fm, /^confidencial: true$/m, nome);
         assert.match(fm, /^status: processada$/m, nome);
@@ -1367,7 +1371,111 @@ for (const [nomeShell, shell, opcoes] of SHELLS_REUNIAO) {
       a.fim();
     }
   });
+
+  test(`/reuniao (${nomeShell}): falha na reescrita não move a ata; frontmatter sem fechamento e "confidencial : false" viram true`, opcoes, () => {
+    const a = ambienteReuniao();
+    try {
+      const inbox = path.join(a.v, "00-Inbox");
+      const arquiva = (nome) => {
+        a.grava("reuniao-arquivar.txt", [path.join(inbox, nome), "2026-10-13-reuniao-x"]);
+        const r = a.roda(shell, blocos.arquivar);
+        assert.equal(r.status, 0, r.stderr);
+        return r.stdout.trim();
+      };
+      const fmDe = (txt) => txt.replace(/\r\n/g, "\n").match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? "";
+
+      // frontmatter sem o --- de fechamento e sem confidencial: vira "sem frontmatter" e ganha um novo
+      fs.writeFileSync(path.join(inbox, "aberto.md"), "---\nstatus: nova\ncorpo\n");
+      assert.match(arquiva("aberto.md"), /^MOVIDO /);
+      const aberto = fs.readFileSync(path.join(inbox, "processadas", "aberto.md"), "utf8").replace(/\r\n/g, "\n");
+      assert.match(fmDe(aberto), /^confidencial: true$/m);
+      assert.ok(aberto.includes("status: nova\ncorpo\n"), "texto original preservado");
+
+      // espaço antes dos dois pontos não duplica a chave
+      fs.writeFileSync(path.join(inbox, "espaco.md"), "---\nstatus : nova\nconfidencial : false\n---\ncorpo\n");
+      assert.match(arquiva("espaco.md"), /^MOVIDO /);
+      const fm = fmDe(fs.readFileSync(path.join(inbox, "processadas", "espaco.md"), "utf8"));
+      assert.equal((fm.match(/^confidencial\s*:/gm) ?? []).length, 1, fm);
+      assert.equal((fm.match(/^status\s*:/gm) ?? []).length, 1, fm);
+      assert.match(fm, /^confidencial: true$/m);
+
+      // a reescrita falha (PowerShell: arquivo somente leitura; bash: não dá para criar o temporário): RECUSADO e fica no Inbox
+      const falha = path.join(inbox, "falha.md");
+      const conteudo = "---\nstatus: nova\nconfidencial: false\n---\ncorpo\n";
+      fs.writeFileSync(falha, conteudo);
+      if (shell === "ps") fs.chmodSync(falha, 0o444);
+      else fs.mkdirSync(`${falha}.tmp-reuniao`);
+      try {
+        assert.equal(arquiva("falha.md"), "RECUSADO");
+      } finally {
+        if (shell === "ps") fs.chmodSync(falha, 0o666);
+      }
+      assert.equal(fs.readFileSync(falha, "utf8"), conteudo, "ata intacta");
+      assert.equal(fs.existsSync(path.join(inbox, "processadas", "falha.md")), false, "ata não foi movida");
+    } finally {
+      a.fim();
+    }
+  });
+
+  test(`/reuniao (${nomeShell}): emoji no título, ::$DATA, espaço no fim e arquivo temporário apagado`, opcoes, () => {
+    const a = ambienteReuniao();
+    try {
+      // emoji de 4 bytes: o slug fica só com [a-z0-9-], igual nos dois shells
+      a.grava("reuniao-nomes.txt", ["2026-10-13", "reuniao", "emoji \u{1F600} fim", "\u{1F600}", "café \u{1F600}\u{1F600} ça va"]);
+      const n = a.roda(shell, blocos.nomes);
+      assert.equal(n.status, 0, n.stderr);
+      assert.deepEqual(a.linhas(n), ["2026-10-13-emoji-fim", "2026-10-13-reuniao", "2026-10-13-cafe-ca-va"]);
+      assert.equal(fs.existsSync(path.join(a.tmp, "reuniao-nomes.txt")), false, "temporário apagado (nomes)");
+
+      // data com espaço no fim: inválida nos dois shells
+      a.grava("reuniao-nomes.txt", ["2026-10-13 ", "reuniao", "Titulo"]);
+      assert.deepEqual(a.linhas(a.roda(shell, blocos.nomes)), [`DATA_INVALIDA ${hojeLocal()}`, `${hojeLocal()}-titulo`]);
+
+      // caminho: fluxo de dados alternativo, espaço no fim e caminho existente com espaço extra
+      fs.writeFileSync(path.join(a.v, "00-Inbox", "ata.md"), "---\nstatus: nova\n---\n");
+      const confere = (entrada) => {
+        a.grava("reuniao-arquivo.txt", [entrada]);
+        const r = a.roda(shell, blocos.entrada);
+        assert.equal(fs.existsSync(path.join(a.tmp, "reuniao-arquivo.txt")), false, "temporário apagado (arquivo)");
+        return r.stdout.trim();
+      };
+      assert.match(confere("ata.md"), /^OK /);
+      assert.equal(confere("ata.md::$DATA"), "RECUSADO");
+      assert.equal(confere("ata.md:ads:"), "RECUSADO");
+      assert.equal(confere("ata.md "), "RECUSADO");
+      assert.equal(confere(" ata.md"), "RECUSADO");
+      a.grava("reuniao-arquivar.txt", [`${path.join(a.v, "00-Inbox", "ata.md")} `, "nota"]);
+      assert.equal(a.roda(shell, blocos.arquivar).stdout.trim(), "RECUSADO");
+      assert.ok(fs.existsSync(path.join(a.v, "00-Inbox", "ata.md")), "ata não foi movida");
+      a.grava("reuniao-arquivar.txt", [`${path.join(a.v, "00-Inbox", "ata.md")}::$DATA`, "nota"]);
+      assert.equal(a.roda(shell, blocos.arquivar).stdout.trim(), "RECUSADO");
+
+      // sem o arquivo temporário (Write falhou ou bloco repetido): não executa nada nem vaza exceção
+      assert.equal(a.roda(shell, blocos.entrada).stdout.trim(), "RECUSADO");
+      assert.equal(a.roda(shell, blocos.nomes).stdout.trim(), "ERRO_ENTRADA");
+    } finally {
+      a.fim();
+    }
+  });
 }
+
+test("/reuniao (bash): o bloco de contexto cria uma pasta temporária própria com mktemp -d", { skip: !bash && "sem Git Bash" }, () => {
+  const a = ambienteReuniao();
+  try {
+    const roda = () => a.roda("sh", SH_CONTEXTO);
+    const t1 = a.linhas(roda()).find((l) => l.startsWith("TEMP "))?.slice(5);
+    const t2 = a.linhas(roda()).find((l) => l.startsWith("TEMP "))?.slice(5);
+    assert.ok(t1 && t2 && t1 !== t2, "uma pasta nova a cada rodada");
+    for (const t of [t1, t2]) {
+      assert.ok(fs.statSync(t).isDirectory());
+      assert.equal(path.dirname(path.resolve(t)).toLowerCase(), path.resolve(a.tmp).toLowerCase(), "dentro do TMPDIR");
+      assert.doesNotMatch(path.basename(t), /^reuniao/);
+    }
+    assert.doesNotMatch(SH_CONTEXTO, /\/tmp\/reuniao-/);
+  } finally {
+    a.fim();
+  }
+});
 
 test("/reuniao: nenhum texto da ata entra em aspas de shell e o texto trata a ata como dado", () => {
   assert.doesNotMatch(REUNIAO_MD, /COLE-AQUI/);
