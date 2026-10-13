@@ -24,6 +24,6 @@ confidencial: true
 |  |  |  | 🤖 time / 🙋 humano / ❓ falta info |
 
 ## Missões geradas
-- [[Missão]] (link para a nota em `20-Missoes/`)
+- [[nome-da-missão]] (link para a nota em `20-Missoes/`)
 
-Projeto: [[Projeto]] · Sessão: [[Sessão]]
+Projeto: [[nome-do-projeto]] · Sessão: [[AAAA-MM-DD título-da-sessão]]

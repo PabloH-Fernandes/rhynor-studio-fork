@@ -14,7 +14,12 @@ import {
   confereVault,
   criaVault,
   estaDentro,
+  expandeCaminho,
+  obsidianAcima,
   resolveVault,
+  criaContexto,
+  logs,
+  passoVault,
   ESTRUTURA_VAULT,
   detectaErroCert,
   dicaCert,
@@ -191,6 +196,36 @@ test("resolveVault: settings manda, depois a flag, depois AG-Cerebro irmão do r
   // dentro do repositório: recusado
   assert.ok(resolveVault({}, path.join(root, "vault"), root).erro);
   assert.ok(resolveVault({ env: { AGPOCKET_VAULT: root } }, null, root).erro);
+  // "~" vira a pasta do usuário; relativo sem ~ é recusado (flag e env)
+  const home = path.resolve(os.tmpdir(), "Usuário Teste");
+  assert.equal(resolveVault({}, "~/Meu Cérebro", root, { home }).caminho, path.join(home, "Meu Cérebro"));
+  assert.equal(resolveVault({ env: { AGPOCKET_VAULT: "~\\Cérebro" } }, null, root, { home }).caminho, path.join(home, "Cérebro"));
+  assert.match(resolveVault({}, "cerebro", root, { home }).erro, /--vault: caminho relativo/);
+  assert.match(resolveVault({ env: { AGPOCKET_VAULT: "./x" } }, null, root, { home }).erro, /AGPOCKET_VAULT: caminho relativo/);
+});
+
+test("expandeCaminho", () => {
+  const home = path.resolve(os.tmpdir(), "casa");
+  assert.equal(expandeCaminho("~", home).caminho, home);
+  assert.equal(expandeCaminho("~/a b/é", home).caminho, path.join(home, "a b", "é"));
+  assert.ok(expandeCaminho("a/b", home).erro);
+  assert.ok(expandeCaminho("~fulano/x", home).erro);
+  assert.equal(expandeCaminho(home, "/outro").caminho, home);
+});
+
+test("obsidianAcima: acha o vault antigo acima do caminho, mas não o próprio", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agp-obs-"));
+  try {
+    const antigo = path.join(tmp, "AG Projeto");
+    const novo = path.join(antigo, "AG-Cerebro");
+    fs.mkdirSync(path.join(novo, ".obsidian"), { recursive: true });
+    assert.equal(obsidianAcima(novo), null);
+    fs.mkdirSync(path.join(antigo, ".obsidian"));
+    assert.equal(obsidianAcima(novo), antigo);
+    assert.equal(obsidianAcima(path.join(novo, "nao-existe", "x")), novo);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test("estaDentro: Windows sem diferenciar maiúsculas; pasta irmã com prefixo igual não conta", () => {
@@ -253,6 +288,22 @@ test("criaVault/confereVault: cria do modelo real (espaço e acento), não sobre
     // modelo inexistente
     assert.equal(criaVault(path.join(tmp, "nao-existe"), path.join(tmp, "novo")).criou, false);
     assert.equal(fs.existsSync(path.join(tmp, "novo")), false);
+
+    // corrida: o destino aparece durante a cópia → não sobrescreve e apaga só o .tmp
+    const corrida = path.join(tmp, "Cérebro Corrida");
+    const r = criaVault(modelo, corrida, {
+      aposCopiar: () => {
+        fs.mkdirSync(corrida);
+        fs.writeFileSync(path.join(corrida, "de outro.md"), "não mexa");
+      },
+    });
+    assert.equal(r.criou, false);
+    assert.match(r.motivo, /apareceu/);
+    assert.deepEqual(fs.readdirSync(corrida), ["de outro.md"]);
+    assert.equal(fs.readFileSync(path.join(corrida, "de outro.md"), "utf8"), "não mexa");
+    assert.deepEqual(fs.readdirSync(tmp).filter((f) => f.includes(".tmp-")), []);
+    // e o caminho feliz também não deixa .tmp para trás
+    assert.equal(fs.readdirSync(path.dirname(destino)).filter((f) => f.includes(".tmp-")).length, 0);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -281,17 +332,77 @@ test("vault-template: toda nota .md tem o frontmatter padrão e nada de segredo"
   );
 });
 
-test("setup --check e --dry-run não criam o vault nem gravam AGPOCKET_VAULT", () => {
+test("vault-template: modelos não linkam para outros modelos; nota do canvas dentro do grupo do fluxo", () => {
+  const raiz = path.join(ROOT, "vault-template");
+  for (const n of fs.readdirSync(path.join(raiz, "Templates"))) {
+    const t = fs.readFileSync(path.join(raiz, "Templates", n), "utf8");
+    assert.doesNotMatch(t, /\[\[(Reunião|Missão|Projeto|Sessão)\]\]/, n);
+  }
+  const canvas = JSON.parse(fs.readFileSync(path.join(raiz, "50-Time", "AGENTES.canvas"), "utf8"));
+  const no = (id) => canvas.nodes.find((x) => x.id === id);
+  const [g, nota] = [no("grp-fluxo"), no("nota")];
+  assert.ok(nota.x >= g.x && nota.y >= g.y && nota.x + nota.width <= g.x + g.width && nota.y + nota.height <= g.y + g.height);
+});
+
+/** Roda o passoVault com um ctx falso (home temporário) e devolve o que ele imprimiu. */
+function rodaPassoVault(flags, home) {
+  const ctx = criaContexto({ ...parseFlags([]), ...flags }, home, process.platform);
+  const linhas = [];
+  const log = console.log;
+  console.log = (s) => linhas.push(String(s));
+  try {
+    return { ok: passoVault(ctx, logs(ctx)), stdout: linhas.join("\n"), ctx };
+  } finally {
+    console.log = log;
+  }
+}
+
+test("passoVault em --dry-run e --check: diz o que faria e não cria vault nem settings", () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "agp-home-"));
   const vault = path.join(home, "Área de Trabalho", "Cérebro Teste");
   try {
-    const env = { ...process.env, HOME: home, USERPROFILE: home, PATH: path.join(home, "vazio") };
-    for (const modo of ["--check", "--dry-run"]) {
-      const r = spawnSync(process.execPath, [path.join(ROOT, "scripts", "setup.mjs"), modo, `--vault=${vault}`], { env, encoding: "utf8" });
-      if (modo === "--check") assert.match(r.stdout, /Vault: .*Cérebro Teste/);
-      assert.equal(fs.existsSync(vault), false, modo);
-      assert.equal(fs.existsSync(path.join(home, ".claude", "settings.json")), false, modo);
-    }
+    const d = rodaPassoVault({ dryRun: true, vault }, home);
+    assert.equal(d.ok, true);
+    assert.match(d.stdout, /criar o vault em .*Cérebro Teste/);
+    assert.match(d.stdout, /gravar env\.AGPOCKET_VAULT=/);
+    const c = rodaPassoVault({ check: true, vault }, home);
+    assert.match(c.stdout, /o vault ainda não existe em .*Cérebro Teste/);
+    assert.ok(c.ctx.erros > 0);
+    assert.equal(fs.existsSync(vault), false);
+    assert.equal(fs.existsSync(path.join(home, ".claude", "settings.json")), false);
+    assert.deepEqual(fs.readdirSync(home), []);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("passoVault: instala de verdade num home temporário, depois fica idempotente; incompleto não grava env", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "agp-home-"));
+  const vault = path.join(home, "Área de Trabalho", "Cérebro");
+  const settingsFile = path.join(home, ".claude", "settings.json");
+  try {
+    fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+    fs.writeFileSync(settingsFile, JSON.stringify({ model: "x", env: { A: "1" } }));
+    const r1 = rodaPassoVault({ vault }, home);
+    assert.equal(r1.ok, true);
+    assert.deepEqual(confereVault(vault), { estado: "ok", faltando: [] });
+    const s1 = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    assert.deepEqual(s1, { model: "x", env: { A: "1", AGPOCKET_VAULT: vault } });
+    const indice = path.join(vault, "_indice.md");
+    fs.writeFileSync(indice, "editado");
+    const r2 = rodaPassoVault({}, home);
+    assert.match(r2.stdout, /já existia/);
+    assert.equal(fs.readFileSync(indice, "utf8"), "editado");
+    assert.equal(fs.readdirSync(path.dirname(settingsFile)).filter((f) => f.includes(".backup-")).length, 1);
+
+    // vault incompleto num settings sem AGPOCKET_VAULT: avisa e não grava
+    const outroHome = path.join(home, "outro");
+    const incompleto = path.join(home, "vault velho");
+    fs.mkdirSync(incompleto);
+    const r3 = rodaPassoVault({ vault: incompleto }, outroHome);
+    assert.match(r3.stdout, /não gravei env\.AGPOCKET_VAULT/);
+    assert.equal(fs.existsSync(path.join(outroHome, ".claude", "settings.json")), false);
+    assert.deepEqual(fs.readdirSync(incompleto), []);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }

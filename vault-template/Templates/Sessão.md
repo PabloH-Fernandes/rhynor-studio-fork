@@ -15,7 +15,7 @@ O que foi pedido, em uma ou duas linhas.
 
 ## O que foi feito
 - Quem fez o quê, linkando o agente: [[planejador]], [[dev]]...
-- Missão: [[Missão]] · Projeto: [[Projeto]]
+- Missão: [[nome-da-missão]] · Projeto: [[nome-do-projeto]]
 
 ## Decisões
 - Links para notas em `decisoes/` (modelo: [[Decisão]]).

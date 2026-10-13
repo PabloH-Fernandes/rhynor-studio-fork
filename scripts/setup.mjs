@@ -167,33 +167,71 @@ export function aplicaEnv(settings) {
 /** Pastas e arquivos que um vault do AG Pocket precisa ter (conferência leve, nunca altera nada). */
 export const ESTRUTURA_VAULT = ["_indice.md", "00-Inbox", "10-Reunioes", "20-Missoes", "30-Projetos", "40-Conhecimento", "50-Time", "90-Memoria-do-time", "Templates"];
 
+/** O caminho real (resolve links/junções e a caixa das letras) quando ele existe; senão só o path.resolve. */
+function caminhoReal(p) {
+  const abs = path.resolve(p);
+  try {
+    return fs.realpathSync.native(abs);
+  } catch {
+    return abs;
+  }
+}
+
 /** O caminho `filho` está dentro de `pai` (ou é o próprio)? Compara sem diferenciar maiúsculas no Windows. */
 export function estaDentro(filho, pai, plataforma = process.platform) {
-  const norm = (p) => (plataforma === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p));
+  const norm = (p) => (plataforma === "win32" ? caminhoReal(p).toLowerCase() : caminhoReal(p));
   const rel = path.relative(norm(pai), norm(filho));
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  if (rel === "") return true;
+  return !(rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel));
+}
+
+/** Expande "~" para a pasta do usuário. Caminho relativo (sem ~) é recusado: { erro }. */
+export function expandeCaminho(p, home) {
+  const s = String(p).trim();
+  if (s === "~") return { caminho: path.resolve(home) };
+  if (s.startsWith("~/") || s.startsWith("~\\")) return { caminho: path.resolve(home, s.slice(2)) };
+  if (!path.isAbsolute(s)) return { erro: `caminho relativo não é aceito (${s}); use um caminho completo ou começando com ~` };
+  return { caminho: path.resolve(s) };
 }
 
 /**
  * Onde fica o vault: AGPOCKET_VAULT do env do settings.json manda; senão a flag --vault; senão a pasta
- * "AG-Cerebro" ao lado do repositório. Nunca dentro do repositório. Não toca no disco.
+ * "AG-Cerebro" ao lado do repositório. Nunca dentro do repositório. Não escreve no disco.
  */
-export function resolveVault(settings, flagVault, root, plataforma = process.platform) {
+export function resolveVault(settings, flagVault, root, { home = os.homedir(), plataforma = process.platform } = {}) {
   const env = settings?.env;
   if (env !== undefined && (env === null || typeof env !== "object" || Array.isArray(env))) {
     return { erro: 'o campo "env" do settings.json não é um objeto' };
   }
   const doSettings = typeof env?.AGPOCKET_VAULT === "string" ? env.AGPOCKET_VAULT.trim() : "";
-  let caminho;
+  let bruto;
   let origem;
-  if (doSettings) [caminho, origem] = [doSettings, "settings"];
-  else if (flagVault) [caminho, origem] = [flagVault, "flag"];
-  else [caminho, origem] = [path.join(path.dirname(root), "AG-Cerebro"), "padrao"];
-  caminho = path.resolve(caminho);
+  if (doSettings) [bruto, origem] = [doSettings, "settings"];
+  else if (flagVault) [bruto, origem] = [flagVault, "flag"];
+  else [bruto, origem] = [path.join(path.dirname(root), "AG-Cerebro"), "padrao"];
+  const e = expandeCaminho(bruto, home);
+  if (e.erro) return { erro: `${origem === "settings" ? "AGPOCKET_VAULT" : "--vault"}: ${e.erro}` };
+  const caminho = e.caminho;
   if (estaDentro(caminho, root, plataforma)) {
     return { erro: `o vault não pode ficar dentro do repositório (${caminho}). Use --vault=<outra pasta>` };
   }
-  return { caminho, origem, diverge: origem === "settings" && !!flagVault && path.resolve(flagVault) !== caminho };
+  let diverge = false;
+  if (origem === "settings" && flagVault) {
+    const f = expandeCaminho(flagVault, home);
+    diverge = !f.caminho || f.caminho !== caminho;
+  }
+  return { caminho, origem, diverge };
+}
+
+/** Primeira pasta ACIMA de `caminho` que já é um vault do Obsidian (tem .obsidian/), ou null. */
+export function obsidianAcima(caminho) {
+  let atual = path.dirname(path.resolve(caminho));
+  for (;;) {
+    if (fs.existsSync(path.join(atual, ".obsidian"))) return atual;
+    const pai = path.dirname(atual);
+    if (pai === atual) return null;
+    atual = pai;
+  }
 }
 
 /** Grava env.AGPOCKET_VAULT sem mexer no resto. Se já houver um valor, não troca (o settings manda). */
@@ -214,13 +252,31 @@ export function confereVault(caminho) {
   return { estado: faltando.length ? "incompleto" : "ok", faltando };
 }
 
-/** Copia o modelo para uma pasta que NÃO existe. Recusa se o destino já existe; nunca sobrescreve arquivo. */
-export function criaVault(modelo, destino) {
+/**
+ * Copia o modelo para uma pasta que NÃO existe: copia para `<destino>.tmp-<pid>` e só então renomeia.
+ * Se o destino aparecer no meio do caminho, não sobrescreve (devolve criou:false) e apaga só a pasta .tmp.
+ * `aposCopiar` existe só para os testes simularem essa corrida.
+ */
+export function criaVault(modelo, destino, { aposCopiar } = {}) {
   if (fs.existsSync(destino)) return { criou: false, motivo: "o destino já existe" };
   if (!fs.existsSync(modelo)) return { criou: false, motivo: "o modelo não existe" };
-  fs.mkdirSync(path.dirname(destino), { recursive: true });
-  fs.cpSync(modelo, destino, { recursive: true, force: false, errorOnExist: false });
-  return { criou: true };
+  const tmp = `${destino}.tmp-${process.pid}`;
+  try {
+    fs.mkdirSync(path.dirname(destino), { recursive: true });
+    fs.cpSync(modelo, tmp, { recursive: true, force: false, errorOnExist: true });
+    aposCopiar?.();
+    // renameSync troca um diretório vazio no POSIX; por isso confere antes (o rename cobre a corrida que sobra)
+    if (fs.existsSync(destino)) throw new Error("o destino apareceu durante a cópia");
+    fs.renameSync(tmp, destino);
+    return { criou: true };
+  } catch (e) {
+    try {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } catch {
+      /* não deu para limpar o .tmp; o destino, de qualquer forma, não foi tocado */
+    }
+    return { criou: false, motivo: `não consegui criar o vault: ${e instanceof Error ? e.message : String(e)}` };
+  }
 }
 
 /** Os 12 eventos com exatamente 1 hook nosso, com o comando exato desta pasta (ROOT diferente = precisa reinstalar). */
@@ -437,7 +493,7 @@ function ultimasLinhas(texto, n = 6) {
 
 // ───────────────────────── o setup em si ─────────────────────────
 
-function criaContexto(flags, home, plataforma) {
+export function criaContexto(flags, home, plataforma) {
   const ctx = {
     flags,
     home,
@@ -454,7 +510,7 @@ function criaContexto(flags, home, plataforma) {
 
 const out = (s) => console.log(s);
 
-function logs(ctx) {
+export function logs(ctx) {
   return {
     titulo: (t) => out(`\n== ${t} ==`),
     ok: (m) => out(`  ✔ ${m}`),
@@ -595,22 +651,27 @@ function passoSettingsEnv(ctx, L) {
   if (ctx.flags.check) L.falta('falta "env": { "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1" } no settings.json');
   else if (ctx.flags.dryRun) L.faria("gravar env.CLAUDE_CODE_ENABLE_TODO_TOOLS=1 no settings.json (com backup)");
   else {
-    fs.mkdirSync(ctx.claudeDir, { recursive: true });
-    if (s.existe) backup(ctx.settingsFile);
-    fs.writeFileSync(ctx.settingsFile, `${JSON.stringify(r.settings, null, 2)}\n`);
+    gravaSettings(ctx, s, r.settings);
     L.instalou("env.CLAUDE_CODE_ENABLE_TODO_TOOLS=1");
   }
   return true;
 }
 
-function passoVault(ctx, L) {
+/** Grava o settings.json global (com backup se ele já existia). `s` é o retorno de leJson. */
+function gravaSettings(ctx, s, novo) {
+  fs.mkdirSync(ctx.claudeDir, { recursive: true });
+  if (s.existe) backup(ctx.settingsFile);
+  fs.writeFileSync(ctx.settingsFile, `${JSON.stringify(novo, null, 2)}\n`);
+}
+
+export function passoVault(ctx, L) {
   L.titulo("6. Vault (segundo cérebro, AGPOCKET_VAULT)");
   const s = leJson(ctx.settingsFile);
   if (s.erro) {
     L.falta(`${ctx.settingsFile} tem JSON inválido. Corrija o arquivo e rode de novo (nada foi alterado).`);
     return false;
   }
-  const v = resolveVault(s.dados, ctx.flags.vault, ROOT, ctx.plataforma);
+  const v = resolveVault(s.dados, ctx.flags.vault, ROOT, { home: ctx.home, plataforma: ctx.plataforma });
   if (v.erro) {
     L.falta(`${v.erro}.`);
     return false;
@@ -618,6 +679,12 @@ function passoVault(ctx, L) {
   const origem = { settings: "AGPOCKET_VAULT do settings.json", flag: "--vault", padrao: "padrão (AG-Cerebro ao lado do repositório)" }[v.origem];
   out(`  Vault: ${v.caminho} [${origem}]`);
   if (v.diverge) L.aviso(`--vault ignorado: o settings.json já aponta para outro vault (${v.caminho})`);
+  const pai = obsidianAcima(v.caminho);
+  if (pai) {
+    L.aviso(
+      `${pai} já é um vault do Obsidian (tem .obsidian/) e contém o vault novo. Os links [[ ]] podem ficar ambíguos até o vault antigo ser arquivado.`,
+    );
+  }
 
   // 1) a pasta: copia o modelo só se ela não existir; se existir, apenas confere
   const c = confereVault(v.caminho);
@@ -647,19 +714,19 @@ function passoVault(ctx, L) {
     L.aviso(`o vault já existe e não tem a estrutura completa (falta: ${c.faltando.join(", ")}); não alterei nada dentro dele`);
   }
 
-  // 2) o caminho no settings.json (depois da pasta, para o settings nunca apontar para o vazio)
+  // 2) o caminho no settings.json (depois da pasta, para o settings nunca apontar para o vazio).
+  // Só grava se o vault está completo ou foi criado agora (em --dry-run/--check, se seria criado).
   const r = aplicaVaultEnv(s.dados, v.caminho);
   if (r.erro) {
     L.falta(`${r.erro}. Corrija à mão e rode de novo (nada foi alterado).`);
     return false;
   }
   if (!r.mudou) L.ja("env.AGPOCKET_VAULT");
+  else if (c.estado === "incompleto") L.aviso("não gravei env.AGPOCKET_VAULT: complete o vault (ou escolha outro com --vault=) e rode de novo");
   else if (ctx.flags.check) L.falta("falta env.AGPOCKET_VAULT no settings.json");
   else if (ctx.flags.dryRun) L.faria(`gravar env.AGPOCKET_VAULT=${v.caminho} no settings.json (com backup)`);
   else {
-    fs.mkdirSync(ctx.claudeDir, { recursive: true });
-    if (s.existe) backup(ctx.settingsFile);
-    fs.writeFileSync(ctx.settingsFile, `${JSON.stringify(r.settings, null, 2)}\n`);
+    gravaSettings(ctx, s, r.settings);
     L.instalou("env.AGPOCKET_VAULT");
   }
   return true;

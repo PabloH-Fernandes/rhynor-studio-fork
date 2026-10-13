@@ -10,8 +10,8 @@ confidencial: false
 
 # {{title}}
 
-**Origem:** [[Reunião]] (nota em `10-Reunioes/`)
-**Projeto:** [[Projeto]]
+**Origem:** [[AAAA-MM-DD título-da-reunião]] (nota em `10-Reunioes/`)
+**Projeto:** [[nome-do-projeto]]
 
 ## Objetivo
 Em uma ou duas linhas.
@@ -25,4 +25,4 @@ Em uma ou duas linhas.
 ## Resultado
 - Commits:
 - O que mudou:
-- Sessão: [[Sessão]]
+- Sessão: [[AAAA-MM-DD título-da-sessão]]

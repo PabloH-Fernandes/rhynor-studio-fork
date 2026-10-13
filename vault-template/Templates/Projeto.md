@@ -23,4 +23,4 @@ O que é e para quê.
 - [[Decisões]]
 
 ## Missões
-- [[Missão]]
+- [[nome-da-missão]]

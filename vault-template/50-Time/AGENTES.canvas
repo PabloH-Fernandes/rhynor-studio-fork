@@ -16,7 +16,7 @@
 		{"id":"f4","type":"text","text":"**4. Testar**","x":0,"y":420,"width":200,"height":70,"color":"3"},
 		{"id":"f5","type":"text","text":"**5. Revisar**","x":240,"y":420,"width":200,"height":70,"color":"3"},
 		{"id":"f6","type":"text","text":"**6. Documentar**","x":480,"y":420,"width":200,"height":70,"color":"3"},
-		{"id":"nota","type":"text","text":"Os subagentes **não conversam entre si**: tudo passa pelo líder. No fim, o documentador grava na memória do time ([[Memória]]).","x":-720,"y":680,"width":1400,"height":70}
+		{"id":"nota","type":"text","text":"Os subagentes **não conversam entre si**: tudo passa pelo líder. No fim, o documentador grava na memória do time ([[Memória]]).","x":-720,"y":570,"width":1400,"height":70}
 	],
 	"edges":[
 		{"id":"e-voce","fromNode":"voce","fromSide":"bottom","toNode":"lider","toSide":"top","fromEnd":"arrow"},
