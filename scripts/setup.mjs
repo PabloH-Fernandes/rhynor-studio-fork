@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Instala o AG Pocket num PC novo: time de agentes, hooks, configuração global do Claude Code,
-// comando /time, Playwright MCP, plugins e skills, e deixa o escritório pronto para `npm start`.
+// comandos globais (commands/*.md: /time, /memoria), Playwright MCP, plugins e skills, e deixa o escritório
+// pronto para `npm start`.
 //
 //   npm run setup                  → instala só os itens essenciais
 //   npm run setup -- --completo    → também os extras (skills de terceiros)
@@ -466,6 +467,9 @@ export function agentesEmDia(srcDir, destDir) {
   });
   return { total: arquivos.length, pendentes };
 }
+
+/** Mesma comparação, para qualquer pasta de .md (ex.: commands/). */
+export const arquivosMdEmDia = agentesEmDia;
 
 const CAMPOS_DE_SHELL = ["repo", "nome", "plugin", "marketplace", "skill", "comando"];
 const METACARACTERES_SHELL = /["&|<>^%]/;
@@ -947,21 +951,32 @@ export function passoClaudeMd(ctx, L) {
   return true;
 }
 
-function passoComandoTime(ctx, L) {
-  L.titulo("8. Comando /time");
-  const src = path.join(ROOT, "commands", "time.md");
-  const dest = path.join(ctx.claudeDir, "commands", "time.md");
-  if (!fs.existsSync(src)) return L.falta("commands/time.md não existe no repositório");
-  const existe = fs.existsSync(dest);
-  if (existe && normalizaLf(fs.readFileSync(dest, "utf8")) === normalizaLf(fs.readFileSync(src, "utf8"))) {
-    return L.ja("/time", ", igual");
+/** Copia cada commands/*.md do repositório para ~/.claude/commands/ (o que já está igual fica; diferente ganha backup). */
+export function passoComandos(ctx, L) {
+  L.titulo("8. Comandos (/time, /memoria)");
+  const src = path.join(ROOT, "commands");
+  const dest = path.join(ctx.claudeDir, "commands");
+  if (!fs.existsSync(src)) return L.falta("a pasta commands/ não existe no repositório");
+  const { total, pendentes } = arquivosMdEmDia(src, dest);
+  if (total === 0) return L.falta("commands/ não tem nenhum .md");
+  const nome = (f) => `/${f.slice(0, -3)}`;
+  for (const f of fs.readdirSync(src).filter((x) => x.endsWith(".md") && !pendentes.includes(x))) L.ja(nome(f), ", igual");
+  for (const f of pendentes) {
+    const to = path.join(dest, f);
+    const existe = fs.existsSync(to);
+    if (ctx.flags.check) {
+      L.falta(`${nome(f)} ausente ou diferente de commands/${f}`);
+      continue;
+    }
+    if (ctx.flags.dryRun) {
+      L.faria(`${existe ? "atualizar (com backup)" : "copiar"} commands/${f} para ~/.claude/commands/`);
+      continue;
+    }
+    fs.mkdirSync(dest, { recursive: true });
+    if (existe) backup(to);
+    fs.copyFileSync(path.join(src, f), to);
+    L.instalou(nome(f));
   }
-  if (ctx.flags.check) return L.falta("/time ausente ou diferente de commands/time.md");
-  if (ctx.flags.dryRun) return L.faria(`${existe ? "atualizar (com backup)" : "copiar"} commands/time.md para ~/.claude/commands/`);
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  if (existe) backup(dest);
-  fs.copyFileSync(src, dest);
-  L.instalou("/time");
 }
 
 function passoMcp(ctx, L, item) {
@@ -1167,7 +1182,7 @@ export function setup(argv, { home = os.homedir(), plataforma = process.platform
     () => passoSettingsEnv(ctx, L),
     () => passoVault(ctx, L),
     () => passoClaudeMd(ctx, L),
-    () => passoComandoTime(ctx, L) !== false,
+    () => passoComandos(ctx, L) !== false,
     () => (itemMcp ? passoMcp(ctx, L, itemMcp) !== false : true),
     () => passoPlugins(ctx, L, cat) !== false,
     () => passoDados(ctx, L) !== false,

@@ -20,7 +20,7 @@ Mapa curto. Os agentes leem **este arquivo primeiro** e depois só as notas de q
 | `10-Reunioes/` | Uma nota por reunião (modelo: [[Reunião]]) |
 | `20-Missoes/` | Uma nota por missão: origem, tarefas, status, commits (modelo: [[Missão]]) |
 | `30-Projetos/` | Uma nota por projeto ou repositório (modelo: [[Projeto]]) |
-| `40-Conhecimento/` | Padrões, glossário, "como fazer X", lições reutilizáveis |
+| `40-Conhecimento/` | Padrões, glossário, "como fazer X", lições reutilizáveis. Entrada: [[Conhecimento]] |
 | `50-Time/` | Um card por agente e o mapa [[AGENTES.canvas|AGENTES]] |
 | `90-Memoria-do-time/` | [[Memória]]: [[Decisões]], [[Lições aprendidas]], [[Pendências]], [[Sessões]] |
 | `Templates/` | Modelos de nota |
@@ -29,7 +29,8 @@ Mapa curto. Os agentes leem **este arquivo primeiro** e depois só as notas de q
 
 1. **Início de missão:** ler este índice, depois só a nota do projeto atual (`30-Projetos/`), as [[Decisões]] e as [[Pendências]] relacionadas.
 2. **Fim de missão:** o [[documentador]] atualiza a nota da missão, a do projeto e a memória do time.
-3. Toda nota tem frontmatter: `tipo`, `projeto`, `data`, `status`, `origem`, `tags`, `confidencial`.
+3. **Consulta:** `/memoria <pergunta>` responde só com base no vault.
+4. Toda nota tem frontmatter: `tipo`, `projeto`, `data`, `status`, `origem`, `tags`, `confidencial`.
 
 ## Regra de confidencial
 

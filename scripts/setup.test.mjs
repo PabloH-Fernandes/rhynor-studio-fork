@@ -28,6 +28,7 @@ import {
   criaContexto,
   logs,
   passoVault,
+  passoComandos,
   ESTRUTURA_VAULT,
   detectaErroCert,
   dicaCert,
@@ -689,9 +690,10 @@ test("montaBlocoMemoria: curto, sem caminho fixo, aponta para a estrutura nova e
   assert.ok(b.length < 1200, `bloco grande demais (${b.length} caracteres)`);
   assert.doesNotMatch(b, /[A-Za-z]:\\|\/Users\/|\/home\/|pablo/i, "não pode ter caminho fixo");
   assert.doesNotMatch(b, /`memoria\/|`templates\//, "nada da estrutura antiga");
-  for (const t of ["AGPOCKET_VAULT", "_indice.md", "30-Projetos/", "90-Memoria-do-time/", "Decisões.md", "Pendências.md", "Lições aprendidas.md", "Templates/Sessão.md", "confidencial: true", "[[documentador]]"]) {
+  for (const t of ["AGPOCKET_VAULT", "_indice.md", "30-Projetos/", "90-Memoria-do-time/", "Decisões.md", "Pendências.md", "Lições aprendidas.md", "Templates/Sessão.md", "confidencial: true", "[[documentador]]", "20-Missoes/"]) {
     assert.ok(b.includes(t), `falta "${t}"`);
   }
+  assert.doesNotMatch(b, /2 sessões mais recentes/, "a leitura inicial não inclui mais as últimas sessões");
   assert.ok(!b.includes("> "), "o cabeçalho de explicação não entra no bloco");
   assert.throws(() => montaBlocoMemoria("# outro arquivo"), /O vault do time é a pasta/);
 });
@@ -917,4 +919,73 @@ test("passoClaudeMd: --dry-run sem CLAUDE.md não promete backup", () => {
     assert.doesNotMatch(d.stdout, /com backup/);
     assert.equal(fs.existsSync(path.join(home, ".claude")), false);
   });
+});
+
+// ───────────────────────── comandos globais (commands/*.md) ─────────────────────────
+
+/** Roda o passoComandos com um ctx falso (home temporário) e devolve o que ele imprimiu. */
+function rodaPassoComandos(flags, home) {
+  const ctx = criaContexto({ ...parseFlags([]), ...flags }, home, process.platform);
+  const linhas = [];
+  const log = console.log;
+  console.log = (s) => linhas.push(String(s));
+  try {
+    passoComandos(ctx, logs(ctx));
+    return { stdout: linhas.join("\n"), ctx };
+  } finally {
+    console.log = log;
+  }
+}
+
+const COMANDOS = fs.readdirSync(path.join(ROOT, "commands")).filter((f) => f.endsWith(".md")).sort();
+
+test("passoComandos: dry-run não cria nada; instala os comandos, fica idempotente e faz backup do diferente", () => {
+  comHome((home) => {
+    assert.ok(COMANDOS.includes("time.md") && COMANDOS.includes("memoria.md"));
+    const dest = path.join(home, ".claude", "commands");
+
+    const d = rodaPassoComandos({ dryRun: true }, home);
+    assert.match(d.stdout, /8\. Comandos \(\/time, \/memoria\)/);
+    assert.match(d.stdout, /faria: copiar commands\/memoria\.md/);
+    assert.deepEqual(fs.readdirSync(home), []);
+    const c = rodaPassoComandos({ check: true }, home);
+    assert.equal(c.ctx.erros, COMANDOS.length);
+    assert.deepEqual(fs.readdirSync(home), []);
+
+    const i = rodaPassoComandos({}, home);
+    assert.equal(i.ctx.erros, 0);
+    assert.deepEqual(fs.readdirSync(dest).sort(), COMANDOS);
+    for (const f of COMANDOS) {
+      assert.equal(fs.readFileSync(path.join(dest, f), "utf8"), fs.readFileSync(path.join(ROOT, "commands", f), "utf8"));
+    }
+
+    const j = rodaPassoComandos({}, home);
+    assert.equal((j.stdout.match(/já existia, igual/g) ?? []).length, COMANDOS.length);
+    assert.deepEqual(fs.readdirSync(dest).sort(), COMANDOS, "segunda rodada sem backup");
+
+    fs.writeFileSync(path.join(dest, "time.md"), "editado à mão");
+    const k = rodaPassoComandos({}, home);
+    assert.match(k.stdout, /\/time \(instalado agora\)/);
+    const backups = fs.readdirSync(dest).filter((f) => f.startsWith("time.md.backup-"));
+    assert.equal(backups.length, 1);
+    assert.equal(fs.readFileSync(path.join(dest, backups[0]), "utf8"), "editado à mão");
+    assert.equal(rodaPassoComandos({ check: true }, home).ctx.erros, 0);
+  });
+});
+
+test("conteúdo: /memoria, pesquisador e documentador seguem as regras do vault", () => {
+  const le = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
+  const memoria = le("commands", "memoria.md");
+  for (const t of ["$ARGUMENTS", "AGPOCKET_VAULT", "confidencial: true", "[[", "Não achei"]) {
+    assert.ok(memoria.includes(t), `memoria.md sem "${t}"`);
+  }
+  assert.doesNotMatch(memoria, /[A-Z]:\\(Users|Área)|\/Users\/|\/home\/|pablo|AG-Cerebro/i, "memoria.md não pode ter caminho fixo");
+  assert.doesNotMatch(memoria, /^allowed-tools:/m);
+
+  const pesquisador = le("agents", "pesquisador.md");
+  assert.match(pesquisador, /^tools: .*\bWrite\b/m);
+  assert.ok(pesquisador.includes("40-Conhecimento/"));
+
+  const documentador = le("agents", "documentador.md");
+  assert.ok(documentador.includes("20-Missoes/") && documentador.includes("confidencial: true"));
 });

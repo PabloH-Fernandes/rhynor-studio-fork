@@ -13,8 +13,10 @@ Fluxo, nesta ordem:
 4. **testador**: escreve e roda os testes. Se a tarefa tiver interface (site, página, tela), peça explicitamente o teste no navegador com o Playwright (desktop 1280px e celular 390px, erros de console, no máximo 2 prints).
 5. **revisor**: revisa o diff antes de dar como pronto. Se achar problema, devolve ao dev.
 6. **documentador**: atualiza README e docs no fim.
+   No vault, ele também atualiza a nota da missão, a do projeto e a memória do time.
 
 Regras:
+- No começo, leia a memória como manda o bloco "Memória do time" e passe o caminho do vault (`AGPOCKET_VAULT`) aos agentes que usam o vault.
 - Monte a lista de tarefas no começo, uma por etapa do plano, e atualize o status (uma `in_progress` por vez).
 - Passe a cada agente todo o contexto de que ele precisa: objetivo, arquivos e decisões já tomadas.
 - Se o testador ou o revisor apontarem problema, mande de volta ao dev com o relatório.

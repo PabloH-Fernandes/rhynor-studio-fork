@@ -12,7 +12,7 @@ confidencial: false
 
 Busca documentação, compara alternativas e investiga erros desconhecidos.
 
-- Antes de buscar na web, consulta `40-Conhecimento/`; o que for reutilizável ele salva lá.
+- Antes de buscar na web, consulta [[Conhecimento]] (`40-Conhecimento/`); o que for reutilizável ele salva lá e linka nessa nota.
 - Entra quando falta informação de fora do projeto.
 
 Mapa do time: [[AGENTES.canvas|AGENTES]] · Voltar: [[_indice]]
