@@ -102,26 +102,46 @@ export function deskSpot(d: Desk): Spot {
   };
 }
 
-/** Lugares em pé em volta da mesa de reunião (quando as mesas lotam). */
-export const OVERFLOW_SPOTS: Spot[] = [
-  [14.4, 10.2],
-  [17.6, 10.2],
-  [14.4, 12.6],
-  [17.6, 12.6],
-  [16, 9.2],
-  [16, 13.4],
-].map(([x, y], i) => ({ id: `reuniao:${i}`, x, y, laneX: x, via: [], sitting: false }));
+/** coluna livre à direita da mesa (fora do banquinho 1, em 18,6; colada na lane 19,5 do revisor) */
+const LANE_DIREITA_REUNIAO = 19.3;
 
 /**
- * Quem apresenta a reunião: em pé atrás da mesa redonda, de frente pra ela. Sobe pela lane do
- * lado esquerdo e entra por cima, sem atravessar a mesa (route() sempre passa pelo corredor).
+ * Lugares em pé em volta da mesa de reunião (quando as mesas lotam). O reuniao:4 fica em cima à
+ * direita, fora da coluna do presenter (em 16; 9,2 ficava a 0,1 tile dele): sobe pela lane da
+ * direita e entra de lado.
+ */
+export const OVERFLOW_SPOTS: Spot[] = (
+  [
+    [14.4, 10.2],
+    [17.6, 10.2],
+    [14.4, 12.6],
+    [17.6, 12.6],
+    [17.8, 8.4, LANE_DIREITA_REUNIAO],
+    [16, 13.4],
+  ] as [number, number, number?][]
+).map(([x, y, lane], i) => ({
+  id: `reuniao:${i}`,
+  x,
+  y,
+  laneX: lane ?? x,
+  via: lane === undefined ? [] : [{ x: lane, y }],
+  sitting: false,
+}));
+
+/** coluna livre à esquerda da mesa (fora do banquinho 0, em 13,4, e dos em pé de x 14,4) */
+const LANE_ESQUERDA_REUNIAO = 12.6;
+
+/**
+ * Quem apresenta a reunião: em pé atrás da mesa redonda, de frente pra ela. Sobe pela coluna livre
+ * à esquerda e entra por cima, sem atravessar a mesa nem os lugares em pé (route() sempre passa
+ * pelo corredor).
  */
 export const MEETING_PRESENTER: Spot = {
   id: "reuniao:apresenta",
   x: 16,
   y: 9.3,
-  laneX: 14.4,
-  via: [{ x: 14.4, y: 9.3 }],
+  laneX: LANE_ESQUERDA_REUNIAO,
+  via: [{ x: LANE_ESQUERDA_REUNIAO, y: 9.3 }],
   sitting: false,
   face: "down",
 };
@@ -621,12 +641,51 @@ export interface BoardData {
 const BOARD_TITLE_FONT = "8px VT323, monospace";
 const BOARD_SMALL_FONT = "7px VT323, monospace";
 
-/** corta o texto com "…" até caber em maxW (px base) */
+/** emoji (e seus modificadores, junções e bandeiras): a VT323 não tem, viraria um glifo de outra fonte */
+const EMOJI = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[‍️⃣]/gu;
+
+/** tira os emoji do texto do quadro (e os espaços que sobram) */
+export function semEmoji(text: string): string {
+  return text.replace(EMOJI, "").replace(/\s{2,}/g, " ").trim();
+}
+
+/** corta o texto (sem emoji) com "…" até caber em maxW; corta por code point, nunca no meio de um par UTF-16 */
+export function cortaTexto(text: string, maxW: number, medir: (s: string) => number): string {
+  const limpo = semEmoji(text);
+  if (medir(limpo) <= maxW) return limpo;
+  const cps = Array.from(limpo);
+  let n = cps.length;
+  while (n > 1 && medir(`${cps.slice(0, n).join("")}…`) > maxW) n--;
+  return `${cps.slice(0, n).join("").trimEnd()}…`;
+}
+
 function fitText(ctx: Ctx, text: string, maxW: number): string {
-  if (ctx.measureText(text).width <= maxW) return text;
-  let t = text;
-  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxW) t = t.slice(0, -1);
-  return `${t.trimEnd()}…`;
+  return cortaTexto(text, maxW, (s) => ctx.measureText(s).width);
+}
+
+/** largura da prancheta + espaço antes do nome da missão (px base) */
+const MISSAO_ICON_W = 7;
+/** com menos que isso do nome à vista, o "ESPERA n" sai da linha (ele já aparece no painel) */
+const MISSAO_MIN_CHARS = 6;
+
+/**
+ * Linha da missão no quadro: o nome (cortado com "…") e, se couber junto com pelo menos
+ * MISSAO_MIN_CHARS letras do nome, o "ESPERA n" à direita (null = não mostra).
+ */
+export function linhaDaMissao(
+  nome: string,
+  waiting: number,
+  maxW: number,
+  medir: (s: string) => number,
+): { nome: string; espera: string | null } {
+  const textW = maxW - MISSAO_ICON_W;
+  if (waiting > 0) {
+    const espera = `ESPERA ${waiting}`;
+    const cortado = cortaTexto(nome, textW - medir(` · ${espera}`), medir);
+    const visiveis = Array.from(cortado.endsWith("…") ? cortado.slice(0, -1) : cortado).length;
+    if (!cortado.endsWith("…") || visiveis >= MISSAO_MIN_CHARS) return { nome: cortado, espera };
+  }
+  return { nome: cortaTexto(nome, textW, medir), espera: null };
 }
 
 /** copo AG (o mesmo das mesas) com vapor; (x, y) = canto de cima do corpo */
@@ -729,16 +788,16 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
   const cabe = (t: string) => ctx.measureText(t + espera).width <= maxW;
   const com = (visit: string, faz: string) => `TIME ${data.total}${data.visitors > 0 ? ` · ${visit} ${data.visitors}` : ""} · ${faz} ${data.working}`;
   if (data.missao) {
-    // missão da reunião: prancheta + nome (cortado com "…"), no lugar dos contadores; ESPERA fica à direita
-    const esperaW = data.waiting > 0 ? ctx.measureText(` · ESPERA ${data.waiting}`).width : 0;
+    // missão da reunião: prancheta + nome (cortado com "…"), no lugar dos contadores; ESPERA fica à
+    // direita quando sobra lugar pro nome (linhaDaMissao)
+    const linha = linhaDaMissao(data.missao, data.waiting, maxW, (s) => ctx.measureText(s).width);
     boardClipboard(ctx, left, cy + 1);
-    const textX = left + 7;
     ctx.fillStyle = palette.navy900;
-    ctx.fillText(fitText(ctx, data.missao, maxW - 7 - esperaW), textX, cy);
-    if (data.waiting > 0) {
+    ctx.fillText(linha.nome, left + MISSAO_ICON_W, cy);
+    if (linha.espera) {
       ctx.fillStyle = palette.signal.waitingInk;
       ctx.textAlign = "right";
-      ctx.fillText(`ESPERA ${data.waiting}`, left + maxW, cy);
+      ctx.fillText(linha.espera, left + maxW, cy);
       ctx.textAlign = "left";
     }
     return;

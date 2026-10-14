@@ -91,7 +91,8 @@ declare global {
   }
 }
 
-if (import.meta.env.DEV && typeof window !== "undefined") {
+// import.meta.env só existe no vite (os testes do motor importam este módulo no node)
+if (import.meta.env?.DEV && typeof window !== "undefined") {
   window.__agSprites = spriteCacheStats;
   window.__agSpritesReset = resetSpriteCacheStats;
 }

@@ -342,7 +342,9 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   /** braço erguido (espreguiçar/comemorar), escrito pro lado esquerdo e espelhado: coluna x (largura 2) → -x - 2 */
   const raised = (s: -1 | 1, p: ArmPose) => {
     if (p === "down") {
-      armDown(L, s < 0 ? bx - 6 : bx + 4, ty + 1, 4, s);
+      const h = armDown(L, s < 0 ? bx - 6 : bx + 4, ty + 1, 4, s);
+      // apresentando, a mão esquerda (parada) segura o copo; a direita gesticula
+      if (anim === "present" && s < 0 && f.holding) hands.push(h);
       return;
     }
     const seg = (dx: number, dy: number, h: number, color: string) => O.push([bx + (s < 0 ? dx : -dx - 2), ty + dy, 2, h, color]);
@@ -523,8 +525,9 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
     if (h) h.used = true;
     return h;
   };
-  if (f.holding && !anim && !f.sitting) {
-    const h = takeHand(1);
+  const presenting = anim === "present";
+  if (f.holding && (!anim || presenting) && !f.sitting) {
+    const h = takeHand(presenting ? -1 : 1);
     if (h) {
       const ox = (w: number) => (h.s > 0 ? h.x + 2 : h.x - w);
       const put = (x: number, y: number, w: number, hh: number, color: string) => h.into.push([x, y, w, hh, color]);

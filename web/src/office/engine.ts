@@ -32,7 +32,7 @@ import { drawBall } from "./pingpong";
 import { drawPingPongTable, fill, line, type Rect } from "./decor";
 import { Lightmap, clockDate, windowLight, type LightScene } from "./daylight";
 import { isReducedMotion } from "./motion";
-import { atribuirReuniao } from "./reuniao";
+import { atribuirReuniao, type CandidatoReuniao } from "./reuniao";
 import {
   AISLE_Y,
   BOARD,
@@ -342,6 +342,14 @@ export class OfficeEngine {
   /** reunião em curso (vinda do servidor) e quem está em qual lugar dela (id do visual → id do lugar) */
   private reuniaoAtiva: ReuniaoAtiva | null = null;
   private meeting = new Map<string, string>();
+  /**
+   * Reservas feitas pela reunião (lugar → id): quem senta num lugar que também é da maquete
+   * (reuniao:0/1) reserva o lugar, e o descanso não põe ninguém em pé ali por cima dele.
+   */
+  private meetingHolds = new Map<string, string>();
+  /** buffers do updateMeeting (reusados a cada quadro) */
+  private meetingCands: CandidatoReuniao[] = [];
+  private meetingOwners = new Map<string, string>();
   /** nome da missão da reunião, pro quadro da parede */
   private missaoNome: string | undefined;
   private mover: RestMover = {
@@ -386,13 +394,14 @@ export class OfficeEngine {
   onSelect?: (id: string | null) => void;
 
   constructor() {
-    if (theme.logoUrl) {
+    // (Image e import.meta.env só existem no navegador/vite: os testes do motor rodam no node)
+    if (theme.logoUrl && typeof Image !== "undefined") {
       const img = new Image();
       img.src = theme.logoUrl;
       this.logo = img;
     }
     // debug (só no dev server): `__agRest()` no console lista quem está descansando, onde e em que fase
-    if (import.meta.env.DEV && typeof window !== "undefined") {
+    if (import.meta.env?.DEV && typeof window !== "undefined") {
       window.__agRest = () => this.restDebug();
       window.__agRally = () => this.rest.rally(performance.now());
       window.__agPerf = () => ({ bakes: bakeCount(), bakedByName: this.bakedByName.size, sprites: spriteCacheStats() });
@@ -440,7 +449,10 @@ export class OfficeEngine {
   /** reunião ligada: o líder apresenta e os ociosos sentam em volta da mesa; null manda todos pra casa */
   set reuniao(r: ReuniaoAtiva | null) {
     this.reuniaoAtiva = r;
-    if (!r) this.meeting.clear();
+    if (!r) {
+      this.meeting.clear();
+      this.releaseMeetingHolds();
+    }
   }
 
   /** nome da missão em andamento (só as que nasceram de reunião); some do quadro com null */
@@ -667,18 +679,53 @@ export class OfficeEngine {
     if (this.cups.length) this.cups = this.cups.filter((c) => now < c.until);
   }
 
-  /** reavalia a cada quadro quem está na reunião; quem estava descansando larga o descanso */
+  /**
+   * Reavalia a cada quadro quem está na reunião; quem estava descansando larga o descanso.
+   * reuniao:0/1 são também a casa de quem mora em pé e a maquete do descanso: um lugar reservado
+   * por alguém de fora da reunião fica só pra ele (atribuirReuniao pula), e o lugar que a reunião
+   * ocupa fica reservado enquanto ela usa (o descanso não manda ninguém pra lá).
+   */
   private updateMeeting(now: number) {
     const r = this.reuniaoAtiva;
     if (!r) return;
-    const cands = [...this.visuals.values()].map((v) => ({
-      id: v.agent.id,
-      status: v.agent.status,
-      visitante: ehVisitante(v.agent),
-      saindo: v.leaving,
-    }));
-    this.meeting = atribuirReuniao(r.liderId, cands, this.meeting, MEETING_PRESENTER.id, MEETING_SEAT_IDS);
-    for (const id of this.meeting.keys()) if (this.rest.isResting(id)) this.rest.interrupt(id, this.mover, now);
+    const cands = this.meetingCands;
+    let n = 0;
+    for (const v of this.visuals.values()) {
+      const c = cands[n] ?? (cands[n] = { id: "", status: "ocioso", visitante: false, saindo: false });
+      c.id = v.agent.id;
+      c.status = v.agent.status;
+      c.visitante = ehVisitante(v.agent);
+      c.saindo = v.leaving;
+      n++;
+    }
+    cands.length = n;
+
+    const res = this.rest.reservations;
+    const owners = this.meetingOwners;
+    owners.clear();
+    for (const seat of MEETING_SEAT_IDS) {
+      const holder = res.holder(seat);
+      // a reserva feita pela própria reunião não conta: quem fica com o lugar é o `anterior` que decide
+      if (holder !== undefined && this.meetingHolds.get(seat) !== holder) owners.set(seat, holder);
+    }
+    this.meeting = atribuirReuniao(r.liderId, cands, this.meeting, MEETING_PRESENTER.id, MEETING_SEAT_IDS, owners);
+
+    for (const [seat, id] of this.meetingHolds) {
+      if (this.meeting.get(id) === seat) continue;
+      res.release(seat, id);
+      this.meetingHolds.delete(seat);
+    }
+    for (const [id, seat] of this.meeting) {
+      // só reserva lugar livre (a casa de quem mora ali já é dele e não pode ser solta ao sair)
+      if (seat !== MEETING_PRESENTER.id && res.holder(seat) === undefined && res.reserve(seat, id)) this.meetingHolds.set(seat, id);
+      if (this.rest.isResting(id)) this.rest.interrupt(id, this.mover, now);
+    }
+  }
+
+  /** a reunião acabou: devolve os lugares que ela tinha reservado */
+  private releaseMeetingHolds() {
+    for (const [seat, id] of this.meetingHolds) this.rest.reservations.release(seat, id);
+    this.meetingHolds.clear();
   }
 
   /** lugar de quem fica parado: o da reunião, se tem um, senão a própria mesa */
@@ -1089,11 +1136,13 @@ export class OfficeEngine {
     if (!v.leaving && status === "esperando") return { text: v.agent.activity, style: "trabalho", priority: PRI.waiting };
     if (v.chat && now < v.chat.until) return { text: v.chat.text, style: "chat", priority: PRI.chat };
     if (v.leaving) return null;
+    const trabalho = mostraBalaoDeTrabalho(status, v.agent.activity, ehLider(v.agent));
+    if (trabalho && now - v.activityAt < BUBBLE_MS) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
+    // apresentando: só quando não há atividade recente do líder (o trabalho de verdade vem antes).
+    // O balão fica acima ou do lado da cabeça (y < 150 px), longe da maquete (y >= 164 px).
     if (!v.path.length && this.meeting.get(v.agent.id) === MEETING_PRESENTER.id && v.at.id === MEETING_PRESENTER.id) {
       return { text: PRESENTING_TEXT, style: "trabalho", priority: PRI.work };
     }
-    const trabalho = mostraBalaoDeTrabalho(status, v.agent.activity, ehLider(v.agent));
-    if (trabalho && now - v.activityAt < BUBBLE_MS) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
     const line = this.restBubbles.get(v.agent.id);
     if (line && now < line.until && this.rest.kind(v.agent.id) === "papo") return { text: line.text, style: "descanso", priority: PRI.rest };
     if (selected && trabalho) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
