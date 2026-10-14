@@ -41,6 +41,11 @@ export function ehAtual(info: MissoesInfo | null, m: Pick<Missao, "id">): boolea
   return info?.atual?.id === m.id;
 }
 
+/** as abas só aparecem com pelo menos 1 missão (carregando, sem vault, sem pasta ou vazio: não) */
+export function mostraAbas(info: MissoesInfo | null): boolean {
+  return info !== null && vazioDe(info) === null;
+}
+
 /** abas da seção: abertas (a fazer + em andamento) e concluídas */
 export type AbaMissoes = "abertas" | "concluidas";
 export const ABAS_MISSOES: readonly AbaMissoes[] = ["abertas", "concluidas"];
@@ -90,16 +95,32 @@ const dois = (n: number) => String(n).padStart(2, "0");
  */
 export function textoDataMissao(m: Pick<Missao, "data" | "atualizadoEm">): string | null {
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(m.data.trim());
-  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  if (iso) {
+    const [ano, mes, dia] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+    // confere de volta em UTC (só para validar: 2026-02-31 vira março e é recusada)
+    const d = new Date(Date.UTC(ano, mes - 1, dia));
+    if (mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31 && d.getUTCMonth() === mes - 1 && d.getUTCDate() === dia) {
+      return `${iso[3]}/${iso[2]}/${iso[1]}`;
+    }
+  }
   if (!Number.isFinite(m.atualizadoEm) || m.atualizadoEm <= 0) return null;
   const d = new Date(m.atualizadoEm);
   return `${dois(d.getDate())}/${dois(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
-/** igual a MAX_CONCLUIDAS em server/vaultWatcher.ts */
-export const LIMITE_CONCLUIDAS = 50;
+/** totais antes do corte do servidor; servidor antigo (sem totais) cai no tamanho das listas */
+export function totaisDe(
+  info: Pick<MissoesInfo, "totais"> | null,
+  separadas: { abertas: readonly unknown[]; concluidas: readonly unknown[] },
+): { abertas: number; concluidas: number } {
+  return {
+    abertas: Math.max(info?.totais?.abertas ?? 0, separadas.abertas.length),
+    concluidas: Math.max(info?.totais?.concluidas ?? 0, separadas.concluidas.length),
+  };
+}
 
-/** aviso abaixo da lista de concluídas quando o servidor cortou no limite */
-export function textoLimiteConcluidas(n: number): string | null {
-  return n >= LIMITE_CONCLUIDAS ? `Mostrando as ${LIMITE_CONCLUIDAS} mais recentes` : null;
+/** aviso abaixo da lista quando o servidor cortou (total maior que o mostrado); senão null */
+export function textoLimiteConcluidas(mostradas: number, total: number): string | null {
+  if (!Number.isFinite(total) || total <= mostradas) return null;
+  return `Mostrando as ${mostradas} mais recentes de ${total}`;
 }

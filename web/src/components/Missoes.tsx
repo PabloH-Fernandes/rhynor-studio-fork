@@ -10,11 +10,13 @@ import {
   abaPelaTecla,
   abaValida,
   ehAtual,
+  mostraAbas,
   separarMissoes,
   textoDataMissao,
   textoLimiteConcluidas,
   textoReuniao,
   textoTarefas,
+  totaisDe,
   vazioDaAba,
   vazioDe,
   type AbaMissoes,
@@ -30,10 +32,11 @@ export function Missoes({ info }: { info: MissoesInfo | null }) {
   const [aberta, setAberta] = useState<string | null>(null);
   const abasRef = useRef<Partial<Record<AbaMissoes, HTMLButtonElement | null>>>({});
   const separadas = separarMissoes(info?.missoes ?? []);
+  const totais = totaisDe(info, separadas);
   const vazio = vazioDe(info);
   const lista = aba === "abertas" ? separadas.abertas : separadas.concluidas;
-  const vazioAba = vazio === "sem-missao" ? null : vazioDaAba(aba, separadas);
-  const limite = aba === "concluidas" ? textoLimiteConcluidas(separadas.concluidas.length) : null;
+  const vazioAba = vazioDaAba(aba, separadas);
+  const limite = textoLimiteConcluidas(lista.length, totais[aba]);
 
   const teclaNasAbas = (e: KeyboardEvent<HTMLDivElement>) => {
     const nova = abaPelaTecla(aba, e.key);
@@ -48,7 +51,7 @@ export function Missoes({ info }: { info: MissoesInfo | null }) {
       <h2>
         <button className="secao-toggle" aria-expanded={aberto} aria-controls="secao-missoes" onClick={alternar}>
           <span className="secao-seta" aria-hidden="true" />
-          Missões <span className="count">· {separadas.abertas.length}</span>
+          Missões <span className="count"><span aria-hidden="true">· </span>{totais.abertas}</span>
         </button>
       </h2>
       <div id="secao-missoes" hidden={!aberto}>
@@ -58,7 +61,12 @@ export function Missoes({ info }: { info: MissoesInfo | null }) {
             O vault não está configurado: rode <code>npm run setup</code>
           </p>
         )}
-        {info !== null && vazio !== "sem-vault" && (
+        {vazio === "sem-missao" && (
+          <p className="muted">
+            Nenhuma missão ainda. Elas nascem pelo <code>/reuniao</code>.
+          </p>
+        )}
+        {mostraAbas(info) && (
           <>
             <div className="missoes-abas" role="tablist" aria-label="Missões" onKeyDown={teclaNasAbas}>
               {ABAS_MISSOES.map((a) => (
@@ -72,20 +80,19 @@ export function Missoes({ info }: { info: MissoesInfo | null }) {
                   id={`missoes-aba-${a}`}
                   className="missoes-aba"
                   aria-selected={aba === a}
-                  aria-controls={`missoes-painel-${a}`}
+                  aria-controls={aba === a ? "missoes-painel" : undefined}
                   tabIndex={aba === a ? 0 : -1}
                   onClick={() => gravarAba(a)}
                 >
-                  {ROTULO_ABA[a]} · {a === "abertas" ? separadas.abertas.length : separadas.concluidas.length}
+                  <span className="missoes-aba-rotulo">{ROTULO_ABA[a]}</span>{" "}
+                  <span className="missoes-aba-num">
+                    <span aria-hidden="true"> · </span>
+                    {totais[a]}
+                  </span>
                 </button>
               ))}
             </div>
-            <div role="tabpanel" id={`missoes-painel-${aba}`} aria-labelledby={`missoes-aba-${aba}`} tabIndex={0}>
-              {vazio === "sem-missao" && (
-                <p className="muted">
-                  Nenhuma missão ainda. Elas nascem pelo <code>/reuniao</code>.
-                </p>
-              )}
+            <div role="tabpanel" id="missoes-painel" aria-labelledby={`missoes-aba-${aba}`} tabIndex={0}>
               {vazioAba && <p className="muted">{vazioAba}</p>}
               {lista.length > 0 && (
                 <ul className="missoes">
@@ -162,7 +169,7 @@ function MissaoItem({
             ))}
           </span>
         )}
-        {data && <span className="missao-data">{data}</span>}
+        {data && <span className="missao-data">Nota de {data}</span>}
         {reuniao && <span className="missao-reuniao">{reuniao}</span>}
       </button>
       <div id={resumoId} className="missao-resumo" hidden={!aberta}>

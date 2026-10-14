@@ -145,6 +145,8 @@ export interface MissoesInfo {
   inbox: { novas: number };
   /** a missão em que o time está agora, se der pra saber */
   atual: { id: string; nome: string; reuniaoTitulo: string } | null;
+  /** quantas missões há antes do corte por grupo (a lista vem limitada); ausente em servidor antigo */
+  totais?: { abertas: number; concluidas: number };
 }
 
 /** Uma reunião (/reuniao) acontecendo: a mesa de reunião do escritório. Passageira: não é salva. */

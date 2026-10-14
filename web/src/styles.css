@@ -2252,25 +2252,42 @@ h2 {
   border-bottom: 2px solid var(--line);
 }
 
+/* uma linha só nas duas abas (mesma altura): o rótulo encolhe com reticências, o número não */
 .missoes-aba {
+  display: flex;
   flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
   min-width: 0;
-  min-height: 32px;
+  min-height: 40px;
   margin-bottom: -2px;
-  padding: 4px 8px;
+  padding: 4px 6px;
   border: 2px solid transparent;
-  border-bottom-color: var(--line);
   background: none;
   color: var(--muted);
   font: inherit;
   font-size: var(--fs-menor);
   line-height: 1.1;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
   cursor: pointer;
 }
 
+.missoes-aba-rotulo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.missoes-aba-num {
+  flex-shrink: 0;
+  white-space: pre;
+}
+
+/* inativa com o mouse: só a moldura, sem o fundo e a barra branca da ativa */
 .missoes-aba:hover {
-  background: var(--bg-3);
+  border-color: var(--navy-500);
+  border-bottom-color: transparent;
   color: var(--text);
 }
 

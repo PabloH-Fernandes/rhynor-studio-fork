@@ -13,7 +13,15 @@ import {
   parseMissao,
   resolverVault,
 } from "./vault.ts";
-import { MAX_ABERTAS, MAX_CONCLUIDAS, ObservadorVault, PEDIDA_TTL_MS, ordenarMissoes } from "./vaultWatcher.ts";
+import {
+  MAX_ABERTAS,
+  MAX_CONCLUIDAS,
+  ObservadorVault,
+  PEDIDA_TTL_MS,
+  contarTotais,
+  dataEfetiva,
+  ordenarMissoes,
+} from "./vaultWatcher.ts";
 
 const MISSAO = [
   "---",
@@ -252,6 +260,26 @@ test("ordenarMissoes: limite separado para abertas e concluídas; as mais recent
     rAbertas.map((m) => m.id),
     [...andamento, ...aFazer],
   );
+  // os totais contam antes do corte
+  assert.deepEqual(contarTotais([...concluidas, ...abertas]), { abertas: 60, concluidas: 60 });
+  assert.deepEqual(contarTotais([]), { abertas: 0, concluidas: 0 });
+});
+
+test("ordenarMissoes: sem data usa o dia local de atualizadoEm; desempate por atualizadoEm", () => {
+  const hoje = new Date(2026, 9, 14, 12, 0).getTime();
+  const semData = missao({ id: "sem", status: "concluída", data: "", atualizadoEm: hoje });
+  const antiga = missao({ id: "antiga", status: "concluída", data: "2025-01-01", atualizadoEm: hoje + 1000 });
+  assert.equal(dataEfetiva(semData), "2026-10-14");
+  assert.equal(dataEfetiva(missao({ data: "", atualizadoEm: 0 })), "");
+  assert.deepEqual(ordenarMissoes([antiga, semData]).map((m) => m.id), ["sem", "antiga"]);
+  // mesma data efetiva: a atualizada por último primeiro
+  const mesmoDia = missao({ id: "mesmo", status: "concluída", data: "2026-10-14", atualizadoEm: hoje + 5000 });
+  assert.deepEqual(ordenarMissoes([semData, mesmoDia]).map((m) => m.id), ["mesmo", "sem"]);
+  // e a sem data não é a primeira cortada
+  const velhas = Array.from({ length: MAX_CONCLUIDAS }, (_, i) =>
+    missao({ id: `v${i}`, status: "concluída", data: "2025-02-01", atualizadoEm: i + 1 }),
+  );
+  assert.ok(ordenarMissoes([...velhas, semData]).some((m) => m.id === "sem"));
 });
 
 test("resolverVault: env, settings.json, ~, relativo e erro", () => {
@@ -322,6 +350,7 @@ test("observador: missões, atas novas, processadas/, LEIA-ME e 10-Reunioes nunc
     assert.equal(info.vault, "ok");
     assert.equal(info.missoes.length, 1);
     assert.equal(info.missoes[0].id, "2026-10-10-a");
+    assert.deepEqual(info.totais, { abertas: 1, concluidas: 0 });
     assert.equal(info.inbox.novas, 1, "só ata1 (sem processada, LEIA-ME e subpasta)");
     assert.equal(info.atual?.id, "2026-10-10-a");
     assert.equal(info.atual?.reuniaoTitulo, "Alinhamento do portal");
@@ -346,6 +375,7 @@ test("observador: missões, atas novas, processadas/, LEIA-ME e 10-Reunioes nunc
     // pedida por /time
     fs.writeFileSync(path.join(dir, "20-Missoes", "2026-10-12-b.md"), MISSAO.replace("em andamento", "a fazer"));
     await obs.recarregar();
+    assert.deepEqual(obs.getInfo().totais, { abertas: 2, concluidas: 0 });
     obs.notarPrompt("s1", "/time Missão [[2026-10-12-b]]: x");
     assert.equal(obs.getInfo().atual?.id, "2026-10-12-b");
     obs.esquecerSessao("s1");
@@ -422,6 +452,7 @@ test("observador: sem vault e sem pasta", async () => {
   const sem = new ObservadorVault(() => null, { intervaloMs: 0, semWatch: true });
   await sem.iniciar();
   assert.equal(sem.getInfo().vault, "sem-vault");
+  assert.deepEqual(sem.getInfo().totais, { abertas: 0, concluidas: 0 });
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-vazio-"));
   try {
@@ -429,6 +460,7 @@ test("observador: sem vault e sem pasta", async () => {
     await obs.iniciar();
     assert.equal(obs.getInfo().vault, "sem-pasta");
     assert.deepEqual(obs.getInfo().missoes, []);
+    assert.deepEqual(obs.getInfo().totais, { abertas: 0, concluidas: 0 });
     obs.parar();
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

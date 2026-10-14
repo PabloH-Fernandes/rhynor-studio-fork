@@ -3,16 +3,17 @@ import { test } from "node:test";
 import type { Missao, MissoesInfo } from "../../shared/types";
 import {
   ABAS_MISSOES,
-  LIMITE_CONCLUIDAS,
   abaPelaTecla,
   abaValida,
   ehAtual,
+  mostraAbas,
   separarMissoes,
   textoAtaNova,
   textoDataMissao,
   textoLimiteConcluidas,
   textoReuniao,
   textoTarefas,
+  totaisDe,
   vazioDaAba,
   vazioDe,
 } from "./missoesLogic";
@@ -61,6 +62,14 @@ test("ehAtual e segmentos da barra", () => {
   assert.equal(segmentosCheios(0, 0), 0);
 });
 
+test("mostraAbas: só com pelo menos 1 missão", () => {
+  assert.equal(mostraAbas(null), false);
+  assert.equal(mostraAbas(info({ vault: "sem-vault" })), false);
+  assert.equal(mostraAbas(info({ vault: "sem-pasta" })), false);
+  assert.equal(mostraAbas(info()), false);
+  assert.equal(mostraAbas(info({ missoes: [{ id: "a", status: "concluída" } as Missao] })), true);
+});
+
 test("abaValida: desconhecido volta para abertas", () => {
   assert.deepEqual(ABAS_MISSOES, ["abertas", "concluidas"]);
   assert.equal(abaValida("abertas"), "abertas");
@@ -105,11 +114,23 @@ test("textoDataMissao: data da nota sem fuso, senão atualizadoEm, senão null",
   assert.equal(textoDataMissao({ data: "", atualizadoEm: ms }), "05/03/2026");
   assert.equal(textoDataMissao({ data: "", atualizadoEm: 0 }), null);
   assert.equal(textoDataMissao({ data: "lixo", atualizadoEm: NaN }), null);
+  // data inválida cai em atualizadoEm
+  assert.equal(textoDataMissao({ data: "2026-13-45", atualizadoEm: ms }), "05/03/2026");
+  assert.equal(textoDataMissao({ data: "2026-02-31", atualizadoEm: 0 }), null);
+  assert.equal(textoDataMissao({ data: "2026-00-10", atualizadoEm: 0 }), null);
+  assert.equal(textoDataMissao({ data: "2024-02-29", atualizadoEm: 0 }), "29/02/2024");
 });
 
-test("textoLimiteConcluidas: só no limite", () => {
-  assert.equal(LIMITE_CONCLUIDAS, 50);
-  assert.equal(textoLimiteConcluidas(49), null);
-  assert.equal(textoLimiteConcluidas(0), null);
-  assert.equal(textoLimiteConcluidas(50), "Mostrando as 50 mais recentes");
+test("textoLimiteConcluidas: só quando o total passa do mostrado", () => {
+  assert.equal(textoLimiteConcluidas(50, 55), "Mostrando as 50 mais recentes de 55");
+  assert.equal(textoLimiteConcluidas(50, 50), null, "exatamente 50: sem corte, sem aviso");
+  assert.equal(textoLimiteConcluidas(3, 3), null);
+  assert.equal(textoLimiteConcluidas(0, 0), null);
+});
+
+test("totaisDe: usa os totais do servidor; sem eles, o tamanho das listas", () => {
+  const sep = { abertas: [1, 2], concluidas: [1] };
+  assert.deepEqual(totaisDe(info({ totais: { abertas: 55, concluidas: 60 } }), sep), { abertas: 55, concluidas: 60 });
+  assert.deepEqual(totaisDe(info(), sep), { abertas: 2, concluidas: 1 });
+  assert.deepEqual(totaisDe(null, { abertas: [], concluidas: [] }), { abertas: 0, concluidas: 0 });
 });

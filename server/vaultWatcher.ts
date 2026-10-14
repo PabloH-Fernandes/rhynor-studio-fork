@@ -37,18 +37,40 @@ type Ouvinte = (info: MissoesInfo) => void;
 
 const VAZIO: MissoesInfo = { vault: "sem-vault", missoes: [], inbox: { novas: 0 }, atual: null };
 
+const dois = (n: number) => String(n).padStart(2, "0");
+
+/** data usada na ordenação: a da nota; sem ela, o dia local (AAAA-MM-DD) do atualizadoEm */
+export function dataEfetiva(m: Pick<Missao, "data" | "atualizadoEm">): string {
+  const data = m.data.trim();
+  if (data) return data;
+  if (!Number.isFinite(m.atualizadoEm) || m.atualizadoEm <= 0) return "";
+  const d = new Date(m.atualizadoEm);
+  return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
+}
+
+/** quantas abertas e concluídas existem antes do corte de ordenarMissoes */
+export function contarTotais(missoes: readonly Pick<Missao, "status">[]): { abertas: number; concluidas: number } {
+  const concluidas = missoes.filter((m) => m.status === "concluída").length;
+  return { abertas: missoes.length - concluidas, concluidas };
+}
+
 /**
  * Missões em ordem de exibição: em andamento, a fazer, concluída; em cada grupo a data mais recente
- * primeiro. Abertas (até MAX_ABERTAS) e concluídas (até MAX_CONCLUIDAS) são cortadas separadamente.
+ * primeiro (dataEfetiva, desempate por atualizadoEm). Abertas (até MAX_ABERTAS) e concluídas (até
+ * MAX_CONCLUIDAS) são cortadas separadamente.
  */
 export function ordenarMissoes(missoes: Missao[]): Missao[] {
-  const ordenadas = [...missoes].sort(
-    (a, b) =>
+  const datas = new Map(missoes.map((m) => [m, dataEfetiva(m)]));
+  const ordenadas = [...missoes].sort((a, b) => {
+    const da = datas.get(a) ?? "";
+    const db = datas.get(b) ?? "";
+    return (
       ORDEM_STATUS[a.status] - ORDEM_STATUS[b.status] ||
-      (a.data < b.data ? 1 : a.data > b.data ? -1 : 0) ||
+      (da < db ? 1 : da > db ? -1 : 0) ||
       b.atualizadoEm - a.atualizadoEm ||
-      (a.id < b.id ? -1 : 1),
-  );
+      (a.id < b.id ? -1 : 1)
+    );
+  });
   const abertas = ordenadas.filter((m) => m.status !== "concluída").slice(0, MAX_ABERTAS);
   const concluidas = ordenadas.filter((m) => m.status === "concluída").slice(0, MAX_CONCLUIDAS);
   return [...abertas, ...concluidas];
@@ -73,6 +95,8 @@ export class ObservadorVault {
   /** a última leitura, sem a missão atual (ela depende dos prompts) */
   private vault: MissoesInfo["vault"] = "sem-vault";
   private missoes: Missao[] = [];
+  /** contagens antes do corte por grupo */
+  private totais = { abertas: 0, concluidas: 0 };
   private novas = 0;
   /** nome do arquivo → último resultado bom (valor mantido se a leitura falhar) */
   private cacheMissoes = new Map<string, { mtime: number; size: number; missao: Missao | null }>();
@@ -225,6 +249,7 @@ export class ObservadorVault {
     if (!novoCaminho) {
       this.vault = "sem-vault";
       this.missoes = [];
+      this.totais = { abertas: 0, concluidas: 0 };
       this.novas = 0;
       this.publicar();
       return;
@@ -238,9 +263,11 @@ export class ObservadorVault {
     if (lidas === null) {
       this.vault = "sem-pasta";
       this.missoes = [];
+      this.totais = { abertas: 0, concluidas: 0 };
     } else {
       this.vault = "ok";
       this.missoes = ordenarMissoes(lidas);
+      this.totais = contarTotais(lidas);
     }
     this.novas = await this.contarAtas(dirInbox);
     this.publicar();
@@ -339,6 +366,7 @@ export class ObservadorVault {
       missoes: this.missoes,
       inbox: { novas: this.novas },
       atual: atual ? { id: atual.id, nome: atual.nome, reuniaoTitulo: atual.reuniaoTitulo } : null,
+      totais: { ...this.totais },
     };
     const assinatura = JSON.stringify(info);
     if (assinatura === this.assinatura) return;
