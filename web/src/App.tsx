@@ -4,6 +4,7 @@ import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
 import { Cracha } from "./components/Cracha";
 import { IconeStatus } from "./components/IconePixel";
 import { MiniRetrato } from "./components/MiniRetrato";
+import { Missoes } from "./components/Missoes";
 import { Progresso } from "./components/Progresso";
 import { Vestiario } from "./components/Vestiario";
 import { agzinhoOf } from "./office/engine";
@@ -15,6 +16,7 @@ import { usePreferencia, usePreferenciaTexto } from "./usePreferencia";
 import { TODAS, esperandoDe, filtrarPorProjeto, progressoDoFiltro, projetoEfetivo, projetosDe, textoEspera } from "./projetoLogic";
 import { nomeCurto } from "../../shared/frases";
 import { ehVisitante } from "../../shared/visitante";
+import { textoAtaNova } from "./missoesLogic";
 import { agruparFeed, destaqueDe, fraseDaLinha, iconeDe, type LinhaFeed } from "./feedLogic";
 
 const STATUS_LABEL: Record<AgentStatus, string> = {
@@ -37,7 +39,7 @@ const KIND_ICON: Record<FeedItem["kind"], string> = {
 
 export default function App() {
   const officeRef = useRef<OfficeHandle>(null);
-  const { agents, feed, roster, progress, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const { agents, feed, roster, progress, missoes, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /** agente clicado no canvas cujo crachá deve rolar pra vista (layout empilhado); o crachá consome */
@@ -93,6 +95,8 @@ export default function App() {
   const linhasSimples = useMemo(() => agruparFeed(feedVisivel).reverse().slice(0, 80), [feedVisivel]);
   // o aviso "te esperando" olha TODOS os agentes: o filtro de projeto não esconde um pedido seu
   const espera = useMemo(() => esperandoDe(list, projeto), [list, projeto]);
+
+  const avisoAta = textoAtaNova(missoes?.inbox.novas ?? 0);
 
   const call = async (path: string) => {
     setBusy(true);
@@ -168,6 +172,12 @@ export default function App() {
           </div>
         )}
 
+        {avisoAta && (
+          <div className="aviso-ata" role="status">
+            {avisoAta}
+          </div>
+        )}
+
         <div className="actions">
           <button className="btn" disabled={busy || conn !== "online"} onClick={() => call("/api/demo")}>
             ▶ Rodar simulação
@@ -232,6 +242,8 @@ export default function App() {
             </div>
           </section>
         )}
+
+        <Missoes info={missoes} />
 
         {selected && (
           <Cracha

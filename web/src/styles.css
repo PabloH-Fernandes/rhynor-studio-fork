@@ -319,6 +319,8 @@ code {
 .btn,
 .btn-tecnico,
 .agent-row,
+.missao-row,
+.aviso-ata,
 .cracha-cartao,
 .cracha-foto,
 .feed,
@@ -346,6 +348,7 @@ code {
 .btn:focus-visible,
 .btn-tecnico:focus-visible,
 .agent-row:focus-visible,
+.missao-row:focus-visible,
 .vest-x:focus-visible,
 .zoom-controls button:focus-visible {
   outline-offset: calc(var(--b) + 2px);
@@ -2211,4 +2214,156 @@ h2 {
   .feed {
     max-height: 360px;
   }
+}
+
+/* ---------------------------------------------------------------- missões e aviso de ata nova */
+
+/* chegou ata no Inbox: azul de informação, bem diferente do laranja de "te esperando" (.alert) */
+.aviso-ata {
+  --mc: var(--blue);
+  padding: 8px 12px;
+  background: var(--bg-3);
+  color: var(--text);
+  font-size: var(--fs-menor);
+  line-height: 1.15;
+}
+
+.aviso-ata code,
+.missoes-vazio code,
+.secao code {
+  font-family: inherit;
+  color: var(--blue);
+}
+
+.missoes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missao-row {
+  --b: 2px;
+  --mc: var(--line);
+  --sy: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-3);
+  color: inherit;
+  font: inherit;
+  line-height: 1.1;
+  text-align: left;
+  cursor: pointer;
+}
+
+.missao-row:hover {
+  --mc: var(--navy-500);
+}
+
+.missao-row.selected,
+.missao-row.atual {
+  --mc: var(--white);
+}
+
+.missao-topo {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.missao-nome {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.missao-agora {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  background: var(--white);
+  color: var(--bg-2);
+  font-size: var(--fs-menor);
+}
+
+.missao-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px 3px 5px;
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.missao-andamento {
+  background: rgba(90, 174, 240, 0.14);
+  color: var(--blue);
+}
+
+.missao-concluida {
+  background: rgba(63, 191, 134, 0.14);
+  color: var(--green);
+}
+
+.missao-barra {
+  flex: 1 1 80px;
+}
+
+.missao-barra i {
+  background: var(--line);
+}
+
+.missao-barra i.cheio {
+  background: var(--green);
+}
+
+.missao-reuniao {
+  flex: 1 1 100%;
+  color: var(--muted);
+  font-size: var(--fs-menor);
+  overflow-wrap: anywhere;
+}
+
+.missao-resumo {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: var(--bg);
+  font-size: var(--fs-menor);
+}
+
+.missao-resumo h3 {
+  margin: 0 0 2px;
+  font-size: var(--fs-menor);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.missao-resumo p {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.missao-resumo ul {
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.missao-resumo li {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.missao-resumo li.feita {
+  color: var(--green);
 }

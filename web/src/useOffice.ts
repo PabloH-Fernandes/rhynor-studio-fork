@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Agent, FeedItem, Progress, Roster, ServerMessage } from "../../shared/types";
+import type { Agent, FeedItem, MissoesInfo, Progress, ReuniaoAtiva, Roster, ServerMessage } from "../../shared/types";
 
 export type Conn = "conectando" | "online" | "offline";
 
@@ -17,11 +17,28 @@ export function useOffice(onChat: ChatHandler) {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [roster, setRoster] = useState<Roster | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [missoes, setMissoes] = useState<MissoesInfo | null>(null);
+  const [reuniao, setReuniao] = useState<ReuniaoAtiva | null>(null);
   const [conn, setConn] = useState<Conn>("conectando");
   const chatRef = useRef(onChat);
   chatRef.current = onChat;
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
+
+  // garantia na primeira carga: o servidor também manda as missões ao conectar, mas isto cobre a corrida
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/missoes")
+      .then((r) => (r.ok ? (r.json() as Promise<MissoesInfo>) : null))
+      .then((info) => {
+        // o que veio pelo WebSocket (mais novo) não é sobrescrito
+        if (vivo && info) setMissoes((atual) => atual ?? info);
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -75,8 +92,15 @@ export function useOffice(onChat: ChatHandler) {
             setFeed(msg.feed);
             if (msg.roster) setRoster(msg.roster);
             setProgress(msg.progress ?? null);
+            setReuniao(msg.reuniao ?? null);
             break;
           }
+          case "missoes":
+            setMissoes(msg.info);
+            break;
+          case "reuniao":
+            setReuniao(msg.reuniao);
+            break;
           case "progress":
             setProgress(msg.progress);
             break;
@@ -114,5 +138,5 @@ export function useOffice(onChat: ChatHandler) {
     };
   }, []);
 
-  return { agents, feed, roster, progress, conn };
+  return { agents, feed, roster, progress, missoes, reuniao, conn };
 }
