@@ -25,14 +25,17 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 | `web/src/office/map.ts` | Planta do escritório (posição das mesas, móveis) |
 | `data/agzinhos.example.json` | Elenco de exemplo, versionado. O `data/agzinhos.json` real fica fora do git |
 | `setup/skills.json` | Catálogo do que o `npm run setup` instala (essenciais e extras de terceiros) |
-| `commands/` | Comando `/time` do Claude Code, copiado para `~/.claude/commands/` pelo setup |
+| `commands/` | Comandos `/time`, `/memoria` e `/reuniao` do Claude Code, copiados para `~/.claude/commands/` pelo setup |
+| `vault-template/` | Modelo do vault do Obsidian (o "segundo cérebro"); o setup cria o vault a partir dele |
+| `docs/power-automate-reunioes.md` | Formato da ata que um fluxo do Power Automate deve gravar no `00-Inbox/` (não testado) |
+| `docs/exemplos/ata-ficticia.md` | Ata inventada para testar o `/reuniao` |
 | `scripts/setup.mjs` | O instalador (`npm run setup`, `npm run setup:check`); veja o [SETUP.md](SETUP.md) |
 
 ## Rodando (5 minutos)
 
 Precisa de Node 20+ e do Claude Code instalado (e logado).
 
-**Jeito rápido:** `npm run setup` faz tudo abaixo de uma vez (dependências, agentes, hooks, `/time`, Playwright, plugins, build). Depois é só `npm start`. Opções e detalhes no [SETUP.md](SETUP.md); `npm run setup -- --dry-run` mostra o que ele faria sem escrever nada.
+**Jeito rápido:** `npm run setup` faz tudo abaixo de uma vez (dependências, agentes, hooks, vault do Obsidian, comandos `/time`, `/memoria` e `/reuniao`, Playwright, plugins, build). Depois é só `npm start`. Opções e detalhes no [SETUP.md](SETUP.md); `npm run setup -- --dry-run` mostra o que ele faria sem escrever nada.
 
 **Manual (alternativa):**
 
@@ -73,6 +76,111 @@ npm run uninstall-hooks
 Com o servidor desligado os hooks não atrapalham nada: eles rodam em segundo plano e ignoram o erro de conexão.
 
 Só quer em um projeto específico? Use `npm run install-hooks -- --project C:\caminho\do\projeto` (e o mesmo para `install-agents`).
+
+## Segundo cérebro (vault do Obsidian) e reuniões
+
+O time tem uma **memória**: um vault do Obsidian com reuniões, missões, projetos, decisões e lições. As reuniões são a primeira porta de entrada vinda de fora: a ata vira nota e, **com o seu ok**, vira missão para o `/time`.
+
+```
+ata da reunião → /reuniao → nota em 10-Reunioes → você escolhe as tarefas → notas em 20-Missoes
+→ /time executa → o painel mostra a missão e a reunião de origem → o documentador atualiza a memória
+```
+
+### Onde fica o vault
+
+- **Fora do repositório.** O setup recusa um vault dentro da pasta do código.
+- **Uma configuração só:** `AGPOCKET_VAULT` no `env` do `~/.claude/settings.json`. Agentes, comandos e servidor leem dali; nenhum arquivo do projeto tem caminho fixo.
+- **O `npm run setup` cria o vault** a partir de `vault-template/` se a pasta ainda não existir, e só depois grava o `AGPOCKET_VAULT`. **Nunca sobrescreve um vault que já existe**: só confere a estrutura e avisa o que falta.
+- **Onde ele cria:** o `AGPOCKET_VAULT` que já estiver no settings.json manda; senão, a flag `--vault=<pasta>` (caminho completo ou começando com `~`); senão, a pasta `AG-Cerebro` ao lado do repositório.
+  ```bash
+  npm run setup -- --vault=~/Documentos/AG-Cerebro
+  ```
+- Se uma pasta **acima** do vault novo já for um vault do Obsidian (tem `.obsidian/`), o setup avisa: os links `[[ ]]` podem ficar ambíguos até o vault antigo ser arquivado.
+- **O servidor do AG Pocket** lê o caminho da variável `AGPOCKET_VAULT` do ambiente e, se ela estiver vazia, do `env` do `~/.claude/settings.json` (o `npm start` não herda o env do Claude Code).
+
+### Estrutura
+
+| Pasta | O que tem |
+|---|---|
+| `_indice.md` | Mapa curto do vault. Os agentes leem **este** primeiro |
+| `00-Inbox/` | Entrada bruta: atas e ideias soltas. Atas processadas vão para `00-Inbox/processadas/` (nunca são apagadas) |
+| `10-Reunioes/` | Uma nota por reunião (nasce confidencial) |
+| `20-Missoes/` | Uma nota por missão: origem, tarefas, status, commits |
+| `30-Projetos/` | Uma nota por projeto ou repositório: contexto, stack, decisões |
+| `40-Conhecimento/` | Padrões, glossário, "como fazer X", lições reutilizáveis |
+| `50-Time/` | Um card por agente e o mapa `AGENTES.canvas` |
+| `90-Memoria-do-time/` | Sessões, Decisões, Lições aprendidas e Pendências |
+| `Templates/` | Modelos: Reunião, Missão, Projeto, Sessão |
+
+Toda nota tem o mesmo frontmatter, e as notas se ligam por `[[ ]]` (reunião, missão, projeto, sessão):
+
+```yaml
+---
+tipo: missao          # reuniao, missao, ata, indice...
+projeto: escritorio-ia
+data: 2026-10-13
+status: a fazer
+origem: reuniao       # facilitator, power-automate, manual...
+tags: [missao]
+confidencial: false
+---
+```
+
+### Regras de memória do time
+
+O setup instala um bloco de memória (`team/CLAUDE-memoria.md`) no seu `~/.claude/CLAUDE.md`, entre os marcadores `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`. Ele diz:
+
+- **Começo de missão:** o líder lê `_indice.md`, depois **só** a nota do projeto em `30-Projetos/` e os itens de Decisões e Pendências ligados a ele. Nada de ler o vault inteiro.
+- **Fim de missão:** o documentador atualiza a nota da missão (status, commits, o que mudou), a do projeto e a memória do time. Notas curtas, sem código nem logs.
+- **Pesquisador:** consulta `40-Conhecimento/` antes de buscar na web e salva lá o que aprender de reutilizável.
+- O líder passa o caminho do vault (`AGPOCKET_VAULT`) aos agentes que usam o vault.
+
+### Comandos
+
+| Comando | O que faz |
+|---|---|
+| `/memoria <pergunta>` | Responde **só** com base no vault, citando as notas como `[[nota]]`. Se não achar, diz "Não achei isso no vault" e não inventa. Não edita nada |
+| `/reuniao` | Transforma uma ata (texto colado ou arquivo de `00-Inbox/`) em nota de reunião e, com o seu ok, em missões |
+| `/time <tarefa>` | Roda a tarefa com o time. Se citar uma missão (`Missão [[nota]]`), ela vai para `em andamento` e o documentador marca `concluída` no fim |
+
+**O `/reuniao`, passo a passo** (com a ata inventada de `docs/exemplos/ata-ficticia.md`):
+
+1. Copie a ata para `<vault>/00-Inbox/ata-2026-10-13-1900-clube-de-leitura.md` (ou cole o texto direto no comando).
+2. No Claude Code, rode `/reuniao ata-2026-10-13-1900-clube-de-leitura.md`. Sem argumento, ele lista as atas com `status: nova` e pergunta qual usar.
+3. Ele cria a nota em `10-Reunioes/AAAA-MM-DD-<titulo>.md` com `confidencial: true`, trocando nomes de pessoas por papéis ("voluntário de TI").
+4. Mostra as tarefas classificadas: 🤖 o time pode fazer, 🙋 precisa de humano, ❓ não está claro. Na ata fictícia, o esperado é 🤖 1, 2 e 3; 🙋 4 e 5; ❓ 6.
+5. **Pergunta quais viram missão** e de qual projeto (ex.: `1,3`). Nunca começa nada sozinho: só escreve notas.
+6. Cria uma nota por missão em `20-Missoes/` (`status: a fazer`, link para a reunião e o projeto) e **sugere**, sem rodar, o comando pronto, algo como (nome ilustrativo: o nome real sai do título que o comando gerar, e o dia vem da ata):
+   ```
+   /time Missão [[2026-10-13-pagina-de-inscricao]]: criar a página de inscrição. Projeto: <projeto>
+   ```
+7. A ata do Inbox ganha `status: processada` e vai para `00-Inbox/processadas/`.
+
+Quando você roda o `/time` sugerido, a missão passa de `a fazer` para `em andamento` e, no fim, o documentador marca `concluída` e preenche o resultado (commits, o que mudou, sessão).
+
+### No painel e no escritório
+
+- **Seção "Missões"** (recolhível) no painel: nome, status (a fazer / em andamento / concluída), barra de progresso quando a missão tem lista de tarefas e "📋 da reunião X". Clicar mostra o resumo da missão.
+- **Faixa "Chegou uma ata nova: rode /reuniao"** (com mais de uma, "Chegaram n atas novas"): aparece quando cai uma ata nova na raiz de `00-Inbox/` e some depois que ela é processada (em até ~30 s).
+- O resumo da missão, ao clicar, mostra o objetivo e as tarefas.
+- **Reunião no escritório:** quando você roda `/reuniao`, os AGzinhos **livres** vão para a mesa de reunião e sentam em volta da maquete, e o líder fica de pé "apresentando" enquanto o comando roda. Depois todos voltam. Quem está trabalhando não sai da mesa.
+- **Quadro da parede:** mostra o nome da missão atual quando ela veio de uma reunião.
+
+Por dentro: `GET /api/missoes` devolve as missões (status, origem, projeto, tarefas) e a contagem de atas novas; o WebSocket ganhou as mensagens `missoes` (as missões ou a contagem mudaram) e `reuniao` (uma reunião começou ou acabou).
+
+### Privacidade
+
+- Nota com `confidencial: true` **não é lida** pelos agentes nem pelo painel (só o título pode aparecer no índice).
+- Toda nota de reunião **nasce confidencial**; só mude para `false` depois de conferir que não há nada sensível.
+- O painel recebe só o necessário: título neutro da reunião, dados da missão e a **contagem** de atas novas (nada do conteúdo nem dos nomes das atas).
+- O `/reuniao` troca nomes de pessoas por papéis ou áreas. Mesmo assim, **revise a nota gerada**.
+- Nunca guarde senha, token, chave ou dado pessoal no vault.
+- `AGPOCKET_GRAVAR=1` (desligado por padrão) grava o prompt cru em `data/eventos/`, **inclusive a ata colada no `/reuniao`**. Veja "Gravador de eventos".
+- Conteúdo de reunião em IA precisa de **aprovação da TI/governança** antes do uso com dados reais.
+
+### Power Automate (próximo passo)
+
+A ideia é um fluxo do Power Automate gravar o resumo do Facilitator do Teams direto no `00-Inbox/`. O formato exato do arquivo, as recomendações e o que conferir com a TI estão em [docs/power-automate-reunioes.md](docs/power-automate-reunioes.md). **O fluxo não existe e nada disso foi testado** com Power Automate real.
 
 ## Os AGzinhos
 
@@ -208,6 +316,7 @@ Atenção: o arquivo guarda o prompt cru, **inclusive a ata colada com `/reuniao
 ## Painel lateral (para quem não é de TI)
 
 - **Time** e **O que tá rolando** são seções recolhíveis; o navegador lembra se você as deixou abertas.
+- **Missões** mostra as missões do vault e de qual reunião vieram (veja "Segundo cérebro").
 - Cada linha do Time tem mini retrato, apelido, função e o status com ícone em pixel.
 - O feed usa **frases simples, sem jargão** ("Editando App.tsx" vira algo como "mexendo num arquivo"). Repetidos são agrupados, e há destaques: 🙋 precisa de você, 🏁 etapa concluída, 🎉 trabalho concluído, ✅ terminou a parte.
 - O botão **Ver detalhes técnicos** troca as frases simples pelas técnicas (balões, crachá e lista incluídos); **Ver frases simples** volta.
@@ -417,9 +526,15 @@ O documentador escreveu este README.
 - **Perda de até ~1 s num desligamento forçado** (kill): o estado é salvo ~1 s após cada mudança, então o que veio depois do último salvamento some.
 - **Simulação não sobrevive a reinício**: os AGzinhos da simulação não são salvos de propósito; se o servidor reiniciar no meio dela, o escritório volta só com a sessão real.
 - **"Foi chamado de novo" repetido**: se o servidor reiniciar entre o líder chamar alguém e o primeiro passo dessa pessoa, a linha pode aparecer duas vezes no feed.
+- **`/reuniao` e `/memoria` de ponta a ponta** dependem de uma sessão do Claude Code: o teste completo (ata → nota → missões) não roda no `npm test`.
+- **Nomes de pessoas nas atas** ficam por conta do `/reuniao` (ele troca por papéis): revise a nota de reunião e as missões geradas.
+- **`fs.watch` no OneDrive** pode atrasar: o servidor relê o vault a cada ~30 s, então uma missão ou ata nova (ou a faixa sumindo) pode levar até ~30 s para aparecer no painel.
+- **Power Automate não testado**: o formato em `docs/power-automate-reunioes.md` ainda não rodou com um fluxo real.
+- **Só tema escuro** no painel (não há tema claro).
 
 ## Próximos passos (ideias)
-- ~~Ligar o Obsidian como memória~~ (feito): o vault tem `memoria/` e o protocolo está em `team/CLAUDE-memoria.md`.
+- ~~Ligar o Obsidian como memória~~ (feito na v4): veja "Segundo cérebro (vault do Obsidian) e reuniões".
+- Fluxo do Power Automate que grava a ata sozinho no `00-Inbox/` (formato pronto em `docs/power-automate-reunioes.md`).
 - Ativar **agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`): cada colega vira uma sessão própria e as mensagens entre eles (ferramenta `SendMessage`) viram envelopes voando. Como é experimental, pode precisar de ajuste conforme o formato dos eventos mudar.
 - Sons (teclado, notificação quando alguém levanta o **!**).
 - Dividir os arquivos grandes do `web/src/office/` e fazer a decoração respeitar `prefers-reduced-motion`.

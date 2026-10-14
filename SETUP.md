@@ -4,7 +4,7 @@ Guia para quem não conhece o projeto. Tempo estimado: 10 a 15 minutos (a maior 
 
 ## 1. O que é o AG Pocket
 
-Um escritório pixel art que mostra, em tempo real, o seu time de agentes do Claude Code trabalhando: cada agente é um **AGzinho** que senta na mesa, digita, pede ajuda e descansa. O `npm run setup` deixa o PC pronto: instala o time de agentes, os hooks, o comando `/time`, o Playwright e as skills, e monta o escritório.
+Um escritório pixel art que mostra, em tempo real, o seu time de agentes do Claude Code trabalhando: cada agente é um **AGzinho** que senta na mesa, digita, pede ajuda e descansa. O `npm run setup` deixa o PC pronto: instala o time de agentes, os hooks, o vault do Obsidian (a memória do time), os comandos `/time`, `/memoria` e `/reuniao`, o Playwright e as skills, e monta o escritório.
 
 ![Escritório rodando a simulação](docs/preview.png)
 
@@ -48,6 +48,7 @@ npm run setup -- --completo --browser=chrome
 | `--sem-plugins` | Pula marketplaces, plugins e skills. Útil em rede restrita. |
 | `--browser=NAV` | Navegador do Playwright: `chrome`, `msedge`, `firefox` ou `webkit`. Padrão: `msedge` no Windows e `chrome` nos outros sistemas. |
 | `--check` | Só confere (o mesmo que `npm run setup:check`). |
+| `--vault=PASTA` | Onde criar o vault (caminho completo ou começando com `~`). Só vale se `AGPOCKET_VAULT` ainda não estiver no settings.json; senão é ignorada, com aviso. Padrão: `AG-Cerebro` ao lado do repositório. |
 
 ## 4. Como conferir
 
@@ -55,7 +56,7 @@ npm run setup -- --completo --browser=chrome
 npm run setup:check
 ```
 
-Não instala nem escreve nada: lista o que está em dia e o que falta. Dentro do Claude Code, `/agents` deve listar os 6 agentes (planejador, pesquisador, dev, testador, revisor, documentador) e `/time` deve existir como comando.
+Não instala nem escreve nada: lista o que está em dia e o que falta. Dentro do Claude Code, `/agents` deve listar os 6 agentes (planejador, pesquisador, dev, testador, revisor, documentador) e `/time`, `/memoria` e `/reuniao` devem existir como comandos. Para testar a memória, rode `/memoria o que tem no vault?`.
 
 ## 5. O que é instalado
 
@@ -68,11 +69,21 @@ Além do catálogo abaixo, o setup também faz estas coisas:
 | 6 agentes do time | `~/.claude/agents/` |
 | Hooks que mandam os eventos ao escritório | `~/.claude/settings.json` |
 | `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` (lista de tarefas, usada pelo quadro de etapas) | `~/.claude/settings.json`, em `env` |
+| Vault do Obsidian (segundo cérebro), copiado de `vault-template/` **só se a pasta ainda não existir**. Vault existente nunca é sobrescrito: o setup só confere a estrutura e avisa o que falta | `AG-Cerebro` ao lado do repositório, ou a pasta de `--vault=` (nunca dentro do repositório) |
+| `AGPOCKET_VAULT` com o caminho do vault (gravado depois que a pasta existe; se já houver um valor, não troca) | `~/.claude/settings.json`, em `env` |
 | Bloco do time (`team/CLAUDE-time.md`) entre `<!-- ag-pocket:inicio -->` e `<!-- ag-pocket:fim -->` | `~/.claude/CLAUDE.md` |
-| Bloco de memória (`team/CLAUDE-memoria.md`) entre `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`. Cópias antigas sem marcadores saem só se o setup reconhecer todas as linhas (com backup) | `~/.claude/CLAUDE.md` |
-| Comando `/time` | `~/.claude/commands/time.md` |
+| Bloco de memória (`team/CLAUDE-memoria.md`: o que ler no começo e no fim de missão e as regras de privacidade) entre `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`. Cópias antigas sem marcadores saem só se o setup reconhecer todas as linhas (com backup) | `~/.claude/CLAUDE.md` |
+| Comandos: **todo** `commands/*.md` (hoje `/memoria`, `/reuniao` e `/time`). Arquivo diferente ganha backup antes de ser trocado | `~/.claude/commands/` |
 | Elenco inicial, copiado de `data/agzinhos.example.json` (se ainda não existir) | `data/agzinhos.json` |
 | Build do escritório | `web/dist/` |
+
+### O vault: outro PC e atualizações
+
+- **Em outro PC** o setup cria um vault **novo e vazio** (só o modelo de `vault-template/`). Nada é migrado: reuniões, missões e memória do PC antigo ficam lá. Para levar, copie a pasta do vault à mão (ou use uma pasta sincronizada) e aponte o `AGPOCKET_VAULT` para ela **antes** de rodar o setup, ou use `--vault=`.
+- Se uma pasta acima do vault novo já tiver `.obsidian/` (outro vault), o setup avisa: os links `[[ ]]` podem ficar ambíguos até o vault antigo ser arquivado.
+- Se o vault existir mas estiver incompleto, o setup não mexe nele e **não grava** o `AGPOCKET_VAULT`: complete as pastas (ou escolha outra com `--vault=`) e rode de novo.
+- **Mudanças em `vault-template/` não chegam a um vault que já existe.** Depois de um `git pull` que mexa no modelo (templates, `_indice.md`, `LEIA-ME.md`), copie à mão o que quiser.
+- **Depois de atualizar** (`git pull` + `npm run setup`), reinicie o AG Pocket (`npm start` de novo) e abra uma sessão **nova** do Claude Code. O servidor lê o vault e monta as mensagens no momento em que sobe: um servidor antigo não conhece o `GET /api/missoes` nem as mensagens `missoes` e `reuniao`. A sessão nova carrega os comandos e o bloco de memória novos.
 
 ### Essenciais (sempre instalados)
 
@@ -115,6 +126,7 @@ O `.gitignore` deixa de fora:
 | `referencias/` | Material de referência (logos, manual de marca etc.) | Copie à mão, por um canal que a empresa aprove. |
 | `prints/` | Prints de conferência de quem desenvolveu | Opcional; não é necessário para rodar. |
 | `node_modules/` e `web/dist/` | Gerados pelo `npm install` e pelo build | O setup recria. |
+| O vault do Obsidian | Fica **fora** do repositório (só o modelo `vault-template/` vai pelo git) | Veja "O vault: outro PC e atualizações" na seção 5. Reuniões são confidenciais: só por canal que a empresa aprove. |
 
 ## 7. Problemas comuns
 
@@ -160,9 +172,9 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 
 1. Hooks: `npm run uninstall-hooks` (tira só as entradas do AG Pocket do `~/.claude/settings.json`).
 2. Agentes: apague de `~/.claude/agents/` os 6 arquivos `planejador.md`, `pesquisador.md`, `dev.md`, `testador.md`, `revisor.md` e `documentador.md`.
-3. Comando: apague `~/.claude/commands/time.md`.
+3. Comandos: apague `~/.claude/commands/time.md`, `memoria.md` e `reuniao.md`.
 4. Blocos do time e de memória: abra `~/.claude/CLAUDE.md` e apague tudo entre `<!-- ag-pocket:inicio -->` e `<!-- ag-pocket:fim -->` e entre `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`, inclusive as linhas de marcador.
-5. Variável de tarefas (opcional): remova `CLAUDE_CODE_ENABLE_TODO_TOOLS` de `env` no `~/.claude/settings.json`.
+5. Variáveis (opcional): remova `CLAUDE_CODE_ENABLE_TODO_TOOLS` e `AGPOCKET_VAULT` de `env` no `~/.claude/settings.json`. O vault em si **não** é apagado: guarde ou apague a pasta à mão.
 6. Playwright: `claude mcp remove playwright --scope user`.
 7. Plugins e marketplaces, se quiser: `claude plugin uninstall <plugin>` e `claude plugin marketplace remove <nome>` (nomes na seção 5; o `superpowers` sai com `claude plugin uninstall superpowers@claude-plugins-official`, e os marketplaces extras se chamam `karpathy-skills` e `context-engineering-marketplace`), ou use `/plugin` dentro do Claude Code. Skills avulsas ficam em `~/.claude/skills/` (e `~/.agents/skills/`): apague a pasta da skill.
 8. Por fim, apague a pasta do projeto.
@@ -173,3 +185,5 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 - **Antes de usar com dados da empresa**, confirme com a TI/segurança que os hooks, o servidor local e os plugins de terceiros são permitidos. Os hooks mandam cada evento do Claude Code (comandos, caminhos de arquivos, trechos de prompt) para o servidor local, que escuta só em `127.0.0.1`. O arquivo `data/escritorio.json` guarda esses caminhos e, em pasta sincronizada (OneDrive), sobe junto.
 - **Os extras são de terceiros e rodam com as suas permissões.** Use `--completo` só depois de revisar a lista da seção 5.
 - **O bloco de memória (Obsidian) não tem caminho pessoal.** O `team/CLAUDE-memoria.md` manda ler o vault da variável `AGPOCKET_VAULT` (`env` do `~/.claude/settings.json`), que o passo do vault grava.
+- **Privacidade do vault:** nota com `confidencial: true` não é lida pelos agentes nem pelo painel; toda nota de reunião nasce confidencial; o painel recebe só títulos e a contagem de atas novas; o `/reuniao` troca nomes por papéis (revise a nota gerada). Nunca guarde senha, token, chave ou dado pessoal no vault. Regras completas no README ("Segundo cérebro").
+- **Conteúdo de reunião em IA precisa de aprovação da TI/governança.** E lembre: com `AGPOCKET_GRAVAR=1` (desligado por padrão) o prompt cru, inclusive a ata colada no `/reuniao`, vai para `data/eventos/`.
