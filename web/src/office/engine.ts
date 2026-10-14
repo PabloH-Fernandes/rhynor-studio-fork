@@ -320,7 +320,7 @@ export class OfficeEngine {
   /** elenco por chave (falas, apelido e nome curto sem procurar na lista a cada quadro) */
   private agzByKey = new Map<string, AGzinho>();
   /** descanso de quem está de boa; as reservas também guardam quem mora em pé na reunião */
-  private rest = new RestScheduler(REST_SPOTS, { seed: Date.now() | 0, pingpong: PINGPONG_SPOTS, papoPlaces: PAPO_PLACES });
+  private rest: RestScheduler;
   private cups: CupDecal[] = [];
   /** camada estática (chão, parede, quadros, placa) na escala k */
   private staticLayer: HTMLCanvasElement | null = null;
@@ -393,7 +393,9 @@ export class OfficeEngine {
   hoverId: string | null = null;
   onSelect?: (id: string | null) => void;
 
-  constructor() {
+  /** `restSeed`: semente do sorteio do descanso (os testes fixam; na tela é o relógio) */
+  constructor(opts: { restSeed?: number } = {}) {
+    this.rest = new RestScheduler(REST_SPOTS, { seed: opts.restSeed ?? Date.now() | 0, pingpong: PINGPONG_SPOTS, papoPlaces: PAPO_PLACES });
     // (Image e import.meta.env só existem no navegador/vite: os testes do motor rodam no node)
     if (theme.logoUrl && typeof Image !== "undefined") {
       const img = new Image();
@@ -572,6 +574,13 @@ export class OfficeEngine {
       OVERFLOW_SPOTS.find((s) => !taken.has(s.id)) ??
       OVERFLOW_SPOTS[agent.id.length % OVERFLOW_SPOTS.length];
     this.rest.evict(spot.id, this.mover, performance.now());
+    // lugar que a reunião ocupava: a casa vence; no próximo quadro o updateMeeting vê o novo dono
+    // e muda o participante de lugar
+    const hold = this.meetingHolds.get(spot.id);
+    if (hold !== undefined) {
+      res.release(spot.id, hold);
+      this.meetingHolds.delete(spot.id);
+    }
     res.reserve(spot.id, agent.id);
     return { spot };
   }
@@ -716,9 +725,10 @@ export class OfficeEngine {
       this.meetingHolds.delete(seat);
     }
     for (const [id, seat] of this.meeting) {
+      // larga o descanso antes: quem estava na maquete e recebeu o mesmo lugar não fica um quadro sem reserva
+      if (this.rest.isResting(id)) this.rest.interrupt(id, this.mover, now);
       // só reserva lugar livre (a casa de quem mora ali já é dele e não pode ser solta ao sair)
       if (seat !== MEETING_PRESENTER.id && res.holder(seat) === undefined && res.reserve(seat, id)) this.meetingHolds.set(seat, id);
-      if (this.rest.isResting(id)) this.rest.interrupt(id, this.mover, now);
     }
   }
 
