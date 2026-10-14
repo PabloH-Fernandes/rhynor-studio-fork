@@ -161,12 +161,15 @@ Quando você roda o `/time` sugerido, a missão passa de `a fazer` para `em anda
 ### No painel e no escritório
 
 - **Seção "Missões"** (recolhível) no painel: nome, status (a fazer / em andamento / concluída), barra de progresso quando a missão tem lista de tarefas e "📋 da reunião X". Clicar mostra o resumo da missão.
+  - **Duas abas dentro da seção:** **Abertas · N** (a fazer + em andamento) e **Concluídas · N**. O título "Missões · N" conta só as abertas. O navegador lembra a aba escolhida; dá para trocar pelo teclado (setas, Home, End). Sem nenhuma missão, as abas não aparecem; cada aba tem o próprio aviso de vazio.
+  - **Na aba Concluídas** cada item mostra "Nota de dd/mm/aaaa": é a **data da nota**, não a data de conclusão (essa ainda não é gravada em lugar nenhum).
+  - **Limite:** o painel mostra até **50 abertas e 50 concluídas**, as mais recentes primeiro (pela data da nota ou, sem ela, pela última alteração). As contagens das abas são os totais de verdade; quando há corte aparece "Mostrando as 50 mais recentes de N".
 - **Faixa "Chegou uma ata nova: rode /reuniao"** (com mais de uma, "Chegaram n atas novas"): aparece quando cai uma ata nova na raiz de `00-Inbox/` e some depois que ela é processada (em até ~30 s).
 - O resumo da missão, ao clicar, mostra o objetivo e as tarefas.
 - **Reunião no escritório:** quando você roda `/reuniao`, os AGzinhos **livres** vão para a mesa de reunião e sentam em volta da maquete, e o líder fica de pé "apresentando" enquanto o comando roda. Depois todos voltam. Quem está trabalhando não sai da mesa.
 - **Quadro da parede:** mostra o nome da missão atual quando ela veio de uma reunião.
 
-Por dentro: `GET /api/missoes` devolve as missões (status, origem, projeto, tarefas) e a contagem de atas novas; o WebSocket ganhou as mensagens `missoes` (as missões ou a contagem mudaram) e `reuniao` (uma reunião começou ou acabou).
+Por dentro: `GET /api/missoes` devolve as missões (status, origem, projeto, tarefas; até 50 abertas + 50 concluídas), os totais de cada grupo antes do corte (campo opcional `totais`, só contagens) e a contagem de atas novas; o WebSocket ganhou as mensagens `missoes` (as missões ou a contagem mudaram) e `reuniao` (uma reunião começou ou acabou).
 
 ### Privacidade
 
@@ -316,7 +319,7 @@ Atenção: o arquivo guarda o prompt cru, **inclusive a ata colada com `/reuniao
 ## Painel lateral (para quem não é de TI)
 
 - **Time** e **O que tá rolando** são seções recolhíveis; o navegador lembra se você as deixou abertas.
-- **Missões** mostra as missões do vault e de qual reunião vieram (veja "Segundo cérebro").
+- **Missões** mostra as missões do vault e de qual reunião vieram, separadas nas abas **Abertas** e **Concluídas** (veja "Segundo cérebro").
 - Cada linha do Time tem mini retrato, apelido, função e o status com ícone em pixel.
 - O feed usa **frases simples, sem jargão** ("Editando App.tsx" vira algo como "mexendo num arquivo"). Repetidos são agrupados, e há destaques: 🙋 precisa de você, 🏁 etapa concluída, 🎉 trabalho concluído, ✅ terminou a parte.
 - O botão **Ver detalhes técnicos** troca as frases simples pelas técnicas (balões, crachá e lista incluídos); **Ver frases simples** volta.
