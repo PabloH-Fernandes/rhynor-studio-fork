@@ -62,6 +62,8 @@ export interface Spot extends Point {
   face?: Dir;
   /** linha usada na ordenação por profundidade quando está parado aqui (ex.: na frente do sofá) */
   depth?: number;
+  /** banquinho da reunião: sentado sem mesa na frente, o motor desenha as canelas penduradas */
+  stool?: boolean;
 }
 
 export interface Desk {
@@ -109,6 +111,59 @@ export const OVERFLOW_SPOTS: Spot[] = [
   [16, 9.2],
   [16, 13.4],
 ].map(([x, y], i) => ({ id: `reuniao:${i}`, x, y, laneX: x, via: [], sitting: false }));
+
+/**
+ * Quem apresenta a reunião: em pé atrás da mesa redonda, de frente pra ela. Sobe pela lane do
+ * lado esquerdo e entra por cima, sem atravessar a mesa (route() sempre passa pelo corredor).
+ */
+export const MEETING_PRESENTER: Spot = {
+  id: "reuniao:apresenta",
+  x: 16,
+  y: 9.3,
+  laneX: 14.4,
+  via: [{ x: 14.4, y: 9.3 }],
+  sitting: false,
+  face: "down",
+};
+
+/** distância do pé do boneco sentado ao centro da linha de profundidade do banquinho (px base) */
+const STOOL_DEPTH = 2;
+
+function stoolSeat(i: number, x: number, y: number, face: Dir): Spot {
+  return {
+    id: `reuniao:banco${i}`,
+    x,
+    y,
+    laneX: x,
+    via: [],
+    sitting: true,
+    stool: true,
+    face,
+    // logo depois do banquinho (que é ordenado em y*TILE + STOOL_DEPTH)
+    depth: y * TILE + STOOL_DEPTH + 0.5,
+  };
+}
+
+/**
+ * Os 4 banquinhos em volta da mesa (sempre desenhados). Cada um sobe do corredor em linha reta
+ * por uma coluna que fica fora da mesa (x 14,4 a 17,6) e longe dos OVERFLOW_SPOTS (>= 0,8 tile).
+ */
+export const MEETING_STOOLS: Spot[] = [
+  stoolSeat(0, 13.4, 11.2, "right"),
+  stoolSeat(1, 18.6, 11.2, "left"),
+  stoolSeat(2, 15.2, 14.1, "up"),
+  stoolSeat(3, 16.8, 14.1, "up"),
+];
+
+/**
+ * Lugares da reunião, na ordem de uso: 4 sentados e, quando há mais gente, 2 em pé (os mesmos
+ * ids de OVERFLOW_SPOTS 0 e 1: a reserva do descanso é uma só). O presenter não entra aqui.
+ */
+export const MEETING_SEATS: Spot[] = [
+  ...MEETING_STOOLS,
+  { ...OVERFLOW_SPOTS[0], face: "right" },
+  { ...OVERFLOW_SPOTS[1], face: "left" },
+];
 
 // cafe:0 fica 0,4 tile mais baixo: em 15 a cabeça cobria a plaquinha da mesa convidado-2
 export const COFFEE_SPOTS: Spot[] = [
@@ -559,6 +614,8 @@ export interface BoardData {
   /** quem está trabalhando no mapa: time + visitantes visíveis */
   working: number;
   waiting: number;
+  /** nome da missão em andamento (só quando ela nasceu de uma reunião); troca a linha dos contadores */
+  missao?: string;
 }
 
 const BOARD_TITLE_FONT = "8px VT323, monospace";
@@ -585,6 +642,15 @@ function boardCup(ctx: Ctx, x: number, y: number) {
   rect(ctx, x, y + 1, 3, 3, palette.white);
   rect(ctx, x, y + 2, 3, 1, palette.navy900); // faixa AG
   rect(ctx, x + 4, y + 1, 1, 2, ink); // asa
+}
+
+/** prancheta em pixel (5x6): clipe no alto, folha branca e 2 linhas de texto; (x, y) = canto de cima */
+function boardClipboard(ctx: Ctx, x: number, y: number) {
+  const ink = palette.navy700;
+  rect(ctx, x, y + 1, 5, 5, ink); // prancheta
+  rect(ctx, x + 1, y, 3, 1, palette.gray500); // clipe
+  rect(ctx, x + 1, y + 2, 3, 3, palette.white); // folha
+  rect(ctx, x + 1, y + 3, 3, 1, palette.gray400); // linha de texto
 }
 
 /** visto em pixel (6x5) */
@@ -662,6 +728,21 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
   // "TIME 7 · VISITANTES 2 · FAZENDO 3" (sem visitantes, o trecho some); se não couber, abrevia
   const cabe = (t: string) => ctx.measureText(t + espera).width <= maxW;
   const com = (visit: string, faz: string) => `TIME ${data.total}${data.visitors > 0 ? ` · ${visit} ${data.visitors}` : ""} · ${faz} ${data.working}`;
+  if (data.missao) {
+    // missão da reunião: prancheta + nome (cortado com "…"), no lugar dos contadores; ESPERA fica à direita
+    const esperaW = data.waiting > 0 ? ctx.measureText(` · ESPERA ${data.waiting}`).width : 0;
+    boardClipboard(ctx, left, cy + 1);
+    const textX = left + 7;
+    ctx.fillStyle = palette.navy900;
+    ctx.fillText(fitText(ctx, data.missao, maxW - 7 - esperaW), textX, cy);
+    if (data.waiting > 0) {
+      ctx.fillStyle = palette.signal.waitingInk;
+      ctx.textAlign = "right";
+      ctx.fillText(`ESPERA ${data.waiting}`, left + maxW, cy);
+      ctx.textAlign = "left";
+    }
+    return;
+  }
   const base = [com("VISITANTES", "FAZENDO"), com("VISITANTES", "FAZ."), com("VIS.", "FAZ.")].find(cabe) ?? com("VIS.", "FAZ.");
   ctx.fillStyle = palette.gray600;
   ctx.fillText(base, left, cy);
@@ -714,6 +795,24 @@ export function drawMeetingTable(ctx: Ctx) {
   rect(ctx, cx - 18, cy - 2, 2, 2, palette.white);
   rect(ctx, cx - 18, cy - 2, 2, 1, c.woodShade);
   rect(ctx, cx - 15, cy - 2, 1, 2, palette.white);
+}
+
+/**
+ * Banquinho de madeira clara (px base). (x, y) = pés de quem senta: o assento fica logo abaixo do
+ * quadril (y - 3), as pernas vão até y + 3 e a sombra no chão. Ordenar por y + 2.
+ */
+export function drawStool(ctx: Ctx, x: number, y: number) {
+  const F = palette.furniture;
+  const ink = palette.navy950;
+  rect(ctx, x - 5, y + 2, 11, 2, navyAlpha(0.18)); // sombra
+  for (const lx of [x - 4, x + 3]) {
+    rect(ctx, lx - 1, y - 1, 3, 5, ink);
+    rect(ctx, lx, y - 1, 1, 4, palette.navy800);
+  }
+  rect(ctx, x - 6, y - 4, 12, 5, ink); // contorno do assento
+  rect(ctx, x - 5, y - 3, 10, 3, F.oak);
+  rect(ctx, x - 5, y - 3, 10, 1, F.oakLight);
+  rect(ctx, x - 5, y - 1, 10, 1, F.oakShade);
 }
 
 /** maquete: base verde, 3 prédios brancos/cinza com janelas de 1px e um mini guindaste marinho */

@@ -2,7 +2,7 @@
 // (mesa, reunião, porta e, quando está de boa, o descanso do agendador em activities.ts),
 // anda pelos caminhos e desenha tudo no canvas.
 
-import type { AGzinho, Acessorio, Agent, Progress, Roster } from "../../../shared/types";
+import type { AGzinho, Acessorio, Agent, Progress, ReuniaoAtiva, Roster } from "../../../shared/types";
 import { textoDoProgresso, type TextoProgresso } from "../progresso";
 import { HAIR_STYLE_INDEX } from "../../../shared/roster";
 import { ehVisitante } from "../../../shared/visitante";
@@ -32,11 +32,15 @@ import { drawBall } from "./pingpong";
 import { drawPingPongTable, fill, line, type Rect } from "./decor";
 import { Lightmap, clockDate, windowLight, type LightScene } from "./daylight";
 import { isReducedMotion } from "./motion";
+import { atribuirReuniao } from "./reuniao";
 import {
   AISLE_Y,
   BOARD,
   DESKS,
   DOOR_SPOT,
+  MEETING_PRESENTER,
+  MEETING_SEATS,
+  MEETING_STOOLS,
   OVERFLOW_SPOTS,
   PAPO_PLACES,
   PINGPONG,
@@ -59,6 +63,7 @@ import {
   drawFloor,
   drawWindows,
   drawMeetingTable,
+  drawStool,
   drawSign,
   drawSignGlow,
   monitorScreen,
@@ -92,6 +97,10 @@ const SPEED = 3.4; // tiles por segundo
 const WINDOW_FRAME_MS = 200;
 /** chave do cache da mesa de reunião */
 const MEETING_TABLE = {};
+/** lugares da reunião por id (o motor guarda só o id de cada um) */
+const MEETING_SPOTS = new Map<string, Spot>([MEETING_PRESENTER, ...MEETING_SEATS].map((s) => [s.id, s]));
+const MEETING_SEAT_IDS = MEETING_SEATS.map((s) => s.id);
+const PRESENTING_TEXT = "Apresentando a reunião";
 /** copo largado numa mesa (interrompido ou terminou o café sentado) some depois disso */
 const CUP_DECAL_MS = 60_000;
 const BUBBLE_MS = 3800;
@@ -330,6 +339,11 @@ export class OfficeEngine {
   private boardLayer = new AreaLayer({ x: BOARD.x, y: BOARD.y, w: BOARD.w + 1, h: BOARD.h + 3 });
   private boardKey = "";
   private progresso: TextoProgresso = textoDoProgresso(PROGRESSO_NADA);
+  /** reunião em curso (vinda do servidor) e quem está em qual lugar dela (id do visual → id do lugar) */
+  private reuniaoAtiva: ReuniaoAtiva | null = null;
+  private meeting = new Map<string, string>();
+  /** nome da missão da reunião, pro quadro da parede */
+  private missaoNome: string | undefined;
   private mover: RestMover = {
     goTo: (id, spot) => {
       const v = this.visuals.get(id);
@@ -421,6 +435,17 @@ export class OfficeEngine {
   /** andamento vindo do servidor (snapshot e mensagem "progress") */
   set progress(p: Progress | null) {
     this.progresso = textoDoProgresso(p ?? PROGRESSO_NADA);
+  }
+
+  /** reunião ligada: o líder apresenta e os ociosos sentam em volta da mesa; null manda todos pra casa */
+  set reuniao(r: ReuniaoAtiva | null) {
+    this.reuniaoAtiva = r;
+    if (!r) this.meeting.clear();
+  }
+
+  /** nome da missão em andamento (só as que nasceram de reunião); some do quadro com null */
+  set missao(nome: string | null | undefined) {
+    this.missaoNome = nome || undefined;
   }
 
   // ------------------------------------------------------------ dados do servidor
@@ -571,6 +596,7 @@ export class OfficeEngine {
 
   update(dt: number, now: number) {
     // descanso: sorteia atividades pra quem está de boa e avança as fases (indo/fazendo/voltando)
+    this.updateMeeting(now);
     const actors: RestActor[] = [];
     for (const v of this.visuals.values()) {
       if (v.anim && now >= v.anim.until) v.anim = undefined;
@@ -578,7 +604,7 @@ export class OfficeEngine {
         id: v.agent.id,
         session: v.agent.sessionId,
         // visitante nunca entra no descanso (sai ao entregar; "de boa" é só do elenco fixo)
-        idle: v.agent.status === "ocioso" && !ehVisitante(v.agent),
+        idle: v.agent.status === "ocioso" && !ehVisitante(v.agent) && !this.meeting.has(v.agent.id),
         idleSince: v.idleSince,
         workedAt: BUSY.has(v.agent.status) ? now : v.workedAt,
         leaving: v.leaving,
@@ -595,8 +621,9 @@ export class OfficeEngine {
     this.rest.update(now, actors, this.mover);
 
     for (const v of this.visuals.values()) {
-      // fora do descanso, o lugar de cada um é a própria mesa
-      if (!v.leaving && !this.rest.isResting(v.agent.id) && v.target.id !== v.home.id) this.goTo(v, v.home);
+      // fora do descanso, o lugar de cada um é a própria mesa (ou o da reunião, enquanto ela dura)
+      const place = this.placeOf(v);
+      if (!v.leaving && !this.rest.isResting(v.agent.id) && v.target.id !== place.id) this.goTo(v, place);
 
       // anda
       let budget = SPEED * dt;
@@ -638,6 +665,26 @@ export class OfficeEngine {
     }
     this.envelopes = this.envelopes.filter((e) => now - e.start < 1400);
     if (this.cups.length) this.cups = this.cups.filter((c) => now < c.until);
+  }
+
+  /** reavalia a cada quadro quem está na reunião; quem estava descansando larga o descanso */
+  private updateMeeting(now: number) {
+    const r = this.reuniaoAtiva;
+    if (!r) return;
+    const cands = [...this.visuals.values()].map((v) => ({
+      id: v.agent.id,
+      status: v.agent.status,
+      visitante: ehVisitante(v.agent),
+      saindo: v.leaving,
+    }));
+    this.meeting = atribuirReuniao(r.liderId, cands, this.meeting, MEETING_PRESENTER.id, MEETING_SEAT_IDS);
+    for (const id of this.meeting.keys()) if (this.rest.isResting(id)) this.rest.interrupt(id, this.mover, now);
+  }
+
+  /** lugar de quem fica parado: o da reunião, se tem um, senão a própria mesa */
+  private placeOf(v: Visual): Spot {
+    const id = this.meeting.get(v.agent.id);
+    return (id && MEETING_SPOTS.get(id)) || v.home;
   }
 
   /**
@@ -716,6 +763,7 @@ export class OfficeEngine {
       visitors: active.filter((v) => ehVisitante(v.agent)).length,
       working: active.filter((v) => v.agent.status === "trabalhando" || v.agent.status === "pensando").length,
       waiting: active.filter((v) => v.agent.status === "esperando").length,
+      missao: this.missaoNome,
     });
 
     // objetos com profundidade, desenhados de cima pra baixo
@@ -748,6 +796,8 @@ export class OfficeEngine {
       });
     }
     items.push({ y: 11.2 * TILE + 10, draw: () => this.drawBakedOr(ctx, MEETING_TABLE, drawMeetingTable) });
+    // banquinhos da reunião: sempre aqui, ordenados por profundidade (quem senta vem logo depois)
+    for (const s of MEETING_STOOLS) items.push({ y: s.y * TILE + 2, draw: () => this.drawBakedOr(ctx, s, (g) => drawStool(g, s.x * TILE, s.y * TILE)) });
     items.push({ y: 16.1 * TILE, draw: () => drawCoffeeCorner(ctx, now, coffeeBusy) });
     const inPlay = this.rest.pingpongInUse();
     for (const p of PROPS) {
@@ -933,6 +983,10 @@ export class OfficeEngine {
     if (v.path.length) return undefined;
     const a = v.anim;
     if (a && now < a.until) return { kind: a.kind, t: (now - a.start) / (a.until - a.start) };
+    // o líder parado no lugar da apresentação gesticula (com reduced-motion fica parado, com o braço erguido)
+    if (this.meeting.get(v.agent.id) === MEETING_PRESENTER.id && v.at.id === MEETING_PRESENTER.id && v.target.id === v.at.id) {
+      return { kind: "present", t: 0 };
+    }
     const rest = this.restPose(v, now);
     // com reduced-motion o descanso continua (andar é preciso), mas o espreguiçar não se mexe
     if (!rest?.anim || (rest.anim === "stretch" && isReducedMotion())) return undefined;
@@ -982,6 +1036,7 @@ export class OfficeEngine {
       reducedMotion: isReducedMotion(),
     });
     if (seated && v.at.depth !== undefined && rest?.sofa && v.dir === "down") sofaShins(ctx, x, y, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
+    if (seated && v.at.stool) stoolShins(ctx, x, y, v.dir, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
   }
 
   private headPoint(v: Visual, now: number): Point {
@@ -1034,6 +1089,9 @@ export class OfficeEngine {
     if (!v.leaving && status === "esperando") return { text: v.agent.activity, style: "trabalho", priority: PRI.waiting };
     if (v.chat && now < v.chat.until) return { text: v.chat.text, style: "chat", priority: PRI.chat };
     if (v.leaving) return null;
+    if (!v.path.length && this.meeting.get(v.agent.id) === MEETING_PRESENTER.id && v.at.id === MEETING_PRESENTER.id) {
+      return { text: PRESENTING_TEXT, style: "trabalho", priority: PRI.work };
+    }
     const trabalho = mostraBalaoDeTrabalho(status, v.agent.activity, ehLider(v.agent));
     if (trabalho && now - v.activityAt < BUBBLE_MS) return { text: v.agent.activity, style: "trabalho", priority: PRI.work };
     const line = this.restBubbles.get(v.agent.id);
@@ -1319,6 +1377,30 @@ function sofaShins(ctx: CanvasRenderingContext2D, x: number, y: number, pants: s
   for (const lx of [bx - 4, bx + 1]) {
     fill(ctx, lx, by - 4, 3, 5, pants);
     fill(ctx, lx, by + 1, 3, 1, shoes);
+  }
+  ctx.restore();
+}
+
+/**
+ * Canelas penduradas de quem senta no banquinho (sem mesa na frente): de frente e de costas as
+ * duas pernas, de lado uma coxa pra frente e a canela caindo, com o pé apontando pra onde olha.
+ */
+function stoolShins(ctx: CanvasRenderingContext2D, x: number, y: number, dir: Dir, pants: string, shoes: string, alpha: number) {
+  const bx = Math.round(x);
+  const by = Math.round(y);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (dir === "left" || dir === "right") {
+    const s = dir === "right" ? 1 : -1;
+    const thighX = s > 0 ? bx - 2 : bx - 3;
+    fill(ctx, thighX, by - 4, 5, 2, pants);
+    fill(ctx, s > 0 ? bx + 1 : bx - 4, by - 2, 3, 3, pants);
+    fill(ctx, s > 0 ? bx + 1 : bx - 5, by + 1, 4, 1, shoes);
+  } else {
+    for (const lx of [bx - 4, bx + 1]) {
+      fill(ctx, lx, by - 4, 3, 5, pants);
+      fill(ctx, lx, by + 1, 3, 1, shoes);
+    }
   }
   ctx.restore();
 }

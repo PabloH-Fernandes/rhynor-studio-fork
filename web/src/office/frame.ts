@@ -43,6 +43,15 @@ export function animLift(anim: CharAnim | undefined, t: number, reducedMotion = 
   return 0;
 }
 
+/** ritmo do gesto de quem apresenta a reunião (braço direito) */
+const PRESENT_MS = 800;
+
+/** apresentando: o braço direito alterna diagonal e baixo; com reduced-motion fica parado na diagonal */
+export function presentArm(t: number, reduced: boolean): ArmPose {
+  if (reduced) return "diag";
+  return Math.floor(t / PRESENT_MS) % 2 === 0 ? "diag" : "down";
+}
+
 function cheerArms(t: number, reduced: boolean): [ArmPose, ArmPose] {
   // sem pulo: só ergue os braços uma vez
   if (reduced) return t < 0.15 || t >= 0.85 ? ["diag", "diag"] : ["fist", "fist"];
@@ -158,6 +167,7 @@ export function frameOf(p: CharPose): SpriteFrame {
   let step = 0;
   if (anim === "stretch") armL = armR = stretchArms(animT);
   else if (anim === "cheer") [armL, armR] = cheerArms(animT, calm);
+  else if (anim === "present") armR = presentArm(p.t + p.phase, calm);
   else if (anim) step = calm ? (CALM_STEP[anim] ?? 0) : Math.min(ANIM_STEPS - 1, Math.floor(animT * ANIM_STEPS));
   return {
     dir: p.dir,

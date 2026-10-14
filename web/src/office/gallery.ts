@@ -26,6 +26,7 @@ const ANIMS: [CharAnim, number][] = [
   ["water", 0.5],
   ["stretch", 0.5],
   ["cheer", 0.3],
+  ["present", 0.3],
 ];
 
 const COLUMNS: Column[] = [
@@ -33,6 +34,10 @@ const COLUMNS: Column[] = [
   // quadro 2 do andar: t = 2 * 140ms com phase 0
   ...DIRS.map((dir) => ({ label: `and ${DIR_LABEL[dir]}`, pose: { dir, walking: true, t: 290 } })),
   { label: "digita", pose: { dir: "down" as Dir, sitting: true, typing: true, t: 0 } },
+  // banquinho da reunião: sentado de lado e de costas (as canelas penduradas o motor desenha)
+  { label: "bco esq", pose: { dir: "left" as Dir, sitting: true } },
+  { label: "bco dir", pose: { dir: "right" as Dir, sitting: true } },
+  { label: "bco co", pose: { dir: "up" as Dir, sitting: true } },
   ...ANIMS.map(([anim, animT]) => ({ label: anim, pose: { dir: "down" as Dir, anim, animT } })),
 ];
 

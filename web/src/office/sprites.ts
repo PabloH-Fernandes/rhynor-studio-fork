@@ -40,7 +40,7 @@ export interface CharLook {
  * Animações curtas: espreguiçar (fim de turno), comemorar (fim de tarefa) e as de descanso
  * (gole de café, celular, raquete, mão no queixo, regar).
  */
-export type CharAnim = "stretch" | "cheer" | "sip" | "phone" | "swing" | "chin" | "water";
+export type CharAnim = "stretch" | "cheer" | "present" | "sip" | "phone" | "swing" | "chin" | "water";
 
 /** objeto na mão fora de animação (ex.: volta da copa com o copo) */
 export type Holding = "copo" | "celular" | "raquete" | "regador";
@@ -194,7 +194,7 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   const hasHelmet = look.accessories.some((a) => HELMETS.has(a));
   const st = f.step / ANIM_STEPS;
   const anim = f.anim;
-  const longAnim = anim && anim !== "stretch" && anim !== "cheer" ? anim : undefined;
+  const longAnim = anim && anim !== "stretch" && anim !== "cheer" && anim !== "present" ? anim : undefined;
   // crachá: branco com topo marinho; na camisa branca inverte; visitante todo na cor do cordão
   // crachá: branco com topo marinho; na camisa branca inverte; visitante: topo marinho e corpo na cor do cordão
   const badgeTop = u.visitor ? palette.navy900 : u.kind === "camisa" ? u.accent : palette.navy900;
@@ -383,7 +383,7 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
     FX.push([x + 6, y + 5 + ((k + 1) % 3) * 2, 1, 1, palette.furniture.waterLight]);
   };
 
-  if (anim === "stretch" || anim === "cheer") {
+  if (anim === "stretch" || anim === "cheer" || anim === "present") {
     raised(-1, f.armL);
     raised(1, f.armR);
   } else if (longAnim && side) {

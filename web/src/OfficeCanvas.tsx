@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { Agent, Progress, Roster } from "../../shared/types";
+import type { Agent, Progress, ReuniaoAtiva, Roster } from "../../shared/types";
 import { OfficeEngine } from "./office/engine";
 import { H, W } from "./office/map";
 import { type Camera, type Fit, Z_MAX, Z_MIN, clampCamera, fitCamera, rubberBand, snapZoom, zoomAt } from "./office/camera";
@@ -15,6 +15,10 @@ interface Props {
   roster: Roster | null;
   /** quadro de etapas na parede */
   progress: Progress | null;
+  /** reunião (/reuniao) em curso: o líder apresenta e os ociosos sentam em volta da mesa */
+  reuniao: ReuniaoAtiva | null;
+  /** nome da missão que nasceu da reunião (vai pro quadro da parede) */
+  missao: string | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }
@@ -32,7 +36,7 @@ const SPRING_K = 180; // mola que devolve a câmera ao limite
 const SPRING_D = 2 * Math.sqrt(SPRING_K); // amortecimento crítico
 const VELOCITY_WINDOW = 100; // ms usados pra medir a velocidade de soltura
 
-export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, selectedId, onSelect }, ref) {
+export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, reuniao, missao, selectedId, onSelect }, ref) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OfficeEngine>();
@@ -79,6 +83,12 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
   useEffect(() => {
     engine.progress = progress;
   }, [progress, engine]);
+  useEffect(() => {
+    engine.reuniao = reuniao;
+  }, [reuniao, engine]);
+  useEffect(() => {
+    engine.missao = missao;
+  }, [missao, engine]);
   useEffect(() => {
     engine.selectedId = selectedId;
   }, [selectedId, engine]);
