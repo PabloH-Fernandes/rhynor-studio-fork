@@ -13,7 +13,7 @@ import {
   parseMissao,
   resolverVault,
 } from "./vault.ts";
-import { ObservadorVault, PEDIDA_TTL_MS, ordenarMissoes } from "./vaultWatcher.ts";
+import { MAX_ABERTAS, MAX_CONCLUIDAS, ObservadorVault, PEDIDA_TTL_MS, ordenarMissoes } from "./vaultWatcher.ts";
 
 const MISSAO = [
   "---",
@@ -216,7 +216,7 @@ test("escolherAtual: pedida vence, depois a em andamento mais nova; só origem r
   assert.equal(escolherAtual([man, c], ["man"]), null, "manual nunca é a atual");
 });
 
-test("ordenarMissoes: andamento, a fazer, concluída; data recente primeiro; máx. 50", () => {
+test("ordenarMissoes: andamento, a fazer, concluída; data recente primeiro; máx. 50 abertas", () => {
   const lista = [
     missao({ id: "1", status: "concluída", data: "2026-10-09" }),
     missao({ id: "2", status: "a fazer", data: "2026-10-01" }),
@@ -225,7 +225,33 @@ test("ordenarMissoes: andamento, a fazer, concluída; data recente primeiro; má
   ];
   assert.deepEqual(ordenarMissoes(lista).map((m) => m.id), ["3", "4", "2", "1"]);
   const muitas = Array.from({ length: 70 }, (_, i) => missao({ id: String(i) }));
-  assert.equal(ordenarMissoes(muitas).length, 50);
+  assert.equal(ordenarMissoes(muitas).length, MAX_ABERTAS);
+});
+
+test("ordenarMissoes: limite separado para abertas e concluídas; as mais recentes ficam", () => {
+  const dia = (i: number) => `2026-0${1 + Math.floor(i / 28)}-${String(1 + (i % 28)).padStart(2, "0")}`;
+  const abertas = Array.from({ length: 60 }, (_, i) =>
+    missao({ id: `a${i}`, status: i % 2 ? "a fazer" : "em andamento", data: dia(i) }),
+  );
+  const concluidas = Array.from({ length: 60 }, (_, i) => missao({ id: `c${i}`, status: "concluída", data: dia(i) }));
+  const r = ordenarMissoes([...concluidas, ...abertas]);
+  assert.equal(r.length, MAX_ABERTAS + MAX_CONCLUIDAS);
+  const rAbertas = r.slice(0, MAX_ABERTAS);
+  const rConcluidas = r.slice(MAX_ABERTAS);
+  assert.ok(rAbertas.every((m) => m.status !== "concluída"));
+  assert.ok(rConcluidas.every((m) => m.status === "concluída"));
+  // as 10 concluídas mais antigas (c0..c9) saem; as recentes ficam, da mais nova para a mais velha
+  assert.deepEqual(
+    rConcluidas.map((m) => m.id),
+    Array.from({ length: 50 }, (_, i) => `c${59 - i}`),
+  );
+  // abertas na mesma ordem de antes: as 30 em andamento (pares) e depois as 20 a fazer mais novas (ímpares)
+  const andamento = Array.from({ length: 30 }, (_, i) => `a${58 - 2 * i}`);
+  const aFazer = Array.from({ length: 20 }, (_, i) => `a${59 - 2 * i}`);
+  assert.deepEqual(
+    rAbertas.map((m) => m.id),
+    [...andamento, ...aFazer],
+  );
 });
 
 test("resolverVault: env, settings.json, ~, relativo e erro", () => {

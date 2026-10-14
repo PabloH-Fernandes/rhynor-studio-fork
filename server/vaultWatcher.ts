@@ -13,7 +13,9 @@ import { ehAtaNova, escolherAtual, missaoDoPrompt, parseMissao } from "./vault.t
 
 const MAX_BYTES_MISSAO = 256 * 1024;
 const BYTES_DA_ATA = 4096;
-const MAX_MISSOES = 50;
+/** limite por grupo: as concluídas não roubam o lugar das abertas (e vice-versa) */
+export const MAX_ABERTAS = 50;
+export const MAX_CONCLUIDAS = 50;
 const MAX_PEDIDAS = 50;
 const DEBOUNCE_MS = 800;
 const INTERVALO_MS = 30_000;
@@ -35,17 +37,21 @@ type Ouvinte = (info: MissoesInfo) => void;
 
 const VAZIO: MissoesInfo = { vault: "sem-vault", missoes: [], inbox: { novas: 0 }, atual: null };
 
-/** Missões em ordem de exibição: em andamento, a fazer, concluída; em cada grupo a data mais recente primeiro. */
+/**
+ * Missões em ordem de exibição: em andamento, a fazer, concluída; em cada grupo a data mais recente
+ * primeiro. Abertas (até MAX_ABERTAS) e concluídas (até MAX_CONCLUIDAS) são cortadas separadamente.
+ */
 export function ordenarMissoes(missoes: Missao[]): Missao[] {
-  return [...missoes]
-    .sort(
-      (a, b) =>
-        ORDEM_STATUS[a.status] - ORDEM_STATUS[b.status] ||
-        (a.data < b.data ? 1 : a.data > b.data ? -1 : 0) ||
-        b.atualizadoEm - a.atualizadoEm ||
-        (a.id < b.id ? -1 : 1),
-    )
-    .slice(0, MAX_MISSOES);
+  const ordenadas = [...missoes].sort(
+    (a, b) =>
+      ORDEM_STATUS[a.status] - ORDEM_STATUS[b.status] ||
+      (a.data < b.data ? 1 : a.data > b.data ? -1 : 0) ||
+      b.atualizadoEm - a.atualizadoEm ||
+      (a.id < b.id ? -1 : 1),
+  );
+  const abertas = ordenadas.filter((m) => m.status !== "concluída").slice(0, MAX_ABERTAS);
+  const concluidas = ordenadas.filter((m) => m.status === "concluída").slice(0, MAX_CONCLUIDAS);
+  return [...abertas, ...concluidas];
 }
 
 export class ObservadorVault {
