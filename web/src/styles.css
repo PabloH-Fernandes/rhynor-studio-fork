@@ -2252,17 +2252,19 @@ h2 {
   border-bottom: 2px solid var(--line);
 }
 
-/* uma linha só nas duas abas (mesma altura): o rótulo encolhe com reticências, o número não */
+/* uma linha só nas duas abas (mesma altura). Cada aba cresce a partir da largura do próprio texto
+   (não divide a largura igualmente: "Concluídas" é mais longa); as reticências no rótulo ficam só
+   como rede de segurança para painéis mais estreitos que o lateral */
 .missoes-aba {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
   gap: 0;
   min-width: 0;
   min-height: 40px;
   margin-bottom: -2px;
-  padding: 4px 6px;
+  padding: 4px 5px;
   border: 2px solid transparent;
   background: none;
   color: var(--muted);

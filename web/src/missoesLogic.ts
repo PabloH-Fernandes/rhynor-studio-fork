@@ -1,5 +1,6 @@
 // Textos e regras do painel de missões (lógica pura, sem React).
 
+import { dataBr, dataEfetiva } from "../../shared/datas";
 import type { Missao, MissaoStatus, MissoesInfo } from "../../shared/types";
 
 /** ícone (texto, decorativo) e rótulo de cada status: o status nunca depende só da cor */
@@ -87,25 +88,14 @@ export function abaPelaTecla(atual: AbaMissoes, tecla: string): AbaMissoes | nul
   }
 }
 
-const dois = (n: number) => String(n).padStart(2, "0");
-
 /**
  * "dd/mm/aaaa" da nota: a data do frontmatter (AAAA-MM-DD, lida como texto para não cair no dia
  * anterior pelo fuso) e, sem ela, a data local de atualizadoEm. null quando não há nenhuma.
  */
 export function textoDataMissao(m: Pick<Missao, "data" | "atualizadoEm">): string | null {
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(m.data.trim());
-  if (iso) {
-    const [ano, mes, dia] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
-    // confere de volta em UTC (só para validar: 2026-02-31 vira março e é recusada)
-    const d = new Date(Date.UTC(ano, mes - 1, dia));
-    if (mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31 && d.getUTCMonth() === mes - 1 && d.getUTCDate() === dia) {
-      return `${iso[3]}/${iso[2]}/${iso[1]}`;
-    }
-  }
-  if (!Number.isFinite(m.atualizadoEm) || m.atualizadoEm <= 0) return null;
-  const d = new Date(m.atualizadoEm);
-  return `${dois(d.getDate())}/${dois(d.getMonth() + 1)}/${d.getFullYear()}`;
+  // a mesma regra que o servidor usa para ordenar (shared/datas.ts)
+  const iso = dataEfetiva(m);
+  return iso ? dataBr(iso) : null;
 }
 
 /** totais antes do corte do servidor; servidor antigo (sem totais) cai no tamanho das listas */

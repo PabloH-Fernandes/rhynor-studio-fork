@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { dataEfetiva } from "../shared/datas.ts";
 import type { Missao, MissoesInfo } from "../shared/types.ts";
 import { ehAtaNova, escolherAtual, missaoDoPrompt, parseMissao } from "./vault.ts";
 
@@ -37,17 +38,6 @@ type Ouvinte = (info: MissoesInfo) => void;
 
 const VAZIO: MissoesInfo = { vault: "sem-vault", missoes: [], inbox: { novas: 0 }, atual: null };
 
-const dois = (n: number) => String(n).padStart(2, "0");
-
-/** data usada na ordenação: a da nota; sem ela, o dia local (AAAA-MM-DD) do atualizadoEm */
-export function dataEfetiva(m: Pick<Missao, "data" | "atualizadoEm">): string {
-  const data = m.data.trim();
-  if (data) return data;
-  if (!Number.isFinite(m.atualizadoEm) || m.atualizadoEm <= 0) return "";
-  const d = new Date(m.atualizadoEm);
-  return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
-}
-
 /** quantas abertas e concluídas existem antes do corte de ordenarMissoes */
 export function contarTotais(missoes: readonly Pick<Missao, "status">[]): { abertas: number; concluidas: number } {
   const concluidas = missoes.filter((m) => m.status === "concluída").length;
@@ -56,7 +46,8 @@ export function contarTotais(missoes: readonly Pick<Missao, "status">[]): { aber
 
 /**
  * Missões em ordem de exibição: em andamento, a fazer, concluída; em cada grupo a data mais recente
- * primeiro (dataEfetiva, desempate por atualizadoEm). Abertas (até MAX_ABERTAS) e concluídas (até
+ * primeiro (dataEfetiva de shared/datas.ts: a da nota se válida, senão o dia de atualizadoEm, a
+ * mesma regra da data que o painel mostra; desempate por atualizadoEm). Abertas (até MAX_ABERTAS) e concluídas (até
  * MAX_CONCLUIDAS) são cortadas separadamente.
  */
 export function ordenarMissoes(missoes: Missao[]): Missao[] {

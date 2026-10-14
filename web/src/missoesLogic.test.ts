@@ -119,6 +119,7 @@ test("textoDataMissao: data da nota sem fuso, senão atualizadoEm, senão null",
   assert.equal(textoDataMissao({ data: "2026-02-31", atualizadoEm: 0 }), null);
   assert.equal(textoDataMissao({ data: "2026-00-10", atualizadoEm: 0 }), null);
   assert.equal(textoDataMissao({ data: "2024-02-29", atualizadoEm: 0 }), "29/02/2024");
+  assert.equal(textoDataMissao({ data: "", atualizadoEm: 0 }), null);
 });
 
 test("textoLimiteConcluidas: só quando o total passa do mostrado", () => {

@@ -19,9 +19,9 @@ import {
   ObservadorVault,
   PEDIDA_TTL_MS,
   contarTotais,
-  dataEfetiva,
   ordenarMissoes,
 } from "./vaultWatcher.ts";
+import { dataEfetiva } from "../shared/datas.ts";
 
 const MISSAO = [
   "---",
@@ -280,6 +280,18 @@ test("ordenarMissoes: sem data usa o dia local de atualizadoEm; desempate por at
     missao({ id: `v${i}`, status: "concluída", data: "2025-02-01", atualizadoEm: i + 1 }),
   );
   assert.ok(ordenarMissoes([...velhas, semData]).some((m) => m.id === "sem"));
+});
+
+test("ordenarMissoes: data inválida conta como o dia de atualizadoEm (igual ao painel)", () => {
+  const dez2025 = new Date(2025, 11, 1, 10, 0).getTime();
+  const invalida = missao({ id: "inv", status: "concluída", data: "2026-13-45", atualizadoEm: dez2025 });
+  const recente = missao({ id: "recente", status: "concluída", data: "2026-06-01", atualizadoEm: 1 });
+  const antiga = missao({ id: "antiga", status: "concluída", data: "2025-01-10", atualizadoEm: 1 });
+  assert.deepEqual(ordenarMissoes([invalida, antiga, recente]).map((m) => m.id), ["recente", "inv", "antiga"]);
+  for (const data of ["2026-02-31", "2026-00-10"]) {
+    assert.equal(dataEfetiva({ data, atualizadoEm: dez2025 }), "2025-12-01", data);
+  }
+  assert.equal(dataEfetiva({ data: "2024-02-29", atualizadoEm: dez2025 }), "2024-02-29");
 });
 
 test("resolverVault: env, settings.json, ~, relativo e erro", () => {
