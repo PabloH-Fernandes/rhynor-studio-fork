@@ -231,6 +231,8 @@ export class OfficeState {
   /** reunião (/reuniao) em andamento: passageira, não entra no serializar(); sai no Stop, em outro prompt ou em 15 min */
   private reuniao: ReuniaoAtiva | null = null;
   private reuniaoTimer: Timer | null = null;
+  /** quem quer saber quando uma sessão acaba (SessionEnd, timeout, /clear...) ou tudo é limpo (null) */
+  private fimDeSessao = new Set<(sessionId: string | null) => void>();
   private readonly now: () => number;
   private readonly relogio: Relogio;
   readonly config: OfficeConfig;
@@ -262,6 +264,16 @@ export class OfficeState {
       progress: this.progress,
       reuniao: this.reuniao,
     };
+  }
+
+  /** avisa o sessionId encerrado (qualquer motivo) ou null quando tudo foi limpo (reset) */
+  aoEncerrarSessao(fn: (sessionId: string | null) => void): () => void {
+    this.fimDeSessao.add(fn);
+    return () => this.fimDeSessao.delete(fn);
+  }
+
+  private avisarFimDeSessao(sessionId: string | null) {
+    for (const fn of this.fimDeSessao) fn(sessionId);
   }
 
   getReuniao(): ReuniaoAtiva | null {
@@ -449,6 +461,7 @@ export class OfficeState {
     this.lideres.clear();
     this.feed = [];
     this.pararReuniao(false);
+    this.avisarFimDeSessao(null);
     this.refreshProgress();
     this.emit(this.snapshot());
   }
@@ -714,6 +727,7 @@ export class OfficeState {
     this.lastSeen.delete(sessionId);
     this.tasks.endSession(sessionId);
     if (this.reuniao?.sessionId === sessionId) this.pararReuniao(true);
+    this.avisarFimDeSessao(sessionId);
     const transicao = this.transicoes.get(sessionId);
     if (transicao) this.relogio.clearTimeout(transicao.timer);
     this.transicoes.delete(sessionId);

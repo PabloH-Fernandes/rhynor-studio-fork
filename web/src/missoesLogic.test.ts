@@ -26,8 +26,8 @@ test("textoReuniao: só com origem reuniao e título", () => {
 test("textoAtaNova", () => {
   assert.equal(textoAtaNova(0), null);
   assert.equal(textoAtaNova(NaN), null);
-  assert.equal(textoAtaNova(1), "📥 Chegou uma ata nova: rode `/reuniao`");
-  assert.equal(textoAtaNova(3), "📥 Chegaram 3 atas novas: rode `/reuniao`");
+  assert.equal(textoAtaNova(1), "📥 Chegou uma ata nova: rode /reuniao");
+  assert.equal(textoAtaNova(3), "📥 Chegaram 3 atas novas: rode /reuniao");
 });
 
 test("vazioDe", () => {

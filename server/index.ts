@@ -47,6 +47,8 @@ persistencia.ligar();
 // missões e atas novas do vault (o servidor não herda o env do settings.json: o resolverVault lê de lá)
 const vault = new ObservadorVault(() => resolverVault(process.env, os.homedir()));
 void vault.iniciar();
+// sessão que acaba (SessionEnd, sem sinal, /clear) ou "Limpar": a missão pedida por ela deixa de ser a atual
+state.aoEncerrarSessao((sid) => (sid === null ? vault.esquecerTodas() : vault.esquecerSessao(sid)));
 const app = express();
 // cada rota com o próprio limite: eventos de hook podem ser grandes, o elenco não
 const hookJson = express.json({ limit: "5mb" });
@@ -90,7 +92,8 @@ app.get("/api/state", (_req, res) => res.json(state.snapshot()));
 
 // Missões do vault (só o que o painel mostra: nada de nome de nota de reunião nem de ata).
 app.get("/api/missoes", async (_req, res) => {
-  await vault.pronto;
+  // se a primeira leitura demorar (OneDrive), devolve o último valor conhecido
+  await Promise.race([vault.pronto, new Promise((r) => setTimeout(r, 3000).unref())]);
   res.json(vault.getInfo());
 });
 

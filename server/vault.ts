@@ -15,6 +15,8 @@ export const MAX_ITENS = 20;
 export const MAX_TEXTO_ITEM = 140;
 export const MAX_OBJETIVO = 300;
 const MAX_NOME = 120;
+/** quanto de uma linha entra na limpeza de links (as regex de link são quadráticas) */
+const MAX_ENTRADA_LINK = 2000;
 
 // ---------------------------------------------------------------- caminho do vault
 
@@ -113,6 +115,21 @@ function ehVerdade(valor: string | undefined): boolean {
   return valor !== undefined && ["true", "yes", "sim", "1"].includes(chave(valor));
 }
 
+/**
+ * Qualquer linha `confidencial:` com true/yes/sim/1 descarta a nota (chave repetida, `[true]`...):
+ * na dúvida, a nota fica de fora.
+ */
+function temConfidencialTrue(texto: string): boolean {
+  const linhas = semBom(texto).split(/\r?\n/);
+  if (linhas[0]?.trim() !== "---") return false;
+  for (let i = 1; i < linhas.length; i++) {
+    if (linhas[i].trim() === "---") break;
+    const m = /^\s*confidencial\s*:(.*)$/i.exec(linhas[i]);
+    if (m && /\b(true|yes|sim|1)\b/i.test(limparValor(m[1]))) return true;
+  }
+  return false;
+}
+
 function normalizarStatus(valor: string | undefined): MissaoStatus {
   const k = chave(valor ?? "");
   if (k === "em andamento") return "em andamento";
@@ -125,8 +142,10 @@ function cortar(s: string, n: number): string {
 }
 
 /** [[nota]] → nota, [[nota|apelido]] → apelido, [texto](url) → texto, URL solta some */
-function semLinks(s: string): string {
+function semLinks(s: string, max = MAX_ENTRADA_LINK): string {
+  // entrada cortada antes: as regex abaixo são quadráticas com uma linha enorme de "[" sem "]"
   return s
+    .slice(0, max)
     .replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, "$2")
     .replace(/\[\[([^\]]*)\]\]/g, "$1")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
@@ -167,9 +186,9 @@ export function parseMissao(nomeArquivo: string, texto: string, mtime: number): 
   const fm = lerFrontmatter(texto);
   if (!fm) return null;
   if (chave(fm.tipo ?? "") !== "missao") return null;
-  if (ehVerdade(fm.confidencial)) return null;
+  if (ehVerdade(fm.confidencial) || temConfidencialTrue(texto)) return null;
 
-  const id = nomeArquivo.replace(/\.md$/i, "");
+  const id = nomeArquivo.replace(/\.md$/i, "").normalize("NFC");
   const linhas = linhasDeTexto(corpoDe(texto));
 
   let nome = "";
@@ -194,7 +213,7 @@ export function parseMissao(nomeArquivo: string, texto: string, mtime: number): 
     if (itens.length < MAX_ITENS) itens.push({ texto: cortar(semLinks(m[2]) || m[2].trim(), MAX_TEXTO_ITEM), feita });
   }
 
-  const objetivo = cortar(semLinks((secao(linhas, /^##\s+Objetivo\b/i) ?? []).join(" ")), MAX_OBJETIVO);
+  const objetivo = cortar(semLinks((secao(linhas, /^##\s+Objetivo\b/i) ?? []).join(" "), MAX_OBJETIVO * 4), MAX_OBJETIVO);
 
   const classeBruta = chave(fm.classe ?? "");
   const classe: Missao["classe"] = classeBruta === "time" || classeBruta === "humano" ? classeBruta : "duvida";
@@ -226,15 +245,16 @@ export function ehAtaNova(texto: string): boolean {
 
 // ---------------------------------------------------------------- prompt
 
-/** "/time ... Missão [[nota]]" → "nota" (só [0-9A-Za-z-]); qualquer outra coisa → null */
+/** "/time ... Missão [[nota]]" → "nota" (aceita espaço, _, acento e ponto; sem barra); qualquer outra coisa → null */
 export function missaoDoPrompt(prompt: string): string | null {
   const p = prompt.normalize("NFC");
   const ehTime = /^\s*\/time(\s|$)/i.test(p) || /<command-name>\s*\/?time\s*<\/command-name>/i.test(p);
   if (!ehTime) return null;
   const m = /Miss(?:ão|ao)\s*\[\[([^\]]*)\]\]/i.exec(p);
   if (!m) return null;
-  const nome = m[1].trim();
-  return /^[0-9A-Za-z-]{1,120}$/.test(nome) ? nome : null;
+  // só chave de comparação com o id da missão (nome do arquivo), nunca caminho: sem barra, <, > nem controle
+  const nome = m[1].trim().replace(/\.md$/i, "");
+  return /^[^\/\\<>|\u0000-\u001f]{1,200}$/.test(nome) ? nome : null;
 }
 
 /** "/reuniao" digitado ou o comando expandido (<command-name>reuniao</command-name>) */

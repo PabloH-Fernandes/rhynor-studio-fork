@@ -17,6 +17,8 @@ const MAX_MISSOES = 50;
 const MAX_PEDIDAS = 50;
 const DEBOUNCE_MS = 800;
 const INTERVALO_MS = 30_000;
+/** missão pedida por /time deixa de ser a atual depois disso sem novo pedido (a sessão pode ter morrido) */
+export const PEDIDA_TTL_MS = 15 * 60_000;
 
 const ORDEM_STATUS: Record<Missao["status"], number> = { "em andamento": 0, "a fazer": 1, "concluída": 2 };
 
@@ -67,8 +69,10 @@ export class ObservadorVault {
   private missoes: Missao[] = [];
   private novas = 0;
   /** nome do arquivo → último resultado bom (valor mantido se a leitura falhar) */
-  private cacheMissoes = new Map<string, Missao | null>();
-  private cacheAtas = new Map<string, boolean>();
+  private cacheMissoes = new Map<string, { mtime: number; size: number; missao: Missao | null }>();
+  private cacheAtas = new Map<string, { mtime: number; size: number; nova: boolean }>();
+  /** arquivos grandes demais já avisados (1 aviso por tamanho) */
+  private grandesAvisados = new Map<string, number>();
   /** sessão → missão pedida por /time e quando */
   private pedidas = new Map<string, { id: string; em: number }>();
   private info: MissoesInfo = VAZIO;
@@ -130,6 +134,13 @@ export class ObservadorVault {
 
   esquecerSessao(sessionId: string) {
     if (this.pedidas.delete(sessionId)) this.publicar();
+  }
+
+  /** reset / "Limpar": ninguém mais está trabalhando */
+  esquecerTodas() {
+    if (this.pedidas.size === 0) return;
+    this.pedidas.clear();
+    this.publicar();
   }
 
   /** Releitura completa. Uma por vez: pedido no meio da leitura agenda outra logo depois. */
@@ -236,7 +247,7 @@ export class ObservadorVault {
       entradas = await fsp.readdir(dir, { withFileTypes: true });
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT" || (err as NodeJS.ErrnoException).code === "ENOTDIR") return null;
-      return [...this.cacheMissoes.values()].filter((m): m is Missao => m !== null); // pasta ocupada: mantém
+      return this.missoesDoCache(); // pasta ocupada: mantém
     }
     const nomes = entradas.filter((e) => e.isFile() && /\.md$/i.test(e.name)).map((e) => e.name);
     const vistos = new Set(nomes);
@@ -245,17 +256,29 @@ export class ObservadorVault {
       try {
         const arq = path.join(dir, nome);
         const st = await fsp.stat(arq);
+        const mtime = Math.floor(st.mtimeMs);
+        const antes = this.cacheMissoes.get(nome);
+        // stat primeiro: arquivo "só online" do OneDrive não é aberto (nem baixado) se nada mudou
+        if (antes && antes.mtime === mtime && antes.size === st.size) continue;
         if (st.size > MAX_BYTES_MISSAO) {
-          this.cacheMissoes.set(nome, null);
+          if (this.grandesAvisados.get(nome) !== st.size) {
+            this.grandesAvisados.set(nome, st.size);
+            console.warn(`[vault] ${nome} tem ${Math.round(st.size / 1024)} KB (limite ${MAX_BYTES_MISSAO / 1024} KB): ignorada`);
+          }
+          this.cacheMissoes.set(nome, { mtime, size: st.size, missao: null });
           continue;
         }
         const texto = await fsp.readFile(arq, "utf8");
-        this.cacheMissoes.set(nome, parseMissao(nome, texto, st.mtimeMs));
+        this.cacheMissoes.set(nome, { mtime, size: st.size, missao: parseMissao(nome, texto, mtime) });
       } catch {
         // EBUSY, só online do OneDrive...: fica o valor anterior
       }
     }
-    return [...this.cacheMissoes.values()].filter((m): m is Missao => m !== null);
+    return this.missoesDoCache();
+  }
+
+  private missoesDoCache(): Missao[] {
+    return [...this.cacheMissoes.values()].map((c) => c.missao).filter((m): m is Missao => m !== null);
   }
 
   /** conta as atas com status: nova na raiz do Inbox; lê só os primeiros 4 KB de cada uma */
@@ -266,7 +289,7 @@ export class ObservadorVault {
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === "ENOENT" || code === "ENOTDIR") this.cacheAtas.clear();
-      return [...this.cacheAtas.values()].filter(Boolean).length;
+      return this.novasDoCache();
     }
     const nomes = entradas
       .filter((e) => e.isFile() && /\.md$/i.test(e.name) && e.name.toLowerCase() !== "leia-me.md")
@@ -276,21 +299,33 @@ export class ObservadorVault {
     for (const nome of nomes) {
       let fh: fsp.FileHandle | null = null;
       try {
-        fh = await fsp.open(path.join(dir, nome), "r");
+        const arq = path.join(dir, nome);
+        const st = await fsp.stat(arq);
+        const mtime = Math.floor(st.mtimeMs);
+        const antes = this.cacheAtas.get(nome);
+        if (antes && antes.mtime === mtime && antes.size === st.size) continue; // não abre de novo
+        fh = await fsp.open(arq, "r");
         const buf = Buffer.alloc(BYTES_DA_ATA);
         const { bytesRead } = await fh.read(buf, 0, BYTES_DA_ATA, 0);
-        this.cacheAtas.set(nome, ehAtaNova(buf.toString("utf8", 0, bytesRead)));
+        this.cacheAtas.set(nome, { mtime, size: st.size, nova: ehAtaNova(buf.toString("utf8", 0, bytesRead)) });
       } catch {
         // mantém o valor anterior
       } finally {
         await fh?.close().catch(() => undefined);
       }
     }
-    return [...this.cacheAtas.values()].filter(Boolean).length;
+    return this.novasDoCache();
+  }
+
+  private novasDoCache(): number {
+    return [...this.cacheAtas.values()].filter((c) => c.nova).length;
   }
 
   /** monta o MissoesInfo e avisa só se a assinatura mudou */
   private publicar() {
+    // pedido antigo some: a sessão pode ter morrido sem SessionEnd (e o relógio de 30 s reavalia)
+    const agora = this.now();
+    for (const [sid, p] of this.pedidas) if (agora - p.em > PEDIDA_TTL_MS) this.pedidas.delete(sid);
     const ordenadas = [...this.pedidas.values()].sort((a, b) => b.em - a.em).map((p) => p.id);
     const atual = escolherAtual(this.missoes, ordenadas);
     const info: MissoesInfo = {

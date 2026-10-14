@@ -24,7 +24,7 @@ export function textoReuniao(m: Pick<Missao, "origem" | "reuniaoTitulo">): strin
 /** aviso do Inbox; null quando não há ata nova */
 export function textoAtaNova(n: number): string | null {
   if (!Number.isFinite(n) || n <= 0) return null;
-  return n === 1 ? "📥 Chegou uma ata nova: rode `/reuniao`" : `📥 Chegaram ${n} atas novas: rode \`/reuniao\``;
+  return n === 1 ? "📥 Chegou uma ata nova: rode /reuniao" : `📥 Chegaram ${n} atas novas: rode /reuniao`;
 }
 
 export type VazioMissoes = "sem-vault" | "sem-missao" | null;

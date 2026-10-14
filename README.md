@@ -203,7 +203,7 @@ npm run replay -- data/eventos/2026-10-05.jsonl                            # lin
 npm run replay -- --anonimizar data/eventos/2026-10-05.jsonl saida.jsonl   # cópia sem dados pessoais
 ```
 
-Atenção: o arquivo guarda prompts, comandos, pastas e caminhos da sua máquina. **Nunca compartilhe o arquivo cru**; para virar fixture de teste (`server/fixtures/sessoes/`), use só a cópia anonimizada. Os testes de sessões reais usam essas fixtures via `reproduzir()` (`server/replay.ts`).
+Atenção: o arquivo guarda o prompt cru, **inclusive a ata colada com `/reuniao`** (que é confidencial), além de comandos, pastas e caminhos da sua máquina. **Nunca compartilhe o arquivo cru**; para virar fixture de teste (`server/fixtures/sessoes/`), use só a cópia anonimizada. Os testes de sessões reais usam essas fixtures via `reproduzir()` (`server/replay.ts`).
 
 ## Painel lateral (para quem não é de TI)
 

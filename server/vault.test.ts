@@ -13,7 +13,7 @@ import {
   parseMissao,
   resolverVault,
 } from "./vault.ts";
-import { ObservadorVault, ordenarMissoes } from "./vaultWatcher.ts";
+import { ObservadorVault, PEDIDA_TTL_MS, ordenarMissoes } from "./vaultWatcher.ts";
 
 const MISSAO = [
   "---",
@@ -99,6 +99,25 @@ test("parseMissao: confidencial true, \"true\" e True ficam de fora (mesmo com c
   assert.ok(parseMissao("a.md", MISSAO.replace("confidencial: false", "confidencial: false # ok"), 1));
 });
 
+test("parseMissao: qualquer confidencial true no frontmatter descarta (repetida, lista)", () => {
+  const com = (linhas: string) => MISSAO.replace("confidencial: false", linhas);
+  assert.equal(parseMissao("a.md", com("confidencial: true\nconfidencial: false"), 1), null, "true e depois false");
+  assert.equal(parseMissao("a.md", com("confidencial: false\nconfidencial: true"), 1), null);
+  assert.equal(parseMissao("a.md", com("confidencial: [true]"), 1), null);
+  assert.equal(parseMissao("a.md", com("confidencial: sim"), 1), null);
+  assert.equal(parseMissao("a.md", com("confidencial: false # antes era true"), 1)?.nome, "Migrar o login");
+});
+
+test("parseMissao: linha enorme de [ sem ] termina rápido", () => {
+  const lixo = "[".repeat(256 * 1024);
+  const texto = `---\ntipo: missao\nprojeto: ${lixo}\n---\n# ${lixo}\n## Objetivo\n${lixo}\n${lixo}\n## Tarefas\n- [ ] ${lixo}\n`;
+  const ini = Date.now();
+  const m = parseMissao("a.md", texto, 1);
+  assert.ok(Date.now() - ini < 1500, `demorou ${Date.now() - ini} ms`);
+  assert.ok(m);
+  assert.ok(m.nome.length <= 120 && m.objetivo.length <= 300 && m.itens[0].texto.length <= 140);
+});
+
 test("parseMissao: tipo errado, sem frontmatter e frontmatter aberto viram null", () => {
   assert.equal(parseMissao("a.md", MISSAO.replace("tipo: missao", "tipo: reuniao"), 1), null);
   assert.equal(parseMissao("a.md", "# Só um texto\n- [ ] x", 1), null);
@@ -162,7 +181,9 @@ test("missaoDoPrompt", () => {
   assert.equal(missaoDoPrompt("<command-name>/time</command-name> Missão [[abc-1]]"), "abc-1");
   assert.equal(missaoDoPrompt("faça a Missão [[abc]]"), null, "sem /time não vale");
   assert.equal(missaoDoPrompt("/time Missão [[../../etc/passwd]]"), null);
-  assert.equal(missaoDoPrompt("/time Missão [[a b]]"), null);
+  assert.equal(missaoDoPrompt("/time Missão [[2026-10-10 Migrar_o login v1.2]]"), "2026-10-10 Migrar_o login v1.2", "espaço, _, ponto");
+  assert.equal(missaoDoPrompt("/time Missão [[2026-10-10-ação-é-ü.md]]"), "2026-10-10-ação-é-ü", "acento e .md");
+  assert.equal(missaoDoPrompt("/time Missão [[a\\b]]"), null);
   assert.equal(missaoDoPrompt("/time Missão [[a|b]]"), null);
   assert.equal(missaoDoPrompt("/time Missão [[<script>]]"), null);
   assert.equal(missaoDoPrompt("/time Missão [[]]"), null);
@@ -303,6 +324,68 @@ test("observador: missões, atas novas, processadas/, LEIA-ME e 10-Reunioes nunc
     assert.equal(obs.getInfo().atual?.id, "2026-10-12-b");
     obs.esquecerSessao("s1");
     assert.equal(obs.getInfo().atual?.id, "2026-10-10-a");
+    obs.parar();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("observador: arquivo igual (mtime e tamanho) não é aberto de novo", async () => {
+  const dir = montarVault();
+  const orig = fs.promises.readFile;
+  const origOpen = fs.promises.open;
+  let aberturas = 0;
+  try {
+    fs.writeFileSync(path.join(dir, "20-Missoes", "a.md"), MISSAO);
+    fs.writeFileSync(path.join(dir, "00-Inbox", "ata.md"), "---\nstatus: nova\n---\n");
+    fs.promises.readFile = ((...a: unknown[]) => {
+      aberturas++;
+      return (orig as (...x: unknown[]) => Promise<unknown>)(...a);
+    }) as typeof fs.promises.readFile;
+    fs.promises.open = ((...a: unknown[]) => {
+      aberturas++;
+      return (origOpen as (...x: unknown[]) => Promise<unknown>)(...a);
+    }) as typeof fs.promises.open;
+    const obs = new ObservadorVault(() => dir, { intervaloMs: 0, semWatch: true });
+    await obs.iniciar();
+    assert.equal(aberturas, 2, "1ª leitura abre os dois");
+    await obs.recarregar();
+    await obs.recarregar();
+    assert.equal(aberturas, 2, "nada mudou: só stat");
+    assert.equal(obs.getInfo().missoes.length, 1);
+    assert.equal(obs.getInfo().inbox.novas, 1);
+    // muda o tamanho: lê de novo
+    fs.writeFileSync(path.join(dir, "20-Missoes", "a.md"), MISSAO + "\n- [ ] mais uma\n".replace("- [ ]", "## Extra\n- [ ]"));
+    await obs.recarregar();
+    assert.equal(aberturas, 3);
+    obs.parar();
+  } finally {
+    fs.promises.readFile = orig;
+    fs.promises.open = origOpen;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("observador: missão pedida expira em 15 min e some no esquecerTodas", async () => {
+  const dir = montarVault();
+  try {
+    fs.writeFileSync(path.join(dir, "20-Missoes", "a.md"), MISSAO.replace("em andamento", "a fazer"));
+    let agora = 1_000_000;
+    const obs = new ObservadorVault(() => dir, { intervaloMs: 0, semWatch: true, now: () => agora });
+    await obs.iniciar();
+    assert.equal(obs.getInfo().atual, null);
+    obs.notarPrompt("s1", "/time Missão [[a]]: x");
+    assert.equal(obs.getInfo().atual?.id, "a");
+    agora += PEDIDA_TTL_MS - 1000;
+    await obs.recarregar();
+    assert.equal(obs.getInfo().atual?.id, "a", "ainda vale");
+    agora += 2000;
+    await obs.recarregar();
+    assert.equal(obs.getInfo().atual, null, "expirou");
+    obs.notarPrompt("s1", "/time Missão [[a]]: x");
+    assert.equal(obs.getInfo().atual?.id, "a");
+    obs.esquecerTodas();
+    assert.equal(obs.getInfo().atual, null);
     obs.parar();
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

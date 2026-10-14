@@ -2229,7 +2229,6 @@ h2 {
 }
 
 .aviso-ata code,
-.missoes-vazio code,
 .secao code {
   font-family: inherit;
   color: var(--blue);

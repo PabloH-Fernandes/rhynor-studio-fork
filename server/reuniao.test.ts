@@ -105,6 +105,16 @@ test("o texto da ata não vai para o feed nem para o estado salvo", () => {
   assert.equal(JSON.stringify(state.serializar()).includes("reuniao\":"), false, "a reunião é passageira: não é salva");
 });
 
+test("aoEncerrarSessao avisa SessionEnd e reset (a missão atual não gruda)", () => {
+  const vistos: (string | null)[] = [];
+  state.aoEncerrarSessao((s) => vistos.push(s));
+  prompt("oi", S1);
+  hook("SessionEnd", { reason: "other" }, S1);
+  assert.deepEqual(vistos, [S1]);
+  state.reset();
+  assert.deepEqual(vistos, [S1, null]);
+});
+
 test("prompt comum continua com o texto no feed", () => {
   prompt("arrume o botão");
   const snap = state.snapshot();

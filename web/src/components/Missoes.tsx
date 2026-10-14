@@ -33,9 +33,10 @@ export function Missoes({ info }: { info: MissoesInfo | null }) {
           </p>
         )}
         <ul className="missoes">
-          {missoes.map((m) => (
+          {missoes.map((m, i) => (
             <MissaoItem
               key={m.id}
+              indice={i}
               missao={m}
               atual={ehAtual(info, m)}
               aberta={aberta === m.id}
@@ -48,11 +49,24 @@ export function Missoes({ info }: { info: MissoesInfo | null }) {
   );
 }
 
-function MissaoItem({ missao: m, atual, aberta, onClick }: { missao: Missao; atual: boolean; aberta: boolean; onClick: () => void }) {
+function MissaoItem({
+  missao: m,
+  indice,
+  atual,
+  aberta,
+  onClick,
+}: {
+  missao: Missao;
+  indice: number;
+  atual: boolean;
+  aberta: boolean;
+  onClick: () => void;
+}) {
   const st = STATUS_MISSAO[m.status];
   const reuniao = textoReuniao(m);
   const cheios = segmentosCheios(m.tarefas.feitas, m.tarefas.total);
-  const resumoId = `missao-resumo-${m.id}`;
+  // o nome do arquivo pode ter espaço e acento: o id usa só o índice
+  const resumoId = `missao-resumo-${indice}`;
   return (
     <li>
       <button
