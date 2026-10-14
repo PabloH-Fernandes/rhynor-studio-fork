@@ -4,15 +4,19 @@
 import express, { type ErrorRequestHandler } from "express";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
+import type { ServerMessage } from "../shared/types.ts";
 import { DEFAULT_SESSION_TIMEOUT_MIN, OfficeState } from "./state.ts";
 import { Gravador, lerHookTs } from "./gravador.ts";
 import { cancelDemo, runDemo } from "./demo.ts";
 import { aplicarPut, loadRoster, saveRoster } from "./roster.ts";
 import { ESTADO_FILE, PersistenciaEstado } from "./persistencia.ts";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
+import { resolverVault } from "./vault.ts";
+import { ObservadorVault } from "./vaultWatcher.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
@@ -40,6 +44,9 @@ const ESTADO = process.env.AGPOCKET_ESTADO?.trim() ? path.resolve(ROOT, process.
 const persistencia = new PersistenciaEstado(state, ESTADO);
 const restaurados = persistencia.carregar();
 persistencia.ligar();
+// missões e atas novas do vault (o servidor não herda o env do settings.json: o resolverVault lê de lá)
+const vault = new ObservadorVault(() => resolverVault(process.env, os.homedir()));
+void vault.iniciar();
 const app = express();
 // cada rota com o próprio limite: eventos de hook podem ser grandes, o elenco não
 const hookJson = express.json({ limit: "5mb" });
@@ -56,6 +63,12 @@ setInterval(() => {
   while (queue.length && queue[0].ts <= cutoff) {
     const { body } = queue.shift()!;
     try {
+      // a missão atual vem do prompt "/time Missão [[nota]]" (o texto do prompt não é guardado)
+      const sid: unknown = body?.session_id;
+      if (typeof sid === "string") {
+        if (body.hook_event_name === "UserPromptSubmit") vault.notarPrompt(sid, String(body.user_prompt ?? body.prompt ?? ""));
+        else if (body.hook_event_name === "SessionEnd") vault.esquecerSessao(sid);
+      }
       state.handleHook(body);
     } catch (err) {
       console.error("[hook] erro ao processar evento:", err);
@@ -74,6 +87,12 @@ app.post("/api/hook", hookJson, (req, res) => {
 });
 
 app.get("/api/state", (_req, res) => res.json(state.snapshot()));
+
+// Missões do vault (só o que o painel mostra: nada de nome de nota de reunião nem de ata).
+app.get("/api/missoes", async (_req, res) => {
+  await vault.pronto;
+  res.json(vault.getInfo());
+});
 
 // Elenco dos AGzinhos: o atual e o padrão (para "Voltar ao padrão" no vestiário).
 app.get("/api/roster", (_req, res) => {
@@ -140,14 +159,17 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 
 wss.on("connection", (ws) => {
   ws.send(JSON.stringify(state.snapshot()));
+  ws.send(JSON.stringify({ type: "missoes", info: vault.getInfo() } satisfies ServerMessage));
 });
 
-state.subscribe((msg) => {
+function broadcast(msg: ServerMessage) {
   const data = JSON.stringify(msg);
   for (const client of wss.clients) {
     if (client.readyState === WebSocket.OPEN) client.send(data);
   }
-});
+}
+state.subscribe(broadcast);
+vault.subscribe((info) => broadcast({ type: "missoes", info }));
 
 server.listen(PORT, HOST, () => {
   const hasUi = fs.existsSync(DIST);
@@ -155,6 +177,8 @@ server.listen(PORT, HOST, () => {
   console.log(`   Hooks → http://${HOST}:${PORT}/api/hook`);
   console.log(hasUi ? `   Tela  → http://${HOST}:${PORT}` : `   Tela  → http://localhost:5173 (npm run dev)`);
   console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (AG_SESSION_TIMEOUT_MIN)`);
+  const vaultCaminho = resolverVault(process.env, os.homedir());
+  console.log(vaultCaminho ? `   Vault → ${vaultCaminho}` : "   Vault não configurado (rode npm run setup)");
   if (restaurados) console.log(`   Estado restaurado: ${restaurados} AGzinho(s) de volta`);
   console.log("");
   if (HOOK_LOG_OBSOLETO) {
@@ -175,6 +199,7 @@ function desligar(codigo: number) {
   if (desligando) return;
   desligando = true;
   persistencia.salvarSync();
+  vault.parar();
   process.exit(codigo);
 }
 process.once("SIGINT", () => desligar(130));

@@ -113,8 +113,63 @@ export interface Progress {
   sessionId?: string;
 }
 
+export type MissaoStatus = "a fazer" | "em andamento" | "concluída";
+
+/** Uma nota de <vault>/20-Missoes/. Nunca leva o nome da nota de reunião (10-Reunioes é confidencial). */
+export interface Missao {
+  /** nome do arquivo sem .md */
+  id: string;
+  nome: string;
+  status: MissaoStatus;
+  origem: "reuniao" | "manual";
+  projeto: string;
+  /** título neutro da reunião de origem (vazio se não tiver) */
+  reuniaoTitulo: string;
+  classe: "time" | "humano" | "duvida";
+  /** AAAA-MM-DD (vazio se a nota não tiver) */
+  data: string;
+  tarefas: { feitas: number; total: number };
+  /** tarefas da seção "## Tarefas" (até 20, cada texto com até 140 caracteres) */
+  itens: { texto: string; feita: boolean }[];
+  /** até 300 caracteres, sem links */
+  objetivo: string;
+  /** mtime do arquivo (ms) */
+  atualizadoEm: number;
+}
+
+export interface MissoesInfo {
+  /** ok = pasta 20-Missoes lida; sem-vault = AGPOCKET_VAULT não configurado; sem-pasta = vault sem 20-Missoes */
+  vault: "ok" | "sem-vault" | "sem-pasta";
+  missoes: Missao[];
+  /** só a contagem de atas novas na raiz de 00-Inbox: nada do conteúdo nem dos nomes */
+  inbox: { novas: number };
+  /** a missão em que o time está agora, se der pra saber */
+  atual: { id: string; nome: string; reuniaoTitulo: string } | null;
+}
+
+/** Uma reunião (/reuniao) acontecendo: a mesa de reunião do escritório. Passageira: não é salva. */
+export interface ReuniaoAtiva {
+  sessionId: string;
+  /** id visual do líder da sessão */
+  liderId: string;
+  desde: number;
+}
+
 export type ServerMessage =
-  | { type: "snapshot"; agents: Agent[]; feed: FeedItem[]; roster: Roster; config: OfficeConfig; progress: Progress }
+  | {
+      type: "snapshot";
+      agents: Agent[];
+      feed: FeedItem[];
+      roster: Roster;
+      config: OfficeConfig;
+      progress: Progress;
+      /** opcional: estado salvo e testes antigos não têm */
+      reuniao?: ReuniaoAtiva | null;
+    }
+  /** as missões do vault mudaram (ou a contagem de atas novas) */
+  | { type: "missoes"; info: MissoesInfo }
+  /** uma reunião (/reuniao) começou ou acabou */
+  | { type: "reuniao"; reuniao: ReuniaoAtiva | null }
   | { type: "agent"; agent: Agent }
   | { type: "remove"; id: string }
   | { type: "feed"; item: FeedItem }

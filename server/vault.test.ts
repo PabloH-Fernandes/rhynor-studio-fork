@@ -1,0 +1,327 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { test } from "node:test";
+import type { Missao } from "../shared/types.ts";
+import {
+  ehAtaNova,
+  ehComandoReuniao,
+  escolherAtual,
+  lerFrontmatter,
+  missaoDoPrompt,
+  parseMissao,
+  resolverVault,
+} from "./vault.ts";
+import { ObservadorVault, ordenarMissoes } from "./vaultWatcher.ts";
+
+const MISSAO = [
+  "---",
+  "tipo: missao",
+  "projeto: portal",
+  "data: 2026-10-10",
+  "status: em andamento",
+  "origem: reuniao",
+  "reuniao: 2026-10-10-alinhamento",
+  "reuniao_titulo: Alinhamento do portal",
+  "classe: time",
+  "tags: [missao]",
+  "confidencial: false",
+  "---",
+  "",
+  "# Migrar o login",
+  "",
+  "## Objetivo",
+  "Trocar o login antigo. Veja [[2026-10-10-alinhamento]] e [doc](https://x.y/z).",
+  "",
+  "## Tarefas",
+  "- [x] Mapear telas",
+  "- [ ] Trocar a API",
+  "- [ ]",
+  "",
+  "## Resultado",
+  "- [x] isto não é tarefa",
+].join("\n");
+
+function missao(extra: Partial<Missao> = {}): Missao {
+  return {
+    id: "m",
+    nome: "M",
+    status: "a fazer",
+    origem: "reuniao",
+    projeto: "",
+    reuniaoTitulo: "",
+    classe: "time",
+    data: "2026-10-01",
+    tarefas: { feitas: 0, total: 0 },
+    itens: [],
+    objetivo: "",
+    atualizadoEm: 0,
+    ...extra,
+  };
+}
+
+test("parseMissao: nota normal", () => {
+  const m = parseMissao("2026-10-10-login.md", MISSAO, 123);
+  assert.ok(m);
+  assert.equal(m.id, "2026-10-10-login");
+  assert.equal(m.nome, "Migrar o login");
+  assert.equal(m.status, "em andamento");
+  assert.equal(m.origem, "reuniao");
+  assert.equal(m.projeto, "portal");
+  assert.equal(m.reuniaoTitulo, "Alinhamento do portal");
+  assert.equal(m.classe, "time");
+  assert.equal(m.data, "2026-10-10");
+  assert.deepEqual(m.tarefas, { feitas: 1, total: 2 }, "item vazio e checkbox fora de ## Tarefas não contam");
+  assert.deepEqual(m.itens, [
+    { texto: "Mapear telas", feita: true },
+    { texto: "Trocar a API", feita: false },
+  ]);
+  assert.equal(m.objetivo, "Trocar o login antigo. Veja 2026-10-10-alinhamento e doc.");
+  assert.equal(m.atualizadoEm, 123);
+  assert.equal(JSON.stringify(m).includes("reuniao:"), false);
+  assert.equal(JSON.stringify(m).includes("2026-10-10-alinhamento\""), false, "o nome da nota de reunião não vai pro painel");
+});
+
+test("parseMissao: BOM e CRLF", () => {
+  const m = parseMissao("a.md", "﻿" + MISSAO.replace(/\n/g, "\r\n"), 1);
+  assert.ok(m);
+  assert.equal(m.nome, "Migrar o login");
+  assert.equal(m.status, "em andamento");
+  assert.deepEqual(m.tarefas, { feitas: 1, total: 2 });
+});
+
+test("parseMissao: confidencial true, \"true\" e True ficam de fora (mesmo com comentário)", () => {
+  for (const v of ["true", '"true"', "True", "true # só eu", "TRUE"]) {
+    const texto = MISSAO.replace("confidencial: false", `confidencial: ${v}`);
+    assert.equal(parseMissao("a.md", texto, 1), null, v);
+  }
+  assert.ok(parseMissao("a.md", MISSAO.replace("confidencial: false", "confidencial: false # ok"), 1));
+});
+
+test("parseMissao: tipo errado, sem frontmatter e frontmatter aberto viram null", () => {
+  assert.equal(parseMissao("a.md", MISSAO.replace("tipo: missao", "tipo: reuniao"), 1), null);
+  assert.equal(parseMissao("a.md", "# Só um texto\n- [ ] x", 1), null);
+  assert.equal(parseMissao("a.md", "---\ntipo: missao\n# Sem fechar", 1), null);
+  assert.ok(parseMissao("a.md", MISSAO.replace("tipo: missao", "tipo: missão"), 1));
+});
+
+test("parseMissao: nome do H1, {{title}} e nome do arquivo", () => {
+  const fm = "---\ntipo: missao\n---\n";
+  assert.equal(parseMissao("2026-10-01-x.md", fm + "# {{title}}\n\n# Nome de verdade\n", 1)?.nome, "Nome de verdade");
+  assert.equal(parseMissao("2026-10-01-x.md", fm + "# {{title}}\n\ntexto", 1)?.nome, "2026-10-01-x");
+  assert.equal(parseMissao("2026-10-01-x.md", fm + "texto sem título\n## Objetivo\nx", 1)?.nome, "2026-10-01-x");
+  assert.equal(parseMissao("a.md", fm + "# [[outra-nota]]\n", 1)?.nome, "outra-nota");
+  assert.equal(parseMissao("a.md", fm + "```\n# dentro do código\n```\n# Fora\n", 1)?.nome, "Fora");
+});
+
+test("parseMissao: status sem acento e desconhecido", () => {
+  const com = (s: string) => parseMissao("a.md", MISSAO.replace("status: em andamento", `status: ${s}`), 1)?.status;
+  assert.equal(com("concluida"), "concluída");
+  assert.equal(com("Concluída"), "concluída");
+  assert.equal(com("EM ANDAMENTO"), "em andamento");
+  assert.equal(com("a fazer"), "a fazer");
+  assert.equal(com("pausada"), "a fazer");
+});
+
+test("parseMissao: limites de itens, texto e objetivo; código não conta", () => {
+  const itens = Array.from({ length: 25 }, (_, i) => `- [ ] item ${i} ${"x".repeat(200)}`).join("\n");
+  const texto = `---\ntipo: missao\n---\n# N\n## Objetivo\n${"y".repeat(500)}\n## Tarefas\n${itens}\n\`\`\`\n- [x] dentro do código\n\`\`\`\n`;
+  const m = parseMissao("a.md", texto, 1)!;
+  assert.equal(m.itens.length, 20);
+  assert.equal(m.tarefas.total, 25);
+  assert.equal(m.tarefas.feitas, 0);
+  assert.ok(m.itens.every((i) => i.texto.length <= 140));
+  assert.ok(m.objetivo.length <= 300);
+});
+
+test("parseMissao: template cru (comentário HTML, {{title}}, - [ ] vazio)", () => {
+  const modelo = fs.readFileSync(new URL("../vault-template/Templates/Missão.md", import.meta.url), "utf8");
+  const m = parseMissao("modelo.md", modelo, 1);
+  assert.ok(m);
+  assert.equal(m.nome, "modelo");
+  assert.deepEqual(m.tarefas, { feitas: 0, total: 0 });
+});
+
+test("lerFrontmatter: 'chave : valor', aspas, comentário, tags ignoradas", () => {
+  const fm = lerFrontmatter('---\nstatus : "a fazer" # nota\ntags: [a, b]\nprojeto: [[portal]]\n---\n# x');
+  assert.deepEqual(fm, { status: "a fazer", projeto: "[[portal]]" });
+});
+
+test("ehAtaNova: só o frontmatter conta", () => {
+  assert.equal(ehAtaNova("---\nstatus: nova\n---\ncorpo"), true);
+  assert.equal(ehAtaNova("﻿---\r\nstatus: nova\r\n---\r\n"), true);
+  assert.equal(ehAtaNova("---\nstatus: processada\n---\n"), false);
+  assert.equal(ehAtaNova("---\nstatus: nova\ncorpo sem fechar"), false);
+  assert.equal(ehAtaNova("texto\nstatus: nova"), false);
+});
+
+test("missaoDoPrompt", () => {
+  assert.equal(missaoDoPrompt("/time Missão [[2026-10-10-login]]: migrar. Projeto: portal"), "2026-10-10-login");
+  assert.equal(missaoDoPrompt("  /time Missao [[abc]]"), "abc");
+  assert.equal(missaoDoPrompt("<command-name>/time</command-name> Missão [[abc-1]]"), "abc-1");
+  assert.equal(missaoDoPrompt("faça a Missão [[abc]]"), null, "sem /time não vale");
+  assert.equal(missaoDoPrompt("/time Missão [[../../etc/passwd]]"), null);
+  assert.equal(missaoDoPrompt("/time Missão [[a b]]"), null);
+  assert.equal(missaoDoPrompt("/time Missão [[a|b]]"), null);
+  assert.equal(missaoDoPrompt("/time Missão [[<script>]]"), null);
+  assert.equal(missaoDoPrompt("/time Missão [[]]"), null);
+  assert.equal(missaoDoPrompt("/time outra coisa"), null);
+});
+
+test("ehComandoReuniao", () => {
+  assert.equal(ehComandoReuniao("/reuniao"), true);
+  assert.equal(ehComandoReuniao("  /reuniao ata colada aqui"), true);
+  assert.equal(ehComandoReuniao("/reuniao\nlinha 2"), true);
+  assert.equal(ehComandoReuniao("<command-name>/reuniao</command-name><command-args>x</command-args>"), true);
+  assert.equal(ehComandoReuniao("<command-name>reuniao</command-name>"), true);
+  assert.equal(ehComandoReuniao("/reuniaozinha"), false);
+  assert.equal(ehComandoReuniao("fale da /reuniao de ontem"), false);
+  assert.equal(ehComandoReuniao(""), false);
+});
+
+test("escolherAtual: pedida vence, depois a em andamento mais nova; só origem reuniao", () => {
+  const a = missao({ id: "a", status: "em andamento", atualizadoEm: 10 });
+  const b = missao({ id: "b", status: "em andamento", atualizadoEm: 20 });
+  const c = missao({ id: "c", status: "a fazer" });
+  const d = missao({ id: "d", status: "concluída" });
+  const man = missao({ id: "man", status: "em andamento", origem: "manual", atualizadoEm: 99 });
+  assert.equal(escolherAtual([a, b, c], [])?.id, "b");
+  assert.equal(escolherAtual([a, b, c], ["c"])?.id, "c");
+  assert.equal(escolherAtual([a, b, c], ["zzz", "a"])?.id, "a", "id desconhecido é pulado");
+  assert.equal(escolherAtual([a, b, d], ["d"])?.id, "b", "pedida concluída cai pra regra (b)");
+  assert.equal(escolherAtual([c, d], []), null);
+  assert.equal(escolherAtual([man], []), null);
+  assert.equal(escolherAtual([man, c], ["man"]), null, "manual nunca é a atual");
+});
+
+test("ordenarMissoes: andamento, a fazer, concluída; data recente primeiro; máx. 50", () => {
+  const lista = [
+    missao({ id: "1", status: "concluída", data: "2026-10-09" }),
+    missao({ id: "2", status: "a fazer", data: "2026-10-01" }),
+    missao({ id: "3", status: "em andamento", data: "2026-09-01" }),
+    missao({ id: "4", status: "a fazer", data: "2026-10-05" }),
+  ];
+  assert.deepEqual(ordenarMissoes(lista).map((m) => m.id), ["3", "4", "2", "1"]);
+  const muitas = Array.from({ length: 70 }, (_, i) => missao({ id: String(i) }));
+  assert.equal(ordenarMissoes(muitas).length, 50);
+});
+
+test("resolverVault: env, settings.json, ~, relativo e erro", () => {
+  const home = path.resolve(os.tmpdir(), "casa-fake");
+  const abs = path.resolve(os.tmpdir(), "meu-vault");
+  const semArquivo = () => {
+    throw new Error("ENOENT");
+  };
+  assert.equal(resolverVault({ AGPOCKET_VAULT: abs }, home, semArquivo), abs);
+  assert.equal(resolverVault({ AGPOCKET_VAULT: "~/cerebro" }, home, semArquivo), path.resolve(home, "cerebro"));
+  assert.equal(resolverVault({ AGPOCKET_VAULT: "relativo/x" }, home, semArquivo), null);
+  assert.equal(resolverVault({}, home, semArquivo), null);
+  const settings = (j: string) => (p: string) => {
+    assert.equal(p, path.join(home, ".claude", "settings.json"));
+    return j;
+  };
+  assert.equal(resolverVault({ AGPOCKET_VAULT: " " }, home, settings(JSON.stringify({ env: { AGPOCKET_VAULT: abs } }))), abs);
+  assert.equal(resolverVault({}, home, settings("﻿" + JSON.stringify({ env: { AGPOCKET_VAULT: "~/v" } }))), path.resolve(home, "v"));
+  assert.equal(resolverVault({}, home, settings("{ quebrado")), null);
+  assert.equal(resolverVault({}, home, settings(JSON.stringify({ env: null }))), null);
+});
+
+// ---------------------------------------------------------------- pasta de verdade
+
+function montarVault() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-vault-"));
+  fs.mkdirSync(path.join(dir, "20-Missoes"));
+  fs.mkdirSync(path.join(dir, "00-Inbox", "processadas"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "10-Reunioes"));
+  return dir;
+}
+
+test("observador: missões, atas novas, processadas/, LEIA-ME e 10-Reunioes nunca lida", async () => {
+  const dir = montarVault();
+  try {
+    fs.writeFileSync(path.join(dir, "20-Missoes", "2026-10-10-a.md"), "﻿" + MISSAO.replace(/\n/g, "\r\n"));
+    fs.writeFileSync(path.join(dir, "20-Missoes", "2026-10-11-secreta.md"), MISSAO.replace("confidencial: false", "confidencial: true"));
+    fs.writeFileSync(path.join(dir, "20-Missoes", "notas.txt"), "ignorar");
+    fs.writeFileSync(path.join(dir, "00-Inbox", "ata1.md"), "---\nstatus: nova\n---\nTEXTO-CONFIDENCIAL");
+    fs.writeFileSync(path.join(dir, "00-Inbox", "ata2.md"), "---\nstatus: processada\n---\n");
+    fs.writeFileSync(path.join(dir, "00-Inbox", "LEIA-ME.md"), "---\nstatus: nova\n---\n");
+    fs.writeFileSync(path.join(dir, "00-Inbox", "processadas", "velha.md"), "---\nstatus: nova\n---\n");
+    // nota-isca: se alguém abrir 10-Reunioes, o conteúdo apareceria no painel
+    fs.writeFileSync(path.join(dir, "10-Reunioes", "isca.md"), MISSAO.replace("Migrar o login", "ISCA-DE-REUNIAO"));
+
+    const abertos: string[] = [];
+    const orig = fs.promises.readFile;
+    const origOpen = fs.promises.open;
+    fs.promises.readFile = ((p: fs.PathLike, ...rest: unknown[]) => {
+      abertos.push(String(p));
+      return (orig as (...a: unknown[]) => Promise<unknown>)(p, ...rest);
+    }) as typeof fs.promises.readFile;
+    fs.promises.open = ((p: fs.PathLike, ...rest: unknown[]) => {
+      abertos.push(String(p));
+      return (origOpen as (...a: unknown[]) => Promise<unknown>)(p, ...rest);
+    }) as typeof fs.promises.open;
+
+    const avisos: number[] = [];
+    const obs = new ObservadorVault(() => dir, { intervaloMs: 0, semWatch: true });
+    obs.subscribe((i) => avisos.push(i.missoes.length));
+    try {
+      await obs.iniciar();
+    } finally {
+      fs.promises.readFile = orig;
+      fs.promises.open = origOpen;
+    }
+    const info = obs.getInfo();
+    assert.equal(info.vault, "ok");
+    assert.equal(info.missoes.length, 1);
+    assert.equal(info.missoes[0].id, "2026-10-10-a");
+    assert.equal(info.inbox.novas, 1, "só ata1 (sem processada, LEIA-ME e subpasta)");
+    assert.equal(info.atual?.id, "2026-10-10-a");
+    assert.equal(info.atual?.reuniaoTitulo, "Alinhamento do portal");
+    assert.equal(abertos.some((p) => p.includes("10-Reunioes")), false, "10-Reunioes nunca é aberta");
+    assert.equal(abertos.some((p) => p.includes("processadas") || p.includes("LEIA-ME")), false);
+    const json = JSON.stringify(info);
+    assert.equal(json.includes("TEXTO-CONFIDENCIAL"), false);
+    assert.equal(json.includes("ISCA"), false);
+    assert.equal(json.includes("ata1"), false, "nome de arquivo do Inbox não vai pro painel");
+    assert.equal(avisos.length, 1);
+
+    // sem mudança, sem aviso
+    await obs.recarregar();
+    assert.equal(avisos.length, 1);
+
+    // mudança: ata virou processada
+    fs.writeFileSync(path.join(dir, "00-Inbox", "ata1.md"), "---\nstatus: processada\n---\n");
+    await obs.recarregar();
+    assert.equal(obs.getInfo().inbox.novas, 0);
+    assert.equal(avisos.length, 2);
+
+    // pedida por /time
+    fs.writeFileSync(path.join(dir, "20-Missoes", "2026-10-12-b.md"), MISSAO.replace("em andamento", "a fazer"));
+    await obs.recarregar();
+    obs.notarPrompt("s1", "/time Missão [[2026-10-12-b]]: x");
+    assert.equal(obs.getInfo().atual?.id, "2026-10-12-b");
+    obs.esquecerSessao("s1");
+    assert.equal(obs.getInfo().atual?.id, "2026-10-10-a");
+    obs.parar();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("observador: sem vault e sem pasta", async () => {
+  const sem = new ObservadorVault(() => null, { intervaloMs: 0, semWatch: true });
+  await sem.iniciar();
+  assert.equal(sem.getInfo().vault, "sem-vault");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-vazio-"));
+  try {
+    const obs = new ObservadorVault(() => dir, { intervaloMs: 0, semWatch: true });
+    await obs.iniciar();
+    assert.equal(obs.getInfo().vault, "sem-pasta");
+    assert.deepEqual(obs.getInfo().missoes, []);
+    obs.parar();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

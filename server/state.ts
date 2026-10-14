@@ -8,10 +8,11 @@
 // de fora do time) não fica de boa: sai andando ao entregar ou após 3 min sem evento, e só 3 cabem na tela.
 
 import path from "node:path";
-import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ServerMessage } from "../shared/types.ts";
+import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ReuniaoAtiva, ServerMessage } from "../shared/types.ts";
 import { DEFAULT_ROSTER, agzinhoDoPapel, type AGzinho, type Roster } from "../shared/roster.ts";
 import { MAX_VISITANTES_NA_TELA, ehVisitante } from "../shared/visitante.ts";
 import { PROGRESS_NADA, ProgressTracker, sameProgress, type TarefasSalvas } from "./progress.ts";
+import { ehComandoReuniao } from "./vault.ts";
 import { comoAtividade, fraseEvento, fraseFerramenta, nomeCurto, simplificarAtividade, type Evento } from "./frases.ts";
 
 /** Formato (parcial) do JSON que o Claude Code manda no stdin de cada hook. */
@@ -57,6 +58,8 @@ const ARRIVE_MS = 12_000;
 const FALLBACK_SPAWN_MS = 1500; // se o SubagentStart não chegar, cria pelo tool_use_id
 const RETIRE_MS = 2 * 60_000; // eventos atrasados de uma sessão encerrada (SessionEnd) são ignorados por esse tempo
 const SWEEP_EVERY_MS = 60_000;
+/** a reunião (/reuniao) desliga sozinha depois disso (Esc não dispara Stop) */
+export const REUNIAO_MAX_MS = 15 * 60_000;
 /** visitante sem SubagentStop e sem nenhum evento por esse tempo sai sozinho (exceto se estiver esperando você) */
 export const VISITANTE_SEM_EVENTO_MS = 3 * 60_000;
 /**
@@ -225,6 +228,9 @@ export class OfficeState {
   private tasks = new ProgressTracker();
   private progress: Progress = PROGRESS_NADA;
   private progressTimer: Timer | null = null;
+  /** reunião (/reuniao) em andamento: passageira, não entra no serializar(); sai no Stop, em outro prompt ou em 15 min */
+  private reuniao: ReuniaoAtiva | null = null;
+  private reuniaoTimer: Timer | null = null;
   private readonly now: () => number;
   private readonly relogio: Relogio;
   readonly config: OfficeConfig;
@@ -254,7 +260,12 @@ export class OfficeState {
       roster: this.roster,
       config: this.config,
       progress: this.progress,
+      reuniao: this.reuniao,
     };
+  }
+
+  getReuniao(): ReuniaoAtiva | null {
+    return this.reuniao;
   }
 
   getProgress(): Progress {
@@ -407,6 +418,7 @@ export class OfficeState {
     this.lideres.clear();
     this.tasks.reset();
     this.feed = [];
+    this.pararReuniao(false);
   }
 
   /** Apaga tudo (usado pelo botão "Limpar" da tela). */
@@ -436,6 +448,7 @@ export class OfficeState {
     for (const id of [...this.agents.keys()]) this.remove(id);
     this.lideres.clear();
     this.feed = [];
+    this.pararReuniao(false);
     this.refreshProgress();
     this.emit(this.snapshot());
   }
@@ -489,6 +502,13 @@ export class OfficeState {
         const lead = this.ensureLeader(input);
         const prompt = String(input.user_prompt ?? input.prompt ?? "").trim();
         this.update(lead, "pensando", "Lendo seu pedido...");
+        if (ehComandoReuniao(prompt)) {
+          // a ata vem colada nos argumentos e é confidencial: nem no feed nem no estado salvo
+          this.iniciarReuniao(input.session_id, lead.id);
+          this.pushFeed(lead, "começou uma reunião (/reuniao)", "message", { tipo: "pedido" });
+          break;
+        }
+        if (this.reuniao?.sessionId === input.session_id) this.pararReuniao(true);
         this.pushFeed(lead, prompt ? `recebeu: “${truncate(prompt, 90)}”` : "recebeu um pedido", "message", { tipo: "pedido" });
         break;
       }
@@ -640,6 +660,7 @@ export class OfficeState {
 
       case "Stop": {
         const lead = this.ensureLeader(input);
+        if (this.reuniao?.sessionId === input.session_id) this.pararReuniao(true);
         this.encerrarVez(input.session_id);
         this.update(lead, "ocioso", "Terminou, esperando você");
         this.pushFeed(lead, "terminou a vez dele", "done", { tipo: "terminouVez" });
@@ -660,6 +681,29 @@ export class OfficeState {
     if (listaMudou) this.refreshProgress();
   }
 
+  // ---------------------------------------------------------------- reunião (/reuniao)
+
+  private iniciarReuniao(sessionId: string, liderId: string) {
+    const desde = this.reuniao?.sessionId === sessionId ? this.reuniao.desde : this.now();
+    this.pararReuniao(false);
+    this.reuniao = { sessionId, liderId, desde };
+    // Esc não dispara Stop: sem isso a mesa de reunião ficaria ligada para sempre
+    this.reuniaoTimer = this.relogio.setTimeout(() => {
+      this.reuniaoTimer = null;
+      this.pararReuniao(true);
+    }, REUNIAO_MAX_MS);
+    soltar(this.reuniaoTimer);
+    this.emit({ type: "reuniao", reuniao: this.reuniao });
+  }
+
+  private pararReuniao(avisar: boolean) {
+    if (this.reuniaoTimer !== null) this.relogio.clearTimeout(this.reuniaoTimer);
+    this.reuniaoTimer = null;
+    const tinha = this.reuniao !== null;
+    this.reuniao = null;
+    if (avisar && tinha) this.emit({ type: "reuniao", reuniao: null });
+  }
+
   /**
    * Encerra a sessão inteira: todo mundo que está nela agora (inclusive AGzinho emprestado
    * de outra sessão) vai até a porta. Com `retire` (SessionEnd explícito), eventos atrasados da
@@ -669,6 +713,7 @@ export class OfficeState {
   endSession(sessionId: string, activity: string, { retire = true }: { retire?: boolean } = {}) {
     this.lastSeen.delete(sessionId);
     this.tasks.endSession(sessionId);
+    if (this.reuniao?.sessionId === sessionId) this.pararReuniao(true);
     const transicao = this.transicoes.get(sessionId);
     if (transicao) this.relogio.clearTimeout(transicao.timer);
     this.transicoes.delete(sessionId);
