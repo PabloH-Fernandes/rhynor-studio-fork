@@ -40,3 +40,66 @@ export function vazioDe(info: MissoesInfo | null): VazioMissoes {
 export function ehAtual(info: MissoesInfo | null, m: Pick<Missao, "id">): boolean {
   return info?.atual?.id === m.id;
 }
+
+/** abas da seção: abertas (a fazer + em andamento) e concluídas */
+export type AbaMissoes = "abertas" | "concluidas";
+export const ABAS_MISSOES: readonly AbaMissoes[] = ["abertas", "concluidas"];
+
+/** valor salvo no navegador → aba conhecida (qualquer outra coisa volta para "abertas") */
+export function abaValida(salva: string): AbaMissoes {
+  return (ABAS_MISSOES as readonly string[]).includes(salva) ? (salva as AbaMissoes) : "abertas";
+}
+
+/** separa por status, mantendo a ordem que veio do servidor */
+export function separarMissoes<T extends Pick<Missao, "status">>(missoes: readonly T[]): { abertas: T[]; concluidas: T[] } {
+  const abertas: T[] = [];
+  const concluidas: T[] = [];
+  for (const m of missoes) (m.status === "concluída" ? concluidas : abertas).push(m);
+  return { abertas, concluidas };
+}
+
+/** texto de aba vazia (null = a aba tem missão) */
+export function vazioDaAba(aba: AbaMissoes, separadas: { abertas: readonly unknown[]; concluidas: readonly unknown[] }): string | null {
+  if (aba === "concluidas") return separadas.concluidas.length === 0 ? "Nenhuma missão concluída ainda." : null;
+  return separadas.abertas.length === 0 ? "Nenhuma missão aberta. As concluídas estão na outra aba." : null;
+}
+
+/** navegação das abas pelo teclado (circular); null = tecla que não mexe na aba */
+export function abaPelaTecla(atual: AbaMissoes, tecla: string): AbaMissoes | null {
+  const i = ABAS_MISSOES.indexOf(atual);
+  const n = ABAS_MISSOES.length;
+  switch (tecla) {
+    case "ArrowRight":
+      return ABAS_MISSOES[(i + 1) % n];
+    case "ArrowLeft":
+      return ABAS_MISSOES[(i - 1 + n) % n];
+    case "Home":
+      return ABAS_MISSOES[0];
+    case "End":
+      return ABAS_MISSOES[n - 1];
+    default:
+      return null;
+  }
+}
+
+const dois = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * "dd/mm/aaaa" da nota: a data do frontmatter (AAAA-MM-DD, lida como texto para não cair no dia
+ * anterior pelo fuso) e, sem ela, a data local de atualizadoEm. null quando não há nenhuma.
+ */
+export function textoDataMissao(m: Pick<Missao, "data" | "atualizadoEm">): string | null {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(m.data.trim());
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  if (!Number.isFinite(m.atualizadoEm) || m.atualizadoEm <= 0) return null;
+  const d = new Date(m.atualizadoEm);
+  return `${dois(d.getDate())}/${dois(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/** igual a MAX_CONCLUIDAS em server/vaultWatcher.ts */
+export const LIMITE_CONCLUIDAS = 50;
+
+/** aviso abaixo da lista de concluídas quando o servidor cortou no limite */
+export function textoLimiteConcluidas(n: number): string | null {
+  return n >= LIMITE_CONCLUIDAS ? `Mostrando as ${LIMITE_CONCLUIDAS} mais recentes` : null;
+}

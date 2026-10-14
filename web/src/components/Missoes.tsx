@@ -1,23 +1,54 @@
 // Seção "Missões" do painel: as missões do vault (20-Missoes), com andamento e resumo ao clicar.
+// Duas abas: abertas (a fazer + em andamento) e concluídas; a aba escolhida fica lembrada.
 
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import type { Missao, MissoesInfo } from "../../../shared/types";
 import { SEGMENTOS, segmentosCheios } from "../progresso";
-import { STATUS_MISSAO, ehAtual, textoReuniao, textoTarefas, vazioDe } from "../missoesLogic";
-import { usePreferencia } from "../usePreferencia";
+import {
+  ABAS_MISSOES,
+  STATUS_MISSAO,
+  abaPelaTecla,
+  abaValida,
+  ehAtual,
+  separarMissoes,
+  textoDataMissao,
+  textoLimiteConcluidas,
+  textoReuniao,
+  textoTarefas,
+  vazioDaAba,
+  vazioDe,
+  type AbaMissoes,
+} from "../missoesLogic";
+import { usePreferencia, usePreferenciaTexto } from "../usePreferencia";
+
+const ROTULO_ABA: Record<AbaMissoes, string> = { abertas: "Abertas", concluidas: "Concluídas" };
 
 export function Missoes({ info }: { info: MissoesInfo | null }) {
   const [aberto, alternar] = usePreferencia("agpocket.painel.missoes", true);
+  const [abaSalva, gravarAba] = usePreferenciaTexto("agpocket.painel.missoes.aba", "abertas");
+  const aba = abaValida(abaSalva);
   const [aberta, setAberta] = useState<string | null>(null);
-  const missoes = info?.missoes ?? [];
+  const abasRef = useRef<Partial<Record<AbaMissoes, HTMLButtonElement | null>>>({});
+  const separadas = separarMissoes(info?.missoes ?? []);
   const vazio = vazioDe(info);
+  const lista = aba === "abertas" ? separadas.abertas : separadas.concluidas;
+  const vazioAba = vazio === "sem-missao" ? null : vazioDaAba(aba, separadas);
+  const limite = aba === "concluidas" ? textoLimiteConcluidas(separadas.concluidas.length) : null;
+
+  const teclaNasAbas = (e: KeyboardEvent<HTMLDivElement>) => {
+    const nova = abaPelaTecla(aba, e.key);
+    if (!nova) return;
+    e.preventDefault();
+    gravarAba(nova);
+    abasRef.current[nova]?.focus();
+  };
 
   return (
     <section className="secao">
       <h2>
         <button className="secao-toggle" aria-expanded={aberto} aria-controls="secao-missoes" onClick={alternar}>
           <span className="secao-seta" aria-hidden="true" />
-          Missões <span className="count">· {missoes.length}</span>
+          Missões <span className="count">· {separadas.abertas.length}</span>
         </button>
       </h2>
       <div id="secao-missoes" hidden={!aberto}>
@@ -27,23 +58,54 @@ export function Missoes({ info }: { info: MissoesInfo | null }) {
             O vault não está configurado: rode <code>npm run setup</code>
           </p>
         )}
-        {vazio === "sem-missao" && (
-          <p className="muted">
-            Nenhuma missão ainda. Elas nascem pelo <code>/reuniao</code>.
-          </p>
+        {info !== null && vazio !== "sem-vault" && (
+          <>
+            <div className="missoes-abas" role="tablist" aria-label="Missões" onKeyDown={teclaNasAbas}>
+              {ABAS_MISSOES.map((a) => (
+                <button
+                  key={a}
+                  ref={(el) => {
+                    abasRef.current[a] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`missoes-aba-${a}`}
+                  className="missoes-aba"
+                  aria-selected={aba === a}
+                  aria-controls={`missoes-painel-${a}`}
+                  tabIndex={aba === a ? 0 : -1}
+                  onClick={() => gravarAba(a)}
+                >
+                  {ROTULO_ABA[a]} · {a === "abertas" ? separadas.abertas.length : separadas.concluidas.length}
+                </button>
+              ))}
+            </div>
+            <div role="tabpanel" id={`missoes-painel-${aba}`} aria-labelledby={`missoes-aba-${aba}`} tabIndex={0}>
+              {vazio === "sem-missao" && (
+                <p className="muted">
+                  Nenhuma missão ainda. Elas nascem pelo <code>/reuniao</code>.
+                </p>
+              )}
+              {vazioAba && <p className="muted">{vazioAba}</p>}
+              {lista.length > 0 && (
+                <ul className="missoes">
+                  {lista.map((m, i) => (
+                    <MissaoItem
+                      key={m.id}
+                      aba={aba}
+                      indice={i}
+                      missao={m}
+                      atual={aba === "abertas" && ehAtual(info, m)}
+                      aberta={aberta === m.id}
+                      onClick={() => setAberta(aberta === m.id ? null : m.id)}
+                    />
+                  ))}
+                </ul>
+              )}
+              {limite && <p className="muted missoes-limite">{limite}</p>}
+            </div>
+          </>
         )}
-        <ul className="missoes">
-          {missoes.map((m, i) => (
-            <MissaoItem
-              key={m.id}
-              indice={i}
-              missao={m}
-              atual={ehAtual(info, m)}
-              aberta={aberta === m.id}
-              onClick={() => setAberta(aberta === m.id ? null : m.id)}
-            />
-          ))}
-        </ul>
       </div>
     </section>
   );
@@ -51,12 +113,14 @@ export function Missoes({ info }: { info: MissoesInfo | null }) {
 
 function MissaoItem({
   missao: m,
+  aba,
   indice,
   atual,
   aberta,
   onClick,
 }: {
   missao: Missao;
+  aba: AbaMissoes;
   indice: number;
   atual: boolean;
   aberta: boolean;
@@ -64,9 +128,10 @@ function MissaoItem({
 }) {
   const st = STATUS_MISSAO[m.status];
   const reuniao = textoReuniao(m);
+  const data = aba === "concluidas" ? textoDataMissao(m) : null;
   const cheios = segmentosCheios(m.tarefas.feitas, m.tarefas.total);
-  // o nome do arquivo pode ter espaço e acento: o id usa só o índice
-  const resumoId = `missao-resumo-${indice}`;
+  // o nome do arquivo pode ter espaço e acento: o id usa a aba e o índice
+  const resumoId = `missao-resumo-${aba}-${indice}`;
   return (
     <li>
       <button
@@ -97,6 +162,7 @@ function MissaoItem({
             ))}
           </span>
         )}
+        {data && <span className="missao-data">{data}</span>}
         {reuniao && <span className="missao-reuniao">{reuniao}</span>}
       </button>
       <div id={resumoId} className="missao-resumo" hidden={!aberta}>
