@@ -17,6 +17,7 @@ import { ESTADO_FILE, PersistenciaEstado } from "./persistencia.ts";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
 import { resolverVault } from "./vault.ts";
 import { ObservadorVault } from "./vaultWatcher.ts";
+import { IngestaoInbox } from "./ingestao.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
@@ -47,6 +48,15 @@ persistencia.ligar();
 // missões e atas novas do vault (o servidor não herda o env do settings.json: o resolverVault lê de lá)
 const vault = new ObservadorVault(() => resolverVault(process.env, os.homedir()));
 void vault.iniciar();
+// leitura das atas do Inbox sem IA (AGPOCKET_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
+const ingestao =
+  process.env.AGPOCKET_INGESTAO?.trim() === "0"
+    ? null
+    : new IngestaoInbox(() => resolverVault(process.env, os.homedir()), {
+        aoIngerir: (ata) => broadcast({ type: "ata-nova", titulo: ata.titulo, hora: ata.hora }),
+        aoMudarForaDoFormato: (n) => vault.definirForaDoFormato(n),
+      });
+void ingestao?.iniciar();
 // sessão que acaba (SessionEnd, sem sinal, /clear) ou "Limpar": a missão pedida por ela deixa de ser a atual
 state.aoEncerrarSessao((sid) => (sid === null ? vault.esquecerTodas() : vault.esquecerSessao(sid)));
 const app = express();
@@ -203,6 +213,7 @@ function desligar(codigo: number) {
   desligando = true;
   persistencia.salvarSync();
   vault.parar();
+  ingestao?.parar();
   process.exit(codigo);
 }
 process.once("SIGINT", () => desligar(130));

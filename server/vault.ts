@@ -1,8 +1,11 @@
 // Leitura do vault do time (Obsidian): missões em 20-Missoes/ e contagem de atas novas em 00-Inbox/.
 // Aqui ficam só as funções puras (sem I/O no parse); o observador de pastas está em vaultWatcher.ts.
 //
-// Privacidade: 10-Reunioes/ nunca é aberta. A ata do Inbox só tem o frontmatter olhado (o corpo é
-// confidencial), e nota com `confidencial: true` nunca vira missão.
+// Privacidade: este módulo e o observador (vaultWatcher.ts) nunca abrem 10-Reunioes/. A ata do Inbox só
+// tem o frontmatter olhado aqui (o corpo é confidencial), e nota com `confidencial: true` nunca vira missão.
+// Quem lê o corpo da ata e grava em 10-Reunioes/ é a ingestão sem IA (ingestao.ts / reunioesVault.ts),
+// só na máquina local (127.0.0.1): ela extrai título, data, frontmatter e a seção Tarefas, e nada disso
+// vai para o painel nem para o Claude.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -92,7 +95,7 @@ export function lerFrontmatter(texto: string): Record<string, string> | null {
 }
 
 /** o texto depois do frontmatter (texto inteiro se não houver) */
-function corpoDe(texto: string): string[] {
+export function corpoDe(texto: string): string[] {
   const linhas = semBom(texto).split(/\r?\n/);
   if (linhas[0]?.trim() === "---") {
     const fim = linhas.findIndex((l, i) => i > 0 && l.trim() === "---");
@@ -107,7 +110,7 @@ function semAcento(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-function chave(s: string): string {
+export function chave(s: string): string {
   return semAcento(s).trim().toLowerCase();
 }
 
@@ -119,7 +122,7 @@ function ehVerdade(valor: string | undefined): boolean {
  * Qualquer linha `confidencial:` com true/yes/sim/1 descarta a nota (chave repetida, `[true]`...):
  * na dúvida, a nota fica de fora.
  */
-function temConfidencialTrue(texto: string): boolean {
+export function temConfidencialTrue(texto: string): boolean {
   const linhas = semBom(texto).split(/\r?\n/);
   if (linhas[0]?.trim() !== "---") return false;
   for (let i = 1; i < linhas.length; i++) {
@@ -137,12 +140,12 @@ function normalizarStatus(valor: string | undefined): MissaoStatus {
   return "a fazer";
 }
 
-function cortar(s: string, n: number): string {
+export function cortar(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
 }
 
 /** [[nota]] → nota, [[nota|apelido]] → apelido, [texto](url) → texto, URL solta some */
-function semLinks(s: string, max = MAX_ENTRADA_LINK): string {
+export function semLinks(s: string, max = MAX_ENTRADA_LINK): string {
   // entrada cortada antes: as regex abaixo são quadráticas com uma linha enorme de "[" sem "]"
   return s
     .slice(0, max)
@@ -155,7 +158,7 @@ function semLinks(s: string, max = MAX_ENTRADA_LINK): string {
 }
 
 /** linhas de corpo sem comentário HTML e sem bloco de código, com a marca de "linha de código" removida */
-function linhasDeTexto(corpo: string[]): string[] {
+export function linhasDeTexto(corpo: string[]): string[] {
   const junto = corpo.join("\n").replace(/<!--[\s\S]*?(-->|$)/g, "");
   const out: string[] = [];
   let emCodigo = false;
@@ -170,7 +173,7 @@ function linhasDeTexto(corpo: string[]): string[] {
 }
 
 /** linhas da seção `## <titulo>` até o próximo `## ` (null se a seção não existe) */
-function secao(linhas: string[], titulo: RegExp): string[] | null {
+export function secao(linhas: string[], titulo: RegExp): string[] | null {
   const i = linhas.findIndex((l) => titulo.test(l));
   if (i < 0) return null;
   const fim = linhas.findIndex((l, j) => j > i && /^##\s/.test(l));

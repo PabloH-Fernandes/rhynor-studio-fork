@@ -89,6 +89,8 @@ export class ObservadorVault {
   /** contagens antes do corte por grupo */
   private totais = { abertas: 0, concluidas: 0 };
   private novas = 0;
+  /** atas fora do formato avisadas pela ingestão (ingestao.ts); undefined = leitura automática desligada */
+  private foraDoFormato: number | undefined = undefined;
   /** nome do arquivo → último resultado bom (valor mantido se a leitura falhar) */
   private cacheMissoes = new Map<string, { mtime: number; size: number; missao: Missao | null }>();
   private cacheAtas = new Map<string, { mtime: number; size: number; nova: boolean }>();
@@ -141,6 +143,12 @@ export class ObservadorVault {
   subscribe(fn: Ouvinte): () => void {
     this.ouvintes.add(fn);
     return () => this.ouvintes.delete(fn);
+  }
+
+  /** a ingestão sem IA avisa quantas atas ficaram no Inbox por estarem fora do formato */
+  definirForaDoFormato(n: number) {
+    this.foraDoFormato = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    this.publicar();
   }
 
   /** UserPromptSubmit: se o prompt for "/time ... Missão [[nota]]", essa passa a ser a missão atual. */
@@ -355,7 +363,7 @@ export class ObservadorVault {
     const info: MissoesInfo = {
       vault: this.vault,
       missoes: this.missoes,
-      inbox: { novas: this.novas },
+      inbox: this.foraDoFormato === undefined ? { novas: this.novas } : { novas: this.novas, foraDoFormato: this.foraDoFormato },
       atual: atual ? { id: atual.id, nome: atual.nome, reuniaoTitulo: atual.reuniaoTitulo } : null,
       totais: { ...this.totais },
     };

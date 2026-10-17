@@ -43,6 +43,10 @@ test("textoAtaNova", () => {
   assert.equal(textoAtaNova(NaN), null);
   assert.equal(textoAtaNova(1), "📥 Chegou uma ata nova: rode /reuniao");
   assert.equal(textoAtaNova(3), "📥 Chegaram 3 atas novas: rode /reuniao");
+  // com a leitura sem IA ligada, só a ata fora do formato precisa do /reuniao
+  assert.equal(textoAtaNova(1, 1), "📥 Uma ata precisa do /reuniao: ela veio fora do formato");
+  assert.equal(textoAtaNova(2, 2), "📥 2 atas precisam do /reuniao: vieram fora do formato");
+  assert.equal(textoAtaNova(0, 0), null);
 });
 
 test("vazioDe", () => {

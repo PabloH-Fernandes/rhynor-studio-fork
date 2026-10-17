@@ -1020,16 +1020,18 @@ test("vault-template: modelos de Missão e Reunião seguem o formato do /reuniao
   assert.match(reuniao, /^status: rascunho$/m);
 });
 
-test("docs/exemplos/ata-ficticia.md segue o formato de entrada do /reuniao, sem e-mail nem telefone", () => {
+test("docs/exemplos/ata-ficticia.md segue o formato lido pela leitura automática, sem e-mail nem telefone", () => {
   const t = normalizaLf(fs.readFileSync(path.join(ROOT, "docs", "exemplos", "ata-ficticia.md"), "utf8"));
   const fm = t.match(/^---\n([\s\S]*?)\n---\n/);
   assert.ok(fm, "ata sem frontmatter");
-  for (const k of ["tipo", "projeto", "data", "status", "origem", "tags", "confidencial"]) {
+  for (const k of ["tipo", "origem", "data", "titulo", "reuniao_id", "status", "confidencial"]) {
     assert.match(fm[1], new RegExp(`^${k}:`, "m"), `ata sem ${k}`);
   }
-  assert.match(fm[1], /^tipo: ata$/m);
+  assert.match(fm[1], /^tipo: ata-bruta$/m);
+  assert.match(fm[1], /^status: nova$/m);
   assert.match(fm[1], /^confidencial: true$/m);
-  for (const s of ["## Pauta", "## Decisões", "## Tarefas", "## Transcrição"]) assert.ok(t.includes(s), `ata sem ${s}`);
+  for (const s of ["## Notas da reunião (Copilot)", "## Decisões", "## Tarefas"]) assert.ok(t.includes(s), `ata sem ${s}`);
+  assert.doesNotMatch(t, /## Transcrição/, "transcrição faz a leitura automática desistir da ata");
   assert.doesNotMatch(t, /@[\w.-]+\.\w{2,}/, "ata com e-mail");
   assert.doesNotMatch(t, /\(?\d{2}\)?\s?\d{4,5}-?\d{4}/, "ata com telefone");
 });

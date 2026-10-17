@@ -142,7 +142,11 @@ export interface MissoesInfo {
   vault: "ok" | "sem-vault" | "sem-pasta";
   missoes: Missao[];
   /** só a contagem de atas novas na raiz de 00-Inbox: nada do conteúdo nem dos nomes */
-  inbox: { novas: number };
+  inbox: {
+    novas: number;
+    /** atas que a leitura sem IA não entendeu e que ficaram no Inbox esperando o /reuniao; ausente se a leitura automática está desligada */
+    foraDoFormato?: number;
+  };
   /** a missão em que o time está agora, se der pra saber */
   atual: { id: string; nome: string; reuniaoTitulo: string } | null;
   /** quantas missões há antes do corte por grupo (a lista vem limitada); ausente em servidor antigo */
@@ -170,6 +174,8 @@ export type ServerMessage =
     }
   /** as missões do vault mudaram (ou a contagem de atas novas) */
   | { type: "missoes"; info: MissoesInfo }
+  /** a leitura automática (sem IA) acabou de ler uma ata nova: só título e hora, nada do conteúdo */
+  | { type: "ata-nova"; titulo: string; hora: string }
   /** uma reunião (/reuniao) começou ou acabou */
   | { type: "reuniao"; reuniao: ReuniaoAtiva | null }
   | { type: "agent"; agent: Agent }

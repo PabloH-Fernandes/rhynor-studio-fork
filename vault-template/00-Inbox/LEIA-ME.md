@@ -17,32 +17,44 @@ Entrada bruta do vault. Solte aqui atas coladas, transcrições e ideias soltas,
 
 ## Atas de reunião
 
-**Nome esperado:** `ata-AAAA-MM-DD-HHmm-<slug>.md` (ex.: `ata-2026-10-13-1900-planejamento.md`).
+**Nome esperado:** `ata-AAAA-MM-DD-HHmm-<slug>.md` (ex.: `ata-2026-10-13-1900-planejamento.md`), sempre na raiz desta pasta.
 
-**Frontmatter mínimo:**
+**Formato** (o mesmo que o fluxo do Power Automate grava; detalhes em `docs/power-automate-reunioes.md` do AG Pocket):
 
-```yaml
+```markdown
 ---
-tipo: ata
-projeto:
+tipo: ata-bruta
+origem: copilot-insights
 data: AAAA-MM-DD
-status: nova
-origem: power-automate   # ou manual
-tags: [ata, inbox]
-confidencial: true
-titulo: Título da reunião
 hora: "HH:MM"
+titulo: Título da reunião
+reuniao_id: identificador-unico-da-reuniao
+status: nova
+confidencial: true
 ---
+
+# Título da reunião
+
+## Notas da reunião (Copilot)
+- ...
+
+## Decisões
+- ...
+
+## Tarefas
+- [ ] O que fazer (responsável: Nome) (prazo: AAAA-MM-DD)
 ```
 
-Seções: `# título`, `## Pauta`, `## Decisões`, `## Tarefas` (uma por linha: `- <o quê> | responsável: <função> | prazo: <AAAA-MM-DD ou vazio>`), `## Resumo` e `## Transcrição` (opcionais). O que faltar vira ❓.
+Responsável e prazo são opcionais. O formato antigo (`## Pauta`, `## Decisões`, `## Tarefas` com `- <o quê> | responsável: <função> | prazo: <AAAA-MM-DD ou vazio>`) também é aceito.
 
-**Como usar:**
+**O que acontece sozinho (com o AG Pocket ligado):** ele lê a ata **sem IA**, cria a nota em `10-Reunioes/` (ver [[Reunião]]) com os nomes trocados por "Responsável A, B..." e `confidencial: true`, e move a ata bruta para `00-Inbox/processadas/` (com `status: processada`). **Nada é apagado** e nenhum conteúdo vai para o Claude.
+
+**Ata fora do formato** (por exemplo, só a transcrição): ela fica aqui e o painel mostra "precisa do /reuniao". Aí sim use o comando, que usa IA e só roda quando você manda:
 
 - `/reuniao ata-2026-10-13-1900-planejamento.md`: processa esse arquivo (caminho relativo a esta pasta).
 - `/reuniao` sem argumento: lista as atas com `status: nova` e pergunta qual usar (ou pede para colar o texto).
 - `/reuniao <texto colado>`: processa o texto direto, sem arquivo.
 
-O resultado vai para `10-Reunioes/` (ver [[Reunião]]) e, para as tarefas que você escolher, para `20-Missoes/` (ver [[Missão]]).
+O `/reuniao` também grava em `10-Reunioes/` e, para as tarefas que você escolher, em `20-Missoes/` (ver [[Missão]]).
 
-**Depois de processar:** o arquivo ganha `status: processada` e `reuniao: <nota>` no frontmatter e é movido para `00-Inbox/processadas/`. **Nunca é apagado.**
+**Para testar sem dados reais:** `npm run ata-ficticia` (no AG Pocket) cria uma ata inventada aqui.

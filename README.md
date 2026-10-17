@@ -28,7 +28,7 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 | `commands/` | Comandos `/time`, `/memoria` e `/reuniao` do Claude Code, copiados para `~/.claude/commands/` pelo setup |
 | `vault-template/` | Modelo do vault do Obsidian (o "segundo cérebro"); o setup cria o vault a partir dele |
 | `docs/power-automate-reunioes.md` | Formato da ata que um fluxo do Power Automate deve gravar no `00-Inbox/` (não testado) |
-| `docs/exemplos/ata-ficticia.md` | Ata inventada para testar o `/reuniao` |
+| `docs/exemplos/ata-ficticia.md` | Ata inventada, no formato do Power Automate, para testar a leitura automática |
 | `scripts/setup.mjs` | O instalador (`npm run setup`, `npm run setup:check`); veja o [SETUP.md](SETUP.md) |
 
 ## Rodando (5 minutos)
@@ -143,7 +143,11 @@ O setup instala um bloco de memória (`team/CLAUDE-memoria.md`) no seu `~/.claud
 | `/reuniao` | Transforma uma ata (texto colado ou arquivo de `00-Inbox/`) em nota de reunião e, com o seu ok, em missões |
 | `/time <tarefa>` | Roda a tarefa com o time. Se citar uma missão (`Missão [[nota]]`), ela vai para `em andamento` e o documentador marca `concluída` no fim |
 
-**O `/reuniao`, passo a passo** (com a ata inventada de `docs/exemplos/ata-ficticia.md`):
+**Leitura automática, sem IA (a ata chega e a nota nasce sozinha).** Com o servidor ligado, toda ata `.md` que cair na **raiz** de `00-Inbox/` é lida pelo próprio AG Pocket, **sem chamar o Claude**: ele espera o arquivo ficar quieto (~2 s), extrai título, data, notas, decisões e tarefas (com responsável e prazo, quando tiver), grava a nota em `10-Reunioes/` e move a ata bruta para `00-Inbox/processadas/` (nunca apaga). A nota nasce `confidencial: true`, com `origem: leitura-automatica` e `processamento: sem-ia`, e os nomes de responsáveis e de quem falava viram "Responsável A, B..." (o nome original fica só na ata bruta arquivada). Rodar de novo não duplica (a nota é achada pelo `reuniao_id`). Ata **fora do formato** (transcrição, sem frontmatter fechado, sem seções) não é tocada: fica no Inbox e o painel mostra "precisa do /reuniao". `AGPOCKET_INGESTAO=0` desliga a leitura automática. O formato da ata está em [docs/power-automate-reunioes.md](docs/power-automate-reunioes.md).
+
+**Atas fictícias para testar e apresentar:** `npm run ata-ficticia` grava uma ata inventada em `00-Inbox/` do vault configurado. Opções (depois de `--`): `--cenario=<nome>` (`projeto-software`, `alinhamento-bi`, `so-decisoes`, `tarefas-sem-prazo` ou `bagunçado`, também aceito como `baguncado`; sem a opção sai um aleatório), `--vault=<caminho>` e `--sem-gravar` (só mostra o texto). O cenário `bagunçado` é uma transcrição de propósito: ele fica no Inbox esperando o `/reuniao`.
+
+**O `/reuniao`, passo a passo** (usado quando a ata veio fora do formato, ou quando você cola o texto; com a ata inventada de `docs/exemplos/ata-ficticia.md`):
 
 1. Copie a ata para `<vault>/00-Inbox/ata-2026-10-13-1900-clube-de-leitura.md` (ou cole o texto direto no comando).
 2. No Claude Code, rode `/reuniao ata-2026-10-13-1900-clube-de-leitura.md`. Sem argumento, ele lista as atas com `status: nova` e pergunta qual usar.
@@ -164,18 +168,19 @@ Quando você roda o `/time` sugerido, a missão passa de `a fazer` para `em anda
   - **Duas abas dentro da seção:** **Abertas · N** (a fazer + em andamento) e **Concluídas · N**. O título "Missões · N" conta só as abertas. O navegador lembra a aba escolhida; dá para trocar pelo teclado (setas, Home, End). Sem nenhuma missão, as abas não aparecem; cada aba tem o próprio aviso de vazio.
   - **Na aba Concluídas** cada item mostra "Nota de dd/mm/aaaa": é a **data da nota**, não a data de conclusão (essa ainda não é gravada em lugar nenhum).
   - **Limite:** o painel mostra até **50 abertas e 50 concluídas**, as mais recentes primeiro (pela data da nota ou, sem ela, pela última alteração). As contagens das abas são os totais de verdade; quando há corte aparece "Mostrando as 50 mais recentes de N".
-- **Faixa "Chegou uma ata nova: rode /reuniao"** (com mais de uma, "Chegaram n atas novas"): aparece quando cai uma ata nova na raiz de `00-Inbox/` e some depois que ela é processada (em até ~30 s).
+- **Faixa "Chegou uma ata nova: rode /reuniao"** (com mais de uma, "Chegaram n atas novas"): aparece quando cai uma ata nova na raiz de `00-Inbox/` e some depois que ela é processada (em até ~30 s). Com a leitura automática ligada, a ata boa é lida sozinha e some; a faixa passa a dizer "precisa do /reuniao" só para as que vieram fora do formato.
 - O resumo da missão, ao clicar, mostra o objetivo e as tarefas.
 - **Reunião no escritório:** quando você roda `/reuniao`, os AGzinhos **livres** vão para a mesa de reunião e sentam em volta da maquete, e o líder fica de pé "apresentando" enquanto o comando roda. Depois todos voltam. Quem está trabalhando não sai da mesa.
 - **Quadro da parede:** mostra o nome da missão atual quando ela veio de uma reunião.
 
-Por dentro: `GET /api/missoes` devolve as missões (status, origem, projeto, tarefas; até 50 abertas + 50 concluídas), os totais de cada grupo antes do corte (campo opcional `totais`, só contagens) e a contagem de atas novas; o WebSocket ganhou as mensagens `missoes` (as missões ou a contagem mudaram) e `reuniao` (uma reunião começou ou acabou).
+Por dentro: `GET /api/missoes` devolve as missões (status, origem, projeto, tarefas; até 50 abertas + 50 concluídas), os totais de cada grupo antes do corte (campo opcional `totais`, só contagens) e a contagem de atas novas (`inbox.novas`) e das fora do formato (`inbox.foraDoFormato`, opcional); o WebSocket ganhou as mensagens `missoes` (as missões ou a contagem mudaram), `reuniao` (uma reunião começou ou acabou) e `ata-nova` (a leitura automática acabou de ler uma ata: só título e hora; o painel ainda não usa).
 
 ### Privacidade
 
 - Nota com `confidencial: true` **não é lida** pelos agentes nem pelo painel (só o título pode aparecer no índice).
 - Toda nota de reunião **nasce confidencial**; só mude para `false` depois de conferir que não há nada sensível.
 - O painel recebe só o necessário: título neutro da reunião, dados da missão e a **contagem** de atas novas (nada do conteúdo nem dos nomes das atas).
+- A **leitura automática** roda no servidor local (`127.0.0.1`) e, para isso, lê a ata do Inbox e grava em `10-Reunioes/` (de lá lê só o título, a data, o frontmatter e a seção Tarefas, para não duplicar). Tudo **sem IA**: nenhum conteúdo de reunião vai para o Claude antes da sua aprovação. Nomes que não eram responsáveis nem falantes podem ficar no texto das notas: cada nota traz o aviso para revisar.
 - O `/reuniao` troca nomes de pessoas por papéis ou áreas. Mesmo assim, **revise a nota gerada**.
 - Nunca guarde senha, token, chave ou dado pessoal no vault.
 - `AGPOCKET_GRAVAR=1` (desligado por padrão) grava o prompt cru em `data/eventos/`, **inclusive a ata colada no `/reuniao`**. Veja "Gravador de eventos".
@@ -441,7 +446,7 @@ A ideia seria descartar as sessões de `claude -p` (modo não interativo). Não 
 - Se mudar as regras de uniforme (quem pode usar terno, blazer etc.), é em `ROUPAS_PERMITIDAS` e `DESTAQUES_PERMITIDOS`.
 
 ### Layout e sprites
-Pra mudar o layout (mais mesas, outro formato de sala), mexa em `DESKS` no `web/src/office/map.ts`. Os móveis e o cenário ficam em `map.ts` e `decor.ts`. Os personagens são desenhados em `web/src/office/sprites.ts` (e nos módulos de corpo, cabelo e acessórios ao lado dele) com retângulos, então dá pra mudar cabelo, adicionar capacete, colete etc. sem mexer com imagens. Os sprites prontos ficam em cache (`spriteCache.ts`). A luz do dia está em `web/src/office/daylight.ts`.
+Pra mudar o layout (mais mesas, outro formato de sala), mexa em `DESKS` no `web/src/office/map.ts`. Os móveis e o cenário ficam em `map.ts` e nos módulos `decorMoveis.ts` (mobília) e `decorJanela.ts` (céu, janelas, quadros), com os helpers de desenho em `decorBase.ts` (`decor.ts` só reexporta os três). Os personagens são desenhados em `web/src/office/sprites.ts` (e nos módulos de corpo, cabelo e acessórios ao lado dele) com retângulos, então dá pra mudar cabelo, adicionar capacete, colete etc. sem mexer com imagens. Os sprites prontos ficam em cache (`spriteCache.ts`). A luz do dia está em `web/src/office/daylight.ts`.
 
 > Pra usar a marca oficial: peça a logo e o manual de marca pro time de comunicação e mantenha o repositório privado.
 
