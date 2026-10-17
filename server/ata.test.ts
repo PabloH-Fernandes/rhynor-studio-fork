@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { ehForaDoFormato, parseAta, normalizarPrazo, type AtaLida } from "./ataParser.ts";
+import { Anonimizador, ehForaDoFormato, parseAta, normalizarPrazo, type AtaLida } from "./ataParser.ts";
 import { CENARIOS, PESSOAS_FICTICIAS, acharCenario, gerarAta, gravarAta, lerArgs, type NomeCenario } from "./ataFicticia.ts";
 
 const AGORA = new Date(2026, 9, 17, 14, 30); // 17/10/2026 14:30 (local)
@@ -325,4 +325,13 @@ test("o exemplo docs/exemplos/ata-ficticia.md é lido e anonimizado", () => {
   assert.equal(r.tarefas.filter((t) => t.prazo === "").length, 1);
   assert.equal(r.tarefas.filter((t) => t.responsavel === "").length, 1);
   assert.ok(!JSON.stringify(r).match(/Tiago|Marina|Lúcia/));
+});
+
+test("Anonimizador não troca palavras comuns: o nome precisa aparecer com inicial maiúscula", () => {
+  const anon = new Anonimizador();
+  anon.registrar("Sistema");
+  const rotuloFlor = anon.registrar("Dona Flor");
+  assert.equal(anon.aplicar("O sistema de pagamento caiu; Sistema avisou."), "O sistema de pagamento caiu; Responsável A avisou.");
+  assert.equal(anon.aplicar("A flor do jardim e a Flor falaram"), `A flor do jardim e a ${rotuloFlor} falaram`);
+  assert.equal(anon.aplicar("dona flor chegou"), `${rotuloFlor} chegou`, "nome completo em minúsculas ainda é trocado");
 });

@@ -6,10 +6,12 @@
 //   a ata pela metade.
 // - Ata fora do formato não é tocada: continua no Inbox e só entra na contagem `foraDoFormato` ("precisa do /reuniao").
 // - Nada é apagado: a ata bruta vai para processadas/ (com -2, -3 se o nome já existir).
-// - Rodar de novo não duplica: a nota é procurada por reuniao_id ou fonte antes de gravar.
+// - Rodar de novo não duplica: a nota é procurada por reuniao_id, ou por fonte + hash do conteúdo, antes de gravar.
+// - Privacidade: o nome do arquivo pode ter o título da reunião; nos logs ele aparece só como um id curto (idCurto).
 // - fs.watch no OneDrive é instável: cada evento só agenda uma varredura completa (debounce) e um relógio de
 //   30 s repete a varredura.
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
@@ -17,6 +19,7 @@ import { diaLocal } from "../shared/datas.ts";
 import { ehForaDoFormato, parseAta } from "./ataParser.ts";
 import { writeAtomic } from "./roster.ts";
 import {
+  hashDaAta,
   indexarReunioes,
   marcarProcessada,
   montarNota,
@@ -59,6 +62,16 @@ export interface ResumoVarredura {
   foraDoFormato: number;
   /** arquivos que deram erro e serão tentados de novo na próxima varredura */
   erros: number;
+}
+
+/** id curto e estável do arquivo para os logs (o nome pode carregar o título da reunião) */
+export function idCurto(nome: string): string {
+  return createHash("sha1").update(nome).digest("hex").slice(0, 6);
+}
+
+function codigoDe(err: unknown): string {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  return typeof code === "string" ? code : "erro";
 }
 
 /** Ata que o fluxo ainda não terminou de gravar, ou que o sistema deixou de lado. */
@@ -107,6 +120,8 @@ export class IngestaoInbox {
   private foraDoFormato = new Map<string, { size: number; mtime: number }>();
   /** ata já marcada como processada que ficou na raiz: nem entra na conta nem é lida de novo */
   private ignoradas = new Map<string, { size: number; mtime: number }>();
+  /** ata processada na raiz cujo rename falhou: o aviso sai uma vez só por arquivo */
+  private avisadasMover = new Set<string>();
   private ultimoFora = -1;
   private ultimo: ResumoVarredura = { ingeridas: 0, foraDoFormato: 0, erros: 0 };
 
@@ -225,6 +240,7 @@ export class IngestaoInbox {
       this.observados.clear();
       this.foraDoFormato.clear();
       this.ignoradas.clear();
+      this.avisadasMover.clear();
     }
     const resumo: ResumoVarredura = { ingeridas: 0, foraDoFormato: 0, erros: 0 };
     if (!vault) {
@@ -252,6 +268,7 @@ export class IngestaoInbox {
     for (const n of [...this.observados.keys()]) if (!vistos.has(n)) this.observados.delete(n);
     for (const n of [...this.foraDoFormato.keys()]) if (!vistos.has(n)) this.foraDoFormato.delete(n);
     for (const n of [...this.ignoradas.keys()]) if (!vistos.has(n)) this.ignoradas.delete(n);
+    for (const n of [...this.avisadasMover]) if (!vistos.has(n)) this.avisadasMover.delete(n);
 
     // sem 10-Reunioes não há onde gravar: a ata fica quieta no Inbox (o /reuniao avisa o que falta)
     const temDestino = await fsp.stat(dirReunioes).then((s) => s.isDirectory(), () => false);
@@ -284,14 +301,26 @@ export class IngestaoInbox {
         }
 
         if (st.size > MAX_BYTES_ATA) {
-          console.warn(`[ingestão] ${nome} tem ${Math.round(st.size / 1024)} KB (limite ${MAX_BYTES_ATA / 1024} KB): fica no Inbox`);
+          console.warn(`[ingestão] ata ${idCurto(nome)} tem ${Math.round(st.size / 1024)} KB (limite ${MAX_BYTES_ATA / 1024} KB): fica no Inbox`);
           this.foraDoFormato.set(nome, { size: st.size, mtime });
           continue;
         }
         const texto = await fsp.readFile(arq, "utf8");
         const fm = lerFrontmatter(texto);
         if (fm && chave(fm.status ?? "") === "processada") {
-          this.ignoradas.set(nome, { size: st.size, mtime }); // já lida: só está na raiz por engano
+          if (await this.notaDaAtaExiste(dirReunioes, fm.reuniao)) {
+            // já lida e com nota: só falta sair da raiz (sem reescrever nada)
+            try {
+              await this.moverParaProcessadas(dirInbox, nome);
+            } catch (err) {
+              if (!this.avisadasMover.has(nome)) {
+                this.avisadasMover.add(nome);
+                console.warn(`[ingestão] ata ${idCurto(nome)} já processada, mas não consegui movê-la para processadas/ (${codigoDe(err)}); tento de novo nas próximas varreduras`);
+              }
+            }
+          } else {
+            this.ignoradas.set(nome, { size: st.size, mtime }); // sem nota conhecida: não mexe
+          }
           continue;
         }
 
@@ -302,7 +331,8 @@ export class IngestaoInbox {
         }
 
         indice ??= await indexarReunioes(dirReunioes, dirMissoes);
-        let nota = notaExistente(indice, ata, nome);
+        const fonteHash = hashDaAta(texto);
+        let nota = notaExistente(indice, ata, nome, fonteHash);
         if (!nota) {
           const agoraData = this.now();
           const dataValida = ata.data !== "";
@@ -312,11 +342,15 @@ export class IngestaoInbox {
             indice,
             data,
             slugDe(ata.titulo),
-            montarNota(ata, { data, fonte: nome, processadaEm: agoraData, dataSubstituida: !dataValida }),
+            montarNota(ata, { data, fonte: nome, fonteHash, processadaEm: agoraData, dataSubstituida: !dataValida }),
           );
         }
-        await this.arquivar(dirInbox, nome, texto, nota);
+        const arquivada = await this.arquivar(dirInbox, nome, texto, nota, st);
         this.observados.delete(nome);
+        if (!arquivada) {
+          // a ata mudou depois da leitura: a bruta não pode ser sobrescrita por uma versão velha; a próxima varredura lê de novo
+          continue;
+        }
         resumo.ingeridas++;
         if (!this.existentes?.has(nome)) {
           try {
@@ -328,7 +362,7 @@ export class IngestaoInbox {
       } catch (err) {
         // EBUSY, "só online" do OneDrive...: tenta de novo na próxima varredura
         resumo.erros++;
-        console.warn(`[ingestão] não consegui ler ${nome}:`, err instanceof Error ? err.message : err);
+        console.warn(`[ingestão] não consegui ler a ata ${idCurto(nome)} (${codigoDe(err)}); tento de novo na próxima varredura`);
       }
     }
 
@@ -338,18 +372,35 @@ export class IngestaoInbox {
     return resumo;
   }
 
-  /** frontmatter da ata (processada + nota + confidencial) e move para 00-Inbox/processadas/. Nunca apaga. */
-  private async arquivar(dirInbox: string, nome: string, texto: string, nota: string) {
-    const novo = marcarProcessada(texto, nota);
-    const fm = novo ? lerFrontmatter(novo) : null;
-    if (!novo || fm?.confidencial !== "true") throw new Error("não consegui marcar a ata como processada");
+  private async notaDaAtaExiste(dirReunioes: string, nota: string | undefined): Promise<boolean> {
+    if (!nota || /[\\/]/.test(nota) || nota.includes("..")) return false;
+    return fsp.stat(path.join(dirReunioes, `${nota}.md`)).then((s) => s.isFile(), () => false);
+  }
+
+  /** move a ata da raiz do Inbox para processadas/ (com -2, -3 se o nome já existir). Nunca apaga. */
+  private async moverParaProcessadas(dirInbox: string, nome: string) {
     const origem = path.join(dirInbox, nome);
-    await writeAtomic(origem, novo);
     const destinoDir = path.join(dirInbox, "processadas");
     await fsp.mkdir(destinoDir, { recursive: true });
     const base = nome.replace(/\.md$/i, "");
     let alvo = path.join(destinoDir, `${base}.md`);
     for (let k = 2; fs.existsSync(alvo); k++) alvo = path.join(destinoDir, `${base}-${k}.md`);
     await renomear(origem, alvo);
+  }
+
+  /**
+   * frontmatter da ata (processada + nota + confidencial) e move para 00-Inbox/processadas/. Nunca apaga.
+   * Antes de regravar confere tamanho e data: se a ata mudou desde a leitura devolve false e não toca nela.
+   */
+  private async arquivar(dirInbox: string, nome: string, texto: string, nota: string, lido: fs.Stats): Promise<boolean> {
+    const novo = marcarProcessada(texto, nota);
+    const fm = novo ? lerFrontmatter(novo) : null;
+    if (!novo || fm?.confidencial !== "true") throw new Error("não consegui marcar a ata como processada");
+    const origem = path.join(dirInbox, nome);
+    const agora = await fsp.stat(origem);
+    if (agora.size !== lido.size || Math.floor(agora.mtimeMs) !== Math.floor(lido.mtimeMs)) return false;
+    await writeAtomic(origem, novo);
+    await this.moverParaProcessadas(dirInbox, nome);
+    return true;
   }
 }

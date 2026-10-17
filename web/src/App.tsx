@@ -140,7 +140,7 @@ export default function App() {
   // o aviso "te esperando" olha TODOS os agentes: o filtro de projeto não esconde um pedido seu
   const espera = useMemo(() => esperandoDe(list, projeto), [list, projeto]);
 
-  const avisoAta = textoAtaNova(missoes?.inbox.novas ?? 0, missoes?.inbox.foraDoFormato ?? 0);
+  const avisoAta = textoAtaNova(missoes?.inbox.novas ?? 0, missoes?.inbox.foraDoFormato);
 
   const call = async (path: string) => {
     setBusy(true);

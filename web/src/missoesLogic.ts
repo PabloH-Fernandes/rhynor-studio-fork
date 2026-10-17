@@ -26,8 +26,10 @@ export function textoReuniao(m: Pick<Missao, "origem" | "reuniaoTitulo">): strin
  * aviso do Inbox; null quando não há ata nova. `foraDoFormato` (leitura sem IA ligada): atas que o servidor
  * não conseguiu ler sozinho; só elas precisam do /reuniao.
  */
-export function textoAtaNova(n: number, foraDoFormato = 0): string | null {
-  if (foraDoFormato > 0) {
+export function textoAtaNova(n: number, foraDoFormato?: number): string | null {
+  if (foraDoFormato !== undefined) {
+    // leitura sem IA ligada: as atas boas já viraram nota, então `n` não avisa; só as fora do formato precisam do /reuniao
+    if (!(foraDoFormato > 0)) return null;
     return foraDoFormato === 1
       ? "📥 Uma ata precisa do /reuniao: ela veio fora do formato"
       : `📥 ${foraDoFormato} atas precisam do /reuniao: vieram fora do formato`;

@@ -174,8 +174,8 @@ export type ServerMessage =
     }
   /** as missões do vault mudaram (ou a contagem de atas novas) */
   | { type: "missoes"; info: MissoesInfo }
-  /** a leitura automática (sem IA) acabou de ler uma ata nova: só título e hora, nada do conteúdo */
-  | { type: "ata-nova"; titulo: string; hora: string }
+  /** a leitura automática (sem IA) acabou de ler uma ata nova: texto fixo e hora, sem título nem conteúdo (o título fica só na nota do vault) */
+  | { type: "ata-nova"; texto: string; hora: string }
   /** uma reunião (/reuniao) começou ou acabou */
   | { type: "reuniao"; reuniao: ReuniaoAtiva | null }
   | { type: "agent"; agent: Agent }

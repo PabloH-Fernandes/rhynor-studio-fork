@@ -53,7 +53,7 @@ const ingestao =
   process.env.AGPOCKET_INGESTAO?.trim() === "0"
     ? null
     : new IngestaoInbox(() => resolverVault(process.env, os.homedir()), {
-        aoIngerir: (ata) => broadcast({ type: "ata-nova", titulo: ata.titulo, hora: ata.hora }),
+        aoIngerir: (ata) => broadcast({ type: "ata-nova", texto: "Chegou uma ata", hora: ata.hora }),
         aoMudarForaDoFormato: (n) => vault.definirForaDoFormato(n),
       });
 void ingestao?.iniciar();

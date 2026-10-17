@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { PESSOAS_FICTICIAS, gerarAta } from "./ataFicticia.ts";
-import { IngestaoInbox, type AtaIngerida } from "./ingestao.ts";
+import { IngestaoInbox, idCurto, type AtaIngerida } from "./ingestao.ts";
 import { lerFrontmatter } from "./vault.ts";
 import { marcarProcessada, nomeLivre, slugDe } from "./reunioesVault.ts";
 
@@ -71,9 +71,10 @@ test("ata boa vira nota em 10-Reunioes e sai do Inbox para processadas/", async 
     assert.equal(fmNota?.ficticia, "true");
     assert.equal(fmNota?.data, "2026-10-17");
     assert.equal(fmNota?.fonte, a.nomeArquivo);
+    assert.match(fmNota?.fonte_hash ?? "", /^[0-9a-f]{64}$/);
     assert.match(fmNota?.reuniao_id ?? "", /^ficticia-/);
     assert.match(fmNota?.processada_em ?? "", /^2026-10-1\dT/);
-    for (const secao of ["## Pauta", "## Decisões", "## Tarefas", "## Dúvidas", "## Missões geradas"]) assert.ok(nota.includes(secao), secao);
+    for (const secao of ["## Pauta e notas", "## Decisões", "## Tarefas", "## Dúvidas", "## Missões geradas"]) assert.ok(nota.includes(secao), secao);
     assert.match(nota, /nomes que não eram responsáveis podem ter ficado no texto: revise/);
     assert.match(nota, /- \[ \] .+ \| responsável: Responsável [A-C] \| prazo: 2026-10-\d\d \| classe: \?/);
     for (const pessoa of PESSOAS_FICTICIAS) {
@@ -272,4 +273,116 @@ test("helpers: slug, nome livre e marcarProcessada", () => {
   assert.equal(marcarProcessada(antes, "n1"), "---\ntipo: ata-bruta\nstatus: processada\nconfidencial: true\nreuniao: n1\n---\n# T\n");
   assert.equal(marcarProcessada("sem frontmatter", "n1"), null);
   assert.equal(marcarProcessada("---\nsem fechar", "n1"), null);
+});
+
+test("ata que muda entre a leitura e o arquivamento não é sobrescrita: fica no Inbox e a próxima varredura lê de novo", async () => {
+  const v = novoVault();
+  try {
+    const a = ataFicticia("projeto-software");
+    const arq = path.join(v.inbox, a.nomeArquivo);
+    fs.writeFileSync(arq, a.texto);
+    const nova = a.texto + "\n## Resumo\nacrescentado depois da leitura\n";
+    let mexeu = false;
+    const ing = new IngestaoInbox(() => v.vault, {
+      ...opcoes,
+      now: () => {
+        if (!mexeu) {
+          mexeu = true;
+          fs.writeFileSync(arq, nova); // o OneDrive entrega a versão nova no meio da passada
+        }
+        return AGORA;
+      },
+    });
+    const r = await ing.varrer();
+    assert.equal(r.ingeridas, 0);
+    assert.equal(fs.readFileSync(arq, "utf8"), nova, "a ata bruta nova está intacta, sem status processada");
+    assert.equal(fs.existsSync(path.join(v.inbox, "processadas")), false);
+
+    const r2 = await ing.varrer();
+    assert.equal(r2.ingeridas, 1);
+    assert.deepEqual(md(v.inbox), []);
+    const arquivada = fs.readFileSync(path.join(v.inbox, "processadas", a.nomeArquivo), "utf8");
+    assert.ok(arquivada.includes("acrescentado depois da leitura"));
+  } finally {
+    v.limpar();
+  }
+});
+
+test("mesma fonte com conteúdo e reuniao_id diferentes é outra reunião; mesma fonte e mesmo conteúdo é duplicata", async () => {
+  const v = novoVault();
+  try {
+    const a = ataFicticia("projeto-software");
+    const ing = new IngestaoInbox(() => v.vault, opcoes);
+    fs.writeFileSync(path.join(v.inbox, a.nomeArquivo), a.texto);
+    await ing.varrer();
+    assert.equal(md(v.reunioes).length, 1);
+
+    // mesmo nome de arquivo, outra reunião (outro reuniao_id e outro texto)
+    const outra = a.texto.replace(/reuniao_id: .*/, "reuniao_id: ficticia-outra-reuniao").replace("## Decisões", "- um tópico a mais\n\n## Decisões");
+    fs.writeFileSync(path.join(v.inbox, a.nomeArquivo), outra);
+    await ing.varrer();
+    assert.equal(md(v.reunioes).length, 2, "não engoliu a reunião diferente");
+
+    // o mesmo conteúdo de novo, sem reuniao_id: a fonte + hash reconhece
+    const semId = a.texto.replace(/reuniao_id: .*\n/, "");
+    const ing2 = new IngestaoInbox(() => v.vault, opcoes);
+    fs.writeFileSync(path.join(v.inbox, a.nomeArquivo), semId);
+    await ing2.varrer();
+    assert.equal(md(v.reunioes).length, 3);
+    fs.writeFileSync(path.join(v.inbox, a.nomeArquivo), semId);
+    await ing2.varrer();
+    assert.equal(md(v.reunioes).length, 3, "mesma fonte e mesmo hash: duplicata");
+  } finally {
+    v.limpar();
+  }
+});
+
+test("ata processada na raiz com nota existente vai para processadas/; sem nota fica; se o rename falha, avisa uma vez sem o nome", async () => {
+  const v = novoVault();
+  const avisos: string[] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => void avisos.push(args.join(" "));
+  try {
+    const a = ataFicticia("projeto-software");
+    fs.writeFileSync(path.join(v.reunioes, "nota-x.md"), "---\ntipo: reuniao\n---\n");
+    fs.writeFileSync(path.join(v.inbox, a.nomeArquivo), marcarProcessada(a.texto, "nota-x") ?? "");
+    const b = ataFicticia("alinhamento-bi");
+    fs.writeFileSync(path.join(v.inbox, b.nomeArquivo), marcarProcessada(b.texto, "nota-que-nao-existe") ?? "");
+    const ing = new IngestaoInbox(() => v.vault, opcoes);
+    await ing.varrer();
+    assert.deepEqual(md(path.join(v.inbox, "processadas")), [a.nomeArquivo]);
+    assert.deepEqual(md(v.inbox), [b.nomeArquivo], "sem nota conhecida, a ata não é mexida");
+
+    // rename impossível: processadas é um arquivo
+    fs.rmSync(path.join(v.inbox, "processadas"), { recursive: true });
+    fs.writeFileSync(path.join(v.inbox, "processadas"), "não é pasta");
+    fs.writeFileSync(path.join(v.inbox, a.nomeArquivo), marcarProcessada(a.texto, "nota-x") ?? "");
+    await ing.varrer();
+    await ing.varrer();
+    const meus = avisos.filter((x) => x.includes("não consegui movê-la"));
+    assert.equal(meus.length, 1, "um aviso só por arquivo");
+    assert.ok(!meus[0].includes(a.nomeArquivo) && !/planejamento|sprint/i.test(meus[0]), "sem o nome do arquivo");
+    assert.ok(fs.existsSync(path.join(v.inbox, a.nomeArquivo)), "a ata continua lá");
+  } finally {
+    console.warn = original;
+    v.limpar();
+  }
+});
+
+test("logs da ingestão usam id curto, não o nome do arquivo", async () => {
+  const v = novoVault();
+  const avisos: string[] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => void avisos.push(args.join(" "));
+  try {
+    const nome = "ata-2026-10-17-reuniao-secreta.md";
+    fs.writeFileSync(path.join(v.inbox, nome), "x".repeat(600 * 1024));
+    await new IngestaoInbox(() => v.vault, opcoes).varrer();
+    assert.equal(avisos.length, 1);
+    assert.ok(avisos[0].includes(idCurto(nome)));
+    assert.ok(!/secreta|ata-2026/.test(avisos[0]));
+  } finally {
+    console.warn = original;
+    v.limpar();
+  }
 });

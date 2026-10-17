@@ -4,6 +4,7 @@
 // sobrescreve) e, para não duplicar, lê só o frontmatter (reuniao_id e fonte) das notas que já existem.
 // A nota nasce `confidencial: true` e o conteúdo nunca vai para o painel nem para o Claude.
 
+import { createHash } from "node:crypto";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import type { AtaLida } from "./ataParser.ts";
@@ -45,6 +46,11 @@ export function nomeLivre(data: string, slug: string, usados: ReadonlySet<string
   return nome;
 }
 
+/** hash do conteúdo da ata bruta (identifica a versão exata que virou a nota) */
+export function hashDaAta(texto: string): string {
+  return createHash("sha256").update(texto).digest("hex");
+}
+
 // ---------------------------------------------------------------- texto da nota
 
 export interface ContextoDaNota {
@@ -52,6 +58,8 @@ export interface ContextoDaNota {
   data: string;
   /** nome do arquivo bruto do Inbox */
   fonte: string;
+  /** hash do conteúdo da ata (hashDaAta): só com ele igual a `fonte` conta como duplicata */
+  fonteHash: string;
   /** quando a leitura aconteceu */
   processadaEm: Date;
   /** a ata não trazia data válida */
@@ -83,6 +91,7 @@ export function montarNota(ata: AtaLida, ctx: ContextoDaNota): string {
     `processada_em: ${ctx.processadaEm.toISOString()}`,
     "entrada: inbox",
     `fonte: ${valorSeguro(ctx.fonte)}`,
+    `fonte_hash: ${valorSeguro(ctx.fonteHash)}`,
   ];
   const id = valorSeguro(ata.reuniaoId);
   if (id) fm.push(`reuniao_id: ${id}`);
@@ -101,7 +110,7 @@ export function montarNota(ata: AtaLida, ctx: ContextoDaNota): string {
     "> Nasce com `confidencial: true`. Só mude para `false` depois de conferir que não há nada sensível.",
     AVISO_SEM_IA,
     "",
-    "## Pauta",
+    "## Pauta e notas",
     ...itens([...ata.pauta, ...ata.notas]),
     "",
     "## Decisões",
@@ -162,6 +171,7 @@ export interface IndiceDeReunioes {
   /** nomes de arquivo sem .md (de 10-Reunioes e 20-Missoes): para o nome ficar livre */
   nomes: Set<string>;
   porReuniaoId: Map<string, string>;
+  /** chave `<fonte>|<fonte_hash>`: mesma fonte com conteúdo diferente é outra reunião */
   porFonte: Map<string, string>;
 }
 
@@ -186,7 +196,7 @@ export async function indexarReunioes(dirReunioes: string, dirMissoes: string): 
       const fm = lerFrontmatter(buf.toString("utf8", 0, bytesRead));
       if (!fm) continue;
       if (fm.reuniao_id) indice.porReuniaoId.set(fm.reuniao_id, nome);
-      if (fm.fonte) indice.porFonte.set(fm.fonte, nome);
+      if (fm.fonte && fm.fonte_hash) indice.porFonte.set(`${fm.fonte}|${fm.fonte_hash}`, nome);
     } catch {
       // arquivo ocupado ou só online: fica de fora do índice
     } finally {
@@ -196,10 +206,10 @@ export async function indexarReunioes(dirReunioes: string, dirMissoes: string): 
   return indice;
 }
 
-/** a nota que já veio desta ata (mesmo reuniao_id ou mesma fonte), se existir */
-export function notaExistente(indice: IndiceDeReunioes, ata: Pick<AtaLida, "reuniaoId">, fonte: string): string | null {
+/** a nota que já veio desta ata (mesmo reuniao_id, ou mesma fonte com o mesmo hash de conteúdo), se existir */
+export function notaExistente(indice: IndiceDeReunioes, ata: Pick<AtaLida, "reuniaoId">, fonte: string, fonteHash: string): string | null {
   const id = valorSeguro(ata.reuniaoId);
-  return (id && indice.porReuniaoId.get(id)) || indice.porFonte.get(valorSeguro(fonte)) || null;
+  return (id && indice.porReuniaoId.get(id)) || indice.porFonte.get(`${valorSeguro(fonte)}|${valorSeguro(fonteHash)}`) || null;
 }
 
 /**

@@ -57,7 +57,7 @@ export function ehForaDoFormato(r: ResultadoAta): r is AtaForaDoFormato {
 // ---------------------------------------------------------------- anonimização
 
 /** palavras que não identificam ninguém: não viram "nome" sozinhas */
-const PARTICULAS = new Set(["dona", "seu", "sr", "sra", "dr", "dra", "prof", "profa", "professor", "professora", "de", "da", "do", "dos", "das", "e"]);
+const PARTICULAS = new Set(["dona", "seu", "sr", "sra", "dr", "dra", "prof", "profa", "professor", "professora", "de", "da", "do", "dos", "das", "e", "dom", "frei", "padre", "senhor", "senhora", "tia", "tio", "di", "del", "van", "von", "la"]);
 
 /** "Decisão:", "Prazo:"... começam com maiúscula e dois-pontos, mas não são pessoas */
 const ROTULOS = new Set(
@@ -143,6 +143,9 @@ export class Anonimizador {
     for (const m of plano.matchAll(this.regex)) {
       const rotulo = this.porTermo.get(m[0]);
       if (!rotulo || m.index === undefined) continue;
+      // nome de uma palavra só (ou parte de um nome) tem que aparecer com inicial maiúscula: "Sistema"/"Flor" como
+      // responsável não podem trocar "sistema"/"flor" no meio de uma frase
+      if (!m[0].includes(" ") && !/^\p{Lu}/u.test(original.slice(m.index, m.index + 1))) continue;
       saida += original.slice(cursor, m.index) + rotulo;
       cursor = m.index + m[0].length;
     }
