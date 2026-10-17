@@ -915,7 +915,7 @@ function drawMaquette(ctx: Ctx, cx: number, cy: number) {
 }
 
 /** Cantinho do café (embaixo, antes da ala de descanso): balcão marinho com tampo claro. */
-export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean) {
+export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean, still = false) {
   const F = palette.furniture;
   const x = px(26.6);
   const y = px(16.1);
@@ -936,7 +936,7 @@ export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean) {
   // xícaras
   rect(ctx, x + 34, y - 3, 5, 4, palette.white);
   // vapor saindo da xícara branca (à direita de quem está no café), ondulando 1px
-  if (busy) {
+  if (busy && !still) {
     const k = Math.floor(t / 250) % 4;
     ctx.fillStyle = "rgba(255,255,255,0.8)";
     for (let j = 0; j < 4; j++) {
@@ -967,6 +967,7 @@ export interface Prop {
   /** o motor desenha diferente (ex.: "pingpong" sem as raquetes e a bolinha no tampo durante o jogo) */
   id?: string;
   y: number;
+  /** `t` em ms; `t < 0` significa "parado" (reduced-motion): props `live` devem desenhar o quadro estático */
   draw: (ctx: Ctx, t: number) => void;
   /** muda com o tempo (luz piscando): desenha todo quadro; sem isso o motor guarda pronto (bake.ts) */
   live?: boolean;
@@ -1037,7 +1038,7 @@ export function drawDesk(
   rect(ctx, mx, my, 13, 11, opts.active ? palette.navy950 : opts.waiting ? palette.navy900 : palette.gray800);
   if (opts.active) {
     // linhas de código "rolando"
-    const scroll = Math.floor(opts.t / 180);
+    const scroll = opts.reducedMotion ? 0 : Math.floor(opts.t / 180); // reduced-motion: quadro fixo
     const colors = [palette.signal.ok, palette.signal.think, palette.props.pencil, palette.signal.alert, palette.gray200];
     for (let i = 0; i < 4; i++) {
       const len = 3 + ((i * 5 + scroll * 3) % 7);

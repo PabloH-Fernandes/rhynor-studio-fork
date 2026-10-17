@@ -323,6 +323,7 @@ Atenção: o arquivo guarda o prompt cru, **inclusive a ata colada com `/reuniao
 - Cada linha do Time tem mini retrato, apelido, função e o status com ícone em pixel.
 - O feed usa **frases simples, sem jargão** ("Editando App.tsx" vira algo como "mexendo num arquivo"). Repetidos são agrupados, e há destaques: 🙋 precisa de você, 🏁 etapa concluída, 🎉 trabalho concluído, ✅ terminou a parte.
 - O botão **Ver detalhes técnicos** troca as frases simples pelas técnicas (balões, crachá e lista incluídos); **Ver frases simples** volta.
+- **Som** (botão no topo, ao lado do indicador de conexão): sons sintetizados no navegador, sem arquivos de áudio e em volume baixo. Há um **bip duplo** quando alguém passa a te esperar (o **!**), um **ding** quando um AGzinho entrega uma tarefa e **cliques leves de teclado** (no máximo ~4 por segundo, no total) enquanto houver alguém sentado trabalhando; com a aba oculta os cliques param, o **!** continua. Vem **ligado**; o botão (`Som ligado` / `Som mudo`) desliga e o navegador lembra. Navegadores só liberam áudio depois de um clique ou tecla na página: até lá o botão mostra `Som...`. Ao abrir ou reconectar o painel nada toca (só mudanças novas).
 - Visual de jogo em pixel: molduras em degrau, letras pixeladas e botões que afundam ao clicar.
 
 Para quem vai mexer: as frases ficam todas em `shared/frases.ts` (reexportadas por `server/frases.ts`); as fontes são Press Start 2P (títulos) e VT323 (texto).
@@ -380,7 +381,7 @@ http://localhost:5173/?hora=7.30    # 7h30 (formato HH.MM, não decimal: 7.5 ser
 
 Também aceita `HH:MM`. Valor inválido é ignorado e vale a hora real.
 
-**Animações:** o agente **espreguiça** ao ficar livre e **comemora com confete** ao entregar a tarefa. Com `prefers-reduced-motion` ativado no sistema, as duas viram um gesto curto de braços, sem pulo. O canvas sempre desenha em **escala inteira**, pra manter os pixels nítidos.
+**Animações:** o agente **espreguiça** ao ficar livre e **comemora com confete** ao entregar a tarefa. Com `prefers-reduced-motion` ativado no sistema, as duas viram um gesto curto de braços, sem pulo. A decoração também para: LEDs e folha da impressora apagados, vapor do café sumido e linhas de código do monitor num quadro fixo. O canvas sempre desenha em **escala inteira**, pra manter os pixels nítidos.
 
 **Zoom e navegação:** o escritório é uma câmera livre (lógica em `web/src/office/camera.ts`, zoom de 50% a 600% por CSS transform, sem redesenhar o canvas).
 - **Mouse:** roda dá zoom no ponto do cursor; arrastar move; duplo clique alterna 2x e "ajustar".
@@ -520,10 +521,9 @@ O documentador escreveu este README.
 ## Limitações conhecidas
 
 - **Ping-pong e papo se formam pouco em uso real**: só nascem nas trocas de atividade, então com pouca gente de boa quase não aparecem.
-- **A decoração da v1 ainda anima com `prefers-reduced-motion`**: LEDs, vapor e monitor não respeitam a preferência (os AGzinhos respeitam).
 - **O pareamento Start↔Agent depende da ordem de chegada** dos eventos: se o hook do `SubagentStart` e o do `Agent` chegarem trocados, um subagente pode ser ligado ao pedido errado.
 - **Em telas estreitas (< ~600 px)** o canvas é reduzido por CSS, e o pixel deixa de ser inteiro.
-- **`engine.ts`, `decor.ts`, `map.ts` e `activities.ts` são arquivos grandes** e pedem divisão.
+- **`engine.ts` e `map.ts` são arquivos grandes** e pedem divisão (`decor.ts` e `activities.ts` já foram divididos).
 - **"Limpar" zera também a sessão real** (e apaga o `data/escritorio.json`); ela volta no evento seguinte do Claude Code.
 - **Líder duplicado num `/clear` com eventos fora de ordem**: o líder antigo pode caminhar até a porta enquanto o novo já está na mesa.
 - **Perda de até ~1 s num desligamento forçado** (kill): o estado é salvo ~1 s após cada mudança, então o que veio depois do último salvamento some.
@@ -539,6 +539,5 @@ O documentador escreveu este README.
 - ~~Ligar o Obsidian como memória~~ (feito na v4): veja "Segundo cérebro (vault do Obsidian) e reuniões".
 - Fluxo do Power Automate que grava a ata sozinho no `00-Inbox/` (formato pronto em `docs/power-automate-reunioes.md`).
 - Ativar **agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`): cada colega vira uma sessão própria e as mensagens entre eles (ferramenta `SendMessage`) viram envelopes voando. Como é experimental, pode precisar de ajuste conforme o formato dos eventos mudar.
-- Sons (teclado, notificação quando alguém levanta o **!**).
-- Dividir os arquivos grandes do `web/src/office/` e fazer a decoração respeitar `prefers-reduced-motion`.
+- Dividir os arquivos grandes do `web/src/office/`: `decor.ts` virou `decorBase.ts`, `decorJanela.ts` e `decorMoveis.ts` e o ping-pong saiu de `activities.ts` para `rally.ts`; `engine.ts` e `map.ts` ficaram de fora por serem muito acoplados (estado e layout compartilhados), então dividir exige redesenhar a fronteira entre eles.
 - Fazer ping-pong e papo se formarem também quando alguém fica livre ao lado de outro de boa.

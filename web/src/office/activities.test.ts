@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import type { PapoPlace, RestSpot, Spot } from "./map";
 import {
   CHECK_MS,
+  GROUP_ON_FREE_CHANCE,
   DURATION_MAX_MS,
   DURATION_MIN_MS,
   GROUP_KINDS,
@@ -721,5 +722,113 @@ describe("bate-papo", () => {
     s.remove("b");
     assert.equal(s.kind("a"), undefined);
     assert.equal(s.reservations.size, 0);
+  });
+});
+
+describe("grupo espontâneo (dois livres)", () => {
+  const isGroup = (k: RestKind | undefined) => k === "pingpong" || k === "papo";
+
+  it("dois livres juntos formam ping-pong ou papo logo depois da carência", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const s = new RestScheduler([], { seed, pingpong: PP, papoPlaces: PAPO });
+      const w = groupWorld(["a", "b"]);
+      const t = until(s, w, 0, () => isGroup(s.kind("a")), 30_000);
+      assert.ok(t <= IDLE_GRACE_MS + 10 * CHECK_MS + 500, `seed ${seed}: formou só em ${t} ms`);
+      assert.ok(isGroup(s.kind("b")), "o parceiro entra junto");
+      assert.equal(s.kind("a"), s.kind("b"));
+    }
+  });
+
+  it("sozinho nunca forma grupo", () => {
+    const s = new RestScheduler([], { seed: 1, pingpong: PP, papoPlaces: PAPO });
+    const w = groupWorld(["a"]);
+    run(s, w, 0, 300_000, 100, () => assert.ok(!isGroup(s.kind("a"))));
+  });
+
+  it("papo não forma com parceiro a mais de 200 px; ping-pong só com a mesa livre", () => {
+    const far = new RestScheduler([], { seed: 1, papoPlaces: PAPO });
+    const wf = groupWorld(["a", "b"], { far: true });
+    run(far, wf, 0, 120_000, 100, () => assert.ok(!isGroup(far.kind("a")) && !isGroup(far.kind("b"))));
+
+    const busy = new RestScheduler([], { seed: 1, pingpong: PP });
+    busy.reservations.reserve("pingpong:0", "x");
+    const wb = groupWorld(["a", "b"]);
+    run(busy, wb, 0, 120_000, 100, () => assert.notEqual(busy.kind("a"), "pingpong"));
+  });
+
+  /** primeira atividade de qualquer um dos dois, com lugares de sobra */
+  const firstKind = (seed: number, chance: number): RestKind => {
+    const s = new RestScheduler(SPOTS, { seed, pingpong: PP, papoPlaces: PAPO, groupOnFreeChance: chance });
+    const w = groupWorld(["a", "b"]);
+    let k: RestKind | undefined;
+    until(s, w, 0, () => (k = s.kind("a") ?? s.kind("b")) !== undefined, 60_000);
+    return k!;
+  };
+
+  it("com lugares de sobra, forma grupo na primeira decisão mais vezes do que sem o atalho", () => {
+    const N = 300;
+    let on = 0;
+    let off = 0;
+    for (let seed = 1; seed <= N; seed++) {
+      if (isGroup(firstKind(seed, GROUP_ON_FREE_CHANCE))) on++;
+      if (isGroup(firstKind(seed, 0))) off++;
+    }
+    assert.ok(on / N < 0.65, `atalho forte demais: ${on / N}`);
+    assert.ok(on / N > off / N + 0.1, `com atalho ${on / N}, sem ${off / N}`);
+  });
+
+  it("sem dominância: um par não repete o tipo e os grupos ficam abaixo de 40% num intervalo longo", () => {
+    const s = new RestScheduler(SPOTS, { seed: 9, pingpong: PP, papoPlaces: PAPO });
+    const w = groupWorld(["a", "b"]);
+    const runs: RestKind[] = [];
+    let cur: RestKind | undefined;
+    run(s, w, 0, 3_000_000, 100, () => {
+      const k = s.kind("a");
+      if (k && !cur) runs.push(k);
+      cur = k;
+    });
+    for (let i = 1; i < runs.length; i++) assert.notEqual(runs[i], runs[i - 1], `repetiu ${runs[i]}`);
+    const groups = runs.filter(isGroup).length;
+    assert.ok(groups / runs.length < 0.4, `grupos dominam: ${groups}/${runs.length}`);
+  });
+
+  it("atalho espontâneo: parceiro em pausa não é puxado (strict); o sorteio normal ainda puxa", () => {
+    const log = (seed: number, chance: number) => {
+      const s = new RestScheduler(SPOTS, { seed, pingpong: PP, papoPlaces: PAPO, groupOnFreeChance: chance });
+      const w = groupWorld(["a", "b"]);
+      s.update(0, w.actors.values(), w.mover); // cria as agendas
+      // b em pausa (só um campo interno, como depois de uma atividade)
+      (s as unknown as { tracks: Map<string, { pauseUntil: number }> }).tracks.get("b")!.pauseUntil = 40_000;
+      run(s, w, 100, 39_000, 100);
+      return w.log.join("\n");
+    };
+    let pulled = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      // chance 1 não puxa b: a agenda é igual à do atalho desligado
+      assert.equal(log(seed, 1), log(seed, 0), `seed ${seed}: atalho puxou parceiro em pausa`);
+      if (log(seed, 0).includes("b goTo")) pulled++;
+    }
+    assert.ok(pulled > 0, "o sorteio normal deveria puxar o parceiro em pausa em alguma semente");
+  });
+
+  it("sem grupo possível (sozinho) a agenda é idêntica à de um scheduler sem ping-pong/papo", () => {
+    const trace = (withGroups: boolean) => {
+      const s = new RestScheduler(SPOTS, withGroups ? { seed: 4, pingpong: PP, papoPlaces: PAPO } : { seed: 4 });
+      const w = groupWorld(["a"]);
+      run(s, w, 0, 400_000, 250);
+      return w.log.join("\n");
+    };
+    assert.equal(trace(true), trace(false));
+  });
+
+  it("é determinístico com a mesma semente (dois livres, lugares de sobra)", () => {
+    const trace = (seed: number) => {
+      const s = new RestScheduler(SPOTS, { seed, pingpong: PP, papoPlaces: PAPO });
+      const w = groupWorld(["a", "b"]);
+      run(s, w, 0, 300_000, 250);
+      return w.log.join("\n");
+    };
+    assert.equal(trace(5), trace(5));
+    assert.notEqual(trace(5), trace(6));
   });
 });

@@ -8,6 +8,8 @@ export interface OfficeHandle {
   chat: (fromId: string, toId: string, text: string) => void;
   /** o que o AGzinho está fazendo no descanso ("Tomando café"...), ou null se não está descansando */
   restLabel: (id: string) => string | null;
+  /** algum AGzinho está sentado digitando (alimenta o som do teclado) */
+  alguemDigitando: () => boolean;
 }
 
 interface Props {
@@ -35,6 +37,8 @@ const RUBBER = 0.35; // resistência do arraste além do limite
 const SPRING_K = 180; // mola que devolve a câmera ao limite
 const SPRING_D = 2 * Math.sqrt(SPRING_K); // amortecimento crítico
 const VELOCITY_WINDOW = 100; // ms usados pra medir a velocidade de soltura
+const K_MAX = 8; // teto da resolução interna do canvas (W*k px de largura) pra não estourar memória
+const MAX_PIXELS = 16e6; // Safari/iOS deixa o canvas em branco acima de ~16,7 Mpx
 
 export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, reuniao, missao, selectedId, onSelect }, ref) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -51,6 +55,7 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
   const dirtyRef = useRef(true);
   const reducedRef = useRef(false);
   const labelRef = useRef<HTMLSpanElement>(null);
+  const baseKRef = useRef(1); // resolução mínima do canvas (zoom 1)
   const rawRef = useRef({ x: 0, y: 0 }); // posição "solta" do arraste, antes da resistência elástica
   const tapTimer = useRef<number | undefined>();
   const selectedRef = useRef(selectedId);
@@ -72,7 +77,7 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
 
   useImperativeHandle(
     ref,
-    () => ({ chat: (a, b, t) => engine.chat(a, b, t), restLabel: (id) => engine.restLabel(id) }),
+    () => ({ chat: (a, b, t) => engine.chat(a, b, t), restLabel: (id) => engine.restLabel(id), alguemDigitando: () => engine.alguemDigitando() }),
     [engine],
   );
 
@@ -138,13 +143,9 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
       const cssW = fits ? (W * k) / dpr : Math.max(200, fitCss);
       const old = fitRef.current;
       const nf: Fit = { cw: cssW, ch: (cssW * H) / W, ww: width, wh: height };
-      if (canvas.width !== W * k) {
-        canvas.width = W * k;
-        canvas.height = H * k;
-      }
+      baseKRef.current = k; // o loop de animação é quem redimensiona o canvas (e redesenha no mesmo quadro)
       canvas.style.width = `${nf.cw}px`;
       canvas.style.height = `${nf.ch}px`;
-      canvas.dataset.scale = String(k);
       fitRef.current = nf;
       const c = camRef.current;
       if (first) {
@@ -243,7 +244,21 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
         if (s.canIn !== shown.canIn || s.canOut !== shown.canOut) setUi({ canIn: s.canIn, canOut: s.canOut });
         shown = s;
       }
-      const k = Number(canvas.dataset.scale || 1);
+      // resolução acompanha o zoom: sem isso o canvas pequeno é só esticado pelo CSS e fica borrado
+      const dpr = window.devicePixelRatio || 1;
+      const kCap = Math.max(baseKRef.current, Math.min(K_MAX, Math.floor(Math.sqrt(MAX_PIXELS / (W * H)))));
+      // usa o zoom de destino: k sobe uma vez só no começo da animação, não a cada degrau inteiro do lerp
+      const zNeed = Math.max(camRef.current.z, targetRef.current?.z ?? 0);
+      const want = Math.max(baseKRef.current, Math.min(kCap, Math.ceil((fitRef.current.cw * zNeed * dpr) / W - 1e-6)));
+      let k = Number(canvas.dataset.scale || 0);
+      // sobe na hora (nitidez); desce só com a câmera assentada (sem animação, arraste ou pinça em curso)
+      const settled = !targetRef.current && !gesture.current.dragging && ptrs.current.size === 0;
+      if (!k || want > k || (want < k && settled)) {
+        k = want;
+        canvas.width = W * k;
+        canvas.height = H * k;
+        canvas.dataset.scale = String(k);
+      }
       ctx.setTransform(k, 0, 0, k, 0, 0);
       engine.update(dt, now);
       engine.render(ctx, now);

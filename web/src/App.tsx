@@ -12,6 +12,7 @@ import { SpriteGallery } from "./SpriteGallery";
 import { GALLERY_ENABLED } from "./office/gallery";
 import { roleColor, theme } from "./theme";
 import { useOffice } from "./useOffice";
+import { destravarSom, eventoDoLote, instalarGestos, observarSom, setAtivo as setSomAtivo, somDaTransicao, somFuncionando, tocar, tocarTecladoLimitado, INTERVALO_TECLADO_MS, type EstadoSom } from "./sound";
 import { usePreferencia, usePreferenciaTexto } from "./usePreferencia";
 import { TODAS, esperandoDe, filtrarPorProjeto, progressoDoFiltro, projetoEfetivo, projetosDe, textoEspera } from "./projetoLogic";
 import { nomeCurto } from "../../shared/frases";
@@ -54,6 +55,49 @@ export default function App() {
     setSelectedId(id);
     if (id) setRevelarId(id);
   }, []);
+
+  // sons: o valor da preferência vai pro módulo sound.ts; o botão reflete o estado real do AudioContext
+  const [somLigado, alternarSom] = usePreferencia("agpocket.painel.som", true);
+  const [somRodando, setSomRodando] = useState(false);
+  useEffect(() => setSomAtivo(somLigado), [somLigado]);
+  useEffect(() => instalarGestos(), []);
+  useEffect(() => {
+    const atualizar = () => setSomRodando(somFuncionando());
+    atualizar();
+    return observarSom(atualizar);
+  }, []);
+  const aoClicarSom = async () => {
+    // ligado mas bloqueado: o clique é o gesto que libera o áudio; só desliga se continuar bloqueado
+    if (somLigado && !somRodando && (await destravarSom())) return;
+    alternarSom();
+  };
+  // "!" e "ding": compara com o estado anterior de TODOS os agentes (sem filtro de projeto). Quem não
+  // estava lá (snapshot inicial, reconexão) não toca; o mapa é refeito a cada mudança.
+  const somAnterior = useRef(new Map<string, EstadoSom>());
+  // caiu a conexão: o que mudou durante a queda não toca ao voltar
+  useEffect(() => {
+    if (conn !== "online") somAnterior.current = new Map();
+  }, [conn]);
+  useEffect(() => {
+    const atual = new Map<string, EstadoSom>();
+    const eventos: ReturnType<typeof somDaTransicao>[] = [];
+    for (const a of Object.values(agents)) {
+      const novo = { status: a.status, tasksDone: a.tasksDone };
+      atual.set(a.id, novo);
+      eventos.push(somDaTransicao(somAnterior.current.get(a.id), novo));
+    }
+    somAnterior.current = atual;
+    const evento = eventoDoLote(eventos);
+    if (evento) tocar(evento);
+  }, [agents]);
+  // teclado: um clique agregado por vez enquanto alguém digita; aba oculta fica quieta
+  useEffect(() => {
+    if (!somLigado) return;
+    const id = window.setInterval(() => {
+      if (!document.hidden && officeRef.current?.alguemDigitando()) tocarTecladoLimitado();
+    }, INTERVALO_TECLADO_MS);
+    return () => window.clearInterval(id);
+  }, [somLigado]);
 
   const [tecnico, alternarTecnico] = usePreferencia("agpocket.painel.tecnico", false);
   // balão, crachá e lista do time falam a atividade sem jargão; a técnica só com "Ver detalhes técnicos"
@@ -143,9 +187,24 @@ export default function App() {
               <p className="sub">{theme.subtitle}</p>
             </div>
           </div>
-          <span className={`conn conn-${conn}`} title={`Servidor ${conn}`}>
-            <i /> {conn}
-          </span>
+          <div className="head-status">
+            <button
+              type="button"
+              className={`btn-tecnico btn-som${somLigado ? " ligado" : ""}`}
+              aria-pressed={somLigado}
+              aria-label="Sons do escritório"
+              aria-describedby="som-estado"
+              onClick={aoClicarSom}
+            >
+              {somLigado ? (somRodando ? "Som ligado" : "Som...") : "Som mudo"}
+            </button>
+            <span id="som-estado" className="sr-only">
+              {somLigado && !somRodando ? "Ligado, mas o navegador só libera o áudio depois de um clique na página." : somLigado ? "Ligado." : "Desligado."}
+            </span>
+            <span className={`conn conn-${conn}`} title={`Servidor ${conn}`}>
+              <i /> {conn}
+            </span>
+          </div>
         </header>
 
         <Progresso progress={progressoVisivel} />

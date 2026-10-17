@@ -354,9 +354,17 @@ code {
   outline-offset: calc(var(--b) + 2px);
 }
 
-/* o indicador online/offline fica fora do fluxo, no canto: o subtítulo usa a largura toda */
+/* marca à esquerda; botão de som e conexão num grupo que quebra de linha quando falta espaço */
 .panel-head {
-  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.panel-head .brand {
+  flex: 1 1 160px;
 }
 
 .brand {
@@ -373,7 +381,6 @@ code {
 
 h1 {
   margin: 0 0 6px;
-  padding-right: 88px; /* espaço do .conn, só na linha do título */
   font-family: var(--pixel);
   font-weight: 400;
   font-size: 11px;
@@ -495,6 +502,14 @@ h2 {
   cursor: pointer;
 }
 
+.head-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
 .btn-tecnico:hover {
   --mc: var(--navy-500);
   color: var(--text);
@@ -530,9 +545,6 @@ h2 {
 }
 
 .conn {
-  position: absolute;
-  top: 0;
-  right: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;

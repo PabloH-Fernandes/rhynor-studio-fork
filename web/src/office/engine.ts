@@ -782,6 +782,17 @@ export class OfficeEngine {
     return this.rest.restLabel(id);
   }
 
+  /** Tem algum AGzinho sentado digitando agora? (mesmo critério do `typing` do desenho; alimenta o som do teclado) */
+  alguemDigitando(): boolean {
+    const now = performance.now();
+    for (const v of this.visuals.values()) {
+      if (v.leaving || v.agent.status !== "trabalhando") continue;
+      const { anim, sitting } = this.poseOf(v, now);
+      if (!anim && sitting) return true;
+    }
+    return false;
+  }
+
   private restingDir(v: Visual): Dir {
     if (v.at.face) return v.at.face;
     if (v.at.sitting) return "down";
@@ -855,7 +866,7 @@ export class OfficeEngine {
     items.push({ y: 11.2 * TILE + 10, draw: () => this.drawBakedOr(ctx, MEETING_TABLE, drawMeetingTable) });
     // banquinhos da reunião: sempre aqui, ordenados por profundidade (quem senta vem logo depois)
     for (const s of MEETING_STOOLS) items.push({ y: s.y * TILE + 2, draw: () => this.drawBakedOr(ctx, s, (g) => drawStool(g, s.x * TILE, s.y * TILE)) });
-    items.push({ y: 16.1 * TILE, draw: () => drawCoffeeCorner(ctx, now, coffeeBusy) });
+    items.push({ y: 16.1 * TILE, draw: () => drawCoffeeCorner(ctx, now, coffeeBusy, isReducedMotion()) });
     const inPlay = this.rest.pingpongInUse();
     for (const p of PROPS) {
       if (p.id === "pingpong" && inPlay) {
@@ -864,7 +875,7 @@ export class OfficeEngine {
         items.push({ y: p.y, draw: () => this.drawBakedOr(ctx, "pingpong|jogo", (g) => drawPingPongTable(g, T.x, T.y, T.w, T.h, false)) });
         continue;
       }
-      items.push({ y: p.y, draw: () => (p.live ? p.draw(ctx, now) : this.drawBakedOr(ctx, p, (g) => p.draw(g, now))) });
+      items.push({ y: p.y, draw: () => (p.live ? p.draw(ctx, isReducedMotion() ? -1 : now) : this.drawBakedOr(ctx, p, (g) => p.draw(g, now))) });
     }
     const rally = this.rest.rally(now);
     // depois da mesa (e de quem joga do lado de cima), antes de quem joga do lado de baixo

@@ -5,7 +5,11 @@
 // e pergunta a pose de cada um na hora de desenhar. Testes em activities.test.ts.
 
 import type { PapoPlace, RestSpot, Spot } from "./map";
+import { type RallyFrame, type RallyState, rallyOf } from "./rally";
 import type { CharAnim, Dir, Holding } from "./sprites";
+
+// o ping-pong mora em rally.ts; reexportado aqui pra quem importa tudo de "./activities"
+export * from "./rally";
 
 /** atividades de uma pessoa só */
 export type SoloKind = "cafe" | "celular" | "maquete" | "bebedouro" | "regar" | "espreguicar";
@@ -78,20 +82,11 @@ const STRETCH_LOOP_MS = 10_000;
 export const PARTNER_WAIT_MS = 8000;
 /** papo: parceiros vêm de quem está livre a menos disso (px base) */
 export const PAPO_RADIUS_PX = 200;
+/** chance (a cada CHECK_MS) de um livre com parceiro livre formar ping-pong/papo, antes do sorteio normal */
+export const GROUP_ON_FREE_CHANCE = 0.3;
 /** papo: uma fala a cada 6–8 s, revezando (o motor ainda segura 12 s por AGzinho) */
 export const PAPO_LINE_MIN_MS = 6000;
 export const PAPO_LINE_MAX_MS = 8000;
-/** ping-pong: um golpe (ida ou volta) leva de 500 a 800 ms */
-export const STROKE_MIN_MS = 500;
-export const STROKE_MAX_MS = 800;
-/** ~1 em 12 golpes a bolinha erra a mesa */
-export const MISS_CHANCE = 1 / 12;
-/** pausa antes do saque (início da partida e depois de um erro) */
-export const SERVE_MS = 700;
-/** depois do erro: a bolinha quica no chão, alguém pega e saca de novo */
-export const MISS_PAUSE_MS = 1200;
-/** parte da pausa do erro em que a bolinha ainda está no chão (o resto é o saque) */
-const MISS_FLOOR_SHARE = 0.55;
 /** tile em px base (as posições dos atores vêm em px; as dos lugares, em tiles) */
 const TILE_PX = 16;
 
@@ -223,37 +218,7 @@ export interface RestPose {
   cupOnDesk?: boolean;
 }
 
-/** Um golpe do ping-pong: sai do lado `from` (0 = de cima, 1 = de baixo) e chega no outro (ou erra). */
-export interface Stroke {
-  start: number;
-  /** começo do saque (a bolinha parada na mão de quem saca); = start no meio da troca de bolas */
-  serveAt: number;
-  dur: number;
-  from: 0 | 1;
-  miss: boolean;
-  /** desvio lateral (px) de onde a bolinha chega; o golpe seguinte sai daí */
-  dx: number;
-  /** desvio de onde saiu (o dx do golpe anterior; 0 no saque) */
-  dx0: number;
-}
-
-/**
- * Momento da partida, pro motor desenhar a bolinha:
- * - "saque": parada na mão de quem vai sacar (`from`), `p` = progresso da pausa;
- * - "voo": no ar, de `from` pro outro lado, `p` = 0..1;
- * - "fora": errou e está no chão (`since` = ms desde que caiu).
- */
-export interface RallyFrame {
-  state: "saque" | "voo" | "fora";
-  from: 0 | 1;
-  p: number;
-  miss: boolean;
-  dx0: number;
-  dx: number;
-  since: number;
-}
-
-interface Group {
+interface Group extends RallyState {
   kind: GroupKind;
   /** ids na ordem; o primeiro "puxa" o relógio do grupo (falas) */
   members: string[];
@@ -265,12 +230,6 @@ interface Group {
   durationMs: number;
   /** acabou o tempo: cada um volta sozinho, e sair do grupo não mexe nos outros */
   over: boolean;
-  rnd: () => number;
-  /** último rallyOf (a pose dos 2 jogadores e a bolinha pedem o mesmo instante) */
-  rallyMemo?: { at: number; frame: RallyFrame };
-  /** ping-pong: golpe atual (gerado conforme o tempo passa) e o anterior */
-  stroke?: Stroke;
-  prevStroke?: Stroke;
   /** papo: de quem é a vez, quando sai a próxima fala e quem falou por último */
   turn: number;
   nextLineAt: number;
@@ -322,6 +281,8 @@ export interface RestSchedulerOptions {
   pingpong?: readonly Spot[];
   /** pontos de encontro do bate-papo (sem isso, não tem papo) */
   papoPlaces?: readonly PapoPlace[];
+  /** chance de grupo espontâneo entre livres (padrão GROUP_ON_FREE_CHANCE; 0 desliga) */
+  groupOnFreeChance?: number;
 }
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -334,6 +295,7 @@ export class RestScheduler {
   private seed: number;
   private pingpongSpots: readonly Spot[];
   private papoPlaces: readonly PapoPlace[];
+  private groupOnFreeChance: number;
   /** partida em andamento (só há uma mesa) */
   private match?: Group;
 
@@ -342,6 +304,7 @@ export class RestScheduler {
     opts: RestSchedulerOptions = {},
   ) {
     this.seed = opts.seed ?? 0;
+    this.groupOnFreeChance = opts.groupOnFreeChance ?? GROUP_ON_FREE_CHANCE;
     this.reservations = opts.reservations ?? new Reservations();
     this.pingpongSpots = opts.pingpong?.length === 2 ? opts.pingpong : [];
     this.papoPlaces = opts.papoPlaces ?? [];
@@ -385,13 +348,13 @@ export class RestScheduler {
    * Atividades possíveis agora: com lugar livre e diferente da anterior. As de grupo só entram
    * com `ctx` (precisam de parceiro livre); com `ctx`, espreguiçar só parado na própria mesa.
    */
-  options(id: string, ctx?: { actor: RestActor; now: number; pool: readonly RestActor[] }): RestKind[] {
+  options(id: string, ctx?: { actor: RestActor; now: number; pool: readonly RestActor[]; strict?: boolean }): RestKind[] {
     const last = this.tracks.get(id)?.last;
     return (Object.keys(REST_WEIGHTS) as RestKind[]).filter((k) => {
       if (k === last) return false;
       if (k === "espreguicar") return !ctx || (ctx.actor.atId === ctx.actor.homeId && !ctx.actor.walking);
-      if (k === "pingpong") return !!ctx && this.pingpongFree() && this.partners(ctx.actor, k, ctx.now, ctx.pool).length > 0;
-      if (k === "papo") return !!ctx && this.papoPlan(ctx.actor, ctx.now, ctx.pool, 2, 0) !== null;
+      if (k === "pingpong") return !!ctx && this.pingpongFree() && this.partners(ctx.actor, k, ctx.now, ctx.pool, ctx.strict).length > 0;
+      if (k === "papo") return !!ctx && this.papoPlan(ctx.actor, ctx.now, ctx.pool, 2, 0, ctx.strict) !== null;
       return this.freeSpots(k).length > 0;
     });
   }
@@ -401,10 +364,10 @@ export class RestScheduler {
   }
 
   /** quem pode entrar num grupo agora: livre, ocioso, sem pausa e sem ter acabado de fazer a mesma coisa */
-  private partners(a: RestActor, kind: GroupKind, now: number, pool: readonly RestActor[]): RestActor[] {
+  private partners(a: RestActor, kind: GroupKind, now: number, pool: readonly RestActor[], strict = false): RestActor[] {
     return pool
       .filter((p) => {
-        if (p.id === a.id || !this.eligible(p, now, true)) return false;
+        if (p.id === a.id || !this.eligible(p, now, !strict)) return false;
         const t = this.tracks.get(p.id);
         return t?.last !== kind && !t?.rechoose;
       })
@@ -412,8 +375,8 @@ export class RestScheduler {
   }
 
   /** papo: um ponto de encontro com `size` lugares livres e parceiros por perto (ou null). `r` escolhe o ponto. */
-  private papoPlan(a: RestActor, now: number, pool: readonly RestActor[], size: number, r: number) {
-    const near = this.partners(a, "papo", now, pool).filter((p) => dist(a, p) < PAPO_RADIUS_PX);
+  private papoPlan(a: RestActor, now: number, pool: readonly RestActor[], size: number, r: number, strict = false) {
+    const near = this.partners(a, "papo", now, pool, strict).filter((p) => dist(a, p) < PAPO_RADIUS_PX);
     if (near.length < size - 1) return null;
     const places = this.papoPlaces
       .map((place) => ({ place, free: place.spots.filter((s) => this.reservations.holder(s.id) === undefined) }))
@@ -441,7 +404,7 @@ export class RestScheduler {
         }
         if (now < t.nextCheckAt) continue;
         t.nextCheckAt = now + CHECK_MS;
-        if (this.eligible(a, now)) this.start(a, t, now, mover, pool);
+        if (this.eligible(a, now) && !this.startGroupOnFree(a, t, now, mover, pool)) this.start(a, t, now, mover, pool);
         continue;
       }
       // trabalho chegou (agora ou há menos de WORK_COOLDOWN_MS) sem passar pelo upsert: larga tudo
@@ -453,6 +416,18 @@ export class RestScheduler {
       if (r.group) this.advanceGroup(a, t, r, r.group, now, mover);
       else this.advance(a, t, r, now, mover);
     }
+  }
+
+  /**
+   * Dois "de boa" juntos: com ao menos um grupo possível (parceiro elegível, mesa livre / lugar de
+   * papo por perto, diferente da anterior), tenta formar ping-pong ou papo com GROUP_ON_FREE_CHANCE.
+   * Sem grupo possível não consome `rnd()`. Devolve se formou.
+   */
+  private startGroupOnFree(a: RestActor, t: Track, now: number, mover: RestMover, pool: readonly RestActor[]): boolean {
+    const kinds = this.options(a.id, { actor: a, now, pool, strict: true }).filter((k): k is GroupKind => (GROUP_KINDS as readonly RestKind[]).includes(k));
+    if (!kinds.length || t.rnd() >= this.groupOnFreeChance) return false;
+    const kind = pickWeighted(kinds.map((k) => ({ value: k, weight: REST_WEIGHTS[k] })), t.rnd());
+    return !!kind && this.startGroup(kind, a, t, now, mover, pool, true);
   }
 
   /** sorteia e começa uma atividade; devolve se começou */
@@ -495,10 +470,10 @@ export class RestScheduler {
    * Ping-pong: chama o livre mais perto e reserva os 2 lados da mesa.
    * Papo: escolhe um ponto de encontro com lugar e chama 1 ou 2 livres por perto.
    */
-  private startGroup(kind: GroupKind, a: RestActor, t: Track, now: number, mover: RestMover, pool: readonly RestActor[]): boolean {
+  private startGroup(kind: GroupKind, a: RestActor, t: Track, now: number, mover: RestMover, pool: readonly RestActor[], strict = false): boolean {
     let crew: { actor: RestActor; spot: Spot }[];
     if (kind === "pingpong") {
-      const partner = this.partners(a, kind, now, pool)[0];
+      const partner = this.partners(a, kind, now, pool, strict)[0];
       if (!partner || !this.pingpongFree()) return false;
       // cada um no lado que dá menos caminho pros dois
       const [s0, s1] = this.pingpongSpots;
@@ -510,7 +485,7 @@ export class RestScheduler {
           : [{ actor: a, spot: s1 }, { actor: partner, spot: s0 }];
     } else {
       const want = t.rnd() < 0.5 ? 3 : 2;
-      const plan = this.papoPlan(a, now, pool, want, t.rnd()) ?? this.papoPlan(a, now, pool, 2, t.rnd());
+      const plan = this.papoPlan(a, now, pool, want, t.rnd(), strict) ?? this.papoPlan(a, now, pool, 2, t.rnd(), strict);
       if (!plan) return false;
       const size = Math.min(want, plan.free.length, plan.near.length + 1);
       crew = [a, ...plan.near.slice(0, size - 1)].map((actor, i) => ({ actor, spot: plan.free[i] }));
@@ -816,7 +791,7 @@ export class RestScheduler {
   private groupPose(id: string, r: Rest, g: Group, now: number): RestPose {
     if (g.kind === "papo") return { animT: 0, sofa: r.spot?.sofa };
     const side = this.sideOf(r);
-    const f = g.readyAt !== undefined ? this.rallyOf(g, now) : null;
+    const f = g.readyAt !== undefined ? rallyOf(g, now) : null;
     if (!f || side === undefined) return { animT: 0, holding: "raquete" };
     let animT = 0.3;
     if (f.state === "voo") {
@@ -833,56 +808,10 @@ export class RestScheduler {
     return i === 0 ? 0 : i === 1 ? 1 : undefined;
   }
 
-  /** Avança os golpes até `now` (determinístico pelo PRNG do grupo) e diz onde a partida está. */
-  private rallyOf(g: Group, now: number): RallyFrame | null {
-    if (g.readyAt === undefined) return null;
-    if (g.rallyMemo?.at === now) return g.rallyMemo.frame;
-    const frame = this.computeRally(g, g.readyAt, now);
-    g.rallyMemo = { at: now, frame };
-    return frame;
-  }
-
-  private computeRally(g: Group, readyAt: number, now: number): RallyFrame {
-    const next = (prev: Stroke | undefined): Stroke => {
-      const dur = Math.round(STROKE_MIN_MS + g.rnd() * (STROKE_MAX_MS - STROKE_MIN_MS));
-      const dx = Math.round(g.rnd() * 6) - 3;
-      if (!prev) {
-        const start = readyAt + SERVE_MS;
-        return { start, serveAt: readyAt, dur, from: g.rnd() < 0.5 ? 0 : 1, miss: false, dx, dx0: 0 };
-      }
-      const end = prev.start + prev.dur;
-      if (prev.miss) {
-        // quem errou busca a bolinha e saca
-        const start = end + MISS_PAUSE_MS;
-        return { start, serveAt: end + MISS_PAUSE_MS * MISS_FLOOR_SHARE, dur, from: prev.from === 0 ? 1 : 0, miss: false, dx, dx0: 0 };
-      }
-      return { start: end, serveAt: end, dur, from: prev.from === 0 ? 1 : 0, miss: g.rnd() < MISS_CHANCE, dx, dx0: prev.dx };
-    };
-    g.stroke ??= next(undefined);
-    let s = g.stroke;
-    // o golpe dura até a bolinha chegar; o que errou dura até a parte "no chão" da pausa acabar
-    while (now >= s.start + s.dur + (s.miss ? MISS_PAUSE_MS * MISS_FLOOR_SHARE : 0)) {
-      g.prevStroke = s;
-      s = g.stroke = next(s);
-    }
-    // relógio um pouco atrás de quem já avançou (ex.: debug com performance.now e quadro com o
-    // tempo do rAF): usa o golpe anterior em vez de mostrar um saque falso
-    const prev = g.prevStroke;
-    if (now < s.start && s.serveAt === s.start && prev && now >= prev.start) s = prev;
-    const base = { miss: s.miss, dx0: s.dx0, dx: s.dx, since: 0 };
-    if (now < s.start) {
-      const p = (now - s.serveAt) / Math.max(1, s.start - s.serveAt);
-      return { ...base, state: "saque", from: s.from, p: Math.max(0, p) };
-    }
-    const end = s.start + s.dur;
-    if (now < end) return { ...base, state: "voo", from: s.from, p: (now - s.start) / s.dur };
-    return { ...base, state: "fora", from: s.from, p: 1, since: now - end };
-  }
-
   /** partida de ping-pong em andamento (todos na mesa), pro motor desenhar a bolinha */
   rally(now: number): RallyFrame | null {
     const g = this.match;
-    return g && !g.over && g.members.length === 2 ? this.rallyOf(g, now) : null;
+    return g && !g.over && g.members.length === 2 ? rallyOf(g, now) : null;
   }
 
   /** alguém já está na mesa de ping-pong com a raquete (o motor tira as raquetes e a bolinha do tampo) */
