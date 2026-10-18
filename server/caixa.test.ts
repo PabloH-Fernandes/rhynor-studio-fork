@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { ObservadorCaixa, idValido, lerCaixaItem, lerTarefasDaNota, ordenarCaixa } from "./caixa.ts";
+import { ObservadorCaixa, hashTarefa, idValido, lerCaixaItem, lerTarefasDaNota, ordenarCaixa } from "./caixa.ts";
 import { criarReuniao, novoVaultDeTeste } from "./testeVault.ts";
 
 const NOTA = [
@@ -55,8 +55,8 @@ test("lerCaixaItem entrega só título, data e tarefas em aberto (prazo inválid
     titulo: "Planejamento da sprint",
     data: "2026-10-17",
     tarefas: [
-      { n: 1, texto: "Montar a página", responsavel: "Responsável A", prazo: "2026-10-31" },
-      { n: 4, texto: "Revisar o texto", responsavel: "", prazo: "" },
+      { n: 1, h: hashTarefa("Montar a página"), texto: "Montar a página", responsavel: "Responsável A", prazo: "2026-10-31" },
+      { n: 4, h: hashTarefa("Revisar o texto"), texto: "Revisar o texto", responsavel: "", prazo: "" },
     ],
   });
   assert.ok(!JSON.stringify(item).includes("segredo"), "pauta, decisões e dúvidas não saem");

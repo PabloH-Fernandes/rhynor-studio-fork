@@ -9,7 +9,7 @@ import { ehVisitante } from "../../../shared/visitante";
 export const ATA_JANELA_MS = 12_000;
 
 /** o que o quadro da parede mostra durante a janela: sem título da reunião (privacidade) */
-export const QUADRO_ATA = "Nova ata: Chegou uma ata";
+export const QUADRO_ATA = "Nova ata";
 
 /** o que a escolha precisa saber de cada agente (o Agent serve) */
 export interface CandidatoLiderAta {

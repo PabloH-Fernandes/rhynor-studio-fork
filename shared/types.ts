@@ -162,6 +162,8 @@ export interface CaixaTarefa {
   responsavel: string;
   /** AAAA-MM-DD ou vazio */
   prazo: string;
+  /** hash curto do texto da tarefa na nota: volta no POST para o servidor conferir que a nota não mudou */
+  h?: string;
 }
 
 /** Uma reunião lida sem IA (`status: rascunho`) que ainda precisa de aprovação. Só título, data e tarefas. */
@@ -173,6 +175,8 @@ export interface CaixaItem {
   data: string;
   /** só as tarefas em aberto; vazio = reunião sem tarefas */
   tarefas: CaixaTarefa[];
+  /** havia mais tarefas em aberto do que o painel mostra (as demais ficam na nota, intocadas) */
+  truncada?: boolean;
 }
 
 export type CaixaAcao = "time" | "eu" | "ignorar";
@@ -180,7 +184,7 @@ export type CaixaAcao = "time" | "eu" | "ignorar";
 /** Corpo de POST /api/caixa/aprovar */
 export interface CaixaAprovacao {
   reuniao: string;
-  decisoes: { n: number; acao: CaixaAcao }[];
+  decisoes: { n: number; acao: CaixaAcao; h?: string }[];
 }
 
 /** Resposta de POST /api/caixa/aprovar quando deu certo */

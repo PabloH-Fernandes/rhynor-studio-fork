@@ -20,6 +20,7 @@ import { ObservadorVault } from "./vaultWatcher.ts";
 import { IngestaoInbox } from "./ingestao.ts";
 import { ObservadorCaixa } from "./caixa.ts";
 import { registrarCaixa } from "./aprovacao.ts";
+import { clienteWsPermitido } from "./seguranca.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
@@ -179,7 +180,7 @@ if (fs.existsSync(DIST)) {
 }
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: "/ws" });
+const wss = new WebSocketServer({ server, path: "/ws", verifyClient: clienteWsPermitido(() => PORT) });
 
 wss.on("connection", (ws) => {
   ws.send(JSON.stringify(state.snapshot()));

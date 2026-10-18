@@ -43,6 +43,6 @@ test("quem está trabalhando ainda pode apresentar (como numa reunião de verdad
 
 test("a reunião local da ata tem sessão própria e o quadro não leva título", () => {
   assert.deepEqual(reuniaoDeAta([ag("s:1")], 1234), { sessionId: "ata-nova", liderId: "s:1", desde: 1234 });
-  assert.equal(QUADRO_ATA, "Nova ata: Chegou uma ata");
+  assert.equal(QUADRO_ATA, "Nova ata");
   assert.equal(ATA_JANELA_MS, 12_000);
 });

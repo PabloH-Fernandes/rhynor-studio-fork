@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CaixaAcao, CaixaItem, CaixaResposta } from "../../../shared/types";
 import {
   ACOES_CAIXA,
+  AVISO_TRUNCADA,
   contarAcoes,
   copiarTexto,
   escolhidas,
@@ -43,13 +44,16 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
   const timerCopia = useRef<ReturnType<typeof setTimeout>>();
   const cartoes = useRef(new Map<string, HTMLElement | null>());
   const focarAprovada = useRef<string | null>(null);
+  const focarTitulo = useRef(false);
+  const tituloRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => () => clearTimeout(timerCopia.current), []);
   // depois de aprovar o cartão da reunião some: o foco vai para o cartão com o comando
   useEffect(() => {
-    if (!focarAprovada.current) return;
-    cartoes.current.get(focarAprovada.current)?.focus();
+    if (focarAprovada.current) cartoes.current.get(focarAprovada.current)?.focus();
+    else if (focarTitulo.current) tituloRef.current?.focus();
     focarAprovada.current = null;
+    focarTitulo.current = false;
   }, [aprovadas]);
 
   const lista = itens ?? [];
@@ -72,9 +76,10 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(corpo),
       });
-      const json = (await r.json().catch(() => null)) as CaixaResposta | null;
+      const json = (await r.json().catch(() => null)) as CaixaResposta | { ok: false; erros?: string[] } | null;
       if (!r.ok || !json?.ok) {
-        setErros((prev) => ({ ...prev, [item.id]: textoErroAprovacao(r.status) }));
+        const msg = json && !json.ok ? json.erros?.[0] : undefined;
+        setErros((prev) => ({ ...prev, [item.id]: textoErroAprovacao(r.status, msg) }));
         return;
       }
       focarAprovada.current = item.id;
@@ -101,12 +106,19 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
     timerCopia.current = setTimeout(() => setCopia(null), AVISO_COPIA_MS);
   };
 
-  const fechar = (id: string) => setAprovadas((prev) => prev.filter((a) => a.id !== id));
+  // ao fechar o cartão ele some com o foco: vai para o próximo cartão aprovado ou, se não houver, para o título da seção
+  const fechar = (id: string) => {
+    const i = aprovadas.findIndex((a) => a.id === id);
+    const vizinho = aprovadas[i + 1] ?? aprovadas[i - 1];
+    if (vizinho) focarAprovada.current = vizinho.id;
+    else focarTitulo.current = true;
+    setAprovadas((prev) => prev.filter((a) => a.id !== id));
+  };
 
   return (
     <section className="secao caixa" aria-label="Caixa de entrada">
       <h2>
-        <button className="secao-toggle" aria-expanded={aberto} aria-controls="secao-caixa" onClick={alternar}>
+        <button ref={tituloRef} className="secao-toggle" aria-expanded={aberto} aria-controls="secao-caixa" onClick={alternar}>
           <span className="secao-seta" aria-hidden="true" />
           Caixa de entrada <span className="count"><span aria-hidden="true">· </span>{lista.length}</span>
         </button>
@@ -207,6 +219,7 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
                       ))}
                     </ol>
                   )}
+                  {item.truncada && <p className="caixa-meta">{AVISO_TRUNCADA}</p>}
                   <div className="caixa-acoes">
                     <button
                       type="button"

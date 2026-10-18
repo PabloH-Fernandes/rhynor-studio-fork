@@ -157,7 +157,8 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [seqAta]);
   const reuniaoNoOffice = reuniao ?? janelaAta?.reuniao ?? null;
-  const quadroMissao = janelaAta ? QUADRO_ATA : (missoes?.atual?.nome ?? null);
+  // a missão real em andamento tem prioridade; o aviso da ata só ocupa o quadro quando não há missão
+  const quadroMissao = missoes?.atual?.nome ?? (janelaAta ? QUADRO_ATA : null);
 
   const call = async (path: string) => {
     setBusy(true);

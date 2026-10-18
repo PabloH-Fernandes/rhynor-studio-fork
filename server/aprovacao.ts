@@ -15,13 +15,14 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { diaLocal } from "../shared/datas.ts";
 import type { CaixaAcao, CaixaResposta } from "../shared/types.ts";
-import { MAX_BYTES_NOTA, idValido, lerTarefasDaNota, tituloDe, type ObservadorCaixa } from "./caixa.ts";
+import { MAX_BYTES_NOTA, MAX_TAREFAS, hashTarefa, idValido, lerTarefasDaNota, tituloDe, type ObservadorCaixa } from "./caixa.ts";
 import { nomeLivre, slugDe } from "./reunioesVault.ts";
 import { writeAtomic } from "./roster.ts";
-import { exigirPostSeguro } from "./seguranca.ts";
+import { exigirHostLocal, exigirPostSeguro } from "./seguranca.ts";
 import { chave, cortar, lerFrontmatter, semLinks } from "./vault.ts";
 
-const MAX_DECISOES = 100;
+/** o painel mostra (e o servidor exige decisão de) no máximo MAX_TAREFAS tarefas por reunião */
+const MAX_DECISOES = MAX_TAREFAS;
 const MAX_TEXTO_MISSAO = 200;
 const ACOES: readonly CaixaAcao[] = ["time", "eu", "ignorar"];
 
@@ -33,7 +34,7 @@ function erro(status: number, ...erros: string[]): RespostaAprovacao {
 
 export interface CorpoValido {
   reuniao: string;
-  decisoes: Map<number, CaixaAcao>;
+  decisoes: Map<number, { acao: CaixaAcao; h?: string }>;
 }
 
 /** Confere o corpo do POST sem confiar em nada: devolve os erros em português. */
@@ -42,13 +43,14 @@ export function validarCorpo(corpo: unknown): { ok: true; valor: CorpoValido } |
   const { reuniao, decisoes } = corpo as { reuniao?: unknown; decisoes?: unknown };
   if (!idValido(reuniao)) return { ok: false, erros: ["Reunião inválida"] };
   if (!Array.isArray(decisoes) || decisoes.length > MAX_DECISOES) return { ok: false, erros: ["Lista de decisões inválida"] };
-  const mapa = new Map<number, CaixaAcao>();
+  const mapa = new Map<number, { acao: CaixaAcao; h?: string }>();
   for (const d of decisoes) {
-    const { n, acao } = (d && typeof d === "object" ? d : {}) as { n?: unknown; acao?: unknown };
+    const { n, acao, h } = (d && typeof d === "object" ? d : {}) as { n?: unknown; acao?: unknown; h?: unknown };
+    if (h !== undefined && (typeof h !== "string" || !/^[0-9a-f]{8}$/.test(h))) return { ok: false, erros: ["Conferência da tarefa inválida"] };
     if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 1000) return { ok: false, erros: ["Número de tarefa inválido"] };
     if (typeof acao !== "string" || !(ACOES as readonly string[]).includes(acao)) return { ok: false, erros: ["Ação inválida"] };
     if (mapa.has(n)) return { ok: false, erros: [`Tarefa ${n} repetida`] };
-    mapa.set(n, acao as CaixaAcao);
+    mapa.set(n, { acao: acao as CaixaAcao, h });
   }
   return { ok: true, valor: { reuniao, decisoes: mapa } };
 }
@@ -88,9 +90,16 @@ function preencherMissoesGeradas(linhas: string[], marcador: string): string[] {
   return [...linhas.slice(0, primeiro), marcador, ...linhas.slice(ultimo + 1)];
 }
 
-function frontmatterSeguro(valor: string): string {
-  return valor.replace(/[\r\n]+/g, " ").replace(/#/g, "").trim();
+/** crase vira aspa simples: o comando sugerido fica dentro de um bloco de código e a crase o quebraria */
+function semCrase(valor: string): string {
+  return valor.replace(/`/g, "'");
 }
+
+function frontmatterSeguro(valor: string): string {
+  return semCrase(valor.replace(/[\r\n]+/g, " ").replace(/#/g, "")).trim();
+}
+
+const MSG_NOTA_MUDOU = "A nota mudou, tente de novo";
 
 // ---------------------------------------------------------------- fila
 
@@ -107,12 +116,14 @@ function naFila<T>(fn: () => Promise<T>): Promise<T> {
 
 export interface AprovarOpcoes {
   now?: () => Date;
+  /** só para teste: roda logo antes da conferência final da nota (simula edição no meio da aprovação) */
+  antesDeGravar?: () => void | Promise<void>;
 }
 
 export function aprovarReuniao(vault: string, corpo: unknown, opts: AprovarOpcoes = {}): Promise<RespostaAprovacao> {
   const v = validarCorpo(corpo);
   if (!v.ok) return Promise.resolve(erro(400, ...v.erros));
-  return naFila(() => aprovar(vault, v.valor, opts.now ?? (() => new Date())));
+  return naFila(() => aprovar(vault, v.valor, opts.now ?? (() => new Date()), opts.antesDeGravar));
 }
 
 async function nomesMd(dir: string): Promise<Set<string>> {
@@ -123,7 +134,7 @@ async function nomesMd(dir: string): Promise<Set<string>> {
   }
 }
 
-async function aprovar(vault: string, { reuniao, decisoes }: CorpoValido, now: () => Date): Promise<RespostaAprovacao> {
+async function aprovar(vault: string, { reuniao, decisoes }: CorpoValido, now: () => Date, antesDeGravar?: () => void | Promise<void>): Promise<RespostaAprovacao> {
   const dirReunioes = path.join(vault, "10-Reunioes");
   const dirMissoes = path.join(vault, "20-Missoes");
   // o id já passou pela regex (sem barra nem ponto): o arquivo só pode estar dentro de 10-Reunioes
@@ -151,18 +162,24 @@ async function aprovar(vault: string, { reuniao, decisoes }: CorpoValido, now: (
   const nl = bruto.includes("\r\n") ? "\r\n" : "\n";
   const linhas = (temBom ? bruto.slice(1) : bruto).split(/\r?\n/);
   const tarefas = lerTarefasDaNota(linhas);
-  const abertas = tarefas.filter((t) => t.marca === " ");
+  // só as primeiras MAX_TAREFAS em aberto (as que o painel mostra) exigem decisão; as demais ficam intocadas
+  const abertas = tarefas.filter((t) => t.marca === " ").slice(0, MAX_TAREFAS);
 
   for (const n of decisoes.keys()) {
     if (!abertas.some((t) => t.n === n)) return erro(400, `A tarefa ${n} não está em aberto nessa reunião`);
   }
   const faltam = abertas.filter((t) => !decisoes.has(t.n)).map((t) => t.n);
   if (faltam.length > 0) return erro(400, `Falta escolher a tarefa ${faltam.join(", ")}`);
+  // o painel guardou o texto de cada tarefa: se a nota mudou desde então, o número pode apontar para outra tarefa
+  for (const t of abertas) {
+    const h = decisoes.get(t.n)?.h;
+    if (h !== undefined && h !== hashTarefa(t.texto)) return erro(409, MSG_NOTA_MUDOU);
+  }
 
   // 1. a escolha vai para a linha de cada tarefa
   const doTime = [];
   for (const t of abertas) {
-    const acao = decisoes.get(t.n) as CaixaAcao;
+    const acao = (decisoes.get(t.n) as { acao: CaixaAcao }).acao;
     if (acao === "ignorar") {
       linhas[t.indice] = linhas[t.indice].replace("[ ]", "[-]");
     } else {
@@ -173,8 +190,8 @@ async function aprovar(vault: string, { reuniao, decisoes }: CorpoValido, now: (
 
   const agora = now();
   const hoje = diaLocal(agora.getTime());
-  const titulo = tituloDe(linhas) || reuniao;
-  const projeto = cortar(semLinks(fm.projeto ?? ""), 120);
+  const titulo = semCrase(tituloDe(linhas) || reuniao);
+  const projeto = semCrase(cortar(semLinks(fm.projeto ?? ""), 120));
 
   // 2. uma missão por reunião, com todas as tarefas "Time faz"
   let missao: string | null = null;
@@ -183,7 +200,7 @@ async function aprovar(vault: string, { reuniao, decisoes }: CorpoValido, now: (
     const usados = new Set([...(await nomesMd(dirMissoes)), ...(await nomesMd(dirReunioes))]);
     const descricao = `Fazer ${doTime.length === 1 ? "a tarefa" : `as ${doTime.length} tarefas`} da reunião ${titulo}`;
     const itens = doTime.map((t) => {
-      const texto = cortar(semLinks(t.texto) || t.texto, MAX_TEXTO_MISSAO);
+      const texto = semCrase(cortar(semLinks(t.texto) || t.texto, MAX_TEXTO_MISSAO));
       return `- [ ] ${texto}${t.prazo ? ` | prazo: ${t.prazo}` : ""}`;
     });
     await fsp.mkdir(dirMissoes, { recursive: true });
@@ -242,6 +259,13 @@ async function aprovar(vault: string, { reuniao, decisoes }: CorpoValido, now: (
   definirChave(linhas, fim, "aprovada_em", agora.toISOString());
   const final = preencherMissoesGeradas(linhas, missao ? `- [[${missao}]]` : "- nenhuma");
   try {
+    // a nota pode ter sido editada (OneDrive, Obsidian) desde a leitura: confere de novo antes de sobrescrever
+    await antesDeGravar?.();
+    const agoraSt = await fsp.lstat(arquivo).catch(() => null);
+    if (!agoraSt || agoraSt.size !== st.size || agoraSt.mtimeMs !== st.mtimeMs) {
+      if (missao) await fsp.rm(path.join(dirMissoes, `${missao}.md`), { force: true }).catch(() => undefined);
+      return erro(409, MSG_NOTA_MUDOU);
+    }
     await writeAtomic(arquivo, (temBom ? "﻿" : "") + final.join(nl));
   } catch (err) {
     // a missão acabou de ser criada por nós e a reunião continua rascunho: desfaz para não duplicar na próxima tentativa
@@ -263,7 +287,7 @@ export interface RotasCaixaDeps {
 
 /** GET /api/caixa e POST /api/caixa/aprovar */
 export function registrarCaixa(app: Express, deps: RotasCaixaDeps) {
-  app.get("/api/caixa", async (_req, res) => {
+  app.get("/api/caixa", exigirHostLocal(deps.porta), async (_req, res) => {
     await Promise.race([deps.caixa.pronto, new Promise((r) => setTimeout(r, 3000).unref())]);
     res.json({ itens: deps.caixa.getItens() });
   });

@@ -63,7 +63,7 @@ export function rotuloAprovar(item: Pick<CaixaItem, "tarefas">, escolhas: Escolh
 export function montarAprovacao(item: CaixaItem, escolhas: Escolhas): CaixaAprovacao | null {
   if (semTarefas(item)) return { reuniao: item.id, decisoes: [] };
   if (!todasEscolhidas(item, escolhas)) return null;
-  return { reuniao: item.id, decisoes: item.tarefas.map((t) => ({ n: t.n, acao: escolhas[t.n] as CaixaAcao })) };
+  return { reuniao: item.id, decisoes: item.tarefas.map((t) => ({ n: t.n, acao: escolhas[t.n] as CaixaAcao, ...(t.h ? { h: t.h } : {}) })) };
 }
 
 /** quantas ficaram em cada ação, para o resumo depois de aprovar */
@@ -85,8 +85,11 @@ export function resumoDecisao(c: Record<CaixaAcao, number>): string {
   return partes.join(", ");
 }
 
-/** mensagem em português para uma resposta de erro do servidor */
-export function textoErroAprovacao(status: number): string {
+/** aviso quando a reunião tinha mais tarefas em aberto do que o painel mostra */
+export const AVISO_TRUNCADA = "Mostrando as 40 primeiras tarefas; as demais ficam na nota";
+
+/** mensagem em português para uma resposta de erro do servidor (no 409 vale o texto do servidor: "já aprovada" ou "a nota mudou") */
+export function textoErroAprovacao(status: number, mensagem?: string): string {
   switch (status) {
     case 400:
       return "Algo não bateu: atualize a página e tente de novo.";
@@ -96,7 +99,7 @@ export function textoErroAprovacao(status: number): string {
     case 404:
       return "Não achei essa reunião no vault. Ela pode ter sido movida.";
     case 409:
-      return "Essa reunião já foi aprovada.";
+      return mensagem ? `${mensagem}.` : "Essa reunião já foi aprovada.";
     case 503:
       return "O vault não está configurado: rode npm run setup.";
     default:

@@ -8,6 +8,7 @@
 // Mesmo padrão do ObservadorVault: stat primeiro (cache por data e tamanho), fs.watch só agenda uma releitura
 // completa (debounce) e um relógio de 30 s religa o watch. Arquivo que falha ao ler mantém o valor anterior.
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
@@ -17,7 +18,8 @@ import { chave, cortar, lerFrontmatter, semLinks } from "./vault.ts";
 
 export const MAX_BYTES_NOTA = 256 * 1024;
 const MAX_ITENS = 30;
-const MAX_TAREFAS = 40;
+/** quantas tarefas em aberto o painel mostra (e o servidor exige decisão); as demais ficam na nota, intocadas */
+export const MAX_TAREFAS = 40;
 const MAX_TITULO = 120;
 const MAX_TEXTO = 140;
 const MAX_RESPONSAVEL = 60;
@@ -85,7 +87,12 @@ export function lerTarefasDaNota(linhas: readonly string[]): LinhaTarefa[] {
   return out;
 }
 
-/** o primeiro `# título` depois do frontmatter, sem links (vazio se não houver) */
+/** hash curto (8 hex) do texto cru da tarefa: o painel devolve no POST para provar que a nota não mudou */
+export function hashTarefa(texto: string): string {
+  return createHash("sha1").update(texto.trim()).digest("hex").slice(0, 8);
+}
+
+/** o primeiro `#título` depois do frontmatter, sem links (vazio se não houver) */
 export function tituloDe(linhas: readonly string[]): string {
   let ini = 0;
   if (linhas[0]?.replace(/^﻿/, "").trim() === "---") {
@@ -111,16 +118,15 @@ export function lerCaixaItem(nomeArquivo: string, texto: string): CaixaItem | nu
 
   const linhas = texto.replace(/^﻿/, "").split(/\r?\n/);
   const data = ehDataValida(fm.data ?? "") ? fm.data.trim() : "";
-  const tarefas = lerTarefasDaNota(linhas)
-    .filter((t) => t.marca === " ")
-    .slice(0, MAX_TAREFAS)
-    .map((t) => ({
+  const emAberto = lerTarefasDaNota(linhas).filter((t) => t.marca === " ");
+  const tarefas = emAberto.slice(0, MAX_TAREFAS).map((t) => ({
       n: t.n,
+      h: hashTarefa(t.texto),
       texto: cortar(semLinks(t.texto) || t.texto, MAX_TEXTO),
       responsavel: cortar(semLinks(t.responsavel), MAX_RESPONSAVEL),
       prazo: ehDataValida(t.prazo) ? t.prazo.trim() : "",
     }));
-  return { id, titulo: tituloDe(linhas) || id, data, tarefas };
+  return { id, titulo: tituloDe(linhas) || id, data, tarefas, ...(emAberto.length > MAX_TAREFAS ? { truncada: true } : {}) };
 }
 
 /** mais recentes primeiro (data, desempate pelo id) */

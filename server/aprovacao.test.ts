@@ -10,7 +10,8 @@ import { aprovarReuniao, registrarCaixa, validarCorpo, type RespostaAprovacao } 
 import type { CaixaResposta } from "../shared/types.ts";
 import { ObservadorCaixa, lerCaixaItem } from "./caixa.ts";
 import { slugDe } from "./reunioesVault.ts";
-import { ehJson, origemPermitida } from "./seguranca.ts";
+import { WebSocket, WebSocketServer } from "ws";
+import { clienteWsPermitido, ehJson, origemPermitida } from "./seguranca.ts";
 import { AGORA, criarReuniao, novoVaultDeTeste, type VaultDeTeste } from "./testeVault.ts";
 import { lerFrontmatter, missaoDoPrompt, parseMissao } from "./vault.ts";
 
@@ -358,6 +359,163 @@ test("POST /api/caixa/aprovar: Origin do painel e curl sem Origin funcionam; GET
       assert.equal((await pedir(porta, "POST", "/api/caixa/aprovar", json, JSON.stringify({ reuniao: "../x", decisoes: [] }))).status, 400);
       assert.equal((await pedir(porta, "GET", "/api/caixa", {})).corpo.itens?.length, 0);
     });
+  } finally {
+    v.limpar();
+  }
+});
+
+// ---------------------------------------------------------------- correções da revisão
+
+/** nota de reunião da Caixa com `qtd` tarefas em aberto */
+function notaComTarefas(v: VaultDeTeste, id: string, qtd: number, titulo = "Reunião grande") {
+  const tarefas = Array.from({ length: qtd }, (_, i) => `- [ ] Tarefa número ${i + 1} | responsável: Responsável A | prazo: 2026-11-01 | classe: ?`);
+  const texto = ["---", "tipo: reuniao", "status: rascunho", "origem: leitura-automatica", "data: 2026-10-17", "---", `# ${titulo}`, "", "## Tarefas", ...tarefas, "", "## Missões geradas", "- ", ""].join("\n");
+  fs.writeFileSync(path.join(v.reunioes, `${id}.md`), texto);
+}
+
+test("reunião com 45 tarefas: o painel mostra 40, aprovar exige só essas e as demais ficam intocadas", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const id = "2026-10-17-grande";
+    notaComTarefas(v, id, 45);
+    const item = itemDa(v, id);
+    assert.equal(item.tarefas.length, 40);
+    assert.equal(item.truncada, true);
+    notaComTarefas(v, "2026-10-17-cabe", 40);
+    assert.equal(itemDa(v, "2026-10-17-cabe").truncada, undefined);
+
+    const decisoes = item.tarefas.map((t) => ({ n: t.n, acao: "time" as const, h: t.h }));
+    const r = await aprovarReuniao(v.vault, { reuniao: id, decisoes }, { now: () => AGORA });
+    assert.equal(r.status, 200);
+    const linhas = lerNota(v, id).split("\n").filter((l) => /^- \[.\] Tarefa/.test(l));
+    assert.equal(linhas.length, 45);
+    assert.ok(linhas.slice(0, 40).every((l) => l.endsWith("| classe: time")));
+    assert.ok(linhas.slice(40).every((l) => l.startsWith("- [ ] ") && l.endsWith("| classe: ?")), "as 5 últimas ficam como estavam");
+    assert.equal(lerFrontmatter(lerNota(v, id))?.status, "processada");
+
+    // o teto do POST é 40 decisões
+    assert.equal(validarCorpo({ reuniao: id, decisoes: Array.from({ length: 40 }, (_, i) => ({ n: i + 1, acao: "eu" })) }).ok, true);
+    assert.equal(validarCorpo({ reuniao: id, decisoes: Array.from({ length: 41 }, (_, i) => ({ n: i + 1, acao: "eu" })) }).ok, false);
+  } finally {
+    v.limpar();
+  }
+});
+
+test("o hash do texto da tarefa: nota que mudou desde que o painel carregou dá 409 e não grava nada", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const id = await criarReuniao(v);
+    const tarefas = abertas(v, id);
+    assert.ok(tarefas.every((t) => /^[0-9a-f]{8}$/.test(t.h ?? "")));
+    const decisoes = tarefas.map((t) => ({ n: t.n, acao: "time" as const, h: t.h }));
+    // alguém trocou o texto da primeira tarefa
+    const arq = path.join(v.reunioes, `${id}.md`);
+    const nota = fs.readFileSync(arq, "utf8").replace(`- [ ] ${tarefas[0].texto}`, "- [ ] Outra coisa totalmente diferente");
+    fs.writeFileSync(arq, nota);
+    const r = await aprovarReuniao(v.vault, { reuniao: id, decisoes });
+    assert.equal(r.status, 409);
+    assert.deepEqual(r.corpo.ok === false && r.corpo.erros, ["A nota mudou, tente de novo"]);
+    assert.equal(fs.readFileSync(arq, "utf8"), nota);
+    assert.deepEqual(arquivosMd(v.missoes), []);
+    assert.equal(validarCorpo({ reuniao: id, decisoes: [{ n: 1, acao: "eu", h: "xx" }] }).ok, false);
+  } finally {
+    v.limpar();
+  }
+});
+
+test("nota editada no meio da aprovação: 409, a missão criada é desfeita e a edição fica", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const id = await criarReuniao(v);
+    const decisoes = abertas(v, id).map((t) => ({ n: t.n, acao: "time" as const }));
+    const arq = path.join(v.reunioes, `${id}.md`);
+    let editada = "";
+    const r = await aprovarReuniao(
+      v.vault,
+      { reuniao: id, decisoes },
+      {
+        now: () => AGORA,
+        antesDeGravar: () => {
+          assert.equal(arquivosMd(v.missoes).length, 1, "a missão já existia neste ponto");
+          editada = fs.readFileSync(arq, "utf8") + "\nLinha nova do usuário\n";
+          fs.writeFileSync(arq, editada);
+        },
+      },
+    );
+    assert.equal(r.status, 409);
+    assert.deepEqual(r.corpo.ok === false && r.corpo.erros, ["A nota mudou, tente de novo"]);
+    assert.deepEqual(arquivosMd(v.missoes), [], "sem missão órfã");
+    assert.equal(fs.readFileSync(arq, "utf8"), editada, "a edição do usuário não foi sobrescrita");
+    assert.equal(lerFrontmatter(editada)?.status, "rascunho");
+  } finally {
+    v.limpar();
+  }
+});
+
+test("crase no título, projeto ou tarefa vira aspa simples e não quebra o bloco do comando", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const id = "2026-10-17-crase";
+    fs.writeFileSync(
+      path.join(v.reunioes, `${id}.md`),
+      ["---", "tipo: reuniao", "status: rascunho", "origem: leitura-automatica", "projeto: Proj `X`", "data: 2026-10-17", "---", "# Reunião `perigosa`", "", "## Tarefas", "- [ ] Rodar `npm test`", ""].join("\n"),
+    );
+    const r = await aprovarReuniao(v.vault, { reuniao: id, decisoes: [{ n: 1, acao: "time" }] }, { now: () => AGORA });
+    const resp = corpoOk(r);
+    assert.ok(resp.comando && !resp.comando.includes("`"));
+    const missao = fs.readFileSync(path.join(v.missoes, `${resp.missao}.md`), "utf8");
+    // as únicas crases da missão são as do bloco do comando sugerido
+    assert.equal(missao.split("`").length - 1, 2);
+    assert.ok(missao.includes("Rodar 'npm test'"));
+    assert.equal(lerFrontmatter(missao)?.projeto, "Proj 'X'");
+  } finally {
+    v.limpar();
+  }
+});
+
+test("segurança: GET /api/caixa confere o Host e o WebSocket recusa Origin de fora", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    await criarReuniao(v);
+    await comServidor(v, async (porta) => {
+      // Host de fora (DNS rebinding) leva 403; o Host do painel passa
+      assert.equal((await pedir(porta, "GET", "/api/caixa", { Host: "evil.com" })).status, 403);
+      assert.equal((await pedir(porta, "GET", "/api/caixa", { Host: `evil.com:${porta}` })).status, 403);
+      assert.equal((await pedir(porta, "GET", "/api/caixa", { Host: `localhost:${porta}` })).status, 200);
+      assert.equal((await pedir(porta, "GET", "/api/caixa", {})).status, 200);
+    });
+
+    const verificar = clienteWsPermitido(() => 4750);
+    assert.equal(verificar({}), true, "sem Origin (cliente que não é navegador) passa");
+    assert.equal(verificar({ origin: "http://127.0.0.1:4750" }), true);
+    assert.equal(verificar({ origin: "http://localhost:4750" }), true);
+    for (const ruim of ["http://evil.com", "http://localhost:5173", "null", ""]) assert.equal(verificar({ origin: ruim }), false, ruim);
+
+    // de verdade, com um servidor ws
+    const server = http.createServer();
+    const wss = new WebSocketServer({ server, path: "/ws", verifyClient: clienteWsPermitido(() => (server.address() as AddressInfo).port) });
+    wss.on("connection", (ws) => ws.send("caixa"));
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const porta = (server.address() as AddressInfo).port;
+    const conectar = (origin?: string) =>
+      new Promise<"aberto" | "recusado">((resolve) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${porta}/ws`, origin === undefined ? {} : { origin });
+        ws.on("open", () => {
+          ws.close();
+          resolve("aberto");
+        });
+        ws.on("error", () => resolve("recusado"));
+      });
+    try {
+      assert.equal(await conectar(), "aberto");
+      assert.equal(await conectar(`http://127.0.0.1:${porta}`), "aberto");
+      assert.equal(await conectar("http://evil.com"), "recusado");
+    } finally {
+      for (const c of wss.clients) c.terminate();
+      wss.close();
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
   } finally {
     v.limpar();
   }

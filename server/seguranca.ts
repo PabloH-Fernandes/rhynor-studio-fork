@@ -15,6 +15,30 @@ export function origemPermitida(origem: string, porta: number): boolean {
   return origem === `http://127.0.0.1:${porta}` || origem === `http://localhost:${porta}`;
 }
 
+/** O `Host` é o desta máquina? (contra DNS rebinding: um site de fora apontando o nome dele para 127.0.0.1) */
+export function hostPermitido(host: string | undefined, porta: number): boolean {
+  return host === `127.0.0.1:${porta}` || host === `localhost:${porta}`;
+}
+
+/** Para GETs que entregam dados do vault: recusa `Host` de fora. */
+export function exigirHostLocal(porta: () => number): RequestHandler {
+  return (req, res, next) => {
+    if (!hostPermitido(req.header("host"), porta())) {
+      res.status(403).json({ ok: false, erros: ["Host não aceito"] });
+      return;
+    }
+    next();
+  };
+}
+
+/**
+ * `verifyClient` do WebSocket: com `Origin` (navegador) ele tem que ser o do painel; sem `Origin`
+ * (clientes que não são navegador) passa. Evita que uma página qualquer leia a Caixa pelo WebSocket.
+ */
+export function clienteWsPermitido(porta: () => number): (info: { origin?: string }) => boolean {
+  return ({ origin }) => origin === undefined ||origemPermitida(origin, porta());
+}
+
 /** "application/json" e "application/json; charset=utf-8" valem; o resto não */
 export function ehJson(contentType: string | undefined): boolean {
   return (contentType ?? "").split(";")[0].trim().toLowerCase() === "application/json";
