@@ -21,6 +21,8 @@ interface Props {
   reuniao: ReuniaoAtiva | null;
   /** nome da missão que nasceu da reunião (vai pro quadro da parede) */
   missao: string | null;
+  /** quantas pendências estão atrasadas: com 1 ou mais, um AGzinho de boa segura a plaquinha de aviso */
+  atrasadas: number;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }
@@ -40,7 +42,7 @@ const VELOCITY_WINDOW = 100; // ms usados pra medir a velocidade de soltura
 const K_MAX = 8; // teto da resolução interna do canvas (W*k px de largura) pra não estourar memória
 const MAX_PIXELS = 16e6; // Safari/iOS deixa o canvas em branco acima de ~16,7 Mpx
 
-export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, reuniao, missao, selectedId, onSelect }, ref) {
+export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, reuniao, missao, atrasadas, selectedId, onSelect }, ref) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OfficeEngine>();
@@ -94,6 +96,9 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
   useEffect(() => {
     engine.missao = missao;
   }, [missao, engine]);
+  useEffect(() => {
+    engine.atrasadas = atrasadas;
+  }, [atrasadas, engine]);
   useEffect(() => {
     engine.selectedId = selectedId;
   }, [selectedId, engine]);

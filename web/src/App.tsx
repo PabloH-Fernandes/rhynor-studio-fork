@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Agent, AgentStatus, FeedItem, ReuniaoAtiva, Roster } from "../../shared/types";
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
 import { CaixaEntrada } from "./components/CaixaEntrada";
+import { Pendencias } from "./components/Pendencias";
 import { Cracha } from "./components/Cracha";
 import { IconeStatus } from "./components/IconePixel";
 import { MiniRetrato } from "./components/MiniRetrato";
@@ -13,7 +14,9 @@ import { ATA_JANELA_MS, QUADRO_ATA, reuniaoDeAta } from "./office/reuniaoAta";
 import { SpriteGallery } from "./SpriteGallery";
 import { GALLERY_ENABLED } from "./office/gallery";
 import { roleColor, theme } from "./theme";
+import { useHoje } from "./useHoje";
 import { useOffice } from "./useOffice";
+import { comUrgencia } from "./pendenciasLogic";
 import { destravarSom, eventoDoLote, instalarGestos, observarSom, setAtivo as setSomAtivo, somDaTransicao, somFuncionando, tocar, tocarTecladoLimitado, INTERVALO_TECLADO_MS, type EstadoSom } from "./sound";
 import { usePreferencia, usePreferenciaTexto } from "./usePreferencia";
 import { TODAS, esperandoDe, filtrarPorProjeto, progressoDoFiltro, projetoEfetivo, projetosDe, textoEspera } from "./projetoLogic";
@@ -42,7 +45,9 @@ const KIND_ICON: Record<FeedItem["kind"], string> = {
 
 export default function App() {
   const officeRef = useRef<OfficeHandle>(null);
-  const { agents, feed, roster, progress, missoes, reuniao, caixa, ataNova, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const { agents, feed, roster, progress, missoes, reuniao, caixa, pendencias, ataNova, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const hoje = useHoje();
+  const atrasadas = useMemo(() => comUrgencia(pendencias ?? [], hoje).filter((p) => p.urgencia === "atrasada").length, [pendencias, hoje]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /** agente clicado no canvas cujo crachá deve rolar pra vista (layout empilhado); o crachá consome */
@@ -175,7 +180,7 @@ export default function App() {
         {GALLERY_ENABLED ? (
           <SpriteGallery roster={roster} />
         ) : (
-          <OfficeCanvas ref={officeRef} agents={visiveis} roster={roster} progress={progressoVisivel} reuniao={reuniaoNoOffice} missao={quadroMissao} selectedId={selectedId} onSelect={selectFromCanvas} />
+          <OfficeCanvas ref={officeRef} agents={visiveis} roster={roster} progress={progressoVisivel} reuniao={reuniaoNoOffice} missao={quadroMissao} atrasadas={atrasadas} selectedId={selectedId} onSelect={selectFromCanvas} />
         )}
         {!GALLERY_ENABLED && list.length === 0 && conn === "online" && (
           <div className="empty">
@@ -226,6 +231,8 @@ export default function App() {
         </header>
 
         <CaixaEntrada itens={caixa} />
+
+        <Pendencias itens={pendencias} />
 
         <Progresso progress={progressoVisivel} />
 

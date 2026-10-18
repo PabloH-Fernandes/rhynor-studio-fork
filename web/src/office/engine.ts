@@ -32,6 +32,7 @@ import { drawBall } from "./pingpong";
 import { drawPingPongTable, fill, line, type Rect } from "./decor";
 import { Lightmap, clockDate, windowLight, type LightScene } from "./daylight";
 import { isReducedMotion } from "./motion";
+import { desenharPlaca, escolherPortador, lugarDaPlaca } from "./placaAtrasada";
 import { atribuirReuniao, type CandidatoReuniao } from "./reuniao";
 import {
   AISLE_Y,
@@ -289,6 +290,8 @@ interface RestDebugRow {
   y: number;
   cups: number;
   cupInHand: boolean;
+  /** segura a plaquinha de atrasada */
+  placa: boolean;
 }
 
 declare global {
@@ -352,6 +355,9 @@ export class OfficeEngine {
   private meetingOwners = new Map<string, string>();
   /** nome da missão da reunião, pro quadro da parede */
   private missaoNome: string | undefined;
+  /** quantas pendências estão atrasadas (vindo do painel) e quem segura a plaquinha de aviso por causa delas */
+  private atrasadasN = 0;
+  private placaId: string | null = null;
   private mover: RestMover = {
     goTo: (id, spot) => {
       const v = this.visuals.get(id);
@@ -426,6 +432,7 @@ export class OfficeEngine {
       y: +(v.y * TILE).toFixed(1),
       cups: this.cups.length,
       cupInHand: !!v.cupInHand,
+      placa: this.placaId === v.agent.id,
     }));
   }
 
@@ -460,6 +467,11 @@ export class OfficeEngine {
   /** nome da missão em andamento (só as que nasceram de reunião); some do quadro com null */
   set missao(nome: string | null | undefined) {
     this.missaoNome = nome || undefined;
+  }
+
+  /** pendências atrasadas: com pelo menos uma, um AGzinho de boa segura a plaquinha de aviso */
+  set atrasadas(n: number) {
+    this.atrasadasN = Math.max(0, Math.floor(n) || 0);
   }
 
   // ------------------------------------------------------------ dados do servidor
@@ -824,6 +836,7 @@ export class OfficeEngine {
     this.drawClockLayer(ctx);
 
     const active = visuals.filter((v) => !v.leaving);
+    this.placaId = this.escolherPlaca(active, now);
     // TIME não conta visitante; FAZENDO é quem está trabalhando no mapa (time + visitantes visíveis)
     this.drawBoardLayer(ctx, {
       progresso: this.progresso,
@@ -1103,8 +1116,25 @@ export class OfficeEngine {
       holding: rest?.holding ?? (v.cupInHand ? "copo" : undefined),
       reducedMotion: isReducedMotion(),
     });
+    if (v.agent.id === this.placaId) {
+      const lugar = lugarDaPlaca(x, y, FORBIDDEN);
+      if (lugar) desenharPlaca(ctx, lugar.rect, now, !isReducedMotion());
+    }
     if (seated && v.at.depth !== undefined && rest?.sofa && v.dir === "down") sofaShins(ctx, x, y, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
     if (seated && v.at.stool) stoolShins(ctx, x, y, v.dir, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
+  }
+
+  /** quem segura a plaquinha de atrasada neste quadro: do time (não líder, não visitante), de boa, parado e sem atividade de descanso em curso */
+  private escolherPlaca(ativos: Visual[], now: number): string | null {
+    if (this.atrasadasN <= 0) return null;
+    const elegiveis = ativos
+      .filter((v) => {
+        if (v.fade < 0.95 || v.agent.status !== "ocioso" || !v.agent.parentId || ehVisitante(v.agent)) return false;
+        if (v.path.length || this.meeting.has(v.agent.id)) return false;
+        return !this.animOf(v, now) && !this.restPose(v, now) && !v.cupInHand; // sem atividade de descanso em curso
+      })
+      .map((v) => v.agent.id);
+    return escolherPortador(true, elegiveis, this.placaId);
   }
 
   private headPoint(v: Visual, now: number): Point {

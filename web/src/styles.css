@@ -15,6 +15,7 @@
   --waiting: #ff8a00; /* exclusivo de "te esperando" */
   --focus: var(--white); /* anel de foco; nas superfícies claras vira marinho */
   --waiting-pulse-bg: #10305f; /* fundo do alerta no pico do pulse */
+  --waiting-ink: #8a4a00; /* âmbar escuro: texto de "vence em até 2 dias" sobre fundo claro (nunca o laranja de "te esperando") */
   --green: #3fbf86;
   --red: #ef5f7b;
   --blue: #5aaef0;
@@ -2564,4 +2565,45 @@ h2 {
 
 .caixa-erro {
   color: var(--red);
+}
+
+/* ---------------------------------------------------------------- pendências (reaproveita .caixa-*) */
+
+.pend-atrasada {
+  --mc: var(--red);
+}
+
+.pend-selo-linha {
+  margin: 0;
+}
+
+/* status sempre em ícone + texto; a cor só reforça */
+.pend-selo {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 2px solid currentColor;
+  font-size: var(--fs-menor);
+  line-height: 1.1;
+}
+
+.pend-selo-atrasada {
+  color: var(--red);
+}
+
+/* âmbar escuro em selo claro: 5:1 de contraste; o laranja vivo é só de "te esperando" */
+.pend-selo-logo {
+  background: var(--navy-100);
+  color: var(--waiting-ink);
+}
+
+.pend-selo-no-prazo {
+  color: var(--green);
+}
+
+.pend-selo-sem-prazo {
+  color: var(--muted);
+}
+
+.pend-vazio {
+  margin-top: 8px;
 }

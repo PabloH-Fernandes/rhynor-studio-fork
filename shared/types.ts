@@ -1,6 +1,7 @@
 // Tipos compartilhados entre o servidor e o frontend.
 
 import type { Roster } from "./roster.ts";
+import type { Urgencia } from "./prazos.ts";
 
 // só os tipos; valores (DEFAULT_ROSTER, validateRoster...) vêm direto de shared/roster
 export type { Acessorio, AGzinho, Destaque, EstiloCabelo, Genero, Roster, RosterResult, Roupa, Swatch } from "./roster.ts";
@@ -196,6 +197,35 @@ export interface CaixaResposta {
   missao: string | null;
 }
 
+/** De quem é a pendência: sua (🙋) ou do time (🤖) */
+export type PendenciaDono = "eu" | "time";
+
+/** Uma tarefa em aberto de uma reunião (classe eu) ou de uma missão, para o painel de Pendências. */
+export interface Pendencia {
+  /** `r:nota:n:hash` (reunião) ou `m:nota:n:hash` (missão): é o que volta em POST /api/pendencias/concluir */
+  id: string;
+  /** hash curto da linha inteira da tarefa na nota: volta no POST para o servidor conferir que a nota não mudou */
+  h: string;
+  /** texto da tarefa, sem os campos depois do `|` */
+  texto: string;
+  /** vazio se não tiver */
+  responsavel: string;
+  /** AAAA-MM-DD ou vazio */
+  prazo: string;
+  /** título da reunião ou da missão de onde a tarefa vem */
+  origem: string;
+  dono: PendenciaDono;
+  status: "a fazer" | "em andamento";
+  /** calculada pelo servidor com o dia local dele; o painel recalcula com o dia do navegador */
+  urgencia: Urgencia;
+}
+
+/** Corpo de POST /api/pendencias/concluir */
+export interface PendenciaConclusao {
+  id: string;
+  h: string;
+}
+
 /** Uma reunião (/reuniao) acontecendo: a mesa de reunião do escritório. Passageira: não é salva. */
 export interface ReuniaoAtiva {
   sessionId: string;
@@ -221,6 +251,8 @@ export type ServerMessage =
   | { type: "ata-nova"; texto: string; hora: string }
   /** a Caixa de entrada mudou (reunião nova para aprovar, ou uma foi aprovada) */
   | { type: "caixa"; itens: CaixaItem[] }
+  /** as pendências (tarefas em aberto de reuniões e missões) mudaram */
+  | { type: "pendencias"; itens: Pendencia[] }
   /** uma reunião (/reuniao) começou ou acabou */
   | { type: "reuniao"; reuniao: ReuniaoAtiva | null }
   | { type: "agent"; agent: Agent }

@@ -20,6 +20,7 @@ import { ObservadorVault } from "./vaultWatcher.ts";
 import { IngestaoInbox } from "./ingestao.ts";
 import { ObservadorCaixa } from "./caixa.ts";
 import { registrarCaixa } from "./aprovacao.ts";
+import { ObservadorPendencias, registrarPendencias } from "./pendencias.ts";
 import { clienteWsPermitido } from "./seguranca.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
@@ -54,6 +55,9 @@ void vault.iniciar();
 // Caixa de entrada: reuniões lidas sem IA que esperam a aprovação (só título, data e tarefas vão para o painel)
 const caixa = new ObservadorCaixa(() => resolverVault(process.env, os.homedir()));
 void caixa.iniciar();
+// Pendências: tarefas em aberto de reuniões (classe eu) e missões, com prazo (só leitura; concluir grava só a linha)
+const pendencias = new ObservadorPendencias(() => resolverVault(process.env, os.homedir()));
+void pendencias.iniciar();
 // leitura das atas do Inbox sem IA (AGPOCKET_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
 const ingestao =
   process.env.AGPOCKET_INGESTAO?.trim() === "0"
@@ -118,6 +122,9 @@ app.get("/api/missoes", async (_req, res) => {
 
 // Caixa de entrada: GET /api/caixa e POST /api/caixa/aprovar (o POST exige JSON e Origin do próprio painel)
 registrarCaixa(app, { resolverVault: () => resolverVault(process.env, os.homedir()), caixa, porta: () => PORT });
+
+// Pendências: GET /api/pendencias e POST /api/pendencias/concluir (o POST exige JSON e Origin do próprio painel)
+registrarPendencias(app, { resolverVault: () => resolverVault(process.env, os.homedir()), pendencias, porta: () => PORT });
 
 // Elenco dos AGzinhos: o atual e o padrão (para "Voltar ao padrão" no vestiário).
 app.get("/api/roster", (_req, res) => {
@@ -186,6 +193,7 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify(state.snapshot()));
   ws.send(JSON.stringify({ type: "missoes", info: vault.getInfo() } satisfies ServerMessage));
   ws.send(JSON.stringify({ type: "caixa", itens: caixa.getItens() } satisfies ServerMessage));
+  ws.send(JSON.stringify({ type: "pendencias", itens: pendencias.getItens() } satisfies ServerMessage));
 });
 
 function broadcast(msg: ServerMessage) {
@@ -197,6 +205,7 @@ function broadcast(msg: ServerMessage) {
 state.subscribe(broadcast);
 vault.subscribe((info) => broadcast({ type: "missoes", info }));
 caixa.subscribe((itens) => broadcast({ type: "caixa", itens }));
+pendencias.subscribe((itens) => broadcast({ type: "pendencias", itens }));
 
 server.listen(PORT, HOST, () => {
   const hasUi = fs.existsSync(DIST);
@@ -228,6 +237,7 @@ function desligar(codigo: number) {
   persistencia.salvarSync();
   vault.parar();
   caixa.parar();
+  pendencias.parar();
   ingestao?.parar();
   process.exit(codigo);
 }
