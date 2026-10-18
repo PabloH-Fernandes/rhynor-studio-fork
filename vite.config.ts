@@ -10,7 +10,16 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": API,
+      // o POST de aprovação só aceita Origin do próprio servidor: no dev o navegador manda o da porta 5173,
+      // então o proxy troca pelo do servidor (sem isso a Caixa de entrada daria 403 no dev)
+      "/api": {
+        target: API,
+        configure: (proxy) => {
+          proxy.on("proxyReq", (req) => {
+            if (req.getHeader("origin")) req.setHeader("origin", API);
+          });
+        },
+      },
       "/ws": { target: API.replace("http", "ws"), ws: true },
     },
   },

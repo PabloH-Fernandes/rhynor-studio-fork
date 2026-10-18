@@ -18,6 +18,8 @@ import { DEFAULT_ROSTER } from "../shared/roster.ts";
 import { resolverVault } from "./vault.ts";
 import { ObservadorVault } from "./vaultWatcher.ts";
 import { IngestaoInbox } from "./ingestao.ts";
+import { ObservadorCaixa } from "./caixa.ts";
+import { registrarCaixa } from "./aprovacao.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
@@ -48,12 +50,18 @@ persistencia.ligar();
 // missões e atas novas do vault (o servidor não herda o env do settings.json: o resolverVault lê de lá)
 const vault = new ObservadorVault(() => resolverVault(process.env, os.homedir()));
 void vault.iniciar();
+// Caixa de entrada: reuniões lidas sem IA que esperam a aprovação (só título, data e tarefas vão para o painel)
+const caixa = new ObservadorCaixa(() => resolverVault(process.env, os.homedir()));
+void caixa.iniciar();
 // leitura das atas do Inbox sem IA (AGPOCKET_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
 const ingestao =
   process.env.AGPOCKET_INGESTAO?.trim() === "0"
     ? null
     : new IngestaoInbox(() => resolverVault(process.env, os.homedir()), {
-        aoIngerir: (ata) => broadcast({ type: "ata-nova", texto: "Chegou uma ata", hora: ata.hora }),
+        aoIngerir: (ata) => {
+          void caixa.recarregar(); // a reunião já aparece na Caixa de entrada junto com a animação
+          broadcast({ type: "ata-nova", texto: "Chegou uma ata", hora: ata.hora });
+        },
         aoMudarForaDoFormato: (n) => vault.definirForaDoFormato(n),
       });
 void ingestao?.iniciar();
@@ -106,6 +114,9 @@ app.get("/api/missoes", async (_req, res) => {
   await Promise.race([vault.pronto, new Promise((r) => setTimeout(r, 3000).unref())]);
   res.json(vault.getInfo());
 });
+
+// Caixa de entrada: GET /api/caixa e POST /api/caixa/aprovar (o POST exige JSON e Origin do próprio painel)
+registrarCaixa(app, { resolverVault: () => resolverVault(process.env, os.homedir()), caixa, porta: () => PORT });
 
 // Elenco dos AGzinhos: o atual e o padrão (para "Voltar ao padrão" no vestiário).
 app.get("/api/roster", (_req, res) => {
@@ -173,6 +184,7 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 wss.on("connection", (ws) => {
   ws.send(JSON.stringify(state.snapshot()));
   ws.send(JSON.stringify({ type: "missoes", info: vault.getInfo() } satisfies ServerMessage));
+  ws.send(JSON.stringify({ type: "caixa", itens: caixa.getItens() } satisfies ServerMessage));
 });
 
 function broadcast(msg: ServerMessage) {
@@ -183,6 +195,7 @@ function broadcast(msg: ServerMessage) {
 }
 state.subscribe(broadcast);
 vault.subscribe((info) => broadcast({ type: "missoes", info }));
+caixa.subscribe((itens) => broadcast({ type: "caixa", itens }));
 
 server.listen(PORT, HOST, () => {
   const hasUi = fs.existsSync(DIST);
@@ -213,6 +226,7 @@ function desligar(codigo: number) {
   desligando = true;
   persistencia.salvarSync();
   vault.parar();
+  caixa.parar();
   ingestao?.parar();
   process.exit(codigo);
 }

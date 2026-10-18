@@ -153,6 +153,45 @@ export interface MissoesInfo {
   totais?: { abertas: number; concluidas: number };
 }
 
+/** Uma tarefa de uma reunião esperando a sua decisão na Caixa de entrada. */
+export interface CaixaTarefa {
+  /** posição da linha entre as tarefas da nota (1, 2, 3...): é o número que volta em POST /api/caixa/aprovar */
+  n: number;
+  texto: string;
+  /** "Responsável A" (nome já trocado); vazio se não tiver */
+  responsavel: string;
+  /** AAAA-MM-DD ou vazio */
+  prazo: string;
+}
+
+/** Uma reunião lida sem IA (`status: rascunho`) que ainda precisa de aprovação. Só título, data e tarefas. */
+export interface CaixaItem {
+  /** nome da nota em 10-Reunioes, sem .md (só letras, números e hífen) */
+  id: string;
+  titulo: string;
+  /** AAAA-MM-DD ou vazio */
+  data: string;
+  /** só as tarefas em aberto; vazio = reunião sem tarefas */
+  tarefas: CaixaTarefa[];
+}
+
+export type CaixaAcao = "time" | "eu" | "ignorar";
+
+/** Corpo de POST /api/caixa/aprovar */
+export interface CaixaAprovacao {
+  reuniao: string;
+  decisoes: { n: number; acao: CaixaAcao }[];
+}
+
+/** Resposta de POST /api/caixa/aprovar quando deu certo */
+export interface CaixaResposta {
+  ok: true;
+  /** `/time Missão [[nota]]: ...`; null quando ninguém ficou com "Time faz" (nenhuma missão criada) */
+  comando: string | null;
+  /** nome da nota da missão criada, sem .md; null se não criou */
+  missao: string | null;
+}
+
 /** Uma reunião (/reuniao) acontecendo: a mesa de reunião do escritório. Passageira: não é salva. */
 export interface ReuniaoAtiva {
   sessionId: string;
@@ -176,6 +215,8 @@ export type ServerMessage =
   | { type: "missoes"; info: MissoesInfo }
   /** a leitura automática (sem IA) acabou de ler uma ata nova: texto fixo e hora, sem título nem conteúdo (o título fica só na nota do vault) */
   | { type: "ata-nova"; texto: string; hora: string }
+  /** a Caixa de entrada mudou (reunião nova para aprovar, ou uma foi aprovada) */
+  | { type: "caixa"; itens: CaixaItem[] }
   /** uma reunião (/reuniao) começou ou acabou */
   | { type: "reuniao"; reuniao: ReuniaoAtiva | null }
   | { type: "agent"; agent: Agent }

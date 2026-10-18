@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Agent, AgentStatus, FeedItem, Roster } from "../../shared/types";
+import type { Agent, AgentStatus, FeedItem, ReuniaoAtiva, Roster } from "../../shared/types";
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
+import { CaixaEntrada } from "./components/CaixaEntrada";
 import { Cracha } from "./components/Cracha";
 import { IconeStatus } from "./components/IconePixel";
 import { MiniRetrato } from "./components/MiniRetrato";
@@ -8,6 +9,7 @@ import { Missoes } from "./components/Missoes";
 import { Progresso } from "./components/Progresso";
 import { Vestiario } from "./components/Vestiario";
 import { agzinhoOf } from "./office/engine";
+import { ATA_JANELA_MS, QUADRO_ATA, reuniaoDeAta } from "./office/reuniaoAta";
 import { SpriteGallery } from "./SpriteGallery";
 import { GALLERY_ENABLED } from "./office/gallery";
 import { roleColor, theme } from "./theme";
@@ -40,7 +42,7 @@ const KIND_ICON: Record<FeedItem["kind"], string> = {
 
 export default function App() {
   const officeRef = useRef<OfficeHandle>(null);
-  const { agents, feed, roster, progress, missoes, reuniao, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const { agents, feed, roster, progress, missoes, reuniao, caixa, ataNova, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /** agente clicado no canvas cujo crachá deve rolar pra vista (layout empilhado); o crachá consome */
@@ -142,6 +144,21 @@ export default function App() {
 
   const avisoAta = textoAtaNova(missoes?.inbox.novas ?? 0, missoes?.inbox.foraDoFormato);
 
+  // ata nova: uma reunião só da tela por ~12 s (os livres sentam na mesa) e o quadro da parede avisa.
+  // O motor não muda: é uma ReuniaoAtiva local que nunca substitui a de um /reuniao de verdade.
+  const [janelaAta, setJanelaAta] = useState<{ reuniao: ReuniaoAtiva | null } | null>(null);
+  const visiveisRef = useRef(visiveis);
+  visiveisRef.current = visiveis;
+  const seqAta = ataNova?.seq ?? 0;
+  useEffect(() => {
+    if (seqAta === 0) return;
+    setJanelaAta({ reuniao: reuniaoDeAta(visiveisRef.current, Date.now()) });
+    const timer = setTimeout(() => setJanelaAta(null), ATA_JANELA_MS);
+    return () => clearTimeout(timer);
+  }, [seqAta]);
+  const reuniaoNoOffice = reuniao ?? janelaAta?.reuniao ?? null;
+  const quadroMissao = janelaAta ? QUADRO_ATA : (missoes?.atual?.nome ?? null);
+
   const call = async (path: string) => {
     setBusy(true);
     try {
@@ -157,7 +174,7 @@ export default function App() {
         {GALLERY_ENABLED ? (
           <SpriteGallery roster={roster} />
         ) : (
-          <OfficeCanvas ref={officeRef} agents={visiveis} roster={roster} progress={progressoVisivel} reuniao={reuniao} missao={missoes?.atual?.nome ?? null} selectedId={selectedId} onSelect={selectFromCanvas} />
+          <OfficeCanvas ref={officeRef} agents={visiveis} roster={roster} progress={progressoVisivel} reuniao={reuniaoNoOffice} missao={quadroMissao} selectedId={selectedId} onSelect={selectFromCanvas} />
         )}
         {!GALLERY_ENABLED && list.length === 0 && conn === "online" && (
           <div className="empty">
@@ -206,6 +223,8 @@ export default function App() {
             </span>
           </div>
         </header>
+
+        <CaixaEntrada itens={caixa} />
 
         <Progresso progress={progressoVisivel} />
 

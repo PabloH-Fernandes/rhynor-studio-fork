@@ -182,6 +182,15 @@ export function secao(linhas: string[], titulo: RegExp): string[] | null {
 
 const SEM_TITULO_PADRAO = (s: string) => /\{\{.*\}\}/.test(s);
 
+/**
+ * Tira o sufixo de dados que o painel grava na linha da tarefa (`| prazo: 2026-10-31`,
+ * `| concluída: 2026-10-20`; a nota de reunião também tem `| responsável:` e `| classe:`).
+ * O texto mostrado no painel nunca leva esse trecho. Um "|" que não abre uma dessas chaves fica.
+ */
+export function textoSemSufixo(bruto: string): string {
+  return bruto.replace(/\s*\|\s*(?:prazo|conclu[ií]da|respons[aá]vel|classe)\s*:.*$/i, "").trim();
+}
+
 // ---------------------------------------------------------------- missão
 
 export function parseMissao(nomeArquivo: string, texto: string, mtime: number): Missao | null {
@@ -213,7 +222,8 @@ export function parseMissao(nomeArquivo: string, texto: string, mtime: number): 
     const feita = m[1] !== " ";
     total++;
     if (feita) feitas++;
-    if (itens.length < MAX_ITENS) itens.push({ texto: cortar(semLinks(m[2]) || m[2].trim(), MAX_TEXTO_ITEM), feita });
+    const textoItem = textoSemSufixo(m[2]) || m[2].trim();
+    if (itens.length < MAX_ITENS) itens.push({ texto: cortar(semLinks(textoItem) || textoItem, MAX_TEXTO_ITEM), feita });
   }
 
   const objetivo = cortar(semLinks((secao(linhas, /^##\s+Objetivo\b/i) ?? []).join(" "), MAX_OBJETIVO * 4), MAX_OBJETIVO);

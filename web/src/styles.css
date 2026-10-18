@@ -320,6 +320,8 @@ code {
 .btn-tecnico,
 .agent-row,
 .missao-row,
+.caixa-item,
+.caixa-aprovada,
 .aviso-ata,
 .cracha-cartao,
 .cracha-foto,
@@ -2451,4 +2453,115 @@ h2 {
 
 .missao-resumo li.feita {
   color: var(--green);
+}
+
+/* ---------------------------------------------------------------- caixa de entrada */
+
+.caixa-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.caixa-item,
+.caixa-aprovada {
+  --b: 2px;
+  --mc: var(--blue);
+  --sy: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-3);
+  line-height: 1.15;
+}
+
+.caixa-aprovada {
+  --mc: var(--green);
+}
+
+.caixa-aprovada:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 6px;
+}
+
+.caixa-titulo,
+.caixa-texto,
+.caixa-meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.caixa-meta {
+  color: var(--muted);
+  font-size: var(--fs-menor);
+}
+
+.caixa-tarefas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.caixa-tarefa {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 2px solid var(--line);
+}
+
+.caixa-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.caixa-opcao {
+  min-height: 32px;
+  white-space: normal;
+}
+
+.caixa-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.caixa-acoes .btn {
+  flex: 0 1 auto;
+}
+
+/* o comando /time: texto corrido que quebra em qualquer ponto, para caber no painel */
+.caixa-comando {
+  display: block;
+  padding: 6px 8px;
+  background: var(--bg);
+  color: var(--navy-100);
+  font-size: var(--fs-menor);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.caixa-copiado,
+.caixa-erro {
+  min-height: 1.15em;
+  margin: 0;
+  font-size: var(--fs-menor);
+}
+
+.caixa-copiado {
+  color: var(--green);
+}
+
+.caixa-erro {
+  color: var(--red);
 }

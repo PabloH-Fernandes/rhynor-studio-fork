@@ -12,6 +12,7 @@ import {
   missaoDoPrompt,
   parseMissao,
   resolverVault,
+  textoSemSufixo,
 } from "./vault.ts";
 import {
   MAX_ABERTAS,
@@ -477,4 +478,31 @@ test("observador: sem vault e sem pasta", async () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("parseMissao: o sufixo | prazo e | concluída não aparece no texto da tarefa, mas a tarefa conta", () => {
+  const texto = [
+    "---",
+    "tipo: missao",
+    "status: a fazer",
+    "confidencial: false",
+    "---",
+    "# Tarefas da reunião",
+    "## Tarefas",
+    "- [ ] Montar a página | prazo: 2026-10-31",
+    "- [x] Revisar o texto | concluída: 2026-10-20",
+    "- [ ] Ligar o cadastro | responsável: Responsável A | prazo: | classe: time",
+    "- [ ] Ajustar a regra A | B sem chave",
+    "- [ ] Só com prazo | PRAZO : 2026-11-01",
+  ].join("\n");
+  const m = parseMissao("2026-10-17-x.md", texto, 0);
+  assert.deepEqual(m?.itens, [
+    { texto: "Montar a página", feita: false },
+    { texto: "Revisar o texto", feita: true },
+    { texto: "Ligar o cadastro", feita: false },
+    { texto: "Ajustar a regra A | B sem chave", feita: false },
+    { texto: "Só com prazo", feita: false },
+  ]);
+  assert.deepEqual(m?.tarefas, { feitas: 1, total: 5 });
+  assert.equal(textoSemSufixo("Sem sufixo"), "Sem sufixo");
 });

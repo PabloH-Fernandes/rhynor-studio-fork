@@ -172,14 +172,29 @@ Quando você roda o `/time` sugerido, a missão passa de `a fazer` para `em anda
 - O resumo da missão, ao clicar, mostra o objetivo e as tarefas.
 - **Reunião no escritório:** quando você roda `/reuniao`, os AGzinhos **livres** vão para a mesa de reunião e sentam em volta da maquete, e o líder fica de pé "apresentando" enquanto o comando roda. Depois todos voltam. Quem está trabalhando não sai da mesa.
 - **Quadro da parede:** mostra o nome da missão atual quando ela veio de uma reunião.
+- **Caixa de entrada** (no topo do painel, só aparece quando há reunião para decidir): cada reunião lida sem IA (`status: rascunho`) aparece com o título, a data e as tarefas em aberto (responsável e prazo).
+  - Para cada tarefa você escolhe **🤖 Time faz**, **🙋 Eu faço** ou **🗑️ Ignorar** (botões com texto, que também funcionam pelo teclado). **Aprovar** só habilita quando todas têm escolha. Reunião sem tarefas mostra "sem tarefas" e o botão **Arquivar**.
+  - Ao aprovar, o servidor grava a escolha na linha de cada tarefa da nota (`classe: time` ou `classe: eu`; ignorar vira `- [-]`), cria **uma única missão** em `20-Missoes/` com todas as tarefas "Time faz" (como `- [ ] texto | prazo: AAAA-MM-DD`), preenche "## Missões geradas" e muda a reunião para `status: processada`. Sem nenhuma tarefa "Time faz" não nasce missão.
+  - O painel mostra o **comando pronto** (`/time Missão [[nota]]: Fazer as N tarefas da reunião ...`) com o botão **Copiar comando** (aviso "Copiado!"). **O painel nunca roda o Claude**: quem cola e executa o comando é você, no terminal. Reiniciar o servidor mantém a lista (ela vem das notas do vault). Aprovar duas vezes a mesma reunião é recusado (409).
+  - As tarefas "Eu faço" ficam na nota (`classe: eu`); o painel de pendências vem na próxima etapa.
+- **Ata nova no escritório:** quando a leitura automática lê uma ata, os AGzinhos livres sentam na mesa de reunião por ~12 segundos e o quadro da parede mostra "Nova ata: Chegou uma ata" (sem o título, de propósito). Não substitui uma reunião de verdade (`/reuniao`) em andamento.
 
-Por dentro: `GET /api/missoes` devolve as missões (status, origem, projeto, tarefas; até 50 abertas + 50 concluídas), os totais de cada grupo antes do corte (campo opcional `totais`, só contagens) e a contagem de atas novas (`inbox.novas`) e das fora do formato (`inbox.foraDoFormato`, opcional); o WebSocket ganhou as mensagens `missoes` (as missões ou a contagem mudaram), `reuniao` (uma reunião começou ou acabou) e `ata-nova` (a leitura automática acabou de ler uma ata: só título e hora; o painel ainda não usa).
+Por dentro: `GET /api/missoes` devolve as missões (status, origem, projeto, tarefas; até 50 abertas + 50 concluídas), os totais de cada grupo antes do corte (campo opcional `totais`, só contagens) e a contagem de atas novas (`inbox.novas`) e das fora do formato (`inbox.foraDoFormato`, opcional); o WebSocket ganhou as mensagens `missoes` (as missões ou a contagem mudaram), `reuniao` (uma reunião começou ou acabou) e `caixa` (a Caixa de entrada mudou: reuniões com título, data e tarefas) e `ata-nova` (a leitura automática acabou de ler uma ata: só texto fixo e hora; o painel usa para a animação).
+
+Endpoints da Caixa de entrada:
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/caixa` | `{ itens: [{ id, titulo, data, tarefas: [{ n, texto, responsavel, prazo }] }] }` com as reuniões `status: rascunho` e `origem: leitura-automatica` de `10-Reunioes/`. Pauta, decisões e dúvidas nunca saem do servidor |
+| `POST /api/caixa/aprovar` | Corpo `{ "reuniao": "<nota sem .md>", "decisoes": [{ "n": 1, "acao": "time" ou "eu" ou "ignorar" }] }` com **todas** as tarefas em aberto. Responde `{ ok, comando, missao }` (os dois são `null` sem tarefa "Time faz"). Erros: `400` pedido inválido, `404` reunião não encontrada, `409` já aprovada, `403` origem recusada, `415` não é JSON |
+
+**Segurança dos POST que gravam no vault** (vale para este e para os próximos): o servidor só ouve `127.0.0.1`, mas qualquer página aberta no navegador poderia mandar um POST para ele. Por isso o middleware `exigirPostSeguro` (`server/seguranca.ts`) exige `Content-Type: application/json` e, se o pedido trouxer `Origin`, ele tem que ser `http://127.0.0.1:PORT` ou `http://localhost:PORT` (curl e scripts locais, que não mandam `Origin`, passam). O id da reunião é validado por `^[0-9A-Za-z-]+$` (nunca um caminho), os arquivos só são montados dentro de `10-Reunioes/` e `20-Missoes/`, a missão é gravada com `wx` (nunca sobrescreve), a nota é regravada de forma atômica mantendo CRLF e BOM, e as aprovações rodam uma de cada vez. No `npm run dev` o proxy do Vite troca o `Origin` (porta 5173) pelo do servidor, para o POST funcionar.
 
 ### Privacidade
 
 - Nota com `confidencial: true` **não é lida** pelos agentes nem pelo painel (só o título pode aparecer no índice).
 - Toda nota de reunião **nasce confidencial**; só mude para `false` depois de conferir que não há nada sensível.
-- O painel recebe só o necessário: título neutro da reunião, dados da missão e a **contagem** de atas novas (nada do conteúdo nem dos nomes das atas).
+- O painel recebe só o necessário: título neutro da reunião, dados da missão, a **contagem** de atas novas e, na Caixa de entrada, o título, a data e as tarefas (texto, "Responsável A", prazo) das reuniões que esperam aprovação. Pauta, decisões e dúvidas das notas nunca vão para o painel, e o aviso "Nova ata" no escritório não leva o título.
 - A **leitura automática** roda no servidor local (`127.0.0.1`) e, para isso, lê a ata do Inbox e grava em `10-Reunioes/` (de lá lê só o título, a data, o frontmatter e a seção Tarefas, para não duplicar). Tudo **sem IA**: nenhum conteúdo de reunião vai para o Claude antes da sua aprovação. Nomes que não eram responsáveis nem falantes podem ficar no texto das notas: cada nota traz o aviso para revisar.
 - O `/reuniao` troca nomes de pessoas por papéis ou áreas. Mesmo assim, **revise a nota gerada**.
 - Nunca guarde senha, token, chave ou dado pessoal no vault.

@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import type { Agent, FeedItem, MissoesInfo, Progress, ReuniaoAtiva, Roster, ServerMessage } from "../../shared/types";
+import type { Agent, CaixaItem, FeedItem, MissoesInfo, Progress, ReuniaoAtiva, Roster, ServerMessage } from "../../shared/types";
 
 export type Conn = "conectando" | "online" | "offline";
+
+/** aviso de ata nova (mensagem `ata-nova` do servidor): só texto fixo e hora, nunca o título */
+export interface AtaNova {
+  seq: number;
+  texto: string;
+  hora: string;
+}
 
 type ChatHandler = (fromId: string, toId: string, text: string) => void;
 
@@ -19,6 +26,9 @@ export function useOffice(onChat: ChatHandler) {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [missoes, setMissoes] = useState<MissoesInfo | null>(null);
   const [reuniao, setReuniao] = useState<ReuniaoAtiva | null>(null);
+  const [caixa, setCaixa] = useState<CaixaItem[] | null>(null);
+  /** a última ata lida sem IA: `seq` muda a cada ata (mesmo texto e hora repetidos disparam de novo) */
+  const [ataNova, setAtaNova] = useState<AtaNova | null>(null);
   const [conn, setConn] = useState<Conn>("conectando");
   const chatRef = useRef(onChat);
   chatRef.current = onChat;
@@ -33,6 +43,12 @@ export function useOffice(onChat: ChatHandler) {
       .then((info) => {
         // o que veio pelo WebSocket (mais novo) não é sobrescrito
         if (vivo && info) setMissoes((atual) => atual ?? info);
+      })
+      .catch(() => undefined);
+    fetch("/api/caixa")
+      .then((r) => (r.ok ? (r.json() as Promise<{ itens: CaixaItem[] }>) : null))
+      .then((corpo) => {
+        if (vivo && corpo && Array.isArray(corpo.itens)) setCaixa((atual) => atual ?? corpo.itens);
       })
       .catch(() => undefined);
     return () => {
@@ -98,6 +114,12 @@ export function useOffice(onChat: ChatHandler) {
           case "missoes":
             setMissoes(msg.info);
             break;
+          case "caixa":
+            setCaixa(msg.itens);
+            break;
+          case "ata-nova":
+            setAtaNova((prev) => ({ seq: (prev?.seq ?? 0) + 1, texto: msg.texto, hora: msg.hora }));
+            break;
           case "reuniao":
             setReuniao(msg.reuniao);
             break;
@@ -138,5 +160,5 @@ export function useOffice(onChat: ChatHandler) {
     };
   }, []);
 
-  return { agents, feed, roster, progress, missoes, reuniao, conn };
+  return { agents, feed, roster, progress, missoes, reuniao, caixa, ataNova, conn };
 }
