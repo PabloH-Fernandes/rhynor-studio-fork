@@ -166,3 +166,24 @@ test("aoReiniciar troca o estado do servidor novo (gancho da persistência da et
   assert.equal(chamado, 1, "o primeiro marcador (boot) não conta como reinício");
   assert.equal(agentes(state).length, 3);
 });
+
+test("rótulo do papel: dev com atividade técnica sem frase pronta aparece como 'Programando'; papel desconhecido fica genérico", () => {
+  const { state } = reproduzir(linhas());
+  const bia = agentePorNome(state, "Bia");
+  assert.ok(bia);
+  assert.equal(bia.role, "dev");
+  // atividade técnica que o servidor não traduziu (sem frase pronta para ela): cai no rótulo do papel
+  bia.activity = "Rodando: npm test";
+  const doDev = agentes(state).find((a) => a.id === bia.id);
+  assert.equal(doDev?.activitySimples, "Programando");
+
+  const marina = agentePorNome(state, "Marina");
+  assert.ok(marina);
+  marina.status = "trabalhando";
+  marina.activity = "Rodando: npm test";
+  assert.equal(agentes(state).find((a) => a.id === marina.id)?.activitySimples, "Planejando as etapas");
+
+  // papel fora da tabela: continua genérico e nunca ecoa o nome do agente
+  bia.role = "general-purpose";
+  assert.equal(agentes(state).find((a) => a.id === bia.id)?.activitySimples, "Trabalhando numa tarefa");
+});

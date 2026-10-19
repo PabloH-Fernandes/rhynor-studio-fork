@@ -28,7 +28,7 @@ import { ESTIMATIVAS_PADRAO, FRASE_ESTIMATIVA, formatarMinutos, type Estimativas
 import { MAX_BYTES_NOTA, lerTarefasDaNota } from "./caixa.ts";
 import { DATA_DIR, writeAtomic } from "./roster.ts";
 import { exigirHostLocal, exigirPostSeguro } from "./seguranca.ts";
-import { chave, lerFrontmatter, semLinks } from "./vault.ts";
+import { chave, lerFrontmatter, missaoReaberta, semLinks } from "./vault.ts";
 
 const DEBOUNCE_MS = 800;
 const INTERVALO_MS = 30_000;
@@ -112,7 +112,7 @@ export function lerEventosDaNota(pasta: PastaResultados, nomeArquivo: string, te
       out.push({ tipo: "tarefa", dia, ficticia, chave: `${reuniao || `m:${nota}`}|${textoParaChave(t.texto)}`, reuniao });
     }
   }
-  if (chave(fm.status ?? "") === "concluida") {
+  if (chave(fm.status ?? "") === "concluida" && !missaoReaberta(fm, linhas)) {
     // sem `concluida_em` a data do arquivo NÃO vale (mudaria a cada edição): entra só no total, como nota sem data
     const dia = diaDoInstante(fm.concluida_em);
     out.push({ tipo: "missao", dia, ficticia, aproximada: dia === "", reuniao });

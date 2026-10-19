@@ -11,6 +11,7 @@ import { aprovarReuniao } from "./aprovacao.ts";
 import { lerCaixaItem } from "./caixa.ts";
 import { ObservadorPendencias, concluirPendencia, lerPendenciasDaNota, montarPendencias, registrarPendencias, validarConclusao } from "./pendencias.ts";
 import { AGORA, criarReuniao, novoVaultDeTeste, type VaultDeTeste } from "./testeVault.ts";
+import { parseMissao } from "./vault.ts";
 
 const HOJE = "2026-10-17";
 
@@ -490,6 +491,109 @@ test("tarefa de reunião concluída nunca muda status de nota de reunião", asyn
     assert.equal((await concluirPendencia(v.vault, { id: p.id, h: p.h }, { now: () => AGORA })).status, 200);
     assert.match(ler(arq), /status: processada/);
     assert.ok(!ler(arq).includes("concluida_em"));
+  } finally {
+    v.limpar();
+  }
+});
+
+test("reabrir: desmarcar a tarefa com a marca devolve a pendência; concluir de novo põe uma marca só", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const nome = "2026-10-10-duas.md";
+    const arq = path.join(v.missoes, nome);
+    const original = "﻿" + MISSAO_DUAS.replace(/\n/g, "\r\n");
+    fs.writeFileSync(arq, original);
+    const amanha = new Date(2026, 9, 18, 9, 0);
+    // fecha as duas tarefas: a missão conclui
+    for (let i = 0; i < 2; i++) {
+      const [p] = montarPendencias(lerPendenciasDaNota("m", nome, ler(arq)), HOJE);
+      assert.equal((await concluirPendencia(v.vault, { id: p.id, h: p.h }, { now: () => AGORA })).status, 200);
+    }
+    assert.match(ler(arq), /status: concluída/);
+    assert.match(ler(arq), /concluida_em: 2026-10-17/);
+    assert.deepEqual(lerPendenciasDaNota("m", nome, ler(arq)), []);
+
+    // o dono desmarca uma tarefa no Obsidian (a marca da data fica na linha)
+    const aberta = ler(arq).replace("- [x] Segunda | concluída: 2026-10-17", "- [ ] Segunda | concluída: 2026-10-17");
+    assert.notEqual(aberta, ler(arq));
+    fs.writeFileSync(arq, aberta);
+    const reaberta = lerPendenciasDaNota("m", nome, aberta);
+    assert.equal(reaberta.length, 1);
+    assert.equal(reaberta[0].texto, "Segunda");
+    assert.equal(reaberta[0].status, "em andamento");
+
+    // concluir de novo: uma marca só, com a data nova, e a missão volta a concluída com a data nova
+    const [p] = montarPendencias(reaberta, HOJE);
+    const r = await concluirPendencia(v.vault, { id: p.id, h: p.h }, { now: () => amanha });
+    assert.equal(r.status, 200);
+    assert.equal((r.corpo as { missaoConcluida?: boolean }).missaoConcluida, true);
+    const depois = ler(arq);
+    assert.equal(depois.match(/Segunda[^\r\n]*/)![0], "Segunda | concluída: 2026-10-18");
+    assert.match(depois, /concluida_em: 2026-10-18/);
+    assert.ok(!depois.includes("concluida_em: 2026-10-17"));
+    assert.ok(depois.startsWith("﻿---\r\n"));
+    assert.ok(!/[^\r]\n/.test(depois), "só CRLF");
+    assert.deepEqual(lerPendenciasDaNota("m", nome, depois), []);
+  } finally {
+    v.limpar();
+  }
+});
+
+test("reabrir: cancelada e pausada com '- [ ]' + marca não mudam; concluída com '- [ ]' sem marca continua concluída", () => {
+  for (const status of ["cancelada", "pausada"]) {
+    const t = MISSAO_DUAS.replace("status: em andamento", `status: ${status}`).replace("- [ ] Segunda", "- [ ] Segunda | concluída: 2026-10-10");
+    // a marca não muda nada: o resultado é o mesmo de antes da Etapa 6.5 (status e pendências iguais ao da nota sem marca)
+    const sem = t.replace(" | concluída: 2026-10-10", "");
+    const resumo = (x: string) => lerPendenciasDaNota("m", "m.md", x).map((p) => [p.texto, p.status]);
+    assert.deepEqual(resumo(t), resumo(sem), status);
+    assert.equal(parseMissao("m.md", t, 0)?.status, parseMissao("m.md", sem, 0)?.status, status);
+  }
+  const semMarca = MISSAO_DUAS.replace("status: em andamento", "status: concluída");
+  assert.deepEqual(lerPendenciasDaNota("m", "m.md", semMarca), []);
+  assert.equal(parseMissao("m.md", semMarca, 0)?.status, "concluída");
+  const comMarca = semMarca.replace("- [ ] Segunda", "- [ ] Segunda | concluída: 2026-10-10");
+  assert.equal(parseMissao("m.md", comMarca, 0)?.status, "em andamento");
+  assert.equal(lerPendenciasDaNota("m", "m.md", comMarca.replace("confidencial: false", "confidencial: true")).length, 0, "confidencial continua fora");
+});
+
+test("reunião classe eu: desmarcar a tarefa concluída devolve a pendência", () => {
+  const feita = REUNIAO.replace(
+    "- [ ] Ligar para o fornecedor | responsável: Responsável A | prazo: 2026-10-15 | classe: eu",
+    "- [x] Ligar para o fornecedor | responsável: Responsável A | prazo: 2026-10-15 | classe: eu | concluída: 2026-10-17",
+  );
+  assert.ok(!lerPendenciasDaNota("r", "a.md", feita).some((p) => p.texto === "Ligar para o fornecedor"));
+  const desmarcada = feita.replace("- [x] Ligar", "- [ ] Ligar");
+  assert.ok(lerPendenciasDaNota("r", "a.md", desmarcada).some((p) => p.texto === "Ligar para o fornecedor"));
+});
+
+test("atas fictícias aprovadas como 'eu' aparecem em Pendências com a urgência certa (atrasada, logo, sem prazo)", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const querEu: Record<string, string[]> = {
+      "projeto-software": ["Trocar o login antigo pelo novo", "Criar o ambiente de testes com dados inventados"],
+      "tarefas-sem-prazo": ["Combinar com a equipe um horário fixo para o acompanhamento"],
+    };
+    for (const [cenario, textos] of Object.entries(querEu)) {
+      const id = await criarReuniao(v, cenario as "projeto-software" | "tarefas-sem-prazo");
+      const item = lerCaixaItem(`${id}.md`, fs.readFileSync(path.join(v.reunioes, `${id}.md`), "utf8"));
+      assert.ok(item);
+      const r = await aprovarReuniao(
+        v.vault,
+        { reuniao: id, decisoes: item.tarefas.map((t) => ({ n: t.n, h: t.h, acao: textos.includes(t.texto) ? "eu" : "ignorar" })) },
+        { now: () => AGORA },
+      );
+      assert.equal(r.status, 200, cenario);
+    }
+    const obs = new ObservadorPendencias(() => v.vault, { semWatch: true, intervaloMs: 0, now: () => AGORA });
+    await obs.iniciar();
+    const itens = obs.getItens();
+    obs.parar();
+    const urgenciaDoTexto = (texto: string) => itens.find((p) => p.texto === texto && p.dono === "eu")?.urgencia;
+    assert.equal(urgenciaDoTexto("Trocar o login antigo pelo novo"), "atrasada");
+    assert.equal(urgenciaDoTexto("Criar o ambiente de testes com dados inventados"), "logo", "prazo daqui a 1 dia");
+    assert.equal(urgenciaDoTexto("Combinar com a equipe um horário fixo para o acompanhamento"), "sem-prazo");
+    assert.equal(itens.filter((p) => p.dono === "eu").length, 3, "só as 3 aprovadas como 'eu'");
+    assert.ok(itens.every((p) => p.dono === "eu"), "tarefas 'ignorar' não viram missão nem pendência");
   } finally {
     v.limpar();
   }

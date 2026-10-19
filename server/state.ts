@@ -1563,7 +1563,7 @@ export class OfficeState {
   /** Preenche activitySimples (balão, crachá e lista do time) a partir da atividade técnica atual. */
   private comSimples(agent: Agent): Agent {
     const dada = this.simplesDada.get(agent.id);
-    agent.activitySimples = dada && dada.de === agent.activity ? dada.simples : simplificarAtividade(agent.activity, agent.status);
+    agent.activitySimples = dada && dada.de === agent.activity ? dada.simples : simplificarAtividade(agent.activity, agent.status, agent.role);
     return agent;
   }
 

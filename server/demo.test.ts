@@ -8,7 +8,7 @@ import { DEFAULT_ROSTER } from "../shared/roster.ts";
 import type { FeedItem } from "../shared/types.ts";
 import { agruparFeed, destaqueDe, fraseDaLinha } from "../web/src/feedLogic.ts";
 import { numeroNoPapel, rotuloDaMesa } from "../web/src/office/deskLabel.ts";
-import { cancelDemo, runDemo } from "./demo.ts";
+import { cancelDemo, DEMO_JANELA_REPETIDO_MS, iniciarDemo, runDemo } from "./demo.ts";
 import { agentes, RelogioVirtual } from "./replay.ts";
 import { OfficeState } from "./state.ts";
 
@@ -74,4 +74,29 @@ test("simulação v3: destaques, frases sem jargão, grupo de leituras, compact,
   // SessionEnd: agora sim todo mundo vai até a porta
   relogio.avancarAte(T0 + durationMs);
   assert.ok(agentes(state).every((a) => a.status === "saindo"));
+});
+
+test("POST /api/demo repetido em menos de 5 s devolve a mesma simulação, sem reiniciar", () => {
+  const relogio = new RelogioVirtual(T0);
+  const state = new OfficeState({ relogio, sweepEveryMs: 0 });
+  let agora = T0;
+  const primeira = iniciarDemo(state, () => agora, relogio);
+  assert.equal(primeira.repetido, false);
+  relogio.avancarAte(T0 + 3_000);
+  const antes = agentes(state).map((a) => a.id).sort();
+
+  agora = T0 + 3_000;
+  const segunda = iniciarDemo(state, () => agora, relogio);
+  assert.equal(segunda.repetido, true);
+  assert.equal(segunda.session_id, primeira.session_id);
+  assert.equal(segunda.durationMs, primeira.durationMs);
+  assert.deepEqual(agentes(state).map((a) => a.id).sort(), antes, "ninguém saiu nem chegou por causa do repetido");
+
+  // depois da janela: reinicia (sessão nova); o "Limpar" também libera
+  agora = T0 + DEMO_JANELA_REPETIDO_MS + 10;
+  const terceira = iniciarDemo(state, () => agora, relogio);
+  assert.equal(terceira.repetido, false);
+  cancelDemo();
+  const quarta = iniciarDemo(state, () => agora, relogio);
+  assert.equal(quarta.repetido, false, "depois do reset a simulação começa de novo");
 });

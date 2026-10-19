@@ -43,6 +43,13 @@ const AGENDA_PADRAO: Agenda = {
 const timers = new Set<Timer>();
 let agenda: Agenda = AGENDA_PADRAO;
 let activeSession: string | null = null;
+/** a última simulação iniciada por pedido (POST /api/demo): serve para ignorar o pedido repetido */
+let ultimoInicio: { em: number; info: ResultadoDemo } | null = null;
+
+/** pedido repetido dentro dessa janela devolve a mesma simulação, sem reiniciar */
+export const DEMO_JANELA_REPETIDO_MS = 5_000;
+
+type ResultadoDemo = { session_id: string; durationMs: number };
 
 /** Para a simulação em andamento (nenhum evento dela chega depois). Devolve a sessão dela, se havia. */
 export function cancelDemo(): string | null {
@@ -50,6 +57,7 @@ export function cancelDemo(): string | null {
   timers.clear();
   const session = activeSession;
   activeSession = null;
+  ultimoInicio = null;
   agenda = AGENDA_PADRAO;
   return session;
 }
@@ -60,6 +68,27 @@ function schedule(ms: number, fn: () => void) {
     fn();
   }, ms);
   timers.add(t);
+}
+
+/**
+ * O que o POST /api/demo faz: se uma simulação começou há menos de DEMO_JANELA_REPETIDO_MS, devolve a mesma
+ * resposta sem reiniciar (pedido duplicado por recarga, duas abas ou clique duplo); senão para a anterior (e tira a
+ * sessão dela do escritório) e começa uma nova. `repetido` diz qual dos dois aconteceu.
+ */
+export function iniciarDemo(
+  state: OfficeState,
+  agora: () => number = Date.now,
+  relogio: Agenda = AGENDA_PADRAO,
+): ResultadoDemo & { repetido: boolean } {
+  const t = agora();
+  if (ultimoInicio && activeSession === ultimoInicio.info.session_id && t >= ultimoInicio.em && t - ultimoInicio.em < DEMO_JANELA_REPETIDO_MS) {
+    return { ...ultimoInicio.info, repetido: true };
+  }
+  const anterior = cancelDemo();
+  if (anterior) state.endSession(anterior, "Saiu (simulação reiniciada)");
+  const info = runDemo(state, relogio);
+  ultimoInicio = { em: t, info };
+  return { ...info, repetido: false };
 }
 
 export function runDemo(state: OfficeState, relogio: Agenda = AGENDA_PADRAO) {

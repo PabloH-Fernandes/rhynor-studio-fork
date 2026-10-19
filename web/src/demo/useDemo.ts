@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { visaoDoPasso, type VisaoDemo } from "./dadosDemo";
+import { liberarDisparoDemo, reservarDisparoDemo } from "./disparo";
 import { criarRoteiro, TOTAL_PASSOS, type EstadoRoteiro, type Roteiro } from "./roteiro";
 
 export interface DemoEstado {
@@ -91,11 +92,19 @@ export function useDemo(ativo: boolean, hoje: string): DemoEstado | null {
   useEffect(() => {
     if (!ativo || indice < 3 || simulacaoIniciada.current) return;
     simulacaoIniciada.current = true;
+    // a guarda do módulo vale também para remontagem e HMR (o ref acima só vale para este componente)
+    if (!reservarDisparoDemo()) return;
     fetch("/api/demo", { method: "POST" })
       .then((r) => {
-        if (!r.ok) setErro(true);
+        if (!r.ok) {
+          liberarDisparoDemo();
+          setErro(true);
+        }
       })
-      .catch(() => setErro(true));
+      .catch(() => {
+        liberarDisparoDemo();
+        setErro(true);
+      });
   }, [ativo, indice]);
 
   if (!ativo || !estado) return null;

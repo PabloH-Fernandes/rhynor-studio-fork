@@ -90,7 +90,7 @@ function modeloDo(cenario: NomeCenario, c: Ctx): Modelo {
         ],
         decisoes: ["A sprint tem duas semanas e termina numa sexta-feira.", "O login novo entra antes do cadastro."],
         tarefas: [
-          { texto: "Criar o ambiente de testes com dados inventados", quem: 0, prazoDias: 3 },
+          { texto: "Criar o ambiente de testes com dados inventados", quem: 0, prazoDias: 1 },
           { texto: "Escrever a API de cadastro de clientes", quem: 1, prazoDias: 10 },
           { texto: "Trocar o login antigo pelo novo", quem: 1, prazoDias: -3 },
           { texto: "Documentar como rodar o projeto do zero", quem: 2, prazoDias: 14 },

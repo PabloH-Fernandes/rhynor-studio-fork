@@ -358,3 +358,42 @@ test("rotas: GET exige Host local; POST exportar exige JSON e Origin do painel e
     v.limpar();
   }
 });
+
+test("missão reaberta: desmarcar tarefa com a marca tira 1 missão e 1 pendência fechada; concluir de novo volta a 1 e 1", async () => {
+  const v = novoVaultDeTeste();
+  const obs = new ObservadorResultados(() => v.vault, undefined, { semWatch: true, intervaloMs: 0, now: () => AGORA });
+  try {
+    const nome = "2026-10-10-uma.md";
+    const arq = path.join(v.missoes, nome);
+    fs.writeFileSync(
+      arq,
+      ["---", "tipo: missao", "status: em andamento", "origem: reuniao", "classe: time", "confidencial: false", "---", "", "# Tarefas: Uma coisa", "", "## Tarefas", "- [ ] Só uma", ""].join("\r\n"),
+    );
+    await obs.iniciar();
+    const [p] = montarPendencias(lerPendenciasDaNota("m", nome, fs.readFileSync(arq, "utf8")), HOJE);
+    assert.equal((await concluirPendencia(v.vault, { id: p.id, h: p.h }, { now: () => AGORA })).status, 200);
+    await obs.recarregar();
+    let r = obs.getResultados();
+    assert.equal(r.missoesConcluidas.total, 1);
+    assert.equal(r.pendenciasFechadas.total, 1);
+
+    // desmarca no Obsidian: a marca fica, a pendência volta
+    fs.writeFileSync(arq, fs.readFileSync(arq, "utf8").replace("- [x] Só uma", "- [ ] Só uma"));
+    await obs.recarregar();
+    r = obs.getResultados();
+    assert.equal(r.missoesConcluidas.total, 0, "missão reaberta não conta como concluída");
+    assert.equal(r.pendenciasFechadas.total, 0);
+
+    // fecha de novo
+    const [q] = montarPendencias(lerPendenciasDaNota("m", nome, fs.readFileSync(arq, "utf8")), HOJE);
+    assert.equal((await concluirPendencia(v.vault, { id: q.id, h: q.h }, { now: () => AGORA })).status, 200);
+    await obs.recarregar();
+    r = obs.getResultados();
+    assert.equal(r.missoesConcluidas.total, 1);
+    assert.equal(r.pendenciasFechadas.total, 1);
+    assert.equal((fs.readFileSync(arq, "utf8").match(/concluída:/g) ?? []).length, 1);
+  } finally {
+    obs.parar();
+    v.limpar();
+  }
+});

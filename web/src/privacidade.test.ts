@@ -206,7 +206,7 @@ test("descrição livre de subagente/comando vira rótulo genérico: nada vai ao
     "Revisar a proposta do cliente acme",
   ];
   for (const descricao of livres) {
-    const [a] = mascararAgentes(p, [agente("x", { activity: descricao, activitySimples: descricao, status: "trabalhando" })]);
+    const [a] = mascararAgentes(p, [agente("x", { activity: descricao, activitySimples: descricao, status: "trabalhando", role: "general-purpose" })]);
     assert.equal(a.activity, "Trabalhando numa tarefa");
     assert.equal(a.activitySimples, "Trabalhando numa tarefa");
     const texto = JSON.stringify(a).toLowerCase();
@@ -279,4 +279,19 @@ test("missão: id e nome do mesmo item recebem o mesmo apelido", () => {
   assert.equal(a, "Missão 1");
   assert.equal(p.missao("2026-10-19-plano-secreto", ["Plano Secreto"]), a);
   assert.equal(p.texto("Retomar o Plano Secreto"), "Retomar o Missão 1");
+});
+
+test("atividade: rótulo por papel só quando trabalhando; papel desconhecido nunca ecoa o nome do agente", () => {
+  const p = criarPrivacidade();
+  assert.equal(p.atividade("Revisar a proposta do cliente acme", "trabalhando", "dev"), "Programando");
+  assert.equal(p.atividade("Revisar a proposta do cliente acme", "trabalhando", "testador"), "Testando");
+  assert.equal(p.atividade("Revisar a proposta do cliente acme", "trabalhando", "revisor"), "Revisando o trabalho");
+  assert.equal(p.atividade("Revisar a proposta do cliente acme", "trabalhando", "general-purpose"), "Trabalhando numa tarefa");
+  assert.equal(p.atividade("Revisar a proposta do cliente acme", "trabalhando", "agente-da-acme"), "Trabalhando numa tarefa");
+  assert.equal(p.atividade("Revisar a proposta do cliente acme", "pensando", "dev"), "Pensando");
+  // "Rodando:" continua com a frase própria
+  assert.equal(p.atividade("Rodando: npm test", "trabalhando", "dev"), "Executando uma tarefa no computador");
+  const [a] = mascararAgentes(p, [agente("x", { activity: "Revisar a proposta do cliente acme", activitySimples: "Revisar a proposta do cliente acme", status: "trabalhando", role: "pesquisador" })]);
+  assert.equal(a.activity, "Pesquisando");
+  assert.equal(a.activitySimples, "Pesquisando");
 });

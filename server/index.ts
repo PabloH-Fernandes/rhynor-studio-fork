@@ -11,7 +11,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { ServerMessage } from "../shared/types.ts";
 import { DEFAULT_SESSION_TIMEOUT_MIN, OfficeState } from "./state.ts";
 import { Gravador, lerHookTs } from "./gravador.ts";
-import { cancelDemo, runDemo } from "./demo.ts";
+import { cancelDemo, iniciarDemo } from "./demo.ts";
 import { aplicarPut, loadRoster, saveRoster } from "./roster.ts";
 import { ESTADO_FILE, PersistenciaEstado } from "./persistencia.ts";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
@@ -187,10 +187,9 @@ app.put("/api/roster", rosterJson, async (req, res) => {
 });
 
 app.post("/api/demo", (_req, res) => {
-  // uma simulação por vez: a anterior para e a sessão dela vai embora
-  const anterior = cancelDemo();
-  if (anterior) state.endSession(anterior, "Saiu (simulação reiniciada)");
-  const info = runDemo(state);
+  // uma simulação por vez: a anterior para e a sessão dela vai embora; pedido repetido em poucos segundos
+  // (recarga, duas abas) devolve a mesma simulação, sem reiniciar
+  const { repetido: _repetido, ...info } = iniciarDemo(state);
   res.json({ ok: true, ...info });
 });
 

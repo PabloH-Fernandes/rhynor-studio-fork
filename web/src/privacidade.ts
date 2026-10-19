@@ -8,6 +8,7 @@
 // Estável = a mesma entrada dá sempre o mesmo apelido (dentro da mesma `Privacidade`), e entradas diferentes
 // dão apelidos diferentes. Os apelidos seguem a ordem em que cada nome aparece pela primeira vez.
 
+import { atividadeGenerica } from "../../shared/frases";
 import type { Agent, CaixaItem, FeedItem, MissoesInfo, Pendencia, Progress } from "../../shared/types";
 
 type Categoria = "projeto" | "reuniao" | "missao" | "responsavel" | "arquivo" | "tarefa" | "assunto";
@@ -41,7 +42,7 @@ export interface Privacidade {
    * Atividade do balão/crachá/lista: só frases conhecidas (arquivo, frase pronta do sistema) passam; texto livre
    * (descrição de subagente ou de comando, busca, prompt) vira um rótulo genérico por tipo ou pelo status.
    */
-  atividade(texto: string, status?: string): string;
+  atividade(texto: string, status?: string, papel?: string): string;
   /** linha do feed: o que vem depois de "recebeu:", "avisou:", "entrou para:", "→ Fulano:" etc. some */
   linhaFeed(texto: string, kind?: string): string;
   /** o conteúdo de uma conversa entre agentes nunca vai à tela na apresentação */
@@ -87,15 +88,6 @@ const FRASES_PRONTAS = new RegExp(
     ")(?:\\.{1,3}|…)?$",
   "iu",
 );
-
-const ATIVIDADE_DO_STATUS: Record<string, string> = {
-  chegando: "Chegando",
-  trabalhando: "Trabalhando numa tarefa",
-  pensando: "Pensando",
-  esperando: "Precisa de você",
-  ocioso: "De boa",
-  saindo: "Indo embora",
-};
 
 function chaveDe(valor: string): string {
   return valor
@@ -195,7 +187,7 @@ export function criarPrivacidade(): Privacidade {
       return apelidar("responsavel", nome, true);
     },
     tarefa: (texto) => apelidar("tarefa", texto, false),
-    atividade(texto, status = "trabalhando") {
+    atividade(texto, status = "trabalhando", papel) {
       const t = texto.trim();
       if (!t) return texto;
       if (/^(Rodando|Executando)\b[^:]*:/.test(t)) return "Executando uma tarefa no computador";
@@ -210,7 +202,7 @@ export function criarPrivacidade(): Privacidade {
       if (FRASES_PRONTAS.test(t)) return this.texto(t);
       // "Pesquisando na internet sobre “tema”": o tema entre aspas vira apelido
       if (/^Pesquisando na internet sobre “[^”]*”$/.test(t)) return this.texto(t);
-      return ATIVIDADE_DO_STATUS[status] ?? "Trabalhando numa tarefa";
+      return atividadeGenerica(status, papel);
     },
     linhaFeed(texto, kind) {
       if (kind === "tool") return this.atividade(texto);
@@ -251,8 +243,8 @@ export function mascararAgentes(p: Privacidade, agentes: readonly Agent[]): Agen
   return agentes.map((a) => ({
     ...a,
     project: p.projeto(a.project),
-    activity: p.atividade(a.activity, a.status),
-    ...(a.activitySimples !== undefined ? { activitySimples: p.atividade(a.activitySimples, a.status) } : {}),
+    activity: p.atividade(a.activity, a.status, a.role),
+    ...(a.activitySimples !== undefined ? { activitySimples: p.atividade(a.activitySimples, a.status, a.role) } : {}),
   }));
 }
 

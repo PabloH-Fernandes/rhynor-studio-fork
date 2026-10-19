@@ -197,3 +197,23 @@ test("atividade simples do balão, crachá e lista do time", () => {
   assert.match(lider?.activity ?? "", /git push/);
   assert.equal(lider?.activitySimples, "Salvando uma versão do trabalho");
 });
+
+test("simplificarAtividade: rótulo por papel só quando trabalhando e simplificada; papel desconhecido fica genérico", () => {
+  const rotulos: Record<string, string> = {
+    planejador: "Planejando as etapas",
+    dev: "Programando",
+    testador: "Testando",
+    revisor: "Revisando o trabalho",
+    documentador: "Escrevendo a documentação",
+    pesquisador: "Pesquisando",
+  };
+  for (const [papel, rotulo] of Object.entries(rotulos)) assert.equal(simplificarAtividade("Rodando: npm test", "trabalhando", papel), rotulo, papel);
+  for (const papel of ["general-purpose", "lider", "convidado", "meu-agente-secreto", "__proto__", "constructor", ""]) {
+    assert.equal(simplificarAtividade("Rodando: npm test", "trabalhando", papel), "Trabalhando numa tarefa", papel);
+  }
+  assert.equal(simplificarAtividade("Rodando: npm test", "trabalhando"), "Trabalhando numa tarefa");
+  // outros status ignoram o papel; atividade já simples passa como está
+  assert.equal(simplificarAtividade("Rodando: npm test", "pensando", "dev"), "Pensando");
+  assert.equal(simplificarAtividade("Pedindo permissão: Rodando: npm test", "esperando", "dev"), "Precisa de você");
+  assert.equal(simplificarAtividade("Implementar o formulário de chamados", "trabalhando", "dev"), "Implementar o formulário de chamados");
+});

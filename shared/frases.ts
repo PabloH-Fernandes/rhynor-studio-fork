@@ -211,7 +211,29 @@ const ATIVIDADE_DO_STATUS: Record<string, string> = {
   saindo: "Indo embora",
 };
 
-/** Atividade sem jargão: a própria, se já for simples; senão uma frase pelo status. */
-export function simplificarAtividade(activity: string, status: string): string {
-  return activity && !temJargao(activity) ? activity : (ATIVIDADE_DO_STATUS[status] ?? "Trabalhando numa tarefa");
+/** Rótulo fixo por papel do time (só os papéis conhecidos; nunca o nome cru do agente). */
+const ATIVIDADE_DO_PAPEL: Record<string, string> = {
+  planejador: "Planejando as etapas",
+  dev: "Programando",
+  testador: "Testando",
+  revisor: "Revisando o trabalho",
+  documentador: "Escrevendo a documentação",
+  pesquisador: "Pesquisando",
+};
+
+/**
+ * Atividade genérica pelo status; com status 'trabalhando' e um papel conhecido, o rótulo do papel.
+ * Papel desconhecido (general-purpose, personalizado) continua 'Trabalhando numa tarefa'.
+ */
+export function atividadeGenerica(status: string, papel?: string): string {
+  if (status === "trabalhando" && papel) {
+    const rotulo = Object.hasOwn(ATIVIDADE_DO_PAPEL, papel) ? ATIVIDADE_DO_PAPEL[papel] : undefined;
+    if (rotulo) return rotulo;
+  }
+  return ATIVIDADE_DO_STATUS[status] ?? "Trabalhando numa tarefa";
+}
+
+/** Atividade sem jargão: a própria, se já for simples; senão uma frase pelo status (e pelo papel, se trabalhando). */
+export function simplificarAtividade(activity: string, status: string, papel?: string): string {
+  return activity && !temJargao(activity) ? activity : atividadeGenerica(status, papel);
 }

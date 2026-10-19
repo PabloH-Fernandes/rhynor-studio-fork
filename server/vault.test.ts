@@ -10,6 +10,7 @@ import {
   escolherAtual,
   lerFrontmatter,
   missaoDoPrompt,
+  missaoReaberta,
   parseMissao,
   resolverVault,
   textoSemSufixo,
@@ -505,4 +506,20 @@ test("parseMissao: o sufixo | prazo e | concluída não aparece no texto da tare
   ]);
   assert.deepEqual(m?.tarefas, { feitas: 1, total: 5 });
   assert.equal(textoSemSufixo("Sem sufixo"), "Sem sufixo");
+});
+
+test("missaoReaberta / parseMissao: concluída com '- [ ]' que ainda leva a marca vira 'em andamento'", () => {
+  const base = MISSAO.replace("status: em andamento", "status: concluída");
+  // concluída à mão com '- [ ]' sem marca: continua concluída
+  assert.equal(parseMissao("m.md", base, 0)?.status, "concluída");
+  // com a marca do painel: reaberta
+  const reaberta = base.replace("- [ ] Trocar a API", "- [ ] Trocar a API | concluída: 2026-10-12");
+  assert.equal(parseMissao("m.md", reaberta, 0)?.status, "em andamento");
+  assert.equal(parseMissao("m.md", reaberta.replace(/\n/g, "\r\n"), 0)?.status, "em andamento", "CRLF");
+  assert.equal(parseMissao("m.md", "﻿" + reaberta, 0)?.status, "em andamento", "BOM");
+  // cancelada e pausada nunca mudam; em andamento fica
+  assert.equal(missaoReaberta({ status: "cancelada" }, ["- [ ] x | concluída: 2026-10-12"]), false);
+  assert.equal(missaoReaberta({ status: "pausada" }, ["- [ ] x | concluída: 2026-10-12"]), false);
+  assert.equal(missaoReaberta({ status: "concluída" }, ["- [x] x | concluída: 2026-10-12"]), false);
+  assert.equal(missaoReaberta({ status: "concluida" }, ["  * [ ] x | concluida : 2026-10-12"]), true);
 });

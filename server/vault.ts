@@ -193,6 +193,18 @@ export function textoSemSufixo(bruto: string): string {
 
 // ---------------------------------------------------------------- missão
 
+const LINHA_REABERTA = /^\s*[-*]\s+\[ \]\s+\S.*\|\s*conclu[ií]da\s*:\s*\d{4}-\d{2}-\d{2}/i;
+
+/**
+ * Missão reaberta: `status: concluída`, mas ainda existe uma linha `- [ ]` com a marca `| concluída: AAAA-MM-DD`
+ * (a marca que o painel grava; quem desmarcou a tarefa no Obsidian deixou a marca para trás). Derivado na leitura,
+ * nunca regravado. Missão concluída à mão com `- [ ]` sem a marca NÃO é reaberta.
+ */
+export function missaoReaberta(fm: Record<string, string>, linhas: readonly string[]): boolean {
+  if (chave(fm.status ?? "") !== "concluida") return false;
+  return linhas.some((l) => LINHA_REABERTA.test(l));
+}
+
 export function parseMissao(nomeArquivo: string, texto: string, mtime: number): Missao | null {
   // primeiro o frontmatter: a decisão de privacidade vem antes de qualquer uso do corpo
   const fm = lerFrontmatter(texto);
@@ -235,7 +247,7 @@ export function parseMissao(nomeArquivo: string, texto: string, mtime: number): 
   return {
     id,
     nome,
-    status: normalizarStatus(fm.status),
+    status: missaoReaberta(fm, linhas) ? "em andamento" : normalizarStatus(fm.status),
     origem: chave(fm.origem ?? "") === "reuniao" ? "reuniao" : "manual",
     projeto: cortar(semLinks(fm.projeto ?? ""), MAX_NOME),
     reuniaoTitulo: cortar(semLinks(fm.reuniao_titulo ?? ""), MAX_NOME),

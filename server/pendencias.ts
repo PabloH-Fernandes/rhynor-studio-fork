@@ -31,7 +31,7 @@ import { definirChave } from "./aprovacao.ts";
 import { MAX_BYTES_NOTA, hashTarefa, lerTarefasDaNota, tituloDe } from "./caixa.ts";
 import { writeAtomic } from "./roster.ts";
 import { exigirHostLocal, exigirPostSeguro } from "./seguranca.ts";
-import { chave, cortar, lerFrontmatter, semLinks, temConfidencialTrue } from "./vault.ts";
+import { chave, cortar, lerFrontmatter, missaoReaberta, semLinks, temConfidencialTrue } from "./vault.ts";
 
 const MAX_PENDENCIAS = 100;
 const MAX_TEXTO = 140;
@@ -71,8 +71,9 @@ export function lerPendenciasDaNota(pasta: Pasta, nomeArquivo: string, texto: st
   if (pasta === "m") {
     if (temConfidencialTrue(texto)) return [];
     const st = chave(fm.status ?? "");
-    if (st === "concluida") return [];
-    if (st === "em andamento") status = "em andamento";
+    const reaberta = missaoReaberta(fm, texto.replace(/^﻿/, "").split(/\r?\n/));
+    if (st === "concluida" && !reaberta) return [];
+    if (st === "em andamento" || reaberta) status = "em andamento";
     const classe = chave(fm.classe ?? "");
     if (classe === "humano" || classe === "duvida") donoMissao = "eu";
   }
@@ -364,14 +365,15 @@ function concluirMissao(linhas: string[], hoje: string): boolean {
   if (linhas[0]?.trim() !== "---") return false;
   let fim = linhas.findIndex((l, i) => i > 0 && l.trim() === "---");
   if (fim < 0) return false;
-  // só conclui missão que está andando; cancelada, pausada ou outro status fica como está
+  // só conclui missão que está andando; cancelada, pausada ou outro status fica como está.
+  // `concluída` também vale: é a missão reaberta que fechou de novo (a data nova sobrescreve `concluida_em`)
   const atual = linhas
     .slice(1, fim)
-    .map((l) => /^s*statuss*:(.*)$/i.exec(l))
+    .map((l) => /^\s*status\s*:(.*)$/i.exec(l))
     .filter((m) => m !== null)
     .pop();
-  const status = chave((atual?.[1] ?? "").replace(/s+#.*$/, "").replace(/^s*["']|["']s*$/g, ""));
-  if (!["", "a fazer", "aprovada", "em andamento"].includes(status)) return false;
+  const status = chave((atual?.[1] ?? "").replace(/\s+#.*$/, "").replace(/^\s*["']|["']\s*$/g, ""));
+  if (!["", "a fazer", "aprovada", "em andamento", "concluida"].includes(status)) return false;
   fim = definirChave(linhas, fim, "status", "concluída");
   definirChave(linhas, fim, "concluida_em", hoje);
   return true;
@@ -438,7 +440,9 @@ async function concluir(vault: string, c: CorpoConclusao, now: () => Date, antes
   if (!m) return erro(409, MSG_NOTA_MUDOU);
 
   const hoje = diaLocal(now().getTime());
-  linhas[t.indice] = `${m[1]}x${m[2]}${m[3]} | concluída: ${hoje}`;
+  // se a tarefa foi desmarcada no Obsidian a marca antiga ficou na linha: tira antes, para não duplicar
+  const semMarca = m[3].replace(/\s*\|\s*conclu[ií]da\s*:\s*\S+/gi, "").trimEnd();
+  linhas[t.indice] = `${m[1]}x${m[2]}${semMarca} | concluída: ${hoje}`;
   const missaoConcluida = c.pasta === "m" && concluirMissao(linhas, hoje);
 
   await antesDeGravar?.();
