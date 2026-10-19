@@ -3,6 +3,7 @@
 import type { Roster } from "./roster.ts";
 import type { Urgencia } from "./prazos.ts";
 import type { Resultados } from "./resultados.ts";
+import type { ResumoTransparencia } from "./transparencia.ts";
 
 // só os tipos; valores (DEFAULT_ROSTER, validateRoster...) vêm direto de shared/roster
 export type { Acessorio, AGzinho, Destaque, EstiloCabelo, Genero, Roster, RosterResult, Roupa, Swatch } from "./roster.ts";
@@ -264,6 +265,8 @@ export type ServerMessage =
   | { type: "pendencias"; itens: Pendencia[] }
   /** os números de Resultados foram recalculados (as notas do vault mudaram) */
   | { type: "resultados"; resultados: Resultados }
+  /** a Transparência (o que os agentes abriram no vault) ganhou linhas: resumo do mês, sem conteúdo */
+  | { type: "transparencia"; resumo: ResumoTransparencia }
   /** uma reunião (/reuniao) começou ou acabou */
   | { type: "reuniao"; reuniao: ReuniaoAtiva | null }
   | { type: "agent"; agent: Agent }

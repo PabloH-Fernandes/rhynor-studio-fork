@@ -161,6 +161,12 @@ export class ObservadorVault {
     this.publicar();
   }
 
+  /** A missão pedida por /time nesta sessão (id da nota), se o pedido ainda vale; senão null. Só leitura. */
+  getMissaoDaSessao(sessionId: string): string | null {
+    const p = this.pedidas.get(sessionId);
+    return p && this.now() - p.em <= PEDIDA_TTL_MS ? p.id : null;
+  }
+
   esquecerSessao(sessionId: string) {
     if (this.pedidas.delete(sessionId)) this.publicar();
   }

@@ -302,6 +302,20 @@ export class ObservadorResultados {
     return () => this.ouvintes.delete(fn);
   }
 
+  /** Atas processadas num mês (AAAA-MM), sem IA e com IA, da última varredura (para a Transparência). Só leitura. */
+  atasDoMes(mes: string): { semIa: number; comIa: number } {
+    let semIa = 0;
+    let comIa = 0;
+    for (const c of this.cache.values()) {
+      for (const e of c.eventos) {
+        if (!e.dia.startsWith(`${mes}-`)) continue;
+        if (e.tipo === "ata-sem-ia") semIa++;
+        else if (e.tipo === "ata-com-ia") comIa++;
+      }
+    }
+    return { semIa, comIa };
+  }
+
   /** Releitura completa. Uma por vez: pedido no meio da leitura agenda outra logo depois. */
   recarregar(): Promise<void> {
     if (this.emCurso) {

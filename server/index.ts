@@ -23,6 +23,7 @@ import { registrarCaixa } from "./aprovacao.ts";
 import { ObservadorPendencias, registrarPendencias } from "./pendencias.ts";
 import { ObservadorResultados, registrarResultados } from "./resultados.ts";
 import { criarLeitorEstimativas } from "./estimativas.ts";
+import { LogTransparencia, registrarTransparencia } from "./transparenciaLog.ts";
 import { clienteWsPermitido } from "./seguranca.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
@@ -64,6 +65,14 @@ void pendencias.iniciar();
 // estimado (data/estimativas.json). Só leitura: o painel nunca dispara o Claude.
 const resultados = new ObservadorResultados(() => resolverVault(process.env, os.homedir()), criarLeitorEstimativas());
 void resultados.iniciar();
+// Transparência: o que os agentes abriram no vault (só PreToolUse; caminho relativo, nunca conteúdo) em
+// data/transparencia/AAAA-MM.jsonl. Roda na fila dos hooks sem esperar nada e sem lançar erro.
+const transparencia = new LogTransparencia(() => ({
+  vault: resolverVault(process.env, os.homedir()),
+  reuniaoSessionId: state.getReuniao()?.sessionId ?? null,
+  missaoDaSessao: (sid) => vault.getMissaoDaSessao(sid),
+}));
+void transparencia.iniciar();
 // leitura das atas do Inbox sem IA (AGPOCKET_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
 const ingestao =
   process.env.AGPOCKET_INGESTAO?.trim() === "0"
@@ -100,6 +109,11 @@ setInterval(() => {
         if (body.hook_event_name === "UserPromptSubmit") vault.notarPrompt(sid, String(body.user_prompt ?? body.prompt ?? ""));
         else if (body.hook_event_name === "SessionEnd") vault.esquecerSessao(sid);
       }
+      try {
+        transparencia.registrar(body); // ANTES do handleHook: a reunião (/reuniao) ainda é a de agora
+      } catch (err) {
+        console.warn("[transparencia] erro ao registrar:", err instanceof Error ? err.message : err);
+      }
       state.handleHook(body);
     } catch (err) {
       console.error("[hook] erro ao processar evento:", err);
@@ -134,6 +148,9 @@ registrarPendencias(app, { resolverVault: () => resolverVault(process.env, os.ho
 
 // Resultados: GET /api/resultados e POST /api/resultados/exportar (grava data/exportacoes/resultados-AAAA-MM-DD.md)
 registrarResultados(app, { resultados, porta: () => PORT });
+
+// Transparência: GET /api/transparencia?mes=AAAA-MM e POST /api/transparencia/exportar (grava data/transparencia/AAAA-MM.md)
+registrarTransparencia(app, { log: transparencia, atasDoMes: (mes) => resultados.atasDoMes(mes), porta: () => PORT });
 
 // Elenco dos AGzinhos: o atual e o padrão (para "Voltar ao padrão" no vestiário).
 app.get("/api/roster", (_req, res) => {
@@ -204,6 +221,7 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "caixa", itens: caixa.getItens() } satisfies ServerMessage));
   ws.send(JSON.stringify({ type: "pendencias", itens: pendencias.getItens() } satisfies ServerMessage));
   ws.send(JSON.stringify({ type: "resultados", resultados: resultados.getResultados() } satisfies ServerMessage));
+  ws.send(JSON.stringify({ type: "transparencia", resumo: transparencia.getResumo() } satisfies ServerMessage));
 });
 
 function broadcast(msg: ServerMessage) {
@@ -217,6 +235,7 @@ vault.subscribe((info) => broadcast({ type: "missoes", info }));
 caixa.subscribe((itens) => broadcast({ type: "caixa", itens }));
 pendencias.subscribe((itens) => broadcast({ type: "pendencias", itens }));
 resultados.subscribe((r) => broadcast({ type: "resultados", resultados: r }));
+transparencia.subscribe((resumo) => broadcast({ type: "transparencia", resumo }));
 // missões, caixa e pendências mudaram: os Resultados são recalculados (o próprio observador também vigia as pastas)
 vault.subscribe(() => resultados.agendar());
 caixa.subscribe(() => resultados.agendar());
@@ -254,6 +273,7 @@ function desligar(codigo: number) {
   caixa.parar();
   pendencias.parar();
   resultados.parar();
+  transparencia.parar();
   ingestao?.parar();
   process.exit(codigo);
 }

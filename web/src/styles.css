@@ -2701,3 +2701,103 @@ h2 {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+
+/* ---------------------------------------------------------------- transparência (reaproveita .caixa-* e .res-*) */
+
+.transp-faixa {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0;
+  padding: 6px 8px;
+  border: 2px solid var(--line);
+  border-left-width: 8px;
+  background: var(--bg-3);
+  color: var(--text); /* branco sobre o navy (~16:1): o aviso é dito pelo ícone, pelo texto e pela borda, não só pela cor */
+  font-size: var(--fs-menor);
+  line-height: 1.25;
+}
+
+.transp-faixa p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.transp-violacao {
+  border-color: var(--red);
+}
+
+.transp-informativo {
+  border-color: var(--waiting);
+}
+
+.transp-icone {
+  flex: none;
+  font-weight: 700;
+}
+
+.transp-detalhe {
+  display: block;
+  color: var(--text);
+}
+
+.transp-count-alerta {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 2px solid var(--red);
+  color: var(--text);
+}
+
+.transp-atas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-menor);
+}
+
+.transp-lista {
+  max-height: 260px;
+  margin: 6px 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: var(--fs-menor);
+  line-height: 1.2;
+}
+
+.transp-lista:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.transp-item {
+  padding: 3px 0 3px 6px;
+  border-bottom: 2px solid var(--line);
+  border-left: 4px solid transparent;
+  overflow-wrap: anywhere;
+}
+
+.transp-nivel-violacao {
+  border-left-color: var(--red);
+}
+
+.transp-nivel-informativo {
+  border-left-color: var(--waiting);
+}
+
+.transp-hora {
+  margin-right: 6px;
+  color: var(--muted);
+}
+
+.transp-marca {
+  margin-right: 6px;
+  font-weight: 700;
+}
+
+.transp-arquivo {
+  font-family: ui-monospace, Consolas, monospace;
+}
