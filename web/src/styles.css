@@ -2801,3 +2801,8 @@ h2 {
 .transp-arquivo {
   font-family: ui-monospace, Consolas, monospace;
 }
+
+.transp-subtitulo {
+  margin: 10px 0 2px;
+  font-weight: 700;
+}

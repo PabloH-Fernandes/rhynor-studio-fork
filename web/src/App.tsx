@@ -238,7 +238,7 @@ export default function App() {
 
         <Resultados resultados={resultados} />
 
-        <Transparencia resumo={transparencia} resultados={resultados} />
+        <Transparencia resumo={transparencia} />
 
         <Progresso progress={progressoVisivel} />
 

@@ -67,11 +67,21 @@ const resultados = new ObservadorResultados(() => resolverVault(process.env, os.
 void resultados.iniciar();
 // Transparência: o que os agentes abriram no vault (só PreToolUse; caminho relativo, nunca conteúdo) em
 // data/transparencia/AAAA-MM.jsonl. Roda na fila dos hooks sem esperar nada e sem lançar erro.
-const transparencia = new LogTransparencia(() => ({
-  vault: resolverVault(process.env, os.homedir()),
-  reuniaoSessionId: state.getReuniao()?.sessionId ?? null,
-  missaoDaSessao: (sid) => vault.getMissaoDaSessao(sid),
-}));
+// O caminho do vault pode vir de um arquivo (settings.json, lido de forma síncrona): guarda por 5 s para o loop dos hooks.
+let vaultMemo: { valor: string | null; ate: number } = { valor: null, ate: 0 };
+function vaultDosHooks(): string | null {
+  const agora = Date.now();
+  if (agora >= vaultMemo.ate) vaultMemo = { valor: resolverVault(process.env, os.homedir()), ate: agora + 5000 };
+  return vaultMemo.valor;
+}
+const transparencia = new LogTransparencia(
+  () => ({
+    vault: vaultDosHooks(),
+    reuniaoSessionId: state.getReuniao()?.sessionId ?? null,
+    missaoDaSessao: (sid) => vault.getMissaoDaSessao(sid),
+  }),
+  { atasDoMes: (mes) => resultados.atasDoMes(mes) },
+);
 void transparencia.iniciar();
 // leitura das atas do Inbox sem IA (AGPOCKET_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
 const ingestao =
@@ -110,7 +120,7 @@ setInterval(() => {
         else if (body.hook_event_name === "SessionEnd") vault.esquecerSessao(sid);
       }
       try {
-        transparencia.registrar(body); // ANTES do handleHook: a reunião (/reuniao) ainda é a de agora
+        void transparencia.registrar(body); // ANTES do handleHook: a reunião (/reuniao) ainda é a de agora
       } catch (err) {
         console.warn("[transparencia] erro ao registrar:", err instanceof Error ? err.message : err);
       }
@@ -265,10 +275,19 @@ server.listen(PORT, HOST, () => {
 // Ao desligar, grava o estado na hora (o debounce de 1 s pode não ter rodado ainda).
 // No Windows o tsx watch mata o processo sem sinal: aí vale a última gravação do debounce.
 let desligando = false;
-function desligar(codigo: number) {
+async function desligar(codigo: number) {
   if (desligando) return;
   desligando = true;
   persistencia.salvarSync();
+  // linhas de transparência ainda na corrente: espera, mas no máximo 1 s (corrente travada não segura o desligamento)
+  let t: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    transparencia.esperarGravacoes(),
+    new Promise<void>((resolve) => {
+      t = setTimeout(resolve, 1000);
+    }),
+  ]);
+  clearTimeout(t);
   vault.parar();
   caixa.parar();
   pendencias.parar();
@@ -277,9 +296,9 @@ function desligar(codigo: number) {
   ingestao?.parar();
   process.exit(codigo);
 }
-process.once("SIGINT", () => desligar(130));
-process.once("SIGTERM", () => desligar(143));
-process.once("SIGHUP", () => desligar(129));
+process.once("SIGINT", () => void desligar(130));
+process.once("SIGTERM", () => void desligar(143));
+process.once("SIGHUP", () => void desligar(129));
 process.once("beforeExit", () => persistencia.salvarSync());
 
 /** AG_SESSION_TIMEOUT_MIN: minutos (> 0); vazio usa o padrão, inválido avisa e usa o padrão */

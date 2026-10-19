@@ -1,17 +1,23 @@
 // Transparência (lógica pura): dado um evento de hook, diz se um agente abriu algo do vault e com que gravidade.
 // Só PreToolUse, só as ferramentas de arquivo (Read, Edit, Write, MultiEdit) e de busca (Grep, Glob).
 // O registro leva SÓ o caminho relativo ao vault e o que foi feito: NUNCA o conteúdo do arquivo, o padrão buscado
-// nem o resultado da ferramenta. Fora do vault = ignora (devolve null).
+// (pattern/glob) nem o resultado da ferramenta. Fora do vault = ignora (devolve null).
 //
 // Confidencial = frontmatter com `confidencial: true` (lido só nos primeiros 4 KB), pasta 10-Reunioes/ ou 00-Inbox/
 // (exceto o LEIA-ME.md). Níveis:
 //   violacao    leitura de nota confidencial fora de /reuniao; leitura de 10-Reunioes/ em qualquer caso;
-//               Grep/Glob em lugar confidencial
-//   informativo esperado: o /reuniao (sessão em reunião) abre a ata do Inbox ou outra nota confidencial por exceção
+//               Grep/Glob cujo `path` é um lugar confidencial
+//   informativo esperado: o /reuniao (sessão em reunião) abre a ata do Inbox ou outra nota confidencial;
+//               aviso: Grep/Glob na RAIZ do vault (ancestral de 10-Reunioes e 00-Inbox: pode alcançar notas
+//               confidenciais) e Write/Edit/MultiEdit em nota ou pasta confidencial, exceto o que o /reuniao
+//               da mesma sessão faz (criar a nota de reunião e mexer no Inbox: isso é normal)
 //   normal      o resto
-// Limite honesto: só vê o que o Claude Code mandou pelo hook; `cat`/`type` num comando de shell não aparece.
+// Duas fases, para o loop dos hooks continuar leve: `prepararEvento` (síncrona, sem disco: inclusive a decisão de
+// /reuniao, que vale para o instante do evento) e `finalizarEvento` (assíncrona: realpath, começo do arquivo, nível).
+// Limite honesto: só vê o que o Claude Code mandou pelo hook; `cat`/`type` num comando de shell não aparece. E o
+// registro vem do PreToolUse, ANTES da permissão: uma leitura negada também aparece.
 
-import fs from "node:fs";
+import fsp from "node:fs/promises";
 import path from "node:path";
 import type { Acao, Nivel, RegistroTransparencia } from "../shared/transparencia.ts";
 import { temConfidencialTrue } from "./vault.ts";
@@ -32,6 +38,8 @@ const ACAO_DA_FERRAMENTA: Record<string, Acao> = {
   Glob: "buscou",
 };
 
+type LeitorInicio = (arquivo: string) => string | null | Promise<string | null>;
+
 export interface ContextoTransparencia {
   /** caminho do vault em uso (null = sem vault: nada é registrado) */
   vault: string | null;
@@ -42,45 +50,57 @@ export interface ContextoTransparencia {
   agora?: () => number;
   /** compara caminhos sem diferenciar maiúsculas (padrão: só no Windows) */
   ignorarCaixa?: boolean;
-  /** os primeiros 4 KB do arquivo, ou null se não der para ler (padrão: lê do disco) */
-  lerInicio?: (arquivo: string) => string | null;
+  /** os primeiros 4 KB do arquivo, ou null se não der para ler (padrão: lê do disco, sem bloquear) */
+  lerInicio?: LeitorInicio;
 }
 
-function lerInicioDoDisco(arquivo: string): string | null {
-  let fd: number | null = null;
+/** O que dá para decidir na hora, sem tocar no disco (roda no loop dos hooks): a decisão de /reuniao é daqui. */
+export interface EventoPreparado {
+  ts: number;
+  sessao: string;
+  agente: string;
+  ferramenta: string;
+  acao: Acao;
+  /** caminho como veio (ainda não resolvido) */
+  bruto: string;
+  cwd: string | undefined;
+  /** a sessão deste evento é a do /reuniao em andamento (decidido NA HORA do evento) */
+  emReuniao: boolean;
+  missao: string | null;
+  vault: string;
+  ignorarCaixa: boolean;
+  lerInicio: LeitorInicio;
+}
+
+async function lerInicioDoDisco(arquivo: string): Promise<string | null> {
+  let fh: fsp.FileHandle | null = null;
   try {
-    fd = fs.openSync(arquivo, "r");
+    fh = await fsp.open(arquivo, "r");
     const buf = Buffer.alloc(BYTES_FRONTMATTER);
-    const n = fs.readSync(fd, buf, 0, BYTES_FRONTMATTER, 0);
-    return buf.subarray(0, n).toString("utf8");
+    const { bytesRead } = await fh.read(buf, 0, BYTES_FRONTMATTER, 0);
+    return buf.subarray(0, bytesRead).toString("utf8");
   } catch {
     return null; // não existe (Write novo), é pasta, está ocupado...
   } finally {
-    if (fd !== null) {
-      try {
-        fs.closeSync(fd);
-      } catch {
-        // já fechado
-      }
-    }
+    await fh?.close().catch(() => undefined);
   }
 }
 
 /** realpath do que existe; o resto (arquivo que ainda vai nascer) segue o caminho do jeito que veio */
-function realOuIgual(p: string): string {
+async function realOuIgual(p: string): Promise<string> {
   try {
-    return fs.realpathSync.native(p);
+    return await fsp.realpath(p);
   } catch {
     const pai = path.dirname(p);
     if (pai === p) return p;
-    return path.join(realOuIgual(pai), path.basename(p));
+    return path.join(await realOuIgual(pai), path.basename(p));
   }
 }
 
 const barras = (s: string) => s.replaceAll("\\", "/");
 
 /** caminho absoluto, ou relativo ao cwd: barras viram "/", `..` é resolvido, links simbólicos também. null = não deu. */
-export function resolverCaminho(bruto: string, cwd: string | undefined): string | null {
+export async function resolverCaminho(bruto: string, cwd: string | undefined): Promise<string | null> {
   if (!bruto || bruto.includes("\u0000")) return null;
   const p = barras(bruto);
   let absoluto: string;
@@ -110,10 +130,10 @@ function limpo(s: string, max: number): string {
 }
 
 /**
- * O evento de hook vira (no máximo) uma linha do log. null = não é para registrar (outro evento, outra ferramenta,
- * fora do vault ou sem caminho). Nunca lança.
+ * Parte síncrona e barata (sem disco): o evento vira um "pedido de registro", ou null = não é para registrar
+ * (outro evento, outra ferramenta, sem caminho). Nunca lança.
  */
-export function classificarEvento(evento: unknown, ctx: ContextoTransparencia): RegistroTransparencia | null {
+export function prepararEvento(evento: unknown, ctx: ContextoTransparencia): EventoPreparado | null {
   try {
     if (!evento || typeof evento !== "object" || !ctx.vault) return null;
     const ev = evento as Record<string, unknown>;
@@ -124,15 +144,35 @@ export function classificarEvento(evento: unknown, ctx: ContextoTransparencia): 
     const acao = ACAO_DA_FERRAMENTA[ferramenta];
     const entrada = ev.tool_input && typeof ev.tool_input === "object" ? (ev.tool_input as Record<string, unknown>) : {};
     const cwd = texto(ev.cwd);
-
-    // Read/Write/Edit/MultiEdit: file_path. Grep/Glob: path (sem ele, procuram no cwd).
+    // Read/Write/Edit/MultiEdit: file_path. Grep/Glob: path (sem ele, procuram no cwd). Nunca pattern/glob/conteúdo.
     const bruto = acao === "buscou" ? (texto(entrada.path) ?? cwd) : texto(entrada.file_path);
     if (!bruto) return null;
-    const real = resolverCaminho(bruto, cwd);
-    if (!real) return null;
+    return {
+      ts: (ctx.agora ?? Date.now)(),
+      sessao: limpo(sessao, 100),
+      agente: limpo(texto(ev.agent_type) ?? "lider", 60),
+      ferramenta,
+      acao,
+      bruto,
+      cwd,
+      emReuniao: ctx.reuniaoSessionId !== null && ctx.reuniaoSessionId === sessao,
+      missao: ctx.missaoDaSessao(sessao),
+      vault: ctx.vault,
+      ignorarCaixa: ctx.ignorarCaixa ?? process.platform === "win32",
+      lerInicio: ctx.lerInicio ?? lerInicioDoDisco,
+    };
+  } catch {
+    return null;
+  }
+}
 
-    const ci = ctx.ignorarCaixa ?? process.platform === "win32";
-    const rel = relativoAoVault(real, realOuIgual(path.resolve(barras(ctx.vault))), ci);
+/** Parte assíncrona: resolve o caminho, lê o começo da nota e decide o nível. null = fora do vault. Nunca lança. */
+export async function finalizarEvento(p: EventoPreparado): Promise<RegistroTransparencia | null> {
+  try {
+    const real = await resolverCaminho(p.bruto, p.cwd);
+    if (!real) return null;
+    const ci = p.ignorarCaixa;
+    const rel = relativoAoVault(real, await realOuIgual(path.resolve(barras(p.vault))), ci);
     if (rel === null) return null; // fora do vault
 
     const norm = (s: string) => (ci ? s.toLowerCase() : s);
@@ -141,32 +181,42 @@ export function classificarEvento(evento: unknown, ctx: ContextoTransparencia): 
     const ehInbox = topo === PASTA_INBOX && norm(rel) !== `${PASTA_INBOX}/${LEIA_ME}`;
     let confidencial = ehReunioes || ehInbox;
     if (!confidencial && rel !== "") {
-      const inicio = (ctx.lerInicio ?? lerInicioDoDisco)(real);
+      const inicio = await p.lerInicio(real);
       if (inicio !== null && temConfidencialTrue(inicio)) confidencial = true;
     }
 
-    const emReuniao = ctx.reuniaoSessionId !== null && ctx.reuniaoSessionId === sessao;
     let nivel: Nivel = "normal";
-    if (acao === "buscou") {
+    if (p.acao === "buscou") {
+      // lugar confidencial = violação; a RAIZ do vault (ancestral de 10-Reunioes e 00-Inbox) só avisa
       if (confidencial) nivel = "violacao";
-    } else if (acao === "leu") {
+      else if (rel === "") nivel = "informativo";
+    } else if (p.acao === "leu") {
       if (ehReunioes) nivel = "violacao";
-      else if (confidencial) nivel = emReuniao ? "informativo" : "violacao";
+      else if (confidencial) nivel = p.emReuniao ? "informativo" : "violacao";
+    } else if (confidencial) {
+      // Write/Edit/MultiEdit: no /reuniao, o Inbox e a nota de reunião são o trabalho dela (normal); o resto avisa
+      nivel = p.emReuniao && (ehInbox || ehReunioes) ? "normal" : "informativo";
     }
 
     return {
-      ts: (ctx.agora ?? Date.now)(),
-      sessao: limpo(sessao, 100),
-      agente: limpo(texto(ev.agent_type) ?? "lider", 60),
-      ferramenta,
-      acao,
+      ts: p.ts,
+      sessao: p.sessao,
+      agente: p.agente,
+      ferramenta: p.ferramenta,
+      acao: p.acao,
       arquivo: limpo(rel === "" ? "." : rel, 300),
       confidencial,
-      missao: ctx.missaoDaSessao(sessao),
+      missao: p.missao,
       via: "PreToolUse",
       nivel,
     };
   } catch {
     return null;
   }
+}
+
+/** As duas partes juntas (testes e replay). */
+export async function classificarEvento(evento: unknown, ctx: ContextoTransparencia): Promise<RegistroTransparencia | null> {
+  const p = prepararEvento(evento, ctx);
+  return p ? finalizarEvento(p) : null;
 }

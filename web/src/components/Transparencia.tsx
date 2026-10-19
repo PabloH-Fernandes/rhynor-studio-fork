@@ -2,14 +2,16 @@
 // e com IA, e o aviso quando um agente leu uma nota confidencial. O painel só mostra e exporta: NUNCA roda o Claude.
 
 import { useRef, useState } from "react";
-import type { Resultados } from "../../../shared/resultados";
 import type { ResumoTransparencia } from "../../../shared/transparencia";
 import { copiarTexto } from "../caixaLogic";
 import {
   NOTA_LIMITE,
+  NOTA_PERMISSAO,
   contadoresAtas,
   montarAlertas,
   montarLinhas,
+  montarViolacoes,
+  type LinhaRecente,
   nomeArquivoMd,
   plural,
   resumoVazio,
@@ -22,7 +24,27 @@ interface Exportado {
   arquivo: string;
 }
 
-export function Transparencia({ resumo, resultados }: { resumo: ResumoTransparencia | null; resultados: Resultados | null }) {
+/** uma linha da lista (a mesma para "Violações" e "Aberturas recentes": mesma fonte do nome do arquivo) */
+function ItemLinha({ l }: { l: LinhaRecente }) {
+  return (
+    <li className={`transp-item transp-nivel-${l.nivel}`}>
+      <span className="sr-only">{l.frase}</span>
+      <span aria-hidden="true" className="transp-linha">
+        <span className="transp-hora">{l.hora}</span>
+        {l.marca && (
+          <span className="transp-marca">
+            {l.nivel === "violacao" ? "⚠ " : "ℹ "}
+            {l.marca}
+          </span>
+        )}
+        <span className="transp-agente">{l.agente}</span> <span className="transp-acao">{l.acao}</span>{" "}
+        <span className="transp-arquivo">{l.arquivo}</span>
+      </span>
+    </li>
+  );
+}
+
+export function Transparencia({ resumo }: { resumo: ResumoTransparencia | null }) {
   const [aberto, alternar] = usePreferencia("agpocket.painel.transparencia", true);
   const [enviando, setEnviando] = useState(false);
   const [exportado, setExportado] = useState<Exportado | null>(null);
@@ -93,7 +115,8 @@ export function Transparencia({ resumo, resultados }: { resumo: ResumoTransparen
 
   const alertas = montarAlertas(resumo);
   const linhas = montarLinhas(resumo);
-  const atas = contadoresAtas(resultados);
+  const violacoes = montarViolacoes(resumo);
+  const atas = contadoresAtas(resumo);
 
   return (
     <section className="secao transparencia" aria-label="Transparência">
@@ -106,32 +129,47 @@ export function Transparencia({ resumo, resultados }: { resumo: ResumoTransparen
       </h2>
       {/* sempre visível, mesmo com a seção fechada: é o que NÃO dá para ver */}
       <p className="res-estimativa-aviso">
-        <strong>Limite:</strong> {NOTA_LIMITE}
+        <strong>Limite:</strong> {NOTA_LIMITE} {NOTA_PERMISSAO}
       </p>
       <div id="secao-transparencia" hidden={!aberto}>
         <p className="caixa-meta transp-titulo">O que foi aberto do seu vault pelos agentes (só o nome do arquivo, nunca o conteúdo).</p>
 
         {alertas.map((a) => (
-          <div key={a.tipo} className={`transp-faixa transp-${a.tipo}`} role={a.tipo === "violacao" ? "alert" : "status"}>
+          <div key={a.chave} className={`transp-faixa transp-${a.tipo}`} role={a.tipo === "violacao" ? "alert" : "status"}>
             <span className="transp-icone" aria-hidden="true">
               {a.tipo === "violacao" ? "⚠" : "ℹ"}
             </span>
             <p>
               <strong>{a.titulo}</strong>
-              <span className="transp-detalhe">{a.detalhe}</span>
+              <span className="transp-detalhe">
+                {a.antes}
+                {a.ultima && <span className="transp-arquivo">{a.ultima.arquivo}</span>}
+                {a.depois}
+              </span>
             </p>
           </div>
         ))}
 
         {atas && (
-          <ul className="transp-atas" aria-label="Atas processadas">
+          <ul className="transp-atas" aria-label={atas.rotulo}>
             <li>
-              <strong>{atas.semIa}</strong> atas sem IA
+              <strong>{atas.semIa}</strong> atas sem IA neste mês
             </li>
             <li>
-              <strong>{atas.comIa}</strong> atas com IA (/reuniao)
+              <strong>{atas.comIa}</strong> atas com IA (/reuniao) neste mês
             </li>
           </ul>
+        )}
+
+        {violacoes.length > 0 && (
+          <>
+            <h3 className="caixa-meta transp-subtitulo">Violações{resumo.violacoes > violacoes.length ? ` (as ${violacoes.length} mais recentes de ${resumo.violacoes})` : ""}</h3>
+            <ul className="transp-lista" aria-label="Violações do mês">
+              {violacoes.map((l) => (
+                <ItemLinha key={l.id} l={l} />
+              ))}
+            </ul>
+          </>
         )}
 
         {resumoVazio(resumo) ? (
@@ -143,27 +181,14 @@ export function Transparencia({ resumo, resultados }: { resumo: ResumoTransparen
             </p>
             <ul className="transp-lista" aria-label="Aberturas recentes do vault" tabIndex={0}>
               {linhas.map((l) => (
-                <li key={l.id} className={`transp-item transp-nivel-${l.nivel}`}>
-                  <span className="sr-only">{l.frase}</span>
-                  <span aria-hidden="true" className="transp-linha">
-                    <span className="transp-hora">{l.hora}</span>
-                    {l.marca && (
-                      <span className="transp-marca">
-                        {l.nivel === "violacao" ? "⚠ " : "ℹ "}
-                        {l.marca}
-                      </span>
-                    )}
-                    <span className="transp-agente">{l.agente}</span> <span className="transp-acao">{l.acao}</span>{" "}
-                    <span className="transp-arquivo">{l.arquivo}</span>
-                  </span>
-                </li>
+                <ItemLinha key={l.id} l={l} />
               ))}
             </ul>
           </>
         )}
 
         <div className="caixa-acoes">
-          <button type="button" className="btn" aria-disabled={enviando} aria-label="Exportar o registro de transparência do mês" onClick={() => void exportar()}>
+          <button type="button" className="btn" aria-disabled={enviando} aria-label={enviando ? "Gerando o registro de transparência" : "Exportar o registro de transparência do mês"} onClick={() => void exportar()}>
             {enviando ? "Gerando..." : "Exportar"}
           </button>
         </div>
