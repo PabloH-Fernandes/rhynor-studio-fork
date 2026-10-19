@@ -31,12 +31,71 @@ const JA_APELIDO_RESPONSAVEL = /^Responsável [A-Z]$/;
 export interface Privacidade {
   projeto(valor: string): string;
   reuniao(titulo: string): string;
-  missao(nome: string): string;
+  /** `sinonimos`: outros nomes da mesma missão (o nome legível, além do id) que também viram o mesmo apelido */
+  missao(chave: string, sinonimos?: readonly string[]): string;
   responsavel(nome: string): string;
   tarefa(texto: string): string;
   /** texto livre (atividade, linha do feed): arquivos, caminhos, comandos, buscas e nomes já conhecidos viram apelidos */
   texto(texto: string): string;
+  /**
+   * Atividade do balão/crachá/lista: só frases conhecidas (arquivo, frase pronta do sistema) passam; texto livre
+   * (descrição de subagente ou de comando, busca, prompt) vira um rótulo genérico por tipo ou pelo status.
+   */
+  atividade(texto: string, status?: string): string;
+  /** linha do feed: o que vem depois de "recebeu:", "avisou:", "entrou para:", "→ Fulano:" etc. some */
+  linhaFeed(texto: string, kind?: string): string;
+  /** o conteúdo de uma conversa entre agentes nunca vai à tela na apresentação */
+  conversa(): string;
 }
+
+/** frases prontas do sistema (shared/frases.ts e state.ts): não têm texto livre */
+const FRASES_PRONTAS = new RegExp(
+  "^(?:" +
+    [
+      "Estudando o projeto",
+      "Procurando algo no projeto",
+      "Escrevendo a documentação",
+      "Atualizando a documentação",
+      "Criando algo novo no sistema",
+      "Fazendo mudanças no sistema",
+      "Testando se tudo funciona",
+      "Instalando o que o projeto precisa",
+      "Conferindo se está tudo em ordem",
+      "Salvando uma versão do trabalho",
+      "Executando uma tarefa no computador",
+      "Pesquisando na internet",
+      "Lendo uma página da internet",
+      "Lendo uma página",
+      "Organizando a lista de tarefas",
+      "Organizando as tarefas",
+      "Conversando com o time",
+      "Mandando mensagem pro time",
+      "Seguindo um passo a passo pronto",
+      "Chamando alguém do time para ajudar",
+      "Usando uma ferramenta",
+      "Usando uma skill",
+      "Trabalhando numa tarefa",
+      "Chegando",
+      "Pensando",
+      "Precisa de você",
+      "De boa",
+      "Indo embora",
+      "Indo pra mesa",
+      "Voltando pra mesa",
+      "Voltou ao trabalho",
+    ].join("|") +
+    ")(?:\\.{1,3}|…)?$",
+  "iu",
+);
+
+const ATIVIDADE_DO_STATUS: Record<string, string> = {
+  chegando: "Chegando",
+  trabalhando: "Trabalhando numa tarefa",
+  pensando: "Pensando",
+  esperando: "Precisa de você",
+  ocioso: "De boa",
+  saindo: "Indo embora",
+};
 
 function chaveDe(valor: string): string {
   return valor
@@ -105,7 +164,8 @@ export function criarPrivacidade(): Privacidade {
     if (conhecidos.size === 0) return t;
     if (!regexConhecidos) {
       const nomes = [...conhecidos.keys()].sort((a, b) => b.length - a.length).map(escapar);
-      regexConhecidos = new RegExp(nomes.join("|"), "gi");
+      // fronteira de palavra: "Ana" não corrompe "Analisando", "web" não corrompe "webpack"
+      regexConhecidos = new RegExp(`(?<![\\p{L}\\p{N}])(?:${nomes.join("|")})(?![\\p{L}\\p{N}])`, "giu");
     }
     return t.replace(regexConhecidos, (m) => conhecidos.get(m.toLowerCase()) ?? m);
   };
@@ -125,12 +185,42 @@ export function criarPrivacidade(): Privacidade {
       return a;
     },
     reuniao: (titulo) => apelidar("reuniao", titulo, true),
-    missao: (nome) => apelidar("missao", nome, true),
+    missao(chave, sinonimos = []) {
+      const a = apelidar("missao", chave, true);
+      if (a) for (const s of sinonimos) lembrar(s, a);
+      return a;
+    },
     responsavel(nome) {
       if (JA_APELIDO_RESPONSAVEL.test(nome.trim())) return nome.trim();
       return apelidar("responsavel", nome, true);
     },
     tarefa: (texto) => apelidar("tarefa", texto, false),
+    atividade(texto, status = "trabalhando") {
+      const t = texto.trim();
+      if (!t) return texto;
+      if (/^(Rodando|Executando)\b[^:]*:/.test(t)) return "Executando uma tarefa no computador";
+      if (/^Pesquisando\s*:/.test(t)) return "Pesquisando";
+      if (/^Usando a skill\b/i.test(t)) return "Usando uma skill";
+      if (/^Usando \S+:/.test(t) || /^Usando mcp__/.test(t)) return "Usando uma ferramenta";
+      if (/^Procurando arquivos\b/.test(t)) return "Procurando arquivos";
+      if (/^Procurando “[^”]*”$/.test(t)) return this.texto(t);
+      // arquivo, caminho ou site: "Lendo x.docx" (um único termo com cara de arquivo)
+      const arq = /^(Lendo|Criando|Editando) (\S+)$/.exec(t);
+      if (arq && (pareceArquivoOuCaminho(arq[2]) || arq[2] === "arquivo")) return this.texto(t);
+      if (FRASES_PRONTAS.test(t)) return this.texto(t);
+      // "Pesquisando na internet sobre “tema”": o tema entre aspas vira apelido
+      if (/^Pesquisando na internet sobre “[^”]*”$/.test(t)) return this.texto(t);
+      return ATIVIDADE_DO_STATUS[status] ?? "Trabalhando numa tarefa";
+    },
+    linhaFeed(texto, kind) {
+      if (kind === "tool") return this.atividade(texto);
+      const t = texto.replace(
+        /^(\s*(?:recebeu|avisou|entrou para|foi chamado de novo|→[^:]*)):\s*.+$/s,
+        (_m, pre: string) => (pre.trim().startsWith("→") ? "→ mandou um recado" : pre),
+      );
+      return this.texto(t.replace(/^(\s*pediu permissão)\s*→.*$/s, "$1"));
+    },
+    conversa: () => "Conversando",
     texto(texto) {
       let t = trocarConhecidos(texto);
       // o que vem depois de "Rodando:" / "Pesquisando:" é livre (comando, busca): some inteiro
@@ -161,13 +251,13 @@ export function mascararAgentes(p: Privacidade, agentes: readonly Agent[]): Agen
   return agentes.map((a) => ({
     ...a,
     project: p.projeto(a.project),
-    activity: p.texto(a.activity),
-    ...(a.activitySimples !== undefined ? { activitySimples: p.texto(a.activitySimples) } : {}),
+    activity: p.atividade(a.activity, a.status),
+    ...(a.activitySimples !== undefined ? { activitySimples: p.atividade(a.activitySimples, a.status) } : {}),
   }));
 }
 
 export function mascararFeed(p: Privacidade, feed: readonly FeedItem[]): FeedItem[] {
-  return feed.map((f) => ({ ...f, text: p.texto(f.text), ...(f.simples !== undefined ? { simples: p.texto(f.simples) } : {}) }));
+  return feed.map((f) => ({ ...f, text: p.linhaFeed(f.text, f.kind), ...(f.simples !== undefined ? { simples: p.linhaFeed(f.simples) } : {}) }));
 }
 
 /** Caixa: título, texto das tarefas e responsável. `id`, `n` e `h` ficam (é o que volta ao servidor). */
@@ -189,14 +279,15 @@ export function mascararMissoes(p: Privacidade, info: MissoesInfo | null): Misso
     ...info,
     missoes: info.missoes.map((m) => ({
       ...m,
-      id: p.missao(m.id),
-      nome: p.missao(m.nome),
+      // id e nome da mesma missão: a mesma chave (o id, único) dá o mesmo apelido
+      id: p.missao(m.id, [m.nome]),
+      nome: p.missao(m.id, [m.nome]),
       projeto: p.projeto(m.projeto),
       reuniaoTitulo: p.reuniao(m.reuniaoTitulo),
       itens: m.itens.map((i) => ({ ...i, texto: p.tarefa(i.texto) })),
       objetivo: "",
     })),
-    atual: info.atual ? { id: p.missao(info.atual.id), nome: p.missao(info.atual.nome), reuniaoTitulo: p.reuniao(info.atual.reuniaoTitulo) } : null,
+    atual: info.atual ? { id: p.missao(info.atual.id, [info.atual.nome]), nome: p.missao(info.atual.id, [info.atual.nome]), reuniaoTitulo: p.reuniao(info.atual.reuniaoTitulo) } : null,
   };
 }
 
@@ -204,4 +295,53 @@ export function mascararMissoes(p: Privacidade, info: MissoesInfo | null): Misso
 export function mascararProgress(progress: Progress | null): Progress | null {
   if (!progress || progress.fonte !== "tarefas") return progress;
   return { ...progress, titulo: `Etapa ${progress.etapa}` };
+}
+
+export interface DadosBrutos {
+  agentes: readonly Agent[];
+  feed: readonly FeedItem[];
+  caixa: readonly CaixaItem[] | null;
+  pendencias: readonly Pendencia[] | null;
+  missoes: MissoesInfo | null;
+}
+
+export interface DadosMascarados {
+  agentes: Agent[];
+  feed: FeedItem[];
+  caixa: CaixaItem[] | null;
+  pendencias: Pendencia[] | null;
+  missoes: MissoesInfo | null;
+}
+
+/**
+ * Primeiro registra os nomes reais de TUDO (projeto, reunião, missão, responsável); só depois mascara o texto
+ * livre e o feed. Assim um nome que só aparece num dado (ex.: responsável nas pendências) já é conhecido quando
+ * aparece dentro de uma atividade, seja qual for a ordem em que os dados chegaram.
+ */
+export function mascararTudo(p: Privacidade, d: DadosBrutos): DadosMascarados {
+  for (const a of d.agentes) p.projeto(a.project);
+  for (const c of d.caixa ?? []) {
+    p.reuniao(c.titulo);
+    for (const t of c.tarefas) p.responsavel(t.responsavel);
+  }
+  for (const i of d.pendencias ?? []) {
+    p.responsavel(i.responsavel);
+    p.reuniao(i.origem);
+  }
+  for (const m of d.missoes?.missoes ?? []) {
+    p.missao(m.id, [m.nome]);
+    p.projeto(m.projeto);
+    p.reuniao(m.reuniaoTitulo);
+  }
+  if (d.missoes?.atual) {
+    p.missao(d.missoes.atual.id, [d.missoes.atual.nome]);
+    p.reuniao(d.missoes.atual.reuniaoTitulo);
+  }
+  return {
+    agentes: mascararAgentes(p, d.agentes),
+    feed: mascararFeed(p, d.feed),
+    caixa: d.caixa ? mascararCaixa(p, d.caixa) : null,
+    pendencias: d.pendencias ? mascararPendencias(p, d.pendencias) : null,
+    missoes: mascararMissoes(p, d.missoes),
+  };
 }

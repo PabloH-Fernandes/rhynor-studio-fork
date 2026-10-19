@@ -7,7 +7,7 @@ Demonstração automática do escritório, para quem não é de TI. Dura uns 3 m
 ## Antes de começar
 
 1. Abra o endereço no navegador e aperte **F** (ou clique em "Tela cheia") para ocupar a tela toda. O navegador só aceita a tela cheia depois de um clique ou tecla, por isso ela não liga sozinha.
-2. O roteiro começa assim que a página abre. Se quiser ensaiar, aperte **espaço** para pausar logo no início e recarregue a página quando estiver pronto.
+2. O roteiro começa assim que a página abre. Se quiser ensaiar, use **espaço** e **→** e depois **recarregue a página para começar do zero** (o recarregamento reinicia o roteiro).
 3. Para o passo 1 ter gente na mesa de reunião, deixe alguém no escritório antes (rode a simulação uma vez, ou deixe uma sessão aberta). Com o escritório vazio, só o quadro da parede avisa "Nova ata".
 
 ## Teclas
@@ -54,6 +54,8 @@ Depois do passo 5 aparece "Fim da demonstração". A tela fica como está para p
 ## Aviso sobre privacidade
 
 No modo apresentação a privacidade fica sempre ligada: projetos, arquivos, títulos de reunião e responsáveis viram apelidos ("Projeto Alfa", "Reunião 1", "Responsável A"). Mas isso é **melhor esforço**: a troca é feita no navegador, os dados reais ainda chegam até ele e podem ser vistos pelas ferramentas do navegador (aba Rede) ou escapar em algum texto livre.
+
+Na apresentação, o conteúdo de conversas entre agentes, descrições de tarefas, comandos e buscas é trocado por rótulos genéricos ("Conversando", "Trabalhando numa tarefa", "Executando uma tarefa no computador", "Pesquisando"). A privacidade **não cobre**: texto livre que fuja desses rótulos genéricos, nomes com menos de 3 letras (não são trocados) e nomes que ninguém registrou (que não aparecem em projeto, reunião, missão nem responsável).
 
 **Numa apresentação de verdade, o ideal é usar um vault fictício** (por exemplo, um vault de teste com `npm run ata-ficticia`), e não o seu vault de trabalho.
 

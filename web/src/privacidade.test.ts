@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Agent, CaixaItem, FeedItem, MissoesInfo, Pendencia, Progress } from "../../shared/types";
 import { lerFlags } from "./apresentacao";
-import { criarPrivacidade, mascararAgentes, mascararCaixa, mascararFeed, mascararMissoes, mascararPendencias, mascararProgress } from "./privacidade";
+import { criarPrivacidade, mascararAgentes, mascararCaixa, mascararFeed, mascararMissoes, mascararPendencias, mascararProgress, mascararTudo } from "./privacidade";
 
 test("flags: apresentacao e demo", () => {
   assert.deepEqual(lerFlags(""), { apresentacao: false, demo: false });
@@ -195,4 +195,88 @@ test("o mesmo arquivo recebe o mesmo apelido nas atividades", () => {
   assert.equal(a.replace("Editando ", ""), b.replace("Lendo ", ""));
   assert.ok(!a.includes("acme"));
   assert.ok(!a.includes("contratos"));
+});
+
+// ---------------------------------------------------------------- correções da revisão da Etapa 6
+
+test("descrição livre de subagente/comando vira rótulo genérico: nada vai ao canvas", () => {
+  const p = criarPrivacidade();
+  const livres = [
+    "Ajustar contrato-acme para fulano",
+    "Revisar a proposta do cliente acme",
+  ];
+  for (const descricao of livres) {
+    const [a] = mascararAgentes(p, [agente("x", { activity: descricao, activitySimples: descricao, status: "trabalhando" })]);
+    assert.equal(a.activity, "Trabalhando numa tarefa");
+    assert.equal(a.activitySimples, "Trabalhando numa tarefa");
+    const texto = JSON.stringify(a).toLowerCase();
+    for (const proibido of ["contrato", "acme", "fulano", "proposta"]) assert.ok(!texto.includes(proibido), `sobrou ${proibido}`);
+  }
+  assert.equal(p.atividade("Rodando: npm test -- acme", "trabalhando"), "Executando uma tarefa no computador");
+  assert.equal(p.atividade("Pesquisando: preço da acme", "trabalhando"), "Pesquisando");
+  assert.equal(p.atividade("Usando a skill acme-folha", "trabalhando"), "Usando uma skill");
+  assert.equal(p.atividade("Usando github: create_issue", "trabalhando"), "Usando uma ferramenta");
+  assert.equal(p.atividade("Pensando...", "pensando"), "Pensando...");
+  assert.equal(p.atividade("Fazendo mudanças no sistema", "trabalhando"), "Fazendo mudanças no sistema");
+  // descrição de Bash que imita um verbo de arquivo mas não é arquivo
+  assert.equal(p.atividade("Editando contrato acme", "pensando"), "Pensando");
+});
+
+test("feed: texto livre depois de 'entrou para:', 'avisou:', '→' e 'recebeu:' some", () => {
+  const p = criarPrivacidade();
+  const mk = (text: string, kind: FeedItem["kind"]): FeedItem => ({ id: 1, at: AGORA, agentId: "a", agentName: "B", role: "dev", text, kind });
+  const out = mascararFeed(p, [
+    mk("entrou para: Ajustar contrato-acme para fulano", "spawn"),
+    mk("avisou: ligar para fulano sobre a acme", "info"),
+    mk("→ Guto: mande o contrato da acme", "message"),
+    mk("pediu permissão → Bash: rm contrato-acme", "alert"),
+    mk("Mandar contrato da acme para fulano", "tool"),
+  ]);
+  const texto = JSON.stringify(out).toLowerCase();
+  for (const proibido of ["contrato", "acme", "fulano"]) assert.ok(!texto.includes(proibido), `sobrou ${proibido}: ${texto}`);
+  assert.equal(out[0].text, "entrou para");
+});
+
+test("conversa entre agentes: o texto do balão é genérico", () => {
+  assert.equal(criarPrivacidade().conversa(), "Conversando");
+});
+
+test("nome conhecido só troca como palavra inteira", () => {
+  const p = criarPrivacidade();
+  const ana = p.responsavel("Ana");
+  p.projeto("web");
+  assert.equal(p.texto("Analisando o webpack"), "Analisando o webpack");
+  assert.ok(p.texto("Falar com Ana").includes(ana));
+  assert.ok(!p.texto("Falar com Ana").includes("Ana"), "palavra inteira é trocada");
+  assert.ok(p.texto("Subir a web hoje").includes("Projeto"), "web como palavra inteira é trocada");
+  assert.equal(p.texto("Instalar o webpack"), "Instalar o webpack");
+  // nomes com menos de 3 letras não são registrados
+  const p2 = criarPrivacidade();
+  p2.responsavel("Jo");
+  assert.equal(p2.texto("Jo foi ao Joinville"), "Jo foi ao Joinville");
+});
+
+test("registra todos os nomes antes de mascarar: ordem dos dados não importa", () => {
+  const p = criarPrivacidade();
+  // "Joana Prado" só aparece como responsável nas pendências; a atividade do agente já a cita
+  const pend: Pendencia[] = [
+    { id: "1", texto: "Ligar", responsavel: "Joana Prado", origem: "Proposta Banco Aurora", prazo: null, estado: "aberta", missao: null } as unknown as Pendencia,
+  ];
+  const out = mascararTudo(p, {
+    agentes: [agente("a", { activity: "Lendo Joana Prado", activitySimples: undefined })],
+    feed: [],
+    caixa: null,
+    pendencias: pend,
+    missoes: null,
+  });
+  semOriginais(out);
+  assert.equal(out.pendencias?.[0].responsavel, "Responsável A");
+});
+
+test("missão: id e nome do mesmo item recebem o mesmo apelido", () => {
+  const p = criarPrivacidade();
+  const a = p.missao("2026-10-19-plano-secreto", ["Plano Secreto"]);
+  assert.equal(a, "Missão 1");
+  assert.equal(p.missao("2026-10-19-plano-secreto", ["Plano Secreto"]), a);
+  assert.equal(p.texto("Retomar o Plano Secreto"), "Retomar o Missão 1");
 });

@@ -28,7 +28,7 @@ import { textoAtaNova } from "./missoesLogic";
 import { agruparFeed, destaqueDe, fraseDaLinha, iconeDe, type LinhaFeed } from "./feedLogic";
 import { APRESENTACAO, DEMO } from "./apresentacao";
 import { useDemo, type DemoEstado } from "./demo/useDemo";
-import { criarPrivacidade, mascararAgentes, mascararCaixa, mascararFeed, mascararMissoes, mascararPendencias, mascararProgress } from "./privacidade";
+import { criarPrivacidade, mascararProgress, mascararTudo } from "./privacidade";
 import { useTelaCheia } from "./useTelaCheia";
 
 const STATUS_LABEL: Record<AgentStatus, string> = {
@@ -51,27 +51,36 @@ const KIND_ICON: Record<FeedItem["kind"], string> = {
 
 export default function App() {
   const officeRef = useRef<OfficeHandle>(null);
-  const office = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  // Modo apresentação: privacidade SEMPRE ligada. Este é o ponto único: tudo o que o servidor manda passa por
+  // aqui antes de ir para o canvas e para o painel. Melhor esforço: os dados reais ainda chegam ao navegador.
+  const privacidade = useMemo(() => criarPrivacidade(), []);
+  // o texto da conversa entre agentes (balão) nunca vai à tela na apresentação
+  const office = useOffice((a, b, t) => officeRef.current?.chat(a, b, APRESENTACAO ? privacidade.conversa() : t));
   const { agents, roster, reuniao, transparencia, ataNova, conn } = office;
   const hoje = useHoje();
   const telaCheia = useTelaCheia(APRESENTACAO);
 
-  // Modo apresentação: privacidade SEMPRE ligada. Este é o ponto único: tudo o que o servidor manda passa por
-  // aqui antes de ir para o canvas e para o painel. Melhor esforço: os dados reais ainda chegam ao navegador.
-  const privacidade = useMemo(() => criarPrivacidade(), []);
   // a demo mostra dados fictícios próprios nas três seções (e não os do servidor), sem escrever nada no vault
   const demo = useDemo(DEMO, hoje);
-  const feed = useMemo(() => (APRESENTACAO ? mascararFeed(privacidade, office.feed) : office.feed), [office.feed, privacidade]);
-  const missoes = useMemo(() => (APRESENTACAO ? mascararMissoes(privacidade, office.missoes) : office.missoes), [office.missoes, privacidade]);
+  // um passe só: registra os nomes de todos os dados e só depois mascara o texto livre e o feed
+  const mascarado = useMemo(
+    () =>
+      APRESENTACAO
+        ? mascararTudo(privacidade, {
+            agentes: Object.values(agents),
+            feed: office.feed,
+            caixa: office.caixa,
+            pendencias: office.pendencias,
+            missoes: office.missoes,
+          })
+        : null,
+    [agents, office.feed, office.caixa, office.pendencias, office.missoes, privacidade],
+  );
+  const feed = mascarado ? mascarado.feed : office.feed;
+  const missoes = mascarado ? mascarado.missoes : office.missoes;
   const progress = useMemo(() => (APRESENTACAO ? mascararProgress(office.progress) : office.progress), [office.progress]);
-  const caixa = useMemo(
-    () => (demo ? demo.visao.caixa : APRESENTACAO && office.caixa ? mascararCaixa(privacidade, office.caixa) : office.caixa),
-    [demo, office.caixa, privacidade],
-  );
-  const pendencias = useMemo(
-    () => (demo ? demo.visao.pendencias : APRESENTACAO && office.pendencias ? mascararPendencias(privacidade, office.pendencias) : office.pendencias),
-    [demo, office.pendencias, privacidade],
-  );
+  const caixa = demo ? demo.visao.caixa : mascarado ? mascarado.caixa : office.caixa;
+  const pendencias = demo ? demo.visao.pendencias : mascarado ? mascarado.pendencias : office.pendencias;
   const resultados = demo ? demo.visao.resultados : office.resultados;
   const atrasadas = useMemo(() => comUrgencia(pendencias ?? [], hoje).filter((p) => p.urgencia === "atrasada").length, [pendencias, hoje]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -138,10 +147,10 @@ export default function App() {
   // balão, crachá e lista do time falam a atividade sem jargão; a técnica só com "Ver detalhes técnicos"
   const list = useMemo(
     () =>
-      (APRESENTACAO ? mascararAgentes(privacidade, Object.values(agents)) : Object.values(agents)).map((a) =>
+      (mascarado ? mascarado.agentes : Object.values(agents)).map((a) =>
         tecnico || !a.activitySimples ? a : { ...a, activity: a.activitySimples },
       ),
-    [agents, tecnico, privacidade],
+    [agents, tecnico, mascarado],
   );
   // filtro por projeto (vale para o painel, o mapa e o quadro); o salvo que sumiu vira "todas" sem apagar a preferência
   const [projetoSalvo, setProjetoSalvo] = usePreferenciaTexto("agpocket.painel.projeto", TODAS);

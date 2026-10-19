@@ -40,12 +40,8 @@ export function useDemo(ativo: boolean, hoje: string): DemoEstado | null {
   const [ataSeq, setAtaSeq] = useState(0);
   const [erro, setErro] = useState(false);
   const simulacaoIniciada = useRef(false);
-  const semAnimacao = useRef(false);
-
-  useEffect(() => {
-    if (!ativo) return;
-    semAnimacao.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  }, [ativo]);
+  // lido já no primeiro render: a primeira visão da demo (antes de qualquer efeito) também respeita a preferência
+  const semAnimacao = useRef(ativo && typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   // relógio da tela
   useEffect(() => {

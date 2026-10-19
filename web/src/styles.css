@@ -2645,6 +2645,13 @@ h2 {
 
 .res-tabela thead th {
   color: var(--muted);
+  /* "Hoje" não quebra em "Hoj/e" no painel estreito */
+  white-space: nowrap;
+}
+
+.res-tabela thead th:not(:first-child) {
+  padding-left: 3px;
+  padding-right: 3px;
 }
 
 .res-tabela th[scope="row"],
