@@ -29,6 +29,7 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 | `vault-template/` | Modelo do vault do Obsidian (o "segundo cérebro"); o setup cria o vault a partir dele |
 | `docs/power-automate-reunioes.md` | Formato da ata que um fluxo do Power Automate deve gravar no `00-Inbox/` (não testado) |
 | `docs/exemplos/ata-ficticia.md` | Ata inventada, no formato do Power Automate, para testar a leitura automática |
+| `docs/roteiro-apresentacao.md` | O que falar em cada passo da demo (`?apresentacao=1&demo=1`), teclas e o que fazer se algo falhar |
 | `scripts/setup.mjs` | O instalador (`npm run setup`, `npm run setup:check`); veja o [SETUP.md](SETUP.md) |
 
 ## Rodando (5 minutos)
@@ -395,6 +396,18 @@ Atenção: o arquivo guarda o prompt cru, **inclusive a ata colada com `/reuniao
 - Visual de jogo em pixel: molduras em degrau, letras pixeladas e botões que afundam ao clicar.
 
 Para quem vai mexer: as frases ficam todas em `shared/frases.ts` (reexportadas por `server/frases.ts`); as fontes são Press Start 2P (títulos) e VT323 (texto).
+
+## Modo apresentação e demo
+
+Para mostrar o escritório a outras pessoas (reunião, projetor, gravação de tela):
+
+- **`http://localhost:4747/?apresentacao=1`**: tela cheia, escritório maior (ocupa o palco todo) e painel simplificado, só com **Caixa de entrada**, **Pendências**, **Resultados** e o quadro de etapas. Time, Missões, feed, Transparência, vestiário, Limpar e os botões técnicos ficam escondidos. O modo é **só leitura**: nada é aprovado, concluído nem exportado por ali. O botão **Tela cheia** e a tecla **F** ligam e desligam a tela cheia do navegador (o navegador só aceita depois de um clique ou tecla). O modo normal (`/`) continua igual.
+- **`http://localhost:4747/?apresentacao=1&demo=1`**: roteiro automático de uns 3 minutos, em 5 passos (legenda "Passo n de 5" embaixo do escritório): (1) chega uma ata fictícia (a mesma animação de ata nova), (2) ela aparece na Caixa com as tarefas, (3) duas tarefas são aprovadas para o time e o comando `/time` aparece pronto, (4) a simulação de AGzinhos trabalha ("O time trabalhando"), (5) Pendências e Resultados atualizam, com os contadores subindo (sem animação se o sistema pede menos movimento) e o tempo economizado sempre como **estimativa**. `?demo=1` sozinho, sem `apresentacao=1`, não faz nada.
+- **Teclas da demo:** `espaço` pausa e continua o roteiro (mesmo com um botão em foco), `→` avança um passo, `F` tela cheia. A pausa vale só para o roteiro: a simulação do servidor, depois de começar (passo 4), segue até o fim.
+- **A demo é isolada:** a Caixa, as Pendências e os Resultados da demo são inventados (`web/src/demo/dadosDemo.ts`), vivem só no navegador e **não escrevem no vault**. O único pedido ao servidor é o `POST /api/demo` da simulação que já existia. O passo 1 anima a reunião com quem estiver no escritório: se estiver vazio, só o quadro da parede avisa "Nova ata" (rode a simulação uma vez antes, ou deixe uma sessão aberta).
+- **Privacidade (melhor esforço):** na apresentação ela fica **sempre ligada**. Nomes de projeto (pasta), arquivos e caminhos, comandos e buscas das atividades e do feed, títulos de reunião e de missão, responsáveis e o texto das tarefas viram apelidos estáveis ("Projeto Alfa", "Reunião 1", "Responsável A", "arquivo 1"; a mesma entrada dá sempre o mesmo apelido). A troca acontece **no navegador** (`web/src/privacidade.ts`): os dados reais ainda chegam até ele e aparecem na aba Rede das ferramentas do navegador. Nomes soltos em texto livre que não estão em nenhum título, projeto ou responsável conhecido podem escapar. **Numa apresentação de verdade, o ideal é um vault fictício** (veja `npm run ata-ficticia`).
+
+O que falar em cada passo está em [docs/roteiro-apresentacao.md](docs/roteiro-apresentacao.md). Testes: `web/src/demo/*.test.ts` (roteiro e dados), `web/src/privacidade.test.ts` (privacidade e leitura das flags).
 
 ## Simulação
 

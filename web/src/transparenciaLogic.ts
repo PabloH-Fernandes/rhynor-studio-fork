@@ -143,6 +143,10 @@ export interface ContadoresAtas {
   comIa: number;
   rotulo: string;
   frase: string;
+  /** "ata sem IA" / "atas sem IA" (singular só com 1), para vir depois do número */
+  nomeSemIa: string;
+  /** "ata com IA (/reuniao)" / "atas com IA (/reuniao)" */
+  nomeComIa: string;
 }
 
 /** 'atas sem IA' e 'atas com IA (/reuniao)' DO MÊS do resumo (o mesmo número do GET e do export); null = ainda não veio */
@@ -150,7 +154,16 @@ export function contadoresAtas(resumo: ResumoTransparencia | null): ContadoresAt
   if (!resumo?.atas) return null;
   const { semIa, comIa } = resumo.atas;
   const rotulo = `Atas neste mês (${resumo.mes})`;
-  return { mes: resumo.mes, semIa, comIa, rotulo, frase: `${rotulo}: ${semIa} sem IA, ${comIa} com IA (/reuniao).` };
+  const ata = (n: number) => (n === 1 ? "ata" : "atas");
+  return {
+    mes: resumo.mes,
+    semIa,
+    comIa,
+    rotulo,
+    frase: `${rotulo}: ${semIa} sem IA, ${comIa} com IA (/reuniao).`,
+    nomeSemIa: `${ata(semIa)} sem IA`,
+    nomeComIa: `${ata(comIa)} com IA (/reuniao)`,
+  };
 }
 
 export function resumoVazio(resumo: ResumoTransparencia): boolean {

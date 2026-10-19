@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Resultados } from "../../shared/resultados";
+import { APRESENTACAO } from "./apresentacao";
 import { ehResultados } from "./resultadosLogic";
 import { ehResumoTransparencia, resumoDoGet } from "./transparenciaLogic";
 import type { ResumoTransparencia } from "../../shared/transparencia";
@@ -82,6 +83,23 @@ export function useOffice(onChat: ChatHandler) {
       vivo = false;
     };
   }, []);
+
+  // o contador de atas da Transparência vem da mesma varredura de Resultados: quando os Resultados mudam,
+  // pede o resumo de novo (não só em evento de hook). Na apresentação a Transparência não aparece.
+  useEffect(() => {
+    if (!resultados || APRESENTACAO) return;
+    let vivo = true;
+    fetch("/api/transparencia")
+      .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
+      .then((corpo) => {
+        const novo = resumoDoGet(corpo);
+        if (vivo && novo) setTransparencia(novo);
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, [resultados]);
 
   useEffect(() => {
     let ws: WebSocket | null = null;

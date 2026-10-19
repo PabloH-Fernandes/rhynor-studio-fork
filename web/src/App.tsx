@@ -26,6 +26,10 @@ import { nomeCurto } from "../../shared/frases";
 import { ehVisitante } from "../../shared/visitante";
 import { textoAtaNova } from "./missoesLogic";
 import { agruparFeed, destaqueDe, fraseDaLinha, iconeDe, type LinhaFeed } from "./feedLogic";
+import { APRESENTACAO, DEMO } from "./apresentacao";
+import { useDemo, type DemoEstado } from "./demo/useDemo";
+import { criarPrivacidade, mascararAgentes, mascararCaixa, mascararFeed, mascararMissoes, mascararPendencias, mascararProgress } from "./privacidade";
+import { useTelaCheia } from "./useTelaCheia";
 
 const STATUS_LABEL: Record<AgentStatus, string> = {
   chegando: "chegando",
@@ -47,8 +51,28 @@ const KIND_ICON: Record<FeedItem["kind"], string> = {
 
 export default function App() {
   const officeRef = useRef<OfficeHandle>(null);
-  const { agents, feed, roster, progress, missoes, reuniao, caixa, pendencias, resultados, transparencia, ataNova, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const office = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const { agents, roster, reuniao, transparencia, ataNova, conn } = office;
   const hoje = useHoje();
+  const telaCheia = useTelaCheia(APRESENTACAO);
+
+  // Modo apresentação: privacidade SEMPRE ligada. Este é o ponto único: tudo o que o servidor manda passa por
+  // aqui antes de ir para o canvas e para o painel. Melhor esforço: os dados reais ainda chegam ao navegador.
+  const privacidade = useMemo(() => criarPrivacidade(), []);
+  // a demo mostra dados fictícios próprios nas três seções (e não os do servidor), sem escrever nada no vault
+  const demo = useDemo(DEMO, hoje);
+  const feed = useMemo(() => (APRESENTACAO ? mascararFeed(privacidade, office.feed) : office.feed), [office.feed, privacidade]);
+  const missoes = useMemo(() => (APRESENTACAO ? mascararMissoes(privacidade, office.missoes) : office.missoes), [office.missoes, privacidade]);
+  const progress = useMemo(() => (APRESENTACAO ? mascararProgress(office.progress) : office.progress), [office.progress]);
+  const caixa = useMemo(
+    () => (demo ? demo.visao.caixa : APRESENTACAO && office.caixa ? mascararCaixa(privacidade, office.caixa) : office.caixa),
+    [demo, office.caixa, privacidade],
+  );
+  const pendencias = useMemo(
+    () => (demo ? demo.visao.pendencias : APRESENTACAO && office.pendencias ? mascararPendencias(privacidade, office.pendencias) : office.pendencias),
+    [demo, office.pendencias, privacidade],
+  );
+  const resultados = demo ? demo.visao.resultados : office.resultados;
   const atrasadas = useMemo(() => comUrgencia(pendencias ?? [], hoje).filter((p) => p.urgencia === "atrasada").length, [pendencias, hoje]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -108,16 +132,22 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [somLigado]);
 
-  const [tecnico, alternarTecnico] = usePreferencia("agpocket.painel.tecnico", false);
+  const [tecnicoSalvo, alternarTecnico] = usePreferencia("agpocket.painel.tecnico", false);
+  // na apresentação só a versão simples (a técnica mostra mais detalhe do que a privacidade cobre)
+  const tecnico = tecnicoSalvo && !APRESENTACAO;
   // balão, crachá e lista do time falam a atividade sem jargão; a técnica só com "Ver detalhes técnicos"
   const list = useMemo(
-    () => Object.values(agents).map((a) => (tecnico || !a.activitySimples ? a : { ...a, activity: a.activitySimples })),
-    [agents, tecnico],
+    () =>
+      (APRESENTACAO ? mascararAgentes(privacidade, Object.values(agents)) : Object.values(agents)).map((a) =>
+        tecnico || !a.activitySimples ? a : { ...a, activity: a.activitySimples },
+      ),
+    [agents, tecnico, privacidade],
   );
   // filtro por projeto (vale para o painel, o mapa e o quadro); o salvo que sumiu vira "todas" sem apagar a preferência
   const [projetoSalvo, setProjetoSalvo] = usePreferenciaTexto("agpocket.painel.projeto", TODAS);
   const projetos = useMemo(() => projetosDe(list), [list]);
-  const projeto = projetoEfetivo(projetoSalvo, projetos);
+  // na apresentação não há seletor de projeto: um filtro salvo de antes não pode esconder o time
+  const projeto = APRESENTACAO ? TODAS : projetoEfetivo(projetoSalvo, projetos);
   const visiveis = useMemo(() => filtrarPorProjeto(list, projeto), [list, projeto]);
   const progressoVisivel = useMemo(() => progressoDoFiltro(progress, visiveis, projeto), [progress, visiveis, projeto]);
   const sorted = useMemo(
@@ -156,7 +186,8 @@ export default function App() {
   const [janelaAta, setJanelaAta] = useState<{ reuniao: ReuniaoAtiva | null } | null>(null);
   const visiveisRef = useRef(visiveis);
   visiveisRef.current = visiveis;
-  const seqAta = ataNova?.seq ?? 0;
+  // ata de verdade (servidor) ou a ata fictícia da demo: as duas disparam a mesma animação
+  const seqAta = (ataNova?.seq ?? 0) + (demo?.ataSeq ?? 0);
   useEffect(() => {
     if (seqAta === 0) return;
     setJanelaAta({ reuniao: reuniaoDeAta(visiveisRef.current, Date.now()) });
@@ -177,14 +208,15 @@ export default function App() {
   };
 
   return (
-    <div className="app">
+    <div className={`app${APRESENTACAO ? " app-apresentacao" : ""}`}>
       <main className="stage">
         {GALLERY_ENABLED ? (
           <SpriteGallery roster={roster} />
         ) : (
-          <OfficeCanvas ref={officeRef} agents={visiveis} roster={roster} progress={progressoVisivel} reuniao={reuniaoNoOffice} missao={quadroMissao} atrasadas={atrasadas} selectedId={selectedId} onSelect={selectFromCanvas} />
+          <OfficeCanvas ref={officeRef} agents={visiveis} roster={roster} progress={progressoVisivel} reuniao={reuniaoNoOffice} missao={quadroMissao} atrasadas={atrasadas} ampliar={APRESENTACAO} selectedId={selectedId} onSelect={selectFromCanvas} />
         )}
-        {!GALLERY_ENABLED && list.length === 0 && conn === "online" && (
+        {demo && <LegendaDemo demo={demo} />}
+        {!APRESENTACAO && !GALLERY_ENABLED && list.length === 0 && conn === "online" && (
           <div className="empty">
             <p className="empty-title">Escritório vazio</p>
             <p>Abra o Claude Code em qualquer projeto (com os hooks instalados) e o time aparece aqui.</p>
@@ -212,178 +244,193 @@ export default function App() {
               <p className="sub">{theme.subtitle}</p>
             </div>
           </div>
-          <div className="head-status">
-            <button
-              type="button"
-              className={`btn-tecnico btn-som${somLigado ? " ligado" : ""}`}
-              aria-pressed={somLigado}
-              aria-label="Sons do escritório"
-              aria-describedby="som-estado"
-              onClick={aoClicarSom}
-            >
-              {somLigado ? (somRodando ? "Som ligado" : "Som...") : "Som mudo"}
-            </button>
-            <span id="som-estado" className="sr-only">
-              {somLigado && !somRodando ? "Ligado, mas o navegador só libera o áudio depois de um clique na página." : somLigado ? "Ligado." : "Desligado."}
-            </span>
-            <span className={`conn conn-${conn}`} title={`Servidor ${conn}`}>
-              <i /> {conn}
-            </span>
-          </div>
+          {APRESENTACAO ? (
+            <div className="head-status">
+              <button type="button" className="btn-tecnico btn-tela-cheia" aria-pressed={telaCheia.cheia} onClick={telaCheia.alternar}>
+                {telaCheia.cheia ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
+              </button>
+            </div>
+          ) : (
+            <div className="head-status">
+              <button
+                type="button"
+                className={`btn-tecnico btn-som${somLigado ? " ligado" : ""}`}
+                aria-pressed={somLigado}
+                aria-label="Sons do escritório"
+                aria-describedby="som-estado"
+                onClick={aoClicarSom}
+              >
+                {somLigado ? (somRodando ? "Som ligado" : "Som...") : "Som mudo"}
+              </button>
+              <span id="som-estado" className="sr-only">
+                {somLigado && !somRodando ? "Ligado, mas o navegador só libera o áudio depois de um clique na página." : somLigado ? "Ligado." : "Desligado."}
+              </span>
+              <span className={`conn conn-${conn}`} title={`Servidor ${conn}`}>
+                <i /> {conn}
+              </span>
+            </div>
+          )}
         </header>
 
-        <CaixaEntrada itens={caixa} />
+        <CaixaEntrada
+          itens={caixa}
+          somenteLeitura={APRESENTACAO ? { escolhas: demo?.visao.escolhas ?? {}, aprovadas: demo?.visao.aprovadas ?? [] } : undefined}
+        />
 
-        <Pendencias itens={pendencias} />
+        <Pendencias itens={pendencias} somenteLeitura={APRESENTACAO} />
 
-        <Resultados resultados={resultados} />
+        <Resultados resultados={resultados} somenteLeitura={APRESENTACAO} />
 
-        <Transparencia resumo={transparencia} />
+        {!APRESENTACAO && <Transparencia resumo={transparencia} />}
 
         <Progresso progress={progressoVisivel} />
 
-        <ResumoResultados resultados={resultados} />
+        {!APRESENTACAO && (
+          <>
+            <ResumoResultados resultados={resultados} />
 
-        {projetos.length > 0 && (
-          <label className="filtro-projeto">
-            <span>Mostrar:</span>
-            <select value={projeto} onChange={(e) => setProjetoSalvo(e.target.value)} translate="no">
-              <option value={TODAS}>todas as sessões</option>
-              {projetos.map((p) => (
-                <option key={p} value={p}>
-                  só o projeto {p}
-                  {espera.projetos.includes(p) ? " · te esperando" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {espera.total > 0 && (
-          <div className="alert">
-            <strong>{textoEspera(espera)}</strong>
-            <span>Volta no terminal do Claude Code pra responder.</span>
-          </div>
-        )}
-
-        {avisoAta && (
-          <div className="aviso-ata" role="status">
-            {avisoAta}
-          </div>
-        )}
-
-        <div className="actions">
-          <button className="btn" disabled={busy || conn !== "online"} onClick={() => call("/api/demo")}>
-            ▶ Rodar simulação
-          </button>
-          <button className="btn ghost" disabled={busy || conn !== "online"} onClick={() => call("/api/reset")}>
-            Limpar
-          </button>
-          <button
-            className="btn ghost btn-vestiario"
-            aria-haspopup="dialog"
-            disabled={!roster}
-            onClick={() => roster && setVestiarioPara((selected && agzinhoOf(selected, roster)?.key) || roster.agzinhos[0].key)}
-          >
-            Vestiário
-          </button>
-        </div>
-
-        <section className="secao">
-          <h2>
-            <button className="secao-toggle" aria-expanded={timeAberto} aria-controls="secao-time" onClick={alternarTime}>
-              <span className="secao-seta" aria-hidden="true" />
-              Time <span className="count">· {time.length}</span>
-            </button>
-          </h2>
-          <div id="secao-time" hidden={!timeAberto}>
-            {time.length === 0 && <p className="muted">Ninguém no escritório agora.</p>}
-            <ul className="team">
-              {time.map((a) => (
-                <AgentRow
-                  key={a.id}
-                  agent={a}
-                  roster={roster}
-                  selected={a.id === selectedId}
-                  onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
-                />
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {visitantes.length > 0 && (
-          <section className="secao">
-            <h2>
-              <button className="secao-toggle" aria-expanded={visitantesAberto} aria-controls="secao-visitantes" onClick={alternarVisitantes}>
-                <span className="secao-seta" aria-hidden="true" />
-                Visitantes <span className="count">({visitantes.length})</span>
-              </button>
-            </h2>
-            <div id="secao-visitantes" hidden={!visitantesAberto}>
-              <ul className="team">
-                {visitantesNaTela.map((a) => (
-                  <AgentRow
-                    key={a.id}
-                    agent={a}
-                    roster={roster}
-                    selected={a.id === selectedId}
-                    onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
-                  />
-                ))}
-              </ul>
-              {excedentes > 0 && <p className="muted">+{excedentes} {excedentes === 1 ? "visitante" : "visitantes"}</p>}
-            </div>
-          </section>
-        )}
-
-        <Missoes info={missoes} />
-
-        {selected && (
-          <Cracha
-            agent={selected}
-            roster={roster}
-            statusLabel={STATUS_LABEL[selected.status]}
-            restLabel={restLabel}
-            onClose={closeCracha}
-            onPersonalizar={setVestiarioPara}
-            revelar={revelarId === selected.id}
-            onRevelado={revelado}
-          />
-        )}
-
-        <section className={`secao feed-section ${feedAberto ? "" : "fechada"}`}>
-          <div className="secao-topo">
-            <h2>
-              <button className="secao-toggle" aria-expanded={feedAberto} aria-controls="secao-feed" onClick={alternarFeed}>
-                <span className="secao-seta" aria-hidden="true" />O que tá rolando
-              </button>
-            </h2>
-            {/* o texto já diz o que o clique faz: sem aria-pressed (leria "Ver frases simples, pressionado") */}
-            {feedAberto && (
-              <button className={`btn-tecnico ${tecnico ? "ligado" : ""}`} aria-controls="secao-feed" onClick={alternarTecnico}>
-                {tecnico ? "Ver frases simples" : "Ver detalhes técnicos"}
-              </button>
+            {projetos.length > 0 && (
+              <label className="filtro-projeto">
+                <span>Mostrar:</span>
+                <select value={projeto} onChange={(e) => setProjetoSalvo(e.target.value)} translate="no">
+                  <option value={TODAS}>todas as sessões</option>
+                  {projetos.map((p) => (
+                    <option key={p} value={p}>
+                      só o projeto {p}
+                      {espera.projetos.includes(p) ? " · te esperando" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
-          </div>
-          <ol id="secao-feed" className={`feed ${tecnico ? "feed-tecnico" : ""}`} hidden={!feedAberto}>
-            {tecnico
-              ? feedVisivel
-                  .slice()
-                  .reverse()
-                  .slice(0, 80)
-                  .map((f) => (
-                    <li key={f.id} className={`feed-item kind-${f.kind}`}>
-                      <time>{clock(f.at)}</time>
-                      <span className="icon">{KIND_ICON[f.kind]}</span>
-                      <span>
-                        <b style={{ color: roleColor(f.role) }}>{f.agentName}</b> {f.text}
-                      </span>
-                    </li>
-                  ))
-              : linhasSimples.map((l) => <LinhaSimples key={l.item.id} linha={l} />)}
-          </ol>
-        </section>
+
+            {espera.total > 0 && (
+              <div className="alert">
+                <strong>{textoEspera(espera)}</strong>
+                <span>Volta no terminal do Claude Code pra responder.</span>
+              </div>
+            )}
+
+            {avisoAta && (
+              <div className="aviso-ata" role="status">
+                {avisoAta}
+              </div>
+            )}
+
+            <div className="actions">
+              <button className="btn" disabled={busy || conn !== "online"} onClick={() => call("/api/demo")}>
+                ▶ Rodar simulação
+              </button>
+              <button className="btn ghost" disabled={busy || conn !== "online"} onClick={() => call("/api/reset")}>
+                Limpar
+              </button>
+              <button
+                className="btn ghost btn-vestiario"
+                aria-haspopup="dialog"
+                disabled={!roster}
+                onClick={() => roster && setVestiarioPara((selected && agzinhoOf(selected, roster)?.key) || roster.agzinhos[0].key)}
+              >
+                Vestiário
+              </button>
+            </div>
+
+            <section className="secao">
+              <h2>
+                <button className="secao-toggle" aria-expanded={timeAberto} aria-controls="secao-time" onClick={alternarTime}>
+                  <span className="secao-seta" aria-hidden="true" />
+                  Time <span className="count">· {time.length}</span>
+                </button>
+              </h2>
+              <div id="secao-time" hidden={!timeAberto}>
+                {time.length === 0 && <p className="muted">Ninguém no escritório agora.</p>}
+                <ul className="team">
+                  {time.map((a) => (
+                    <AgentRow
+                      key={a.id}
+                      agent={a}
+                      roster={roster}
+                      selected={a.id === selectedId}
+                      onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
+                    />
+                  ))}
+                </ul>
+              </div>
+            </section>
+
+            {visitantes.length > 0 && (
+              <section className="secao">
+                <h2>
+                  <button className="secao-toggle" aria-expanded={visitantesAberto} aria-controls="secao-visitantes" onClick={alternarVisitantes}>
+                    <span className="secao-seta" aria-hidden="true" />
+                    Visitantes <span className="count">({visitantes.length})</span>
+                  </button>
+                </h2>
+                <div id="secao-visitantes" hidden={!visitantesAberto}>
+                  <ul className="team">
+                    {visitantesNaTela.map((a) => (
+                      <AgentRow
+                        key={a.id}
+                        agent={a}
+                        roster={roster}
+                        selected={a.id === selectedId}
+                        onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
+                      />
+                    ))}
+                  </ul>
+                  {excedentes > 0 && <p className="muted">+{excedentes} {excedentes === 1 ? "visitante" : "visitantes"}</p>}
+                </div>
+              </section>
+            )}
+
+            <Missoes info={missoes} />
+
+            {selected && (
+              <Cracha
+                agent={selected}
+                roster={roster}
+                statusLabel={STATUS_LABEL[selected.status]}
+                restLabel={restLabel}
+                onClose={closeCracha}
+                onPersonalizar={setVestiarioPara}
+                revelar={revelarId === selected.id}
+                onRevelado={revelado}
+              />
+            )}
+
+            <section className={`secao feed-section ${feedAberto ? "" : "fechada"}`}>
+              <div className="secao-topo">
+                <h2>
+                  <button className="secao-toggle" aria-expanded={feedAberto} aria-controls="secao-feed" onClick={alternarFeed}>
+                    <span className="secao-seta" aria-hidden="true" />O que tá rolando
+                  </button>
+                </h2>
+                {/* o texto já diz o que o clique faz: sem aria-pressed (leria "Ver frases simples, pressionado") */}
+                {feedAberto && (
+                  <button className={`btn-tecnico ${tecnico ? "ligado" : ""}`} aria-controls="secao-feed" onClick={alternarTecnico}>
+                    {tecnico ? "Ver frases simples" : "Ver detalhes técnicos"}
+                  </button>
+                )}
+              </div>
+              <ol id="secao-feed" className={`feed ${tecnico ? "feed-tecnico" : ""}`} hidden={!feedAberto}>
+                {tecnico
+                  ? feedVisivel
+                      .slice()
+                      .reverse()
+                      .slice(0, 80)
+                      .map((f) => (
+                        <li key={f.id} className={`feed-item kind-${f.kind}`}>
+                          <time>{clock(f.at)}</time>
+                          <span className="icon">{KIND_ICON[f.kind]}</span>
+                          <span>
+                            <b style={{ color: roleColor(f.role) }}>{f.agentName}</b> {f.text}
+                          </span>
+                        </li>
+                      ))
+                  : linhasSimples.map((l) => <LinhaSimples key={l.item.id} linha={l} />)}
+              </ol>
+            </section>
+          </>
+        )}
       </aside>
 
       {vestiarioPara && roster && <Vestiario roster={roster} inicial={vestiarioPara} onClose={closeVestiario} />}
@@ -444,4 +491,20 @@ function LinhaSimples({ linha }: { linha: LinhaFeed }) {
 
 function clock(ts: number) {
   return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/** Legenda discreta da demo: "Passo n de 5", o que está acontecendo e as teclas. O estado (pausa, fim) sempre em texto. */
+function LegendaDemo({ demo }: { demo: DemoEstado }) {
+  return (
+    <div className="demo-legenda" role="status" aria-live="polite">
+      <p className="demo-passo">
+        Passo {demo.passo} de {demo.total}
+        {demo.pausado && !demo.fim ? " · Pausado" : ""}
+        {demo.fim ? " · Fim da demonstração" : ""}
+      </p>
+      <p className="demo-titulo">{demo.titulo}</p>
+      {demo.erro && <p className="demo-aviso">Não consegui iniciar a simulação: o servidor está fora do ar.</p>}
+      <p className="demo-teclas">Espaço pausa e continua · seta para a direita avança · F tela cheia</p>
+    </div>
+  );
 }

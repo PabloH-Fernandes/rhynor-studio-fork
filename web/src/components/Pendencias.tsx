@@ -23,7 +23,8 @@ import {
 import { useHoje } from "../useHoje";
 import { usePreferencia, usePreferenciaTexto } from "../usePreferencia";
 
-export function Pendencias({ itens }: { itens: Pendencia[] | null }) {
+/** somenteLeitura (modo apresentação): sem o botão Concluir, nada é gravado no vault */
+export function Pendencias({ itens, somenteLeitura = false }: { itens: Pendencia[] | null; somenteLeitura?: boolean }) {
   const [aberto, alternar] = usePreferencia("agpocket.painel.pendencias", true);
   const [filtroSalvo, setFiltro] = usePreferenciaTexto("agpocket.painel.pendencias.filtro", "minhas");
   const filtro = filtroValido(filtroSalvo);
@@ -164,20 +165,22 @@ export function Pendencias({ itens }: { itens: Pendencia[] | null }) {
                     Origem: {p.origem} · <span aria-hidden="true">{dono.icone} </span>
                     {dono.texto} · {textoEstado(p.status)}
                   </p>
-                  <div className="caixa-acoes">
-                    <button
-                      type="button"
-                      className="btn"
-                      ref={(el) => {
-                        botoes.current.set(p.id, el);
-                      }}
-                      aria-disabled={enviando !== null}
-                      aria-label={rotuloConcluir(p)}
-                      onClick={() => void concluir(p)}
-                    >
-                      {enviando === p.id ? "Salvando..." : "Concluir"}
-                    </button>
-                  </div>
+                  {!somenteLeitura && (
+                    <div className="caixa-acoes">
+                      <button
+                        type="button"
+                        className="btn"
+                        ref={(el) => {
+                          botoes.current.set(p.id, el);
+                        }}
+                        aria-disabled={enviando !== null}
+                        aria-label={rotuloConcluir(p)}
+                        onClick={() => void concluir(p)}
+                      >
+                        {enviando === p.id ? "Salvando..." : "Concluir"}
+                      </button>
+                    </div>
+                  )}
                   <p className="caixa-erro" role="alert">
                     {erro ?? ""}
                   </p>

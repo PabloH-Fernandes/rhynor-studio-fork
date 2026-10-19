@@ -143,7 +143,18 @@ test("contadoresAtas: o valor é o do MÊS do resumo e o rótulo diz isso", () =
     comIa: 1,
     rotulo: "Atas neste mês (2026-10)",
     frase: "Atas neste mês (2026-10): 4 sem IA, 1 com IA (/reuniao).",
+    nomeSemIa: "atas sem IA",
+    nomeComIa: "ata com IA (/reuniao)",
   });
+});
+
+test("contadoresAtas: singular com 1, plural com 0 ou mais de 1", () => {
+  const nomes = (semIa: number, comIa: number) => {
+    const c = contadoresAtas(resumo([], { atas: { semIa, comIa } }));
+    return [c?.nomeSemIa, c?.nomeComIa];
+  };
+  assert.deepEqual(nomes(1, 2), ["ata sem IA", "atas com IA (/reuniao)"]);
+  assert.deepEqual(nomes(0, 0), ["atas sem IA", "atas com IA (/reuniao)"]);
 });
 
 test("a nota de limite diz o que não é visto", () => {

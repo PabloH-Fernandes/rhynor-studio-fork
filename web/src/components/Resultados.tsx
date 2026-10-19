@@ -34,7 +34,8 @@ export function ResumoResultados({ resultados }: { resultados: DadosResultados |
   );
 }
 
-export function Resultados({ resultados }: { resultados: DadosResultados | null }) {
+/** somenteLeitura (modo apresentação): sem o botão Exportar, nada é gravado no computador */
+export function Resultados({ resultados, somenteLeitura = false }: { resultados: DadosResultados | null; somenteLeitura?: boolean }) {
   const [aberto, alternar] = usePreferencia("agpocket.painel.resultados", true);
   const [enviando, setEnviando] = useState(false);
   const [exportado, setExportado] = useState<Exportado | null>(null);
@@ -155,11 +156,13 @@ export function Resultados({ resultados }: { resultados: DadosResultados | null 
         ))}
         <p className="caixa-meta">Semana = os últimos 7 dias, de {resultados.semanaDesde.split("-").reverse().join("/")} até hoje.</p>
 
-        <div className="caixa-acoes">
-          <button type="button" className="btn" aria-disabled={enviando} aria-label="Exportar resumo dos resultados" onClick={() => void exportar()}>
-            {enviando ? "Gerando..." : "Exportar resumo"}
-          </button>
-        </div>
+        {!somenteLeitura && (
+          <div className="caixa-acoes">
+            <button type="button" className="btn" aria-disabled={enviando} aria-label="Exportar resumo dos resultados" onClick={() => void exportar()}>
+              {enviando ? "Gerando..." : "Exportar resumo"}
+            </button>
+          </div>
+        )}
         <p className="caixa-erro" role="alert">
           {erro}
         </p>

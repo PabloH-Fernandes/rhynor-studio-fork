@@ -22,24 +22,28 @@ import {
   todasEscolhidas,
   type Escolhas,
 } from "../caixaLogic";
+import type { AprovadaDemo } from "../demo/dadosDemo";
 import { usePreferencia } from "../usePreferencia";
 
 /** o que fica na tela depois de aprovar (a reunião sai da caixa, mas o comando precisa continuar à mão) */
-interface Aprovada {
-  id: string;
-  titulo: string;
-  resumo: string;
-  comando: string | null;
-}
+type Aprovada = AprovadaDemo;
 
 const AVISO_COPIA_MS = 3500;
 
-export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
+/** modo apresentação: só leitura (nada é aprovado nem escrito); a demo passa as escolhas e o cartão "Aprovada" prontos */
+export interface CaixaSomenteLeitura {
+  escolhas: Record<string, Record<number, CaixaAcao>>;
+  aprovadas: AprovadaDemo[];
+}
+
+export function CaixaEntrada({ itens, somenteLeitura }: { itens: CaixaItem[] | null; somenteLeitura?: CaixaSomenteLeitura }) {
   const [aberto, alternar] = usePreferencia("agpocket.painel.caixa", true);
-  const [escolhas, setEscolhas] = useState<Record<string, Record<number, CaixaAcao>>>({});
+  const [escolhasLocais, setEscolhas] = useState<Record<string, Record<number, CaixaAcao>>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
   const [erros, setErros] = useState<Record<string, string>>({});
-  const [aprovadas, setAprovadas] = useState<Aprovada[]>([]);
+  const [aprovadasLocais, setAprovadas] = useState<Aprovada[]>([]);
+  const escolhas = somenteLeitura ? somenteLeitura.escolhas : escolhasLocais;
+  const aprovadas: Aprovada[] = somenteLeitura ? somenteLeitura.aprovadas : aprovadasLocais;
   const [copia, setCopia] = useState<{ id: string; ok: boolean } | null>(null);
   const timerCopia = useRef<ReturnType<typeof setTimeout>>();
   const cartoes = useRef(new Map<string, HTMLElement | null>());
@@ -149,9 +153,11 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
                       <button type="button" className="btn" aria-describedby={`caixa-comando-${a.id}`} onClick={() => void copiar(a)}>
                         Copiar comando
                       </button>
-                      <button type="button" className="btn ghost" onClick={() => fechar(a.id)}>
-                        Fechar
-                      </button>
+                      {!somenteLeitura && (
+                        <button type="button" className="btn ghost" onClick={() => fechar(a.id)}>
+                          Fechar
+                        </button>
+                      )}
                     </div>
                     <p className="caixa-copiado" role="status">
                       {copia?.id === a.id ? (copia.ok ? "Copiado!" : "Não deu para copiar sozinho: selecione o comando e use Ctrl+C.") : ""}
@@ -160,11 +166,13 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
                 ) : (
                   <>
                     <p className="caixa-meta">Nenhuma missão para o time: não há comando para rodar.</p>
-                    <div className="caixa-acoes">
-                      <button type="button" className="btn ghost" onClick={() => fechar(a.id)}>
-                        Fechar
-                      </button>
-                    </div>
+                    {!somenteLeitura && (
+                      <div className="caixa-acoes">
+                        <button type="button" className="btn ghost" onClick={() => fechar(a.id)}>
+                          Fechar
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </li>
@@ -208,6 +216,7 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
                                   className={`btn-tecnico caixa-opcao${marcada ? " ligado" : ""}`}
                                   aria-pressed={marcada}
                                   aria-label={`${o.rotulo}: tarefa ${t.n}`}
+                                  disabled={!!somenteLeitura}
                                   onClick={() => escolher(item, t.n, o.acao)}
                                 >
                                   <span aria-hidden="true">{marcada ? "✓ " : ""}{o.icone}</span> {o.rotulo}
@@ -220,6 +229,7 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
                     </ol>
                   )}
                   {item.truncada && <p className="caixa-meta">{AVISO_TRUNCADA}</p>}
+                  {!somenteLeitura && (
                   <div className="caixa-acoes">
                     <button
                       type="button"
@@ -232,6 +242,7 @@ export function CaixaEntrada({ itens }: { itens: CaixaItem[] | null }) {
                     </button>
                     {!semTarefas(item) && escolhidas(item, decididas) === 0 && <span className="caixa-meta">Escolha uma opção em cada tarefa.</span>}
                   </div>
+                  )}
                   <p className="caixa-erro" role="alert">
                     {erro ?? ""}
                   </p>

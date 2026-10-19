@@ -23,6 +23,8 @@ interface Props {
   missao: string | null;
   /** quantas pendências estão atrasadas: com 1 ou mais, um AGzinho de boa segura a plaquinha de aviso */
   atrasadas: number;
+  /** modo apresentação: o escritório ocupa todo o palco em escala fracionada (sem os degraus de escala inteira) */
+  ampliar?: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }
@@ -42,7 +44,7 @@ const VELOCITY_WINDOW = 100; // ms usados pra medir a velocidade de soltura
 const K_MAX = 8; // teto da resolução interna do canvas (W*k px de largura) pra não estourar memória
 const MAX_PIXELS = 16e6; // Safari/iOS deixa o canvas em branco acima de ~16,7 Mpx
 
-export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, reuniao, missao, atrasadas, selectedId, onSelect }, ref) {
+export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, reuniao, missao, atrasadas, ampliar = false, selectedId, onSelect }, ref) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OfficeEngine>();
@@ -56,6 +58,8 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
   const velRef = useRef({ x: 0, y: 0 });
   const dirtyRef = useRef(true);
   const reducedRef = useRef(false);
+  const ampliarRef = useRef(ampliar);
+  ampliarRef.current = ampliar;
   const labelRef = useRef<HTMLSpanElement>(null);
   const baseKRef = useRef(1); // resolução mínima do canvas (zoom 1)
   const rawRef = useRef({ x: 0, y: 0 }); // posição "solta" do arraste, antes da resistência elástica
@@ -143,7 +147,7 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
       const { width, height } = wrap.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       const fitCss = Math.max(1, Math.min(width - 2 * FIT_PAD, ((height - 2 * FIT_PAD) * W) / H));
-      const fits = fitCss >= W - 1e-6;
+      const fits = !ampliarRef.current && fitCss >= W - 1e-6;
       const k = fits ? Math.floor((fitCss * dpr) / W + 1e-6) : Math.max(1, Math.ceil((fitCss * dpr) / W - 1e-6));
       const cssW = fits ? (W * k) / dpr : Math.max(200, fitCss);
       const old = fitRef.current;

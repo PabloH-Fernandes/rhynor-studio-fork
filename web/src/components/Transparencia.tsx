@@ -153,10 +153,10 @@ export function Transparencia({ resumo }: { resumo: ResumoTransparencia | null }
         {atas && (
           <ul className="transp-atas" aria-label={atas.rotulo}>
             <li>
-              <strong>{atas.semIa}</strong> atas sem IA neste mês
+              <strong>{atas.semIa}</strong> {atas.nomeSemIa} neste mês
             </li>
             <li>
-              <strong>{atas.comIa}</strong> atas com IA (/reuniao) neste mês
+              <strong>{atas.comIa}</strong> {atas.nomeComIa} neste mês
             </li>
           </ul>
         )}

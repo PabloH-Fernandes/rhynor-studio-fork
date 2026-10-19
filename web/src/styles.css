@@ -2806,3 +2806,102 @@ h2 {
   margin: 10px 0 2px;
   font-weight: 700;
 }
+
+/* ---------------------------------------------------------------- modo apresentação (?apresentacao=1) */
+
+/*
+ * Tela cheia, escritório maior (o canvas usa escala fracionada, ver `ampliar` no OfficeCanvas) e painel só com
+ * Caixa de entrada, Pendências, Resultados e o quadro de etapas. Pensado para 1920x1080 e 1280x720, sem rolagem
+ * horizontal. O modo normal (`/`) não usa nada daqui.
+ */
+@media (min-width: 901px) {
+  .app-apresentacao {
+    grid-template-columns: minmax(0, 1fr) clamp(340px, 26vw, 460px);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .app-apresentacao .stage {
+    padding: 6px;
+    flex-direction: column;
+  }
+
+  .app-apresentacao .panel {
+    overflow-x: hidden;
+    gap: 14px;
+  }
+}
+
+@media (min-width: 1700px) {
+  .app-apresentacao {
+    --fs-texto: 22px;
+    --fs-menor: 20px;
+  }
+}
+
+.app-apresentacao .zoom-controls {
+  display: none;
+}
+
+.app-apresentacao .panel,
+.app-apresentacao .panel * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.app-apresentacao .btn-tela-cheia {
+  white-space: nowrap;
+}
+
+/* na leitura (sem aprovar) a escolha de cada tarefa continua legível: marcada com ✓ e em texto, nunca só pela cor */
+.app-apresentacao .caixa-opcao:disabled {
+  cursor: default;
+}
+
+.app-apresentacao .caixa-opcao:disabled:not(.ligado) {
+  opacity: 0.55;
+}
+
+.app-apresentacao .caixa-opcao.ligado:disabled {
+  opacity: 1;
+}
+
+/* legenda da demo: faixa discreta embaixo do escritório, fora do desenho */
+.demo-legenda {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 16px;
+  margin-top: 6px;
+  padding: 6px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: var(--term);
+  font-size: var(--fs-menor);
+  line-height: 1.15;
+}
+
+.demo-legenda p {
+  margin: 0;
+}
+
+.demo-passo {
+  color: var(--muted);
+}
+
+.demo-titulo {
+  color: var(--white);
+}
+
+.demo-teclas {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.demo-aviso {
+  color: var(--white);
+  border: 1px solid var(--waiting);
+  padding: 0 6px;
+}
