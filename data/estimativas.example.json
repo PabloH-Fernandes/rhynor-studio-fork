@@ -1,6 +1,7 @@
 {
+  "_comentario": "Minutos de cada coisa; os valores SOMAM. Tarefa e pendencia em 0 de proposito: acima de 0 podem contar o mesmo trabalho que a missao concluida mais de uma vez.",
   "ataProcessada": 20,
-  "tarefaAprovada": 10,
+  "tarefaAprovada": 0,
   "missaoConcluida": 60,
-  "pendenciaFechada": 5
+  "pendenciaFechada": 0
 }

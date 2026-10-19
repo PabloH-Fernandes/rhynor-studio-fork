@@ -77,6 +77,7 @@ export function comoEstimamos(r: Resultados): string {
   return (
     `Cada ata vale ${formatarMinutos(e.ataProcessada)}, cada tarefa aprovada ${formatarMinutos(e.tarefaAprovada)}, ` +
     `cada missão concluída ${formatarMinutos(e.missaoConcluida)} e cada pendência fechada ${formatarMinutos(e.pendenciaFechada)}. ` +
+    "Os valores se somam: tarefa e pendência podem ser parte do trabalho de uma missão, então valores acima de 0 nelas podem contar o mesmo trabalho mais de uma vez. " +
     "Você muda esses valores em data/estimativas.json."
   );
 }
@@ -86,7 +87,7 @@ export function avisosDosResultados(r: Resultados): string[] {
   const out: string[] = [];
   if (r.incluiFicticias) out.push("Estes números incluem dados de demonstração (fictícios).");
   if (r.missoesDataAproximada > 0) {
-    out.push(`${plural(r.missoesDataAproximada, "missão concluída está", "missões concluídas estão")} com data aproximada (a data do arquivo).`);
+    out.push(`${plural(r.missoesDataAproximada, "missão concluída está", "missões concluídas estão")} sem data de conclusão (data aproximada).`);
   }
   if (r.semData > 0) out.push(`${plural(r.semData, "item sem data entra", "itens sem data entram")} só no total.`);
   return out;

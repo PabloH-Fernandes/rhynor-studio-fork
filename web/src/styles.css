@@ -2664,7 +2664,8 @@ h2 {
 
 .res-estimativa th[scope="row"],
 .res-estimativa td {
-  color: var(--waiting-ink, var(--text));
+  color: var(--text); /* branco sobre o navy (~16:1); o destaque é o peso, não uma cor */
+  font-weight: 700;
 }
 
 /* o aviso de estimativa fica sempre à mostra, com borda: nunca só uma dica ao passar o mouse */

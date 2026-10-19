@@ -355,7 +355,8 @@ const LINHA_ABERTA = /^(\s*[-*]\s+\[) (\]\s+)(\S.*?)\s*$/;
 
 /**
  * Se não sobrou tarefa em aberto na missão, marca `status: concluída` e `concluida_em` no frontmatter (as linhas
- * já têm a tarefa de agora como feita). true = marcou. Missão sem frontmatter fechado fica como está.
+ * já têm a tarefa de agora como feita). true = marcou. Missão sem frontmatter fechado, ou com status fora de
+ * vazio / `a fazer` / `aprovada` / `em andamento` (ex.: `cancelada`, `pausada`), fica como está.
  */
 function concluirMissao(linhas: string[], hoje: string): boolean {
   const tarefas = lerTarefasDaNota(linhas);
@@ -363,6 +364,14 @@ function concluirMissao(linhas: string[], hoje: string): boolean {
   if (linhas[0]?.trim() !== "---") return false;
   let fim = linhas.findIndex((l, i) => i > 0 && l.trim() === "---");
   if (fim < 0) return false;
+  // só conclui missão que está andando; cancelada, pausada ou outro status fica como está
+  const atual = linhas
+    .slice(1, fim)
+    .map((l) => /^s*statuss*:(.*)$/i.exec(l))
+    .filter((m) => m !== null)
+    .pop();
+  const status = chave((atual?.[1] ?? "").replace(/s+#.*$/, "").replace(/^s*["']|["']s*$/g, ""));
+  if (!["", "a fazer", "aprovada", "em andamento"].includes(status)) return false;
   fim = definirChave(linhas, fim, "status", "concluída");
   definirChave(linhas, fim, "concluida_em", hoje);
   return true;

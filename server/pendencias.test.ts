@@ -397,6 +397,38 @@ const MISSAO_DUAS = [
   "",
 ].join("\n");
 
+test("missão cancelada, pausada ou com outro status não é concluída pela última tarefa", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    for (const status of ["cancelada", "pausada", "bloqueada"]) {
+      const nome = `2026-10-10-${status}.md`;
+      const arq = path.join(v.missoes, nome);
+      const original = MISSAO_DUAS.replace("status: em andamento", `status: ${status}`).replace("- [ ] Segunda", "- [x] Segunda | concluída: 2026-10-10");
+      fs.writeFileSync(arq, original);
+      const [a] = montarPendencias(lerPendenciasDaNota("m", nome, original), HOJE);
+      const r = await concluirPendencia(v.vault, { id: a.id, h: a.h }, { now: () => AGORA });
+      assert.equal(r.status, 200);
+      assert.equal((r.corpo as { missaoConcluida?: boolean }).missaoConcluida, undefined, status);
+      assert.match(ler(arq), new RegExp(`status: ${status}`));
+      assert.ok(!ler(arq).includes("concluida_em"));
+      assert.match(ler(arq), /- [x] Primeira | concluída: 2026-10-17/, "a tarefa foi marcada mesmo assim");
+    }
+    // status vazio e 'a fazer' ainda concluem
+    for (const [i, status] of ["", "a fazer", "aprovada"].entries()) {
+      const nome = `2026-10-11-ok${i}.md`;
+      const arq = path.join(v.missoes, nome);
+      const original = MISSAO_DUAS.replace("status: em andamento", `status: ${status}`).replace("- [ ] Segunda", "- [x] Segunda | concluída: 2026-10-10");
+      fs.writeFileSync(arq, original);
+      const [a] = montarPendencias(lerPendenciasDaNota("m", nome, original), HOJE);
+      const r = await concluirPendencia(v.vault, { id: a.id, h: a.h }, { now: () => AGORA });
+      assert.equal((r.corpo as { missaoConcluida?: boolean }).missaoConcluida, true, status || "vazio");
+      assert.match(ler(arq), /status: concluída/);
+    }
+  } finally {
+    v.limpar();
+  }
+});
+
 test("concluir a última tarefa da missão grava status concluída e concluida_em (CRLF e BOM mantidos)", async () => {
   const v = novoVaultDeTeste();
   try {

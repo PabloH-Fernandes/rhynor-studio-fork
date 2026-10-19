@@ -3,12 +3,13 @@
 //
 // O que conta (cada coisa tem a sua data):
 //   - Atas processadas: nota de reunião (10-Reunioes/, tipo reuniao). Lida sem IA (`processamento: sem-ia`, a
-//     leitura automática) ou com IA (/reuniao, `origem: facilitator`). Data = `processada_em`; nas notas do /reuniao,
+//     leitura automática) ou com IA (/reuniao, `origem: facilitator`). Reunião sem nenhum desses marcadores
+//     (escrita à mão) é ignorada: não é ata processada e não soma minutos. Data = `processada_em`; nas notas do /reuniao,
 //     que não têm `processada_em`, vale `data`.
 //   - Tarefas aprovadas: as tarefas (`- [ ]`/`- [x]`) de missão com `aprovada_em` (gravado na aprovação da Caixa).
 //     Só a missão conta: a tarefa "Time faz" também existe na reunião, mas aparece uma vez só (e missões repetidas
 //     da mesma reunião com o mesmo texto também).
-//   - Missões concluídas: `status: concluída`. Data = `concluida_em`; sem ela, a data do arquivo ("data aproximada").
+//   - Missões concluídas: `status: concluída`. Data = `concluida_em`; sem ela a missão entra só no total (sem data, "data aproximada").
 //   - Pendências fechadas: linha `- [x] ... | concluída: AAAA-MM-DD` (reunião ou missão).
 // Janelas: hoje, semana (os últimos 7 dias corridos, contando hoje) e total. Nota sem data só entra no total.
 // Notas de demonstração (`ficticia: true`) contam, e o resultado avisa (`incluiFicticias`).
@@ -96,6 +97,8 @@ export function lerEventosDaNota(pasta: PastaResultados, nomeArquivo: string, te
 
   if (pasta === "r") {
     const semIa = chave(fm.processamento ?? "") === "sem-ia" || chave(fm.origem ?? "") === "leitura-automatica";
+    // reunião escrita à mão (sem o marcador do /reuniao nem o da leitura automática) não é ata processada: não conta
+    if (!semIa && chave(fm.origem ?? "") !== "facilitator") return out;
     // a leitura automática marca o instante; o /reuniao (sem processada_em) tem só a data da reunião
     const dia = semIa ? diaDoInstante(fm.processada_em) : diaDoInstante(fm.data) || diaDoInstante(fm.processada_em);
     out.push({ tipo: semIa ? "ata-sem-ia" : "ata-com-ia", dia, ficticia, reuniao });
@@ -110,9 +113,9 @@ export function lerEventosDaNota(pasta: PastaResultados, nomeArquivo: string, te
     }
   }
   if (chave(fm.status ?? "") === "concluida") {
-    const doNota = diaDoInstante(fm.concluida_em);
-    const dia = doNota || diaLocal(mtimeMs);
-    out.push({ tipo: "missao", dia, ficticia, aproximada: !doNota && dia !== "", reuniao });
+    // sem `concluida_em` a data do arquivo NÃO vale (mudaria a cada edição): entra só no total, como nota sem data
+    const dia = diaDoInstante(fm.concluida_em);
+    out.push({ tipo: "missao", dia, ficticia, aproximada: dia === "", reuniao });
   }
   return out;
 }
@@ -218,7 +221,7 @@ export function montarResumoMd(r: Resultados): string {
   ];
   if (r.incluiFicticias) out.push("", "Atenção: estes números incluem dados de demonstração (fictícios).");
   if (r.missoesDataAproximada > 0) {
-    out.push("", `${r.missoesDataAproximada} missão(ões) concluída(s) sem a data exata: usei a data do arquivo (data aproximada).`);
+    out.push("", `${r.missoesDataAproximada} missão(ões) concluída(s) sem a data de conclusão (data aproximada): entram só no total.`);
   }
   if (r.semData > 0) out.push("", `${r.semData} item(ns) sem data entram só no total.`);
   out.push("");
@@ -377,10 +380,11 @@ export class ObservadorResultados {
       }
       return; // outro erro (pasta ocupada): mantém
     }
-    const nomes = entradas
-      .filter((e) => e.isFile() && /\.md$/i.test(e.name))
-      .map((e) => e.name)
-      .slice(0, MAX_ARQUIVOS);
+    let nomes = entradas.filter((e) => e.isFile() && /.md$/i.test(e.name)).map((e) => e.name);
+    if (nomes.length > MAX_ARQUIVOS) {
+      console.warn(`[resultados] ${DIRETORIO[pasta]} tem ${nomes.length} notas; só as primeiras ${MAX_ARQUIVOS} entram na contagem`);
+      nomes = nomes.slice(0, MAX_ARQUIVOS);
+    }
     const vistos = new Set(nomes.map((n) => `${pasta}:${n}`));
     for (const k of [...this.cache.keys()]) if (k.startsWith(`${pasta}:`) && !vistos.has(k)) this.cache.delete(k);
     for (const nome of nomes) {

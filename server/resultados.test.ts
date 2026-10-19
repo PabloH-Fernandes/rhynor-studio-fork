@@ -108,15 +108,26 @@ test("ficticia: true conta e é marcada; nota que não é reunião nem missão n
 
 const MISSAO = (fm: string[], tarefas: string[]) => ["---", "tipo: missao", ...fm, "confidencial: false", "---", "", "# M", "", "## Tarefas", ...tarefas, ""].join("\n");
 
-test("missão concluída: concluida_em vale; sem ela usa o mtime e marca 'data aproximada'", () => {
+test("reunião escrita à mão (sem origem facilitator nem leitura automática) não conta como ata", () => {
+  const mao = ["---", "tipo: reuniao", "data: 2026-10-14", "status: processada", "confidencial: true", "---", "", "# R", "## Tarefas", "- [x] feito | concluída: 2026-10-14", ""].join("\n");
+  const ev = lerEventosDaNota("r", "mao.md", mao, 0);
+  assert.equal(ev.filter((e) => e.tipo === "ata-com-ia" || e.tipo === "ata-sem-ia").length, 0);
+  assert.equal(ev.filter((e) => e.tipo === "pendencia").length, 1, "a pendência fechada continua contando");
+  const r = calcularResultados(ev, HOJE, { ...ESTIMATIVAS_PADRAO, pendenciaFechada: 0 });
+  assert.equal(r.atas.total, 0);
+  assert.equal(r.tempoEconomizado.total, 0);
+});
+
+test("missão concluída: concluida_em vale; sem ela NÃO usa o mtime (só no total, 'data aproximada')", () => {
   const mtime = new Date(2026, 9, 15, 9, 0).getTime();
   const [com] = lerEventosDaNota("m", "m1.md", MISSAO(["status: concluída", "concluida_em: 2026-10-16"], ["- [x] a"]), mtime);
   assert.deepEqual([com.tipo, com.dia, com.aproximada], ["missao", "2026-10-16", false]);
   const [sem] = lerEventosDaNota("m", "m2.md", MISSAO(["status: concluída"], ["- [x] a"]), mtime);
-  assert.deepEqual([sem.tipo, sem.dia, sem.aproximada], ["missao", "2026-10-15", true]);
+  assert.deepEqual([sem.tipo, sem.dia, sem.aproximada], ["missao", "", true]);
   const r = calcularResultados([com, sem], HOJE);
   assert.equal(r.missoesConcluidas.total, 2);
   assert.equal(r.missoesDataAproximada, 1);
+  assert.deepEqual(calcularResultados([sem], "2026-10-15").missoesConcluidas, { hoje: 0, semana: 0, total: 1 }, "mtime não vira hoje nem semana");
   assert.match(montarResumoMd(r), /data aproximada/);
   assert.deepEqual(lerEventosDaNota("m", "m3.md", MISSAO(["status: em andamento"], ["- [ ] a"]), mtime), []);
 });
@@ -281,8 +292,8 @@ test("montarResumoMd traz números, período, 'estimativa' e a frase fixa", () =
   assert.match(md, /\| - com IA \(\/reuniao\) \| 0 \| 1 \| 1 \|/);
   assert.match(md, /\| Tarefas aprovadas \| 1 \| 1 \| 1 \|/);
   assert.match(md, /\| Pendências fechadas \| 0 \| 0 \| 1 \|/);
-  // hoje: 20 + 10 + 60 = 90 min (a pendência não tem data); semana: + ata com IA (20) = 110; total: + pendência (5) = 115
-  assert.match(md, /\| Tempo economizado \(estimativa\) \| 1 h 30 min \| 1 h 50 min \| 1 h 55 min \|/);
+  // padrões (tarefa e pendência = 0): hoje 20 + 60 = 80 min; semana: + ata com IA (20) = 100; total igual (pendência vale 0)
+  assert.match(md, /\| Tempo economizado \(estimativa\) \| 1 h 20 min \| 1 h 40 min \| 1 h 40 min \|/);
   assert.ok(md.includes(FRASE_ESTIMATIVA));
   assert.match(md, /demonstração/);
   assert.match(md, /sem data entram só no total/);

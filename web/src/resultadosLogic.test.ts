@@ -61,7 +61,7 @@ test("avisosDosResultados: fictícios, data aproximada e sem data", () => {
   const a = avisosDosResultados({ ...R, incluiFicticias: true, ficticias: 3, missoesDataAproximada: 1, semData: 2 });
   assert.equal(a.length, 3);
   assert.match(a[0], /demonstração/);
-  assert.match(a[1], /1 missão concluída está com data aproximada/);
+  assert.match(a[1], /1 missão concluída está sem data de conclusão \(data aproximada\)/);
   assert.match(a[2], /2 itens sem data entram só no total/);
 });
 
@@ -69,6 +69,8 @@ test("comoEstimamos usa os minutos configurados e aponta o arquivo", () => {
   const t = comoEstimamos({ ...R, estimativas: { ataProcessada: 30, tarefaAprovada: 10, missaoConcluida: 90, pendenciaFechada: 5 } });
   assert.match(t, /cada ata vale 30 min/i);
   assert.match(t, /missão concluída 1 h 30 min/);
+  assert.match(t, /se somam/);
+  assert.match(t, /mais de uma vez/);
   assert.match(t, /data\/estimativas\.json/);
 });
 

@@ -1,6 +1,10 @@
 // Resultados: os números do painel e do resumo exportado. Tipos e textos compartilhados entre servidor e painel.
 
-/** Minutos que cada coisa "vale" no cálculo do tempo economizado (data/estimativas.json). É uma estimativa. */
+/**
+ * Minutos que cada coisa "vale" no cálculo do tempo economizado (data/estimativas.json). É uma estimativa.
+ * Os valores SOMAM: a mesma tarefa pode contar como aprovada, como pendência fechada e dentro da missão concluída.
+ * Por isso o padrão de tarefaAprovada e pendenciaFechada é 0; valor acima de 0 pode contar o mesmo trabalho mais de uma vez.
+ */
 export interface Estimativas {
   ataProcessada: number;
   tarefaAprovada: number;
@@ -10,9 +14,9 @@ export interface Estimativas {
 
 export const ESTIMATIVAS_PADRAO: Readonly<Estimativas> = {
   ataProcessada: 20,
-  tarefaAprovada: 10,
+  tarefaAprovada: 0,
   missaoConcluida: 60,
-  pendenciaFechada: 5,
+  pendenciaFechada: 0,
 };
 
 /** Uma contagem em três janelas: hoje, últimos 7 dias corridos (contando hoje) e total */
@@ -37,7 +41,7 @@ export interface Resultados {
   /** minutos: contagem x estimativa de cada tipo. SEMPRE uma estimativa. */
   tempoEconomizado: Periodos;
   estimativas: Estimativas;
-  /** quantas missões concluídas usaram a data do arquivo (a nota não tem `concluida_em`) */
+  /** quantas missões concluídas não têm `concluida_em` (entram só no total) */
   missoesDataAproximada: number;
   /** itens sem nenhuma data: só entram no total */
   semData: number;
