@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { Resultados } from "../../shared/resultados";
+import { ehResultados } from "./resultadosLogic";
 import type { Agent, CaixaItem, FeedItem, MissoesInfo, Pendencia, Progress, ReuniaoAtiva, Roster, ServerMessage } from "../../shared/types";
 
 export type Conn = "conectando" | "online" | "offline";
@@ -28,6 +30,7 @@ export function useOffice(onChat: ChatHandler) {
   const [reuniao, setReuniao] = useState<ReuniaoAtiva | null>(null);
   const [caixa, setCaixa] = useState<CaixaItem[] | null>(null);
   const [pendencias, setPendencias] = useState<Pendencia[] | null>(null);
+  const [resultados, setResultados] = useState<Resultados | null>(null);
   /** a última ata lida sem IA: `seq` muda a cada ata (mesmo texto e hora repetidos disparam de novo) */
   const [ataNova, setAtaNova] = useState<AtaNova | null>(null);
   const [conn, setConn] = useState<Conn>("conectando");
@@ -56,6 +59,13 @@ export function useOffice(onChat: ChatHandler) {
       .then((r) => (r.ok ? (r.json() as Promise<{ itens: Pendencia[] }>) : null))
       .then((corpo) => {
         if (vivo && corpo && Array.isArray(corpo.itens)) setPendencias((atual) => atual ?? corpo.itens);
+      })
+      .catch(() => undefined);
+    fetch("/api/resultados")
+      .then((r) => (r.ok ? (r.json() as Promise<{ resultados?: unknown }>) : null))
+      .then((corpo) => {
+        const novo = corpo?.resultados;
+        if (vivo && ehResultados(novo)) setResultados((atual) => atual ?? novo);
       })
       .catch(() => undefined);
     return () => {
@@ -127,6 +137,9 @@ export function useOffice(onChat: ChatHandler) {
           case "pendencias":
             setPendencias(msg.itens);
             break;
+          case "resultados":
+            setResultados(msg.resultados);
+            break;
           case "ata-nova":
             setAtaNova((prev) => ({ seq: (prev?.seq ?? 0) + 1, texto: msg.texto, hora: msg.hora }));
             break;
@@ -170,5 +183,5 @@ export function useOffice(onChat: ChatHandler) {
     };
   }, []);
 
-  return { agents, feed, roster, progress, missoes, reuniao, caixa, pendencias, ataNova, conn };
+  return { agents, feed, roster, progress, missoes, reuniao, caixa, pendencias, resultados, ataNova, conn };
 }

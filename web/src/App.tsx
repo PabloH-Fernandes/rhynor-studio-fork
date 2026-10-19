@@ -3,6 +3,7 @@ import type { Agent, AgentStatus, FeedItem, ReuniaoAtiva, Roster } from "../../s
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
 import { CaixaEntrada } from "./components/CaixaEntrada";
 import { Pendencias } from "./components/Pendencias";
+import { Resultados, ResumoResultados } from "./components/Resultados";
 import { Cracha } from "./components/Cracha";
 import { IconeStatus } from "./components/IconePixel";
 import { MiniRetrato } from "./components/MiniRetrato";
@@ -45,7 +46,7 @@ const KIND_ICON: Record<FeedItem["kind"], string> = {
 
 export default function App() {
   const officeRef = useRef<OfficeHandle>(null);
-  const { agents, feed, roster, progress, missoes, reuniao, caixa, pendencias, ataNova, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
+  const { agents, feed, roster, progress, missoes, reuniao, caixa, pendencias, resultados, ataNova, conn } = useOffice((a, b, t) => officeRef.current?.chat(a, b, t));
   const hoje = useHoje();
   const atrasadas = useMemo(() => comUrgencia(pendencias ?? [], hoje).filter((p) => p.urgencia === "atrasada").length, [pendencias, hoje]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -234,7 +235,11 @@ export default function App() {
 
         <Pendencias itens={pendencias} />
 
+        <Resultados resultados={resultados} />
+
         <Progresso progress={progressoVisivel} />
+
+        <ResumoResultados resultados={resultados} />
 
         {projetos.length > 0 && (
           <label className="filtro-projeto">

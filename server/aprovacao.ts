@@ -58,7 +58,7 @@ export function validarCorpo(corpo: unknown): { ok: true; valor: CorpoValido } |
 // ---------------------------------------------------------------- reescrita da nota
 
 /** troca (ou acrescenta) uma chave do frontmatter; `fim` é a linha do `---` de fechamento. Devolve o novo `fim`. */
-function definirChave(linhas: string[], fim: number, nome: string, valor: string): number {
+export function definirChave(linhas: string[], fim: number, nome: string, valor: string): number {
   const re = new RegExp(`^\\s*${nome}\\s*:`, "i");
   let achou = false;
   for (let i = 1; i < fim; i++) {

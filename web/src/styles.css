@@ -2607,3 +2607,96 @@ h2 {
 .pend-vazio {
   margin-top: 8px;
 }
+
+/* ---------------------------------------------------------------- resultados (reaproveita .caixa-*) */
+
+.res-topo {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  background: var(--bg-3);
+  font-size: var(--fs-menor);
+  line-height: 1.25;
+}
+
+.res-topo-linha {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.res-topo-tempo {
+  color: var(--muted);
+}
+
+.res-tabela {
+  width: 100%;
+  margin: 8px 0 0;
+  border-collapse: collapse;
+  font-size: var(--fs-menor);
+  line-height: 1.2;
+}
+
+.res-tabela th,
+.res-tabela td {
+  padding: 4px 6px;
+  border-bottom: 2px solid var(--line);
+  text-align: right;
+  font-weight: 400;
+}
+
+.res-tabela thead th {
+  color: var(--muted);
+}
+
+.res-tabela th[scope="row"],
+.res-tabela th[scope="col"]:first-child {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.res-detalhe th[scope="row"] {
+  padding-left: 16px;
+  color: var(--muted);
+}
+
+.res-detalhe td {
+  color: var(--muted);
+}
+
+.res-estimativa th[scope="row"],
+.res-estimativa td {
+  color: var(--waiting-ink, var(--text));
+}
+
+/* o aviso de estimativa fica sempre à mostra, com borda: nunca só uma dica ao passar o mouse */
+.res-estimativa-aviso {
+  margin: 10px 0 6px;
+  padding: 6px 8px;
+  border: 2px solid var(--line);
+  font-size: var(--fs-menor);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.res-exportado {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.res-texto {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 2px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--fs-menor);
+  resize: vertical;
+}
+
+.res-texto:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

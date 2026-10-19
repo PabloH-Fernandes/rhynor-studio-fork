@@ -33,3 +33,10 @@ export function dataBr(iso: string): string {
   const [ano, mes, dia] = iso.split("-");
   return `${dia}/${mes}/${ano}`;
 }
+
+/** AAAA-MM-DD mais `n` dias (pode ser negativo). Conta em UTC, então não depende do fuso nem do horário de verão. */
+export function somarDias(iso: string, n: number): string {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia + n));
+  return `${d.getUTCFullYear()}-${dois(d.getUTCMonth() + 1)}-${dois(d.getUTCDate())}`;
+}

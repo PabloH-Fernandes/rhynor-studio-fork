@@ -21,6 +21,8 @@ import { IngestaoInbox } from "./ingestao.ts";
 import { ObservadorCaixa } from "./caixa.ts";
 import { registrarCaixa } from "./aprovacao.ts";
 import { ObservadorPendencias, registrarPendencias } from "./pendencias.ts";
+import { ObservadorResultados, registrarResultados } from "./resultados.ts";
+import { criarLeitorEstimativas } from "./estimativas.ts";
 import { clienteWsPermitido } from "./seguranca.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
@@ -58,6 +60,10 @@ void caixa.iniciar();
 // Pendências: tarefas em aberto de reuniões (classe eu) e missões, com prazo (só leitura; concluir grava só a linha)
 const pendencias = new ObservadorPendencias(() => resolverVault(process.env, os.homedir()));
 void pendencias.iniciar();
+// Resultados: números contados das notas do vault (atas, tarefas aprovadas, missões e pendências fechadas) e o tempo
+// estimado (data/estimativas.json). Só leitura: o painel nunca dispara o Claude.
+const resultados = new ObservadorResultados(() => resolverVault(process.env, os.homedir()), criarLeitorEstimativas());
+void resultados.iniciar();
 // leitura das atas do Inbox sem IA (AGPOCKET_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
 const ingestao =
   process.env.AGPOCKET_INGESTAO?.trim() === "0"
@@ -125,6 +131,9 @@ registrarCaixa(app, { resolverVault: () => resolverVault(process.env, os.homedir
 
 // Pendências: GET /api/pendencias e POST /api/pendencias/concluir (o POST exige JSON e Origin do próprio painel)
 registrarPendencias(app, { resolverVault: () => resolverVault(process.env, os.homedir()), pendencias, porta: () => PORT });
+
+// Resultados: GET /api/resultados e POST /api/resultados/exportar (grava data/exportacoes/resultados-AAAA-MM-DD.md)
+registrarResultados(app, { resultados, porta: () => PORT });
 
 // Elenco dos AGzinhos: o atual e o padrão (para "Voltar ao padrão" no vestiário).
 app.get("/api/roster", (_req, res) => {
@@ -194,6 +203,7 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "missoes", info: vault.getInfo() } satisfies ServerMessage));
   ws.send(JSON.stringify({ type: "caixa", itens: caixa.getItens() } satisfies ServerMessage));
   ws.send(JSON.stringify({ type: "pendencias", itens: pendencias.getItens() } satisfies ServerMessage));
+  ws.send(JSON.stringify({ type: "resultados", resultados: resultados.getResultados() } satisfies ServerMessage));
 });
 
 function broadcast(msg: ServerMessage) {
@@ -206,6 +216,11 @@ state.subscribe(broadcast);
 vault.subscribe((info) => broadcast({ type: "missoes", info }));
 caixa.subscribe((itens) => broadcast({ type: "caixa", itens }));
 pendencias.subscribe((itens) => broadcast({ type: "pendencias", itens }));
+resultados.subscribe((r) => broadcast({ type: "resultados", resultados: r }));
+// missões, caixa e pendências mudaram: os Resultados são recalculados (o próprio observador também vigia as pastas)
+vault.subscribe(() => resultados.agendar());
+caixa.subscribe(() => resultados.agendar());
+pendencias.subscribe(() => resultados.agendar());
 
 server.listen(PORT, HOST, () => {
   const hasUi = fs.existsSync(DIST);
@@ -238,6 +253,7 @@ function desligar(codigo: number) {
   vault.parar();
   caixa.parar();
   pendencias.parar();
+  resultados.parar();
   ingestao?.parar();
   process.exit(codigo);
 }

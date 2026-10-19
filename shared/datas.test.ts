@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dataBr, dataEfetiva, diaLocal, ehDataValida } from "./datas.ts";
+import { dataBr, dataEfetiva, diaLocal, ehDataValida, somarDias } from "./datas.ts";
 
 test("ehDataValida: mês 01-12, dia que existe, formato AAAA-MM-DD", () => {
   assert.equal(ehDataValida("2026-10-14"), true);
@@ -22,4 +22,12 @@ test("dataEfetiva: data válida; senão dia local de atualizadoEm; senão vazio"
   assert.equal(dataEfetiva({ data: "", atualizadoEm: 0 }), "");
   assert.equal(diaLocal(NaN), "");
   assert.equal(dataBr("2026-03-05"), "05/03/2026");
+});
+
+test("somarDias: atravessa mês, ano e fevereiro bissexto", () => {
+  assert.equal(somarDias("2026-10-19", -6), "2026-10-13");
+  assert.equal(somarDias("2026-03-02", -6), "2026-02-24");
+  assert.equal(somarDias("2024-03-01", -1), "2024-02-29");
+  assert.equal(somarDias("2026-01-03", -6), "2025-12-28");
+  assert.equal(somarDias("2026-12-31", 1), "2027-01-01");
 });

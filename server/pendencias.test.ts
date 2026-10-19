@@ -376,3 +376,89 @@ test("concluir acha a nota cujo nome está em NFD no disco (OneDrive de Mac)", a
     v.limpar();
   }
 });
+
+// ---------------------------------------------------------------- conclusão automática da missão (Etapa 4)
+
+const MISSAO_DUAS = [
+  "---",
+  "tipo: missao",
+  "status: em andamento",
+  "origem: reuniao",
+  "classe: time",
+  "confidencial: false",
+  "---",
+  "",
+  "# Tarefas: Duas coisas",
+  "",
+  "## Tarefas",
+  "- [ ] Primeira",
+  "- [-] Ignorada",
+  "- [ ] Segunda",
+  "",
+].join("\n");
+
+test("concluir a última tarefa da missão grava status concluída e concluida_em (CRLF e BOM mantidos)", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const arq = path.join(v.missoes, "2026-10-10-duas.md");
+    const original = "﻿" + MISSAO_DUAS.replace(/\n/g, "\r\n");
+    fs.writeFileSync(arq, original);
+    const [a, b] = montarPendencias(lerPendenciasDaNota("m", "2026-10-10-duas.md", original), HOJE).sort((x, y) => (x.id < y.id ? -1 : 1));
+    // a primeira: a missão continua em andamento
+    const r1 = await concluirPendencia(v.vault, { id: a.id, h: a.h }, { now: () => AGORA });
+    assert.equal(r1.status, 200);
+    assert.equal((r1.corpo as { missaoConcluida?: boolean }).missaoConcluida, undefined);
+    assert.match(ler(arq), /status: em andamento/);
+    assert.ok(!ler(arq).includes("concluida_em"));
+    // a última: a ignorada ([-]) não segura a conclusão
+    const r2 = await concluirPendencia(v.vault, { id: b.id, h: b.h }, { now: () => AGORA });
+    assert.equal(r2.status, 200);
+    assert.equal((r2.corpo as { missaoConcluida?: boolean }).missaoConcluida, true);
+    const depois = ler(arq);
+    assert.equal(
+      depois,
+      original
+        .replace("status: em andamento", "status: concluída")
+        .replace("confidencial: false", "confidencial: false\r\nconcluida_em: 2026-10-17")
+        .replace("- [ ] Primeira", "- [x] Primeira | concluída: 2026-10-17")
+        .replace("- [ ] Segunda", "- [x] Segunda | concluída: 2026-10-17"),
+    );
+    assert.ok(depois.startsWith("﻿---\r\n"));
+    assert.ok(!/[^\r]\n/.test(depois), "só CRLF");
+    // a missão concluída sai das pendências
+    assert.deepEqual(lerPendenciasDaNota("m", "2026-10-10-duas.md", depois), []);
+  } finally {
+    v.limpar();
+  }
+});
+
+test("conclusão automática respeita as travas: nota que mudou no meio não vira concluída", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const arq = path.join(v.missoes, "2026-10-10-uma.md");
+    const texto = MISSAO_DUAS.replace("- [ ] Segunda\n", "");
+    fs.writeFileSync(arq, texto);
+    const [p] = montarPendencias(lerPendenciasDaNota("m", "2026-10-10-uma.md", texto), HOJE);
+    const r = await concluirPendencia(v.vault, { id: p.id, h: p.h }, { now: () => AGORA, antesDeGravar: () => fs.appendFileSync(arq, "\nedição no meio\n") });
+    assert.equal(r.status, 409);
+    assert.ok(!ler(arq).includes("concluída"));
+    assert.ok(!ler(arq).includes("concluida_em"));
+  } finally {
+    v.limpar();
+  }
+});
+
+test("tarefa de reunião concluída nunca muda status de nota de reunião", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const arq = path.join(v.reunioes, "2026-10-10-a.md");
+    const texto = REUNIAO.replace("- [ ] Revisar o contrato [[Contrato]] | responsável: Responsável A | prazo: 2026-02-31 | classe: eu\n", "");
+    fs.writeFileSync(arq, texto);
+    const p = pendenciaDe("r", "2026-10-10-a", texto, 0);
+    assert.equal((await concluirPendencia(v.vault, { id: p.id, h: p.h }, { now: () => AGORA })).status, 200);
+    assert.match(ler(arq), /status: processada/);
+    assert.ok(!ler(arq).includes("concluida_em"));
+  } finally {
+    v.limpar();
+  }
+});

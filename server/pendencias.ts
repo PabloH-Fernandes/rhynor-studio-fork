@@ -17,7 +17,8 @@
 // Concluir (POST /api/pendencias/concluir): marca `- [x]` e acrescenta `| concluída: AAAA-MM-DD` na linha. Confere
 // o hash da linha inteira (409 se a nota mudou), lstat antes de gravar (409 se mudou no meio), mantém CRLF e BOM.
 // O id nunca é caminho: só `r|m`, nome da nota (letras, números, `_`, espaço e hífen), posição e hash.
-// A missão NÃO muda de status quando todas as tarefas ficam feitas (fica para a Etapa 4).
+// Missão: quando a tarefa concluída era a última em aberto (nenhuma `- [ ]` sobrou; `- [-]` ignorada não segura), a
+// mesma gravação põe `status: concluída` e `concluida_em: AAAA-MM-DD` no frontmatter. É daí que vêm os "Resultados".
 
 import express, { type Express } from "express";
 import fs from "node:fs";
@@ -25,7 +26,8 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { diaLocal, ehDataValida } from "../shared/datas.ts";
 import { urgenciaDe } from "../shared/prazos.ts";
-import type { Pendencia, PendenciaDono } from "../shared/types.ts";
+import type { Pendencia, PendenciaConclusaoResposta, PendenciaDono } from "../shared/types.ts";
+import { definirChave } from "./aprovacao.ts";
 import { MAX_BYTES_NOTA, hashTarefa, lerTarefasDaNota, tituloDe } from "./caixa.ts";
 import { writeAtomic } from "./roster.ts";
 import { exigirHostLocal, exigirPostSeguro } from "./seguranca.ts";
@@ -313,7 +315,7 @@ export class ObservadorPendencias {
 
 // ---------------------------------------------------------------- concluir
 
-export type RespostaConclusao = { status: 200; corpo: { ok: true; concluidaEm: string } } | { status: number; corpo: { ok: false; erros: string[] } };
+export type RespostaConclusao = { status: 200; corpo: PendenciaConclusaoResposta } | { status: number; corpo: { ok: false; erros: string[] } };
 
 function erro(status: number, ...erros: string[]): RespostaConclusao {
   return { status, corpo: { ok: false, erros } };
@@ -350,6 +352,21 @@ function naFila<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 const LINHA_ABERTA = /^(\s*[-*]\s+\[) (\]\s+)(\S.*?)\s*$/;
+
+/**
+ * Se não sobrou tarefa em aberto na missão, marca `status: concluída` e `concluida_em` no frontmatter (as linhas
+ * já têm a tarefa de agora como feita). true = marcou. Missão sem frontmatter fechado fica como está.
+ */
+function concluirMissao(linhas: string[], hoje: string): boolean {
+  const tarefas = lerTarefasDaNota(linhas);
+  if (tarefas.length === 0 || tarefas.some((x) => x.marca === " ")) return false;
+  if (linhas[0]?.trim() !== "---") return false;
+  let fim = linhas.findIndex((l, i) => i > 0 && l.trim() === "---");
+  if (fim < 0) return false;
+  fim = definirChave(linhas, fim, "status", "concluída");
+  definirChave(linhas, fim, "concluida_em", hoje);
+  return true;
+}
 
 export interface ConcluirOpcoes {
   now?: () => Date;
@@ -413,13 +430,14 @@ async function concluir(vault: string, c: CorpoConclusao, now: () => Date, antes
 
   const hoje = diaLocal(now().getTime());
   linhas[t.indice] = `${m[1]}x${m[2]}${m[3]} | concluída: ${hoje}`;
+  const missaoConcluida = c.pasta === "m" && concluirMissao(linhas, hoje);
 
   await antesDeGravar?.();
   // a nota pode ter sido editada (OneDrive, Obsidian) desde a leitura: confere de novo antes de sobrescrever
   const agoraSt = await fsp.lstat(arquivo).catch(() => null);
   if (!agoraSt || agoraSt.size !== st.size || agoraSt.mtimeMs !== st.mtimeMs) return erro(409, MSG_NOTA_MUDOU);
   await writeAtomic(arquivo, (temBom ? "﻿" : "") + linhas.join(nl));
-  return { status: 200, corpo: { ok: true, concluidaEm: hoje } };
+  return { status: 200, corpo: missaoConcluida ? { ok: true, concluidaEm: hoje, missaoConcluida: true } : { ok: true, concluidaEm: hoje } };
 }
 
 // ---------------------------------------------------------------- rotas
