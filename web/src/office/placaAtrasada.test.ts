@@ -22,3 +22,8 @@ test("a plaquinha vai à direita; bate em área proibida, vai à esquerda; nos d
   const esquerdaTambem = [...direitaOcupada, { x: 88, y: 80, w: 4, h: 4 }];
   assert.equal(lugarDaPlaca(100, 100, esquerdaTambem), null);
 });
+
+test("a plaquinha fica acima dos pés do boneco (na altura da cabeça), nunca na linha do tampo da mesa", () => {
+  const lugar = lugarDaPlaca(100, 100, []);
+  assert.ok(lugar && lugar.rect.y + lugar.rect.h < 100);
+});

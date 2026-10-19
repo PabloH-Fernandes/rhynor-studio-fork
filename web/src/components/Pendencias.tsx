@@ -35,8 +35,8 @@ export function Pendencias({ itens }: { itens: Pendencia[] | null }) {
   const [aviso, setAviso] = useState("");
   const botoes = useRef(new Map<string, HTMLButtonElement | null>());
   const tituloRef = useRef<HTMLButtonElement | null>(null);
-  /** quem recebe o foco depois que o item concluído sai da lista: um id, "titulo" ou nada */
-  const focar = useRef<string | null>(null);
+  /** alternam o prefixo do aviso para o leitor de tela anunciar de novo duas conclusões seguidas */
+  const vezes = useRef(0);
   const jaTeve = useRef(false);
 
   // o servidor já tirou da lista: não precisa mais lembrar que foi concluída
@@ -54,19 +54,25 @@ export function Pendencias({ itens }: { itens: Pendencia[] | null }) {
   const visiveis = filtrarPendencias(todas, filtro);
   if (todas.length > 0) jaTeve.current = true;
 
-  // depois de concluir o item some: o foco vai para o próximo botão Concluir ou, sem ninguém, para o título
-  useEffect(() => {
-    const alvo = focar.current;
-    if (alvo === null) return;
-    focar.current = null;
-    if (alvo !== "titulo" && botoes.current.get(alvo)) botoes.current.get(alvo)?.focus();
-    else tituloRef.current?.focus();
-  }, [visiveis.length]);
-
   if (itens === null || (todas.length === 0 && !jaTeve.current)) return null;
 
   const concluir = async (p: Pendencia) => {
     if (enviando) return;
+    // o vizinho que recebe o foco é escolhido ANTES do POST: o WebSocket pode tirar o item da lista antes da resposta.
+    // Usado uma vez (sucesso ou erro) e descartado: nada puxa o foco depois.
+    let vizinho: string | null = proximoFoco(
+      visiveis.map((x) => x.id),
+      p.id,
+    );
+    const focarEm = (id: string | null) => {
+      const el = id === null ? null : botoes.current.get(id);
+      (el ?? tituloRef.current)?.focus();
+    };
+    const devolverAoItem = () => {
+      const proprio = botoes.current.get(p.id);
+      if (proprio) proprio.focus();
+      else focarEm(vizinho);
+    };
     setEnviando(p.id);
     setErros((prev) => ({ ...prev, [p.id]: "" }));
     try {
@@ -77,17 +83,18 @@ export function Pendencias({ itens }: { itens: Pendencia[] | null }) {
       });
       if (!r.ok) {
         setErros((prev) => ({ ...prev, [p.id]: textoErroConclusao(r.status) }));
+        devolverAoItem();
         return;
       }
-      focar.current = proximoFoco(
-        visiveis.map((x) => x.id),
-        p.id,
-      ) ?? "titulo";
-      setAviso(`Concluída: ${p.texto}`);
+      vezes.current += 1;
+      setAviso(`${vezes.current % 2 === 0 ? "Pendência concluída" : "Concluída"}: ${p.texto}`);
       setConcluidas((prev) => new Set(prev).add(p.id));
+      focarEm(vizinho);
     } catch {
       setErros((prev) => ({ ...prev, [p.id]: "Sem conexão com o servidor. Tente de novo." }));
+      devolverAoItem();
     } finally {
+      vizinho = null;
       setEnviando(null);
     }
   };
@@ -164,7 +171,7 @@ export function Pendencias({ itens }: { itens: Pendencia[] | null }) {
                       ref={(el) => {
                         botoes.current.set(p.id, el);
                       }}
-                      disabled={enviando !== null}
+                      aria-disabled={enviando !== null}
                       aria-label={rotuloConcluir(p)}
                       onClick={() => void concluir(p)}
                     >

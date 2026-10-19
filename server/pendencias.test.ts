@@ -355,3 +355,24 @@ test("rotas: GET exige Host local; POST exige JSON e Origin do painel; concluir 
     v.limpar();
   }
 });
+
+test("concluir acha a nota cujo nome está em NFD no disco (OneDrive de Mac)", async (t) => {
+  const v = novoVaultDeTeste();
+  try {
+    const nfc = "2026-10-10-reunião-á";
+    const nfd = nfc.normalize("NFD");
+    assert.notEqual(nfc, nfd);
+    const arq = path.join(v.reunioes, `${nfd}.md`);
+    fs.writeFileSync(arq, REUNIAO);
+    if (!fs.readdirSync(v.reunioes).some((n) => n === `${nfd}.md`)) {
+      t.skip("o sistema de arquivos normaliza o nome para NFC: não dá para criar um nome NFD aqui");
+      return;
+    }
+    const p = pendenciaDe("r", nfc, REUNIAO, 0);
+    const r = await concluirPendencia(v.vault, { id: p.id, h: p.h }, { now: () => AGORA });
+    assert.equal(r.status, 200);
+    assert.ok(ler(arq).includes("concluída:"));
+  } finally {
+    v.limpar();
+  }
+});

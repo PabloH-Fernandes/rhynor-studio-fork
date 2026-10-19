@@ -914,6 +914,13 @@ export class OfficeEngine {
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
 
+    // plaquinha de atrasada: depois dos móveis, para nunca ficar atrás do monitor de quem está sentado
+    const portador = this.placaId ? this.visuals.get(this.placaId) : undefined;
+    if (portador) {
+      const lugar = lugarDaPlaca(portador.x * TILE, portador.y * TILE, FORBIDDEN);
+      if (lugar) desenharPlaca(ctx, lugar.rect, now, !isReducedMotion());
+    }
+
     // iluminação: escurece cenário e personagens; o que vem depois (envelopes, "!", balões,
     // nomes, confete) fica fora do multiply e continua legível à noite
     this.lightmap.apply(ctx);
@@ -1116,10 +1123,6 @@ export class OfficeEngine {
       holding: rest?.holding ?? (v.cupInHand ? "copo" : undefined),
       reducedMotion: isReducedMotion(),
     });
-    if (v.agent.id === this.placaId) {
-      const lugar = lugarDaPlaca(x, y, FORBIDDEN);
-      if (lugar) desenharPlaca(ctx, lugar.rect, now, !isReducedMotion());
-    }
     if (seated && v.at.depth !== undefined && rest?.sofa && v.dir === "down") sofaShins(ctx, x, y, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
     if (seated && v.at.stool) stoolShins(ctx, x, y, v.dir, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
   }

@@ -364,8 +364,21 @@ export function concluirPendencia(vault: string, corpo: unknown, opts: ConcluirO
 }
 
 async function concluir(vault: string, c: CorpoConclusao, now: () => Date, antesDeGravar?: () => void | Promise<void>): Promise<RespostaConclusao> {
-  // o nome já passou pela regex (sem barra, ponto nem ":"): o arquivo só pode estar dentro da pasta certa
-  const arquivo = path.join(vault, DIRETORIO[c.pasta], `${c.nota}.md`);
+  // o nome já passou pela regex (sem barra, ponto nem ":"): o arquivo só pode estar dentro da pasta certa.
+  // O id guarda o nome em NFC; no disco (OneDrive de Mac) ele pode estar em NFD: acha pelo readdir, comparando em NFC.
+  const dir = path.join(vault, DIRETORIO[c.pasta]);
+  let nomes: string[];
+  try {
+    nomes = await fsp.readdir(dir);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return erro(404, "Não achei essa nota");
+    throw err;
+  }
+  const alvo = `${c.nota}.md`;
+  const nomeReal = nomes.find((n) => n.normalize("NFC") === alvo);
+  if (nomeReal === undefined) return erro(404, "Não achei essa nota");
+  const arquivo = path.join(dir, nomeReal);
 
   let st;
   try {

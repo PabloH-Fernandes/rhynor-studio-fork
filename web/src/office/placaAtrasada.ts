@@ -1,5 +1,6 @@
 // Plaquinha de "atrasada": com pelo menos uma pendência atrasada, UM AGzinho do time que está de boa segura uma
-// plaquinha pequena (triângulo de aviso em pixel, sem texto). Desenhada por cima do boneco, direto no canvas:
+// plaquinha pequena (quadrado vermelho com "!" em pixel). Desenhada por cima do boneco e dos móveis (depois deles na ordem de desenho,
+// antes da iluminação), direto no canvas:
 // não mexe nos sprites nem no cache deles. Escolha determinística (menor id entre os elegíveis, e quem já segura
 // continua segurando enquanto puder). Com prefers-reduced-motion a plaquinha fica parada.
 
