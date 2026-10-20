@@ -409,6 +409,16 @@ Para mostrar o escritório a outras pessoas (reunião, projetor, gravação de t
 
 O que falar em cada passo está em [docs/roteiro-apresentacao.md](docs/roteiro-apresentacao.md). Testes: `web/src/demo/*.test.ts` (roteiro e dados), `web/src/privacidade.test.ts` (privacidade e leitura das flags).
 
+## Modelos por função e gasto de tokens
+
+**Modelo por função.** Cada agente em `agents/*.md` tem um campo `model`: dev, revisor e planejador usam o modelo da conversa (`inherit`), o testador usa `sonnet`, o documentador e o pesquisador usam `haiku` (mais leve, para tarefas simples). A tabela com o motivo de cada um está em [docs/agentes-modelos.md](docs/agentes-modelos.md). Depois de mudar `agents/`, rode `npm run install-agents`; até lá o `npm run setup:check` avisa "desatualizado". Se a variável `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` estiver definida no seu computador, ela ignora esse campo.
+
+**Gasto de tokens.** O escritório lê o registro (transcript) que o próprio Claude Code grava e soma os **tokens de hoje por função**: aparece em "Tokens hoje" no topo do painel e no crachá de cada AGzinho (o cache lido vem à parte). Quando a missão atual vem de uma reunião, o total também vai para a nota dela (`tokens_total` e `tokens_atualizado_em`, no máximo 1 vez por minuto e ao fim da sessão).
+
+- **É:** uma contagem de tokens lida do registro do Claude, atualizada quando um agente termina. Sem dado, o painel mostra "—" (nunca 0 nem estimativa). Na demo aparece "—".
+- **Não é:** custo em dinheiro, gasto por tarefa nem leitura de conversa. Só números são lidos; nenhum texto do registro é guardado.
+- **Segurança:** só abre registros `.jsonl` dentro de `~/.claude/projects` (que não sejam link simbólico e tenham menos de 50 MB). Os totais ficam em `data/gasto/AAAA-MM-DD.json` (fora do git).
+
 ## Simulação
 
 O botão **Rodar simulação** conta uma sessão inteira, passando pelas mesmas situações de uma sessão real (frases simples e destaques no painel, retomada de quem é chamado de novo, Dev 2 em paralelo):

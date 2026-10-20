@@ -4,6 +4,7 @@ import { APRESENTACAO } from "./apresentacao";
 import { ehResultados } from "./resultadosLogic";
 import { ehResumoTransparencia, resumoDoGet } from "./transparenciaLogic";
 import type { ResumoTransparencia } from "../../shared/transparencia";
+import { ehGastoHoje, type GastoHoje } from "../../shared/gasto";
 import type { Agent, CaixaItem, FeedItem, MissoesInfo, Pendencia, Progress, ReuniaoAtiva, Roster, ServerMessage } from "../../shared/types";
 
 export type Conn = "conectando" | "online" | "offline";
@@ -35,6 +36,7 @@ export function useOffice(onChat: ChatHandler) {
   const [pendencias, setPendencias] = useState<Pendencia[] | null>(null);
   const [resultados, setResultados] = useState<Resultados | null>(null);
   const [transparencia, setTransparencia] = useState<ResumoTransparencia | null>(null);
+  const [gasto, setGasto] = useState<GastoHoje | null>(null);
   /** a última ata lida sem IA: `seq` muda a cada ata (mesmo texto e hora repetidos disparam de novo) */
   const [ataNova, setAtaNova] = useState<AtaNova | null>(null);
   const [conn, setConn] = useState<Conn>("conectando");
@@ -171,6 +173,9 @@ export function useOffice(onChat: ChatHandler) {
           case "transparencia":
             if (ehResumoTransparencia(msg.resumo)) setTransparencia(msg.resumo);
             break;
+          case "gasto":
+            setGasto(ehGastoHoje(msg.hoje) ? msg.hoje : null);
+            break;
           case "ata-nova":
             setAtaNova((prev) => ({ seq: (prev?.seq ?? 0) + 1, texto: msg.texto, hora: msg.hora }));
             break;
@@ -214,5 +219,5 @@ export function useOffice(onChat: ChatHandler) {
     };
   }, []);
 
-  return { agents, feed, roster, progress, missoes, reuniao, caixa, pendencias, resultados, transparencia, ataNova, conn };
+  return { agents, feed, roster, progress, missoes, reuniao, caixa, pendencias, resultados, transparencia, gasto, ataNova, conn };
 }

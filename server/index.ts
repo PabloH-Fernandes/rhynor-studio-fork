@@ -25,6 +25,7 @@ import { ObservadorResultados, registrarResultados } from "./resultados.ts";
 import { criarLeitorEstimativas } from "./estimativas.ts";
 import { LogTransparencia, registrarTransparencia } from "./transparenciaLog.ts";
 import { clienteWsPermitido } from "./seguranca.ts";
+import { GastoTokens } from "./gastoTokens.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
@@ -83,6 +84,21 @@ const transparencia = new LogTransparencia(
   { atasDoMes: (mes) => resultados.atasDoMes(mes) },
 );
 void transparencia.iniciar();
+// Gasto de tokens: lê o registro (transcript) do Claude no Stop/SubagentStop, só números (nunca texto), e guarda em
+// data/gasto/AAAA-MM-DD.json. Não é custo. Roda fora do loop dos hooks e nunca lança.
+function missaoDoGasto(sid: string): string | null {
+  const info = vault.getInfo();
+  const pedida = vault.getMissaoDaSessao(sid);
+  const m = pedida ? info.missoes.find((x) => x.id === pedida) : undefined;
+  if (m && m.origem === "reuniao" && m.status !== "concluída") return m.id;
+  return info.atual?.id ?? null;
+}
+const gasto = new GastoTokens({
+  dir: path.join(ROOT, "data", "gasto"),
+  missaoDaSessao: missaoDoGasto,
+  vault: () => resolverVault(process.env, os.homedir()),
+});
+void gasto.iniciar();
 // leitura das atas do Inbox sem IA (AGPOCKET_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
 const ingestao =
   process.env.AGPOCKET_INGESTAO?.trim() === "0"
@@ -115,6 +131,7 @@ setInterval(() => {
     try {
       // a missão atual vem do prompt "/time Missão [[nota]]" (o texto do prompt não é guardado)
       const sid: unknown = body?.session_id;
+      gasto.registrar(body); // ANTES de esquecerSessao: a missão da sessão ainda vale. Síncrono e leve; o resto roda depois
       if (typeof sid === "string") {
         if (body.hook_event_name === "UserPromptSubmit") vault.notarPrompt(sid, String(body.user_prompt ?? body.prompt ?? ""));
         else if (body.hook_event_name === "SessionEnd") vault.esquecerSessao(sid);
@@ -231,6 +248,7 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "pendencias", itens: pendencias.getItens() } satisfies ServerMessage));
   ws.send(JSON.stringify({ type: "resultados", resultados: resultados.getResultados() } satisfies ServerMessage));
   ws.send(JSON.stringify({ type: "transparencia", resumo: transparencia.getResumo() } satisfies ServerMessage));
+  ws.send(JSON.stringify({ type: "gasto", hoje: gasto.getHoje() } satisfies ServerMessage));
 });
 
 function broadcast(msg: ServerMessage) {
@@ -245,6 +263,7 @@ caixa.subscribe((itens) => broadcast({ type: "caixa", itens }));
 pendencias.subscribe((itens) => broadcast({ type: "pendencias", itens }));
 resultados.subscribe((r) => broadcast({ type: "resultados", resultados: r }));
 transparencia.subscribe((resumo) => broadcast({ type: "transparencia", resumo }));
+gasto.subscribe((hoje) => broadcast({ type: "gasto", hoje }));
 // missões, caixa e pendências mudaram: os Resultados são recalculados (o próprio observador também vigia as pastas)
 vault.subscribe(() => resultados.agendar());
 caixa.subscribe(() => resultados.agendar());
@@ -281,7 +300,7 @@ async function desligar(codigo: number) {
   // linhas de transparência ainda na corrente: espera, mas no máximo 1 s (corrente travada não segura o desligamento)
   let t: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([
-    transparencia.esperarGravacoes(),
+    Promise.all([transparencia.esperarGravacoes(), gasto.fechar().catch(() => undefined)]),
     new Promise<void>((resolve) => {
       t = setTimeout(resolve, 1000);
     }),

@@ -2,6 +2,7 @@
 
 import type { Roster } from "./roster.ts";
 import type { Urgencia } from "./prazos.ts";
+import type { GastoHoje } from "./gasto.ts";
 import type { Resultados } from "./resultados.ts";
 import type { ResumoTransparencia } from "./transparencia.ts";
 
@@ -267,6 +268,8 @@ export type ServerMessage =
   | { type: "resultados"; resultados: Resultados }
   /** a Transparência (o que os agentes abriram no vault) ganhou linhas: resumo do mês, sem conteúdo */
   | { type: "transparencia"; resumo: ResumoTransparencia }
+  /** tokens lidos do registro do Claude hoje (só números; null = sem dado). Não é custo */
+  | { type: "gasto"; hoje: GastoHoje | null }
   /** uma reunião (/reuniao) começou ou acabou */
   | { type: "reuniao"; reuniao: ReuniaoAtiva | null }
   | { type: "agent"; agent: Agent }

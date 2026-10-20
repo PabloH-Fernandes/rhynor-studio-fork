@@ -6,6 +6,7 @@ import { Pendencias } from "./components/Pendencias";
 import { Resultados, ResumoResultados } from "./components/Resultados";
 import { Transparencia } from "./components/Transparencia";
 import { Cracha } from "./components/Cracha";
+import { GastoTotal } from "./components/GastoTokens";
 import { IconeStatus } from "./components/IconePixel";
 import { MiniRetrato } from "./components/MiniRetrato";
 import { Missoes } from "./components/Missoes";
@@ -62,6 +63,8 @@ export default function App() {
 
   // a demo mostra dados fictícios próprios nas três seções (e não os do servidor), sem escrever nada no vault
   const demo = useDemo(DEMO, hoje);
+  // na demo os dados são fictícios: mostra "—" (sem dado), nunca um número do servidor
+  const gasto = demo ? null : office.gasto;
   // um passe só: registra os nomes de todos os dados e só depois mascara o texto livre e o feed
   const mascarado = useMemo(
     () =>
@@ -280,6 +283,7 @@ export default function App() {
             </div>
           )}
         </header>
+        <GastoTotal hoje={gasto} />
 
         <CaixaEntrada
           itens={caixa}
@@ -399,6 +403,7 @@ export default function App() {
                 roster={roster}
                 statusLabel={STATUS_LABEL[selected.status]}
                 restLabel={restLabel}
+                gasto={gasto?.porPapel[selected.role] ?? null}
                 onClose={closeCracha}
                 onPersonalizar={setVestiarioPara}
                 revelar={revelarId === selected.id}

@@ -1222,6 +1222,36 @@ h2 {
   font-size: var(--fs-menor);
 }
 
+.cracha-gasto {
+  font-size: var(--fs-menor);
+}
+
+.cracha-gasto dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.cracha-gasto-cache {
+  color: var(--badge-ink-soft);
+}
+
+.cracha-gasto-nota {
+  display: block;
+  margin-top: 2px;
+  color: var(--badge-ink-soft);
+  font-size: 0.85em;
+}
+
+.gasto-total {
+  margin: 6px 0 10px;
+  font-size: var(--fs-menor);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.gasto-total strong {
+  color: var(--text);
+}
+
 .cracha-stat dd {
   font-variant-numeric: tabular-nums;
 }

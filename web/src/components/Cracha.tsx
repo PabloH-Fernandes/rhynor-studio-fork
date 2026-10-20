@@ -9,6 +9,8 @@ import { agzinhoOf, lookFor } from "../office/engine";
 import { PORTRAIT_H, PORTRAIT_W, drawPortrait } from "../office/sprites";
 import { XP_POR_NIVEL, legendaXp, xpDasEntregas } from "../xp";
 import { IconeStatus } from "./IconePixel";
+import { GastoDoPapel } from "./GastoTokens";
+import type { GastoValores } from "../../../shared/gasto";
 
 /** cada pixel da arte vira ~6x6 pixels CSS na foto 3x4 (retrato grande da ficha) */
 const FOTO_ESCALA = 6;
@@ -28,6 +30,8 @@ interface Props {
   statusLabel: string;
   /** o que ele faz no descanso ("Jogando ping-pong"), ou null fora do descanso */
   restLabel: (id: string) => string | null;
+  /** tokens de hoje deste papel (null = sem dado: mostra "—") */
+  gasto?: GastoValores | null;
   onClose: () => void;
   /** abre o vestiário pra esse AGzinho (key do elenco); sem handler o botão fica desabilitado */
   onPersonalizar?: (key: string) => void;
@@ -37,7 +41,7 @@ interface Props {
   onRevelado?: () => void;
 }
 
-export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPersonalizar, revelar = false, onRevelado }: Props) {
+export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, onClose, onPersonalizar, revelar = false, onRevelado }: Props) {
   const titleId = useId();
   const ag = agzinhoOf(agent, roster);
   const visitante = !ag;
@@ -171,6 +175,7 @@ export function Cracha({ agent, roster, statusLabel, restLabel, onClose, onPerso
                 <dt>No escritório há:</dt>
                 <dd>{tempoDesde(agent.startedAt, now)}</dd>
               </div>
+              <GastoDoPapel valores={gasto} id={`${titleId}-gasto`} />
               {agent.project && (
                 <div className="cracha-projeto">
                   <dt>Projeto:</dt>
