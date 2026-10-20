@@ -19,7 +19,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import type { BuscaItem, BuscaResposta } from "../shared/types.ts";
 import { exigirHostLocal } from "./seguranca.ts";
-import { chave, corpoDe, cortar, lerFrontmatter, semLinks, temConfidencialTrue } from "./vault.ts";
+import { chave, corpoDe, cortar, frontmatterMencionaConfidencial, lerFrontmatter, linhasDeTexto, semLinks, temConfidencialTrue } from "./vault.ts";
 
 export const MAX_BYTES_BUSCA = 200 * 1024;
 export const MAX_ARQUIVOS = 5000;
@@ -28,6 +28,13 @@ export const MIN_Q = 2;
 export const MAX_Q = 80;
 export const MAX_RESULTADOS = 20;
 const TAM_TRECHO = 160;
+/** teto da soma dos tamanhos das notas com texto no índice; as demais entram só pelo título */
+export const MAX_BYTES_INDICE = 100 * 1024 * 1024;
+/** cabeçalho maior que isso é cortado ANTES de qualquer regex (as de link são quadráticas) */
+const MAX_CABECALHO = 200;
+/** a consulta cede o loop (setImmediate) se passar disso */
+const FATIA_MS = 25;
+const LEITURA_TRECHOS_MS = 1500;
 const DEBOUNCE_MS = 800;
 const INTERVALO_MS = 30_000;
 /** o GET relê o vault (barato, por cache) se a última leitura tem mais que isso */
@@ -43,15 +50,19 @@ export interface Entrada {
   confidencial: boolean;
   /** cabeçalhos (#) normalizados; vazio em nota confidencial */
   cabsN: string;
-  /** corpo original e normalizado (mesmo tamanho); vazios em nota confidencial */
-  corpo: string;
+  /** corpo normalizado; vazio em nota confidencial (o trecho vem da releitura do arquivo, não daqui) */
   corpoN: string;
+  /** nota não confidencial indexada só pelo título (índice cheio) */
+  soTitulo: boolean;
 }
+
+export type LerTexto = (arq: string) => Promise<string>;
 
 // ---------------------------------------------------------------- construção do índice
 
 /** minúscula e sem acento, caractere a caractere, para o texto normalizado ter o MESMO tamanho do original */
 export function normalizarIgualTamanho(s: string): string {
+  if (!/[^\x00-\x7f]/.test(s)) return s.toLowerCase();
   let out = "";
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
@@ -67,7 +78,7 @@ export function normalizarIgualTamanho(s: string): string {
 
 /** a nota é confidencial pelo conteúdo? (flag, frontmatter duvidoso ou não fechado) */
 export function confidencialPeloTexto(texto: string): boolean {
-  if (temConfidencialTrue(texto)) return true;
+  if (temConfidencialTrue(texto) || frontmatterMencionaConfidencial(texto)) return true;
   const sem = texto.charCodeAt(0) === 0xfeff ? texto.slice(1) : texto;
   const linhas = sem.split(/\r?\n/, 40);
   if (linhas[0]?.trim() === "---") {
@@ -83,27 +94,33 @@ export function confidencialPeloTexto(texto: string): boolean {
 }
 
 function entradaConfidencial(rel: string, titulo: string): Entrada {
-  return { rel, titulo, tituloN: normalizarIgualTamanho(titulo), confidencial: true, cabsN: "", corpo: "", corpoN: "" };
+  return { rel, titulo, tituloN: normalizarIgualTamanho(titulo), confidencial: true, cabsN: "", corpoN: "", soTitulo: false };
 }
 
 /** Monta a entrada de uma nota. `texto` é null quando a nota nem deve ser aberta (pasta confidencial). */
-export function montarEntrada(rel: string, texto: string | null): Entrada {
+export function montarEntrada(rel: string, texto: string | null, soTitulo = false): Entrada {
   const titulo = (rel.split("/").pop() ?? rel).replace(/\.md$/i, "").normalize("NFC");
   const pasta = rel.split("/")[0].normalize("NFC").toLowerCase();
   if (texto === null || PASTAS_CONFIDENCIAIS.has(chave(pasta).normalize("NFC")) || confidencialPeloTexto(texto)) {
     return entradaConfidencial(rel, titulo);
   }
+  if (soTitulo) return { rel, titulo, tituloN: normalizarIgualTamanho(titulo), confidencial: false, cabsN: "", corpoN: "", soTitulo: true };
   const linhas = corpoDe(texto);
   const corpo = linhas.join("\n").normalize("NFC");
-  const cabs = linhas.filter((l) => /^#{1,6}\s+\S/.test(l)).map((l) => l.replace(/^#{1,6}\s+/, ""));
+  const cabs: string[] = [];
+  for (const l of linhas) {
+    const c = l.slice(0, MAX_CABECALHO * 2); // antes de qualquer regex
+    if (!/^#{1,6}\s+\S/.test(c)) continue;
+    cabs.push(semLinks(c.replace(/^#{1,6}\s+/, "").slice(0, MAX_CABECALHO), MAX_CABECALHO));
+  }
   return {
     rel,
     titulo,
     tituloN: normalizarIgualTamanho(titulo),
     confidencial: false,
-    cabsN: normalizarIgualTamanho(semLinks(cabs.join("\n"), MAX_BYTES_BUSCA)),
-    corpo,
+    cabsN: normalizarIgualTamanho(cabs.join("\n")),
     corpoN: normalizarIgualTamanho(corpo),
+    soTitulo: false,
   };
 }
 
@@ -121,45 +138,105 @@ export function validarConsulta(q: unknown): ConsultaValida {
   return { ok: true, palavras };
 }
 
-function todas(texto: string, palavras: readonly string[]): boolean {
-  return palavras.every((p) => texto.includes(p));
+/** toda palavra aparece em pelo menos um dos textos (sem criar string nova) */
+function todasEm(palavras: readonly string[], a: string, b?: string): boolean {
+  for (const p of palavras) {
+    if (!a.includes(p) && !(b !== undefined && b.includes(p))) return false;
+  }
+  return true;
 }
 
-function trechoDe(e: Entrada, palavras: readonly string[]): string | undefined {
-  if (e.confidencial || !e.corpo) return undefined;
+/** trecho de uma nota a partir do texto do arquivo (relido na hora): sem comentário HTML nem bloco de código */
+export function trechoDoTexto(texto: string, palavras: readonly string[]): string | undefined {
+  const corpo = linhasDeTexto(corpoDe(texto)).join("\n").normalize("NFC");
+  const corpoN = normalizarIgualTamanho(corpo);
   let pos = -1;
   for (const p of palavras) {
-    const i = e.corpoN.indexOf(p);
+    const i = corpoN.indexOf(p);
     if (i >= 0 && (pos < 0 || i < pos)) pos = i;
   }
   const ini = Math.max(0, pos < 0 ? 0 : pos - 60);
-  const fim = Math.min(e.corpo.length, ini + 220);
-  let t = semLinks(e.corpo.slice(ini, fim));
+  const fim = Math.min(corpo.length, ini + 220);
+  let t = semLinks(corpo.slice(ini, fim));
   t = t.replace(/^[#>\-*\s]+/, "");
   if (!t) return undefined;
   const cortado = cortar(t, TAM_TRECHO);
-  return (ini > 0 ? "…" : "") + cortado + (fim < e.corpo.length && cortado === t ? "…" : "");
+  return (ini > 0 ? "…" : "") + cortado + (fim < corpo.length && cortado === t ? "…" : "");
 }
 
 export function uriObsidian(nomeVault: string, rel: string): string {
   return `obsidian://open?vault=${encodeURIComponent(nomeVault)}&file=${encodeURIComponent(rel.replace(/\.md$/i, ""))}`;
 }
 
-export function buscarNoIndice(entradas: Iterable<Entrada>, palavras: readonly string[], nomeVault: string): { itens: BuscaItem[]; total: number } {
+export interface OpcoesConsulta {
+  /** raiz do vault e leitor: com eles o trecho vem da releitura do arquivo (e a privacidade é conferida de novo) */
+  raiz?: string;
+  ler?: LerTexto;
+}
+
+/**
+ * Procura no índice em fatias (cede o loop se passar de ~25 ms). O trecho dos primeiros resultados vem de uma
+ * releitura do arquivo: se a nota virou confidencial desde a indexação, o item some (ou fica só com o título,
+ * se o título casa) e o texto nunca sai.
+ */
+export async function buscarNoIndice(
+  entradas: Iterable<Entrada>,
+  palavras: readonly string[],
+  nomeVault: string,
+  opc: OpcoesConsulta = {},
+): Promise<{ itens: BuscaItem[]; total: number }> {
   const achados: { e: Entrada; nivel: number }[] = [];
+  let t0 = performance.now();
+  let n = 0;
   for (const e of entradas) {
+    if (++n % 128 === 0 && performance.now() - t0 > FATIA_MS) {
+      await new Promise<void>((r) => setImmediate(r));
+      t0 = performance.now();
+    }
     let nivel = 0;
-    if (todas(e.tituloN, palavras)) nivel = 3;
-    else if (!e.confidencial && todas(`${e.tituloN}\n${e.cabsN}`, palavras)) nivel = 2;
-    else if (!e.confidencial && todas(`${e.tituloN}\n${e.corpoN}`, palavras)) nivel = 1;
+    if (todasEm(palavras, e.tituloN)) nivel = 3;
+    else if (!e.confidencial && !e.soTitulo && todasEm(palavras, e.tituloN, e.cabsN)) nivel = 2;
+    else if (!e.confidencial && !e.soTitulo && todasEm(palavras, e.tituloN, e.corpoN)) nivel = 1;
     if (nivel > 0) achados.push({ e, nivel });
   }
   achados.sort((a, b) => b.nivel - a.nivel || (a.e.rel < b.e.rel ? -1 : a.e.rel > b.e.rel ? 1 : 0));
-  const itens = achados.slice(0, MAX_RESULTADOS).map(({ e }): BuscaItem => {
-    const trecho = trechoDe(e, palavras);
-    return { titulo: e.titulo, rel: e.rel, ...(trecho ? { trecho } : {}), confidencial: e.confidencial, uri: uriObsidian(nomeVault, e.rel) };
+  const topo = achados.slice(0, MAX_RESULTADOS);
+  const { raiz, ler } = opc;
+  let textos: (string | null)[] = topo.map(() => null);
+  if (raiz && ler) {
+    const lendo = Promise.all(
+      topo.map(async ({ e }) => {
+        if (e.confidencial || e.soTitulo) return null;
+        try {
+          return await ler(path.join(raiz, ...e.rel.split("/")));
+        } catch {
+          return null; // sem releitura, sem trecho
+        }
+      }),
+    );
+    const limite = new Promise<null>((r) => setTimeout(() => r(null), LEITURA_TRECHOS_MS).unref());
+    textos = (await Promise.race([lendo, limite])) ?? topo.map(() => null);
+  }
+  let total = achados.length;
+  const itens: BuscaItem[] = [];
+  topo.forEach(({ e, nivel }, i) => {
+    const texto = textos[i];
+    let confidencial = e.confidencial;
+    let trecho: string | undefined;
+    if (texto !== null) {
+      if (confidencialPeloTexto(texto)) {
+        if (nivel < 3) {
+          total--; // casou só pelo conteúdo de uma nota que agora é confidencial: nem aparece
+          return;
+        }
+        confidencial = true;
+      } else {
+        trecho = trechoDoTexto(texto, palavras);
+      }
+    }
+    itens.push({ titulo: e.titulo, rel: e.rel, ...(trecho ? { trecho } : {}), confidencial, uri: uriObsidian(nomeVault, e.rel) });
   });
-  return { itens, total: achados.length };
+  return { itens, total };
 }
 
 // ---------------------------------------------------------------- observador
@@ -170,6 +247,10 @@ export interface ObservadorBuscaOpcoes {
   intervaloMs?: number;
   /** não liga o fs.watch (testes) */
   semWatch?: boolean;
+  /** leitor de arquivo (testes simulam falha) */
+  lerArquivo?: LerTexto;
+  /** teto de bytes do índice (testes) */
+  maxBytesIndice?: number;
 }
 
 export class ObservadorBusca {
@@ -177,6 +258,8 @@ export class ObservadorBusca {
   private readonly debounceMs: number;
   private readonly intervaloMs: number;
   private readonly semWatch: boolean;
+  readonly lerArquivo: LerTexto;
+  private readonly maxBytesIndice: number;
 
   private caminho: string | null = null;
   private watcher: fs.FSWatcher | null = null;
@@ -197,6 +280,8 @@ export class ObservadorBusca {
     this.debounceMs = opts.debounceMs ?? DEBOUNCE_MS;
     this.intervaloMs = opts.intervaloMs ?? INTERVALO_MS;
     this.semWatch = opts.semWatch ?? false;
+    this.lerArquivo = opts.lerArquivo ?? ((arq) => fsp.readFile(arq, "utf8"));
+    this.maxBytesIndice = opts.maxBytesIndice ?? MAX_BYTES_INDICE;
   }
 
   iniciar(): Promise<void> {
@@ -218,12 +303,11 @@ export class ObservadorBusca {
     this.fecharWatch();
   }
 
-  /** o índice vale para este instante? (relê se está velho) */
+  /** responde com o índice atual; se está velho, relê em segundo plano (não bloqueia a consulta) */
   async garantir(): Promise<void> {
     await this.pronto;
-    if (Date.now() - this.ultimaLeitura > VELHICE_MS) {
-      await Promise.race([this.recarregar(), new Promise((r) => setTimeout(r, 2000).unref())]);
-    }
+    if (this.ultimaLeitura === 0) await this.recarregar();
+    else if (Date.now() - this.ultimaLeitura > VELHICE_MS) void this.recarregar();
   }
 
   getEntradas(): readonly Entrada[] {
@@ -344,6 +428,8 @@ export class ObservadorBusca {
     const arquivos = await this.listar(vault);
     const vistos = new Set(arquivos);
     for (const rel of [...this.cache.keys()]) if (!vistos.has(rel)) this.cache.delete(rel);
+    let bytes = 0;
+    let avisou = false;
     for (const rel of arquivos) {
       try {
         const arq = path.join(vault, ...rel.split("/"));
@@ -358,13 +444,26 @@ export class ObservadorBusca {
         }
         const mtime = Math.floor(st.mtimeMs);
         const antes = this.cache.get(rel);
-        if (antes && antes.mtime === mtime && antes.size === st.size) continue; // não abre de novo
+        const cabe = bytes + st.size <= this.maxBytesIndice;
+        if (antes && antes.mtime === mtime && antes.size === st.size && !(antes.entrada.soTitulo && cabe)) {
+          if (!antes.entrada.confidencial && !antes.entrada.soTitulo) bytes += st.size;
+          continue; // não abre de novo
+        }
+        if (!cabe) {
+          if (!avisou) console.warn(`[busca] o índice passou de ${Math.round(this.maxBytesIndice / 1048576)} MB: as demais notas entram só pelo título`);
+          avisou = true;
+          this.cache.set(rel, { mtime, size: st.size, entrada: montarEntrada(rel, "", true) });
+          continue;
+        }
         const pastaFechada = PASTAS_CONFIDENCIAIS.has(rel.split("/")[0].normalize("NFC").toLowerCase());
-        const texto = pastaFechada ? null : await fsp.readFile(arq, "utf8");
-        this.cache.set(rel, { mtime, size: st.size, entrada: montarEntrada(rel, texto) });
+        const texto = pastaFechada ? null : await this.lerArquivo(arq);
+        const entrada = montarEntrada(rel, texto);
+        if (!entrada.confidencial) bytes += st.size;
+        this.cache.set(rel, { mtime, size: st.size, entrada });
       } catch {
-        // EBUSY, "só online" do OneDrive...: fica o valor anterior; sem valor anterior a nota fica só com o título
-        if (!this.cache.has(rel)) this.cache.set(rel, { mtime: -1, size: -1, entrada: montarEntrada(rel, null) });
+        // EBUSY, "só online" do OneDrive...: a nota mudou (ou sumiu) e não deu para ler. Não dá para saber se
+        // virou confidencial, então fecha por segurança (só o título) e tenta de novo na próxima releitura
+        this.cache.set(rel, { mtime: -1, size: -1, entrada: montarEntrada(rel, null) });
       }
     }
     this.entradas = [...this.cache.values()].map((c) => c.entrada);
@@ -394,7 +493,7 @@ export function registrarBusca(app: Express, deps: RotasBuscaDeps) {
       return;
     }
     await deps.busca.garantir();
-    const { itens, total } = buscarNoIndice(deps.busca.getEntradas(), c.palavras, path.basename(vault));
+    const { itens, total } = await buscarNoIndice(deps.busca.getEntradas(), c.palavras, path.basename(vault), { raiz: vault, ler: deps.busca.lerArquivo });
     res.json({ ok: true, itens, total } satisfies BuscaResposta);
   });
 }

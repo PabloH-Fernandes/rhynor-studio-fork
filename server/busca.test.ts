@@ -127,7 +127,6 @@ test("nota confidencial: título sim, corpo nunca, e palavra só do corpo não a
     }
     // o corpo nem fica na memória
     const e = a.busca.getEntradas().find((x) => x.rel === "Segredos/Plano secreto.md")!;
-    assert.equal(e.corpo, "");
     assert.equal(e.corpoN, "");
   } finally {
     await a.fechar();

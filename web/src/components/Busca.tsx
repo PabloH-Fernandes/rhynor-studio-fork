@@ -131,7 +131,7 @@ function BuscaPainel() {
               )}
               {ehUriObsidian(i.uri) && (
                 <p className="busca-acoes">
-                  <a className="btn-tecnico busca-abrir" href={i.uri}>
+                  <a className="btn-tecnico busca-abrir" href={i.uri} aria-label={`Abrir ${i.titulo} no Obsidian`}>
                     Abrir no Obsidian
                   </a>
                 </p>

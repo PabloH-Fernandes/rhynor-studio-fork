@@ -21,6 +21,8 @@ export const MAX_OBJETIVO = 300;
 const MAX_NOME = 120;
 /** quanto de uma linha entra na limpeza de links (as regex de link são quadráticas) */
 const MAX_ENTRADA_LINK = 2000;
+/** quanto de uma linha do frontmatter é olhado nas buscas por "confidencial" */
+const MAX_LINHA_FM = 2000;
 
 // ---------------------------------------------------------------- caminho do vault
 
@@ -85,7 +87,7 @@ export function lerFrontmatter(texto: string): Record<string, string> | null {
   if (fim < 0) return null;
   const out: Record<string, string> = {};
   for (let i = 1; i < fim; i++) {
-    const m = /^\s*([A-Za-z0-9_-]+)\s*:(.*)$/.exec(linhas[i]);
+    const m = /^\s*["']?([A-Za-z0-9_-]+)["']?\s*:(.*)$/.exec(linhas[i]);
     if (!m) continue;
     const nomeChave = m[1].toLowerCase();
     const valor = m[2].trim();
@@ -120,16 +122,38 @@ function ehVerdade(valor: string | undefined): boolean {
 }
 
 /**
- * Qualquer linha `confidencial:` com true/yes/sim/1 descarta a nota (chave repetida, `[true]`...):
- * na dúvida, a nota fica de fora.
+ * Qualquer linha `confidencial:` com true/yes/sim/1 descarta a nota (chave repetida, `[true]`, aspas na chave,
+ * `{confidencial: true}` em fluxo...): na dúvida, a nota fica de fora.
  */
 export function temConfidencialTrue(texto: string): boolean {
   const linhas = semBom(texto).split(/\r?\n/);
   if (linhas[0]?.trim() !== "---") return false;
   for (let i = 1; i < linhas.length; i++) {
     if (linhas[i].trim() === "---") break;
-    const m = /^\s*confidencial\s*:(.*)$/i.exec(linhas[i]);
+    const l = linhas[i].slice(0, MAX_LINHA_FM);
+    const m = /^\s*["']?confidencial["']?\s*:(.*)$/i.exec(l);
     if (m && /\b(true|yes|sim|1)\b/i.test(limparValor(m[1]))) return true;
+    // fluxo: `{confidencial: true}` ou `{a: 1, "confidencial": "sim"}`
+    if (/[{,]\s*["']?confidencial["']?\s*:\s*["']?\s*(true|yes|sim|1)\b/i.test(l)) return true;
+  }
+  return false;
+}
+
+/**
+ * Linha do frontmatter que fala de `confidencial` antes do ":" de um jeito que o leitor simples não entende
+ * (fluxo `{confidencial: false}`, item de lista...): a busca trata como confidencial (na dúvida, fechada).
+ */
+export function frontmatterMencionaConfidencial(texto: string): boolean {
+  const linhas = semBom(texto).split(/\r?\n/);
+  if (linhas[0]?.trim() !== "---") return false;
+  for (let i = 1; i < linhas.length; i++) {
+    if (linhas[i].trim() === "---") break;
+    const l = linhas[i].slice(0, MAX_LINHA_FM);
+    const dp = l.indexOf(":");
+    const antes = dp < 0 ? l : l.slice(0, dp);
+    if (!/confidencial/i.test(antes)) continue;
+    if (dp >= 0 && /^\s*["']?confidencial["']?\s*$/i.test(antes)) continue; // chave simples: lerFrontmatter decide
+    return true;
   }
   return false;
 }
