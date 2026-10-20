@@ -88,8 +88,8 @@ test("POST /api/demo repetido em menos de 5 s devolve a mesma simulação, sem r
   agora = T0 + 3_000;
   const segunda = iniciarDemo(state, () => agora, relogio);
   assert.equal(segunda.repetido, true);
-  assert.equal(segunda.session_id, primeira.session_id);
-  assert.equal(segunda.durationMs, primeira.durationMs);
+  assert.equal(segunda.info.session_id, primeira.info.session_id);
+  assert.equal(segunda.info.durationMs, primeira.info.durationMs);
   assert.deepEqual(agentes(state).map((a) => a.id).sort(), antes, "ninguém saiu nem chegou por causa do repetido");
 
   // depois da janela: reinicia (sessão nova); o "Limpar" também libera

@@ -71,7 +71,7 @@ export function lerPendenciasDaNota(pasta: Pasta, nomeArquivo: string, texto: st
   if (pasta === "m") {
     if (temConfidencialTrue(texto)) return [];
     const st = chave(fm.status ?? "");
-    const reaberta = missaoReaberta(fm, texto.replace(/^﻿/, "").split(/\r?\n/));
+    const reaberta = missaoReaberta(fm, texto);
     if (st === "concluida" && !reaberta) return [];
     if (st === "em andamento" || reaberta) status = "em andamento";
     const classe = chave(fm.classe ?? "");
@@ -441,7 +441,7 @@ async function concluir(vault: string, c: CorpoConclusao, now: () => Date, antes
 
   const hoje = diaLocal(now().getTime());
   // se a tarefa foi desmarcada no Obsidian a marca antiga ficou na linha: tira antes, para não duplicar
-  const semMarca = m[3].replace(/\s*\|\s*conclu[ií]da\s*:\s*\S+/gi, "").trimEnd();
+  const semMarca = m[3].replace(/\s*\|\s*conclu[ií]da\s*:\s*\d{4}-\d{2}-\d{2}/gi, "").trimEnd();
   linhas[t.indice] = `${m[1]}x${m[2]}${semMarca} | concluída: ${hoje}`;
   const missaoConcluida = c.pasta === "m" && concluirMissao(linhas, hoje);
 

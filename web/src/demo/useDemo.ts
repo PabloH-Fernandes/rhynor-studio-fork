@@ -98,11 +98,13 @@ export function useDemo(ativo: boolean, hoje: string): DemoEstado | null {
       .then((r) => {
         if (!r.ok) {
           liberarDisparoDemo();
+          simulacaoIniciada.current = false; // nova tentativa no próximo passo (o efeito roda de novo quando o índice muda)
           setErro(true);
         }
       })
       .catch(() => {
         liberarDisparoDemo();
+        simulacaoIniciada.current = false; // nova tentativa no próximo passo (o efeito roda de novo quando o índice muda)
         setErro(true);
       });
   }, [ativo, indice]);

@@ -518,8 +518,9 @@ test("missaoReaberta / parseMissao: concluída com '- [ ]' que ainda leva a marc
   assert.equal(parseMissao("m.md", reaberta.replace(/\n/g, "\r\n"), 0)?.status, "em andamento", "CRLF");
   assert.equal(parseMissao("m.md", "﻿" + reaberta, 0)?.status, "em andamento", "BOM");
   // cancelada e pausada nunca mudam; em andamento fica
-  assert.equal(missaoReaberta({ status: "cancelada" }, ["- [ ] x | concluída: 2026-10-12"]), false);
-  assert.equal(missaoReaberta({ status: "pausada" }, ["- [ ] x | concluída: 2026-10-12"]), false);
-  assert.equal(missaoReaberta({ status: "concluída" }, ["- [x] x | concluída: 2026-10-12"]), false);
-  assert.equal(missaoReaberta({ status: "concluida" }, ["  * [ ] x | concluida : 2026-10-12"]), true);
+  assert.equal(missaoReaberta({ status: "cancelada" }, "## Tarefas\n- [ ] x | concluída: 2026-10-12"), false);
+  assert.equal(missaoReaberta({ status: "pausada" }, "## Tarefas\n- [ ] x | concluída: 2026-10-12"), false);
+  assert.equal(missaoReaberta({ status: "concluída" }, "## Tarefas\n- [x] x | concluída: 2026-10-12"), false);
+  assert.equal(missaoReaberta({ status: "concluida" }, "## Tarefas\n  * [ ] x | concluida : 2026-10-12"), true);
+  assert.equal(missaoReaberta({ status: "concluida" }, "## Tarefas\n- [ ] x | concluída: 2026-02-31"), false, "data que não existe");
 });

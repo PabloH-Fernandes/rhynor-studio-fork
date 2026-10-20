@@ -12,6 +12,7 @@ import { lerCaixaItem } from "./caixa.ts";
 import { ObservadorPendencias, concluirPendencia, lerPendenciasDaNota, montarPendencias, registrarPendencias, validarConclusao } from "./pendencias.ts";
 import { AGORA, criarReuniao, novoVaultDeTeste, type VaultDeTeste } from "./testeVault.ts";
 import { parseMissao } from "./vault.ts";
+import { lerEventosDaNota } from "./resultados.ts";
 
 const HOJE = "2026-10-17";
 
@@ -597,4 +598,68 @@ test("atas fictícias aprovadas como 'eu' aparecem em Pendências com a urgênci
   } finally {
     v.limpar();
   }
+});
+
+test("concluir só tira a marca antiga no formato do painel: '| concluída: parcial' fica no texto", async () => {
+  const v = novoVaultDeTeste();
+  try {
+    const arq = path.join(v.missoes, "2026-10-10-m.md");
+    const original = MISSAO(["classe: time"]).replace("- [ ] Passo sem prazo", "- [ ] Passo sem prazo | concluída: parcial");
+    fs.writeFileSync(arq, original);
+    const p = pendenciaDe("m", "2026-10-10-m", original, 1);
+    assert.equal((await concluirPendencia(v.vault, { id: p.id, h: p.h }, { now: () => AGORA })).status, 200);
+    assert.equal(ler(arq), original.replace("- [ ] Passo sem prazo | concluída: parcial", "- [x] Passo sem prazo | concluída: parcial | concluída: 2026-10-17"));
+    // marca antiga no formato do painel (tarefa desmarcada no Obsidian): é trocada, não duplicada
+    const arq2 = path.join(v.missoes, "2026-10-11-n.md");
+    const outro = MISSAO(["classe: time"]).replace("- [ ] Passo sem prazo", "- [ ] Passo sem prazo | concluída: 2026-09-09");
+    fs.writeFileSync(arq2, outro);
+    const p2 = pendenciaDe("m", "2026-10-11-n", outro, 1);
+    assert.equal((await concluirPendencia(v.vault, { id: p2.id, h: p2.h }, { now: () => AGORA })).status, 200);
+    assert.ok(ler(arq2).includes("- [x] Passo sem prazo | concluída: 2026-10-17"));
+    assert.ok(!ler(arq2).includes("2026-09-09"));
+  } finally {
+    v.limpar();
+  }
+});
+
+// ---------------------------------------------------------------- missão reaberta: os três leitores concordam
+
+function missaoConcluida(corpoTarefas: string[], antes: string[] = []): string {
+  return [
+    "---", "tipo: missao", "status: concluída", "origem: reuniao", "classe: time", "concluida_em: 2026-10-12", "confidencial: false", "---", "",
+    "# Tarefas: Uma coisa", "", ...antes, "## Tarefas", ...corpoTarefas, "",
+  ].join("\n");
+}
+
+function leitores(texto: string): { painel: string; pendencias: number; resultados: number } {
+  const eventos = lerEventosDaNota("m", "2026-10-10-uma.md", texto, 0);
+  return {
+    painel: parseMissao("2026-10-10-uma.md", texto, 0)?.status ?? "",
+    pendencias: lerPendenciasDaNota("m", "2026-10-10-uma.md", texto).length,
+    resultados: eventos.filter((e) => e.tipo === "missao").length,
+  };
+}
+
+test("missão reaberta: amostra em bloco de código, comentário, fora de ## Tarefas ou com data impossível não reabre em nenhum leitor", () => {
+  const amostra = "- [ ] x | concluída: 2026-01-01";
+  const casos: Record<string, string> = {
+    "bloco de código": missaoConcluida(["- [x] feita | concluída: 2026-10-12", "```", amostra, "```"]),
+    comentário: missaoConcluida(["- [x] feita | concluída: 2026-10-12", "<!--", amostra, "-->"]),
+    "fora de ## Tarefas": missaoConcluida(["- [x] feita | concluída: 2026-10-12", "", "## Notas", amostra]),
+    "antes de ## Tarefas": missaoConcluida(["- [x] feita | concluída: 2026-10-12"], [amostra, ""]),
+    "data impossível": missaoConcluida(["- [x] feita | concluída: 2026-10-12", "- [ ] x | concluída: 2026-02-31"]),
+  };
+  for (const [nome, texto] of Object.entries(casos)) {
+    const r = leitores(texto);
+    assert.equal(r.painel, "concluída", `painel: ${nome}`);
+    assert.equal(r.pendencias, 0, `pendências: ${nome}`);
+    assert.equal(r.resultados, 1, `resultados: ${nome}`);
+  }
+});
+
+test("missão reaberta de verdade reabre nos três leitores ao mesmo tempo", () => {
+  const r = leitores(missaoConcluida(["- [x] feita | concluída: 2026-10-12", "- [ ] volta | concluída: 2026-10-12"]));
+  assert.equal(r.painel, "em andamento");
+  assert.equal(r.pendencias, 1);
+  assert.equal(r.resultados, 0);
 });

@@ -112,7 +112,7 @@ export function lerEventosDaNota(pasta: PastaResultados, nomeArquivo: string, te
       out.push({ tipo: "tarefa", dia, ficticia, chave: `${reuniao || `m:${nota}`}|${textoParaChave(t.texto)}`, reuniao });
     }
   }
-  if (chave(fm.status ?? "") === "concluida" && !missaoReaberta(fm, linhas)) {
+  if (chave(fm.status ?? "") === "concluida" && !missaoReaberta(fm, texto)) {
     // sem `concluida_em` a data do arquivo NÃO vale (mudaria a cada edição): entra só no total, como nota sem data
     const dia = diaDoInstante(fm.concluida_em);
     out.push({ tipo: "missao", dia, ficticia, aproximada: dia === "", reuniao });

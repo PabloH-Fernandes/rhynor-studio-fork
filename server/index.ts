@@ -189,7 +189,7 @@ app.put("/api/roster", rosterJson, async (req, res) => {
 app.post("/api/demo", (_req, res) => {
   // uma simulação por vez: a anterior para e a sessão dela vai embora; pedido repetido em poucos segundos
   // (recarga, duas abas) devolve a mesma simulação, sem reiniciar
-  const { repetido: _repetido, ...info } = iniciarDemo(state);
+  const { info } = iniciarDemo(state);
   res.json({ ok: true, ...info });
 });
 

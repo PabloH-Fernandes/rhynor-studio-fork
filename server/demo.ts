@@ -79,16 +79,16 @@ export function iniciarDemo(
   state: OfficeState,
   agora: () => number = Date.now,
   relogio: Agenda = AGENDA_PADRAO,
-): ResultadoDemo & { repetido: boolean } {
+): { info: ResultadoDemo; repetido: boolean } {
   const t = agora();
   if (ultimoInicio && activeSession === ultimoInicio.info.session_id && t >= ultimoInicio.em && t - ultimoInicio.em < DEMO_JANELA_REPETIDO_MS) {
-    return { ...ultimoInicio.info, repetido: true };
+    return { info: ultimoInicio.info, repetido: true };
   }
   const anterior = cancelDemo();
   if (anterior) state.endSession(anterior, "Saiu (simulação reiniciada)");
   const info = runDemo(state, relogio);
   ultimoInicio = { em: t, info };
-  return { ...info, repetido: false };
+  return { info, repetido: false };
 }
 
 export function runDemo(state: OfficeState, relogio: Agenda = AGENDA_PADRAO) {

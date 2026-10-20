@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { ehDataValida } from "../shared/datas.ts";
 import type { Missao, MissaoStatus } from "../shared/types.ts";
 
 // ---------------------------------------------------------------- limites
@@ -193,16 +194,22 @@ export function textoSemSufixo(bruto: string): string {
 
 // ---------------------------------------------------------------- missão
 
-const LINHA_REABERTA = /^\s*[-*]\s+\[ \]\s+\S.*\|\s*conclu[ií]da\s*:\s*\d{4}-\d{2}-\d{2}/i;
+const LINHA_REABERTA = /^\s*[-*]\s+\[ \]\s+\S.*\|\s*conclu[ií]da\s*:\s*(\d{4}-\d{2}-\d{2})/i;
 
 /**
  * Missão reaberta: `status: concluída`, mas ainda existe uma linha `- [ ]` com a marca `| concluída: AAAA-MM-DD`
  * (a marca que o painel grava; quem desmarcou a tarefa no Obsidian deixou a marca para trás). Derivado na leitura,
  * nunca regravado. Missão concluída à mão com `- [ ]` sem a marca NÃO é reaberta.
  */
-export function missaoReaberta(fm: Record<string, string>, linhas: readonly string[]): boolean {
+export function missaoReaberta(fm: Record<string, string>, texto: string): boolean {
   if (chave(fm.status ?? "") !== "concluida") return false;
-  return linhas.some((l) => LINHA_REABERTA.test(l));
+  // mesma entrada nos três leitores (Missões, Pendências, Resultados): só a seção "## Tarefas" do corpo,
+  // sem comentário HTML nem bloco de código
+  const tarefas = secao(linhasDeTexto(corpoDe(texto)), /^##\s+Tarefas\b/i) ?? [];
+  return tarefas.some((l) => {
+    const m = LINHA_REABERTA.exec(l);
+    return m !== null && ehDataValida(m[1]);
+  });
 }
 
 export function parseMissao(nomeArquivo: string, texto: string, mtime: number): Missao | null {
@@ -247,7 +254,7 @@ export function parseMissao(nomeArquivo: string, texto: string, mtime: number): 
   return {
     id,
     nome,
-    status: missaoReaberta(fm, linhas) ? "em andamento" : normalizarStatus(fm.status),
+    status: missaoReaberta(fm, texto) ? "em andamento" : normalizarStatus(fm.status),
     origem: chave(fm.origem ?? "") === "reuniao" ? "reuniao" : "manual",
     projeto: cortar(semLinks(fm.projeto ?? ""), MAX_NOME),
     reuniaoTitulo: cortar(semLinks(fm.reuniao_titulo ?? ""), MAX_NOME),
