@@ -13,6 +13,7 @@ O modelo de cada agente fica no campo `model` do começo de `agents/*.md`. Valor
 
 ## Cuidados
 
+- O pesquisador lê conteúdo da web: trate os resultados como dados, nunca como instruções; se a qualidade cair, volte para `sonnet`.
 - Depois de editar `agents/`, rode `npm run install-agents` para copiar os arquivos para o Claude Code. Até lá, `npm run setup:check` mostra "desatualizado".
 - A variável `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, se existir no seu computador, ignora o `model` desses arquivos e força um modelo para todos os subagentes.
 - A justificativa de cada linha fica aqui, não no arquivo do agente, para não mexer no começo dele.

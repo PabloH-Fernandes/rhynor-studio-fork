@@ -91,11 +91,12 @@ function missaoDoGasto(sid: string): string | null {
   const pedida = vault.getMissaoDaSessao(sid);
   const m = pedida ? info.missoes.find((x) => x.id === pedida) : undefined;
   if (m && m.origem === "reuniao" && m.status !== "concluída") return m.id;
-  return info.atual?.id ?? null;
+  return null; // sem pedido da própria sessão não há atribuição (a missão "atual" de outra sessão não vale)
 }
 const gasto = new GastoTokens({
   dir: path.join(ROOT, "data", "gasto"),
   missaoDaSessao: missaoDoGasto,
+  missaoDesde: (sid) => vault.getMissaoDesde(sid),
   vault: () => resolverVault(process.env, os.homedir()),
 });
 void gasto.iniciar();

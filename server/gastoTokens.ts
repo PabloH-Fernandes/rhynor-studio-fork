@@ -9,7 +9,10 @@
 //   linha completa. O registro é gravado de forma assíncrona e pode atrasar: relê ~1,5 s após o Stop e no próximo evento.
 // - O dia vem do `timestamp` da linha (dia local).
 // - Segurança: /api/hook é aberto e o caminho vem do corpo; só vale arquivo .jsonl, que NÃO seja link simbólico, dentro de
-//   ~/.claude/projects (AGPOCKET_PROJETOS_DIR troca a pasta nos testes) e com menos de 50 MB. Fora disso: ignora em silêncio.
+//   ~/.claude/projects (AGPOCKET_PROJETOS_DIR troca a pasta nos testes). A checagem do caminho é LÉXICA, antes de tocar no
+//   disco (nada de UNC, \\?\ nem \\.\: evita acesso de rede a host arbitrário). Fora disso: ignora em silêncio.
+// - Registro grande (>= 50 MB): lê só os últimos 50 MB (alinhado à próxima quebra de linha) e avisa uma vez no log; o que
+//   veio antes disso não entra na conta (subconta conhecida, documentada no README).
 // Persistência: data/gasto/AAAA-MM-DD.json (totais por papel) e data/gasto/_arquivos.json (deslocamento por arquivo e
 // últimas mensagens vistas), para o reinício não recontar nem zerar.
 
@@ -25,6 +28,7 @@ export const MAX_BYTES_TRANSCRITO = 50 * 1024 * 1024;
 const TRECHO_BYTES = 4 * 1024 * 1024;
 const MAX_IDS_POR_ARQUIVO = 200;
 const MAX_ARQUIVOS = 300;
+const MAX_RELER = 200;
 const ESPERA_STOP_MS = 1500;
 const EMITIR_MS = 1000;
 const NOTA_INTERVALO_MS = 60_000;
@@ -51,6 +55,11 @@ interface EstadoArquivo {
   /** message.id → [dia, entrada, saída, criação, leitura]; só os últimos MAX_IDS_POR_ARQUIVO */
   ids: Record<string, [string, number, number, number, number]>;
 }
+interface Missao {
+  id: string;
+  /** ms em que a sessão pediu a missão, se conhecido */
+  desde: number | null;
+}
 interface Alvo {
   caminho: unknown;
   papel: string;
@@ -65,8 +74,10 @@ export interface OpcoesGasto {
   esperaMs?: number;
   emitirMs?: number;
   notaIntervaloMs?: number;
-  /** missão atual da sessão (a do /time ou a em andamento); null = sem missão */
+  /** missão pedida pela sessão (/time Missão [[id]]) e ainda aberta; null = sem missão */
   missaoDaSessao?: (sessionId: string) => string | null;
+  /** quando a sessão pediu a missão (ms); só linhas do registro a partir daí contam para a nota */
+  missaoDesde?: (sessionId: string) => number | null;
   vault?: () => string | null;
 }
 
@@ -88,21 +99,31 @@ function numero(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.min(Math.floor(v), 1e12) : 0;
 }
 
+/** dentro da pasta, só por texto (sem tocar no disco); no Windows não diferencia maiúsculas */
+function dentroLexico(caminho: string, base: string): boolean {
+  const norm = (x: string) => (process.platform === "win32" ? x.toLowerCase() : x);
+  const rel = path.relative(norm(path.resolve(base)), norm(path.resolve(caminho)));
+  return rel !== "" && rel !== ".." && !rel.startsWith(".." + path.sep) && !path.isAbsolute(rel);
+}
+
 /**
  * Caminho aceito? Devolve o caminho real, ou null. Regras: texto sem NUL, absoluto (com `~/` expandido), termina em
- * .jsonl, não é link simbólico, o realpath está dentro da pasta de registros e o arquivo tem menos de 50 MB.
+ * .jsonl, sem prefixo de rede/dispositivo (barras duplas no começo), dentro da pasta de registros (conferido por texto
+ * ANTES de tocar no disco), não é link simbólico e o realpath também está dentro da pasta.
  */
 export async function caminhoPermitido(bruto: unknown, projetosDir: string, home = os.homedir()): Promise<string | null> {
   if (typeof bruto !== "string" || bruto.length === 0 || bruto.length > 1024 || bruto.includes("\u0000")) return null;
   const expandido = /^~[\\/]/.test(bruto) ? path.join(home, bruto.slice(2)) : bruto;
+  if (/^[\\/]{2}/.test(expandido)) return null; // UNC, \\?\ e \\.\ (e as versões com /)
   if (!path.isAbsolute(expandido) || !/\.jsonl$/i.test(expandido)) return null;
+  if (!dentroLexico(expandido, projetosDir)) return null;
   try {
     const st = await fsp.lstat(expandido);
-    if (st.isSymbolicLink() || !st.isFile() || st.size >= MAX_BYTES_TRANSCRITO) return null;
+    if (st.isSymbolicLink() || !st.isFile()) return null;
     const real = await fsp.realpath(expandido);
     const base = await fsp.realpath(projetosDir);
     const rel = path.relative(base, real);
-    if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return null;
+    if (!rel || rel === ".." || rel.startsWith(".." + path.sep) || path.isAbsolute(rel)) return null;
     return real;
   } catch {
     return null;
@@ -151,7 +172,8 @@ export class GastoTokens {
   private ultimaEmissao = 0;
   private timerEmitir: ReturnType<typeof setTimeout> | null = null;
   /** sessão → o que reler no próximo evento (depois de um Stop) */
-  private reler = new Map<string, { alvos: Alvo[]; missao: string | null; ate: number }>();
+  private reler = new Map<string, { alvos: Alvo[]; missao: Missao | null; ate: number }>();
+  private avisadosGrandes = new Set<string>();
   /** missão → tokens ainda não gravados na nota */
   private pendenteNota = new Map<string, number>();
   private ultimaNota = new Map<string, number>();
@@ -215,15 +237,19 @@ export class GastoTokens {
       const b = corpo as Record<string, unknown>;
       const evento = b.hook_event_name;
       const sid = typeof b.session_id === "string" ? b.session_id : "";
-      const missao = sid ? (this.o.missaoDaSessao?.(sid) ?? null) : null;
       const lider: Alvo = { caminho: b.transcript_path, papel: PAPEL_LIDER };
       if (evento === "Stop" || evento === "SubagentStop" || evento === "SessionEnd") {
         const alvos: Alvo[] = evento === "SubagentStop" ? [{ caminho: b.agent_transcript_path, papel: papelSeguro(b.agent_type) }, lider] : [lider];
         const fim = evento === "SessionEnd";
+        const idMissao = sid ? (this.o.missaoDaSessao?.(sid) ?? null) : null;
+        const missao: Missao | null = idMissao ? { id: idMissao, desde: this.o.missaoDesde?.(sid) ?? null } : null;
         if (sid) this.reler.delete(sid);
         this.enfileirar(() => this.lerAlvos(alvos, missao, fim));
         if (!fim) {
-          if (sid) this.reler.set(sid, { alvos, missao, ate: this.agora() + RELER_PRAZO_MS });
+          if (sid) {
+            this.reler.set(sid, { alvos, missao, ate: this.agora() + RELER_PRAZO_MS });
+            while (this.reler.size > MAX_RELER) this.reler.delete(this.reler.keys().next().value as string);
+          }
           const t = setTimeout(() => {
             this.timers.delete(t);
             this.enfileirar(() => this.lerAlvos(alvos, missao, false));
@@ -268,57 +294,92 @@ export class GastoTokens {
 
   private enfileirar(fn: () => Promise<void>) {
     this.fila = this.fila.then(fn).catch((err) => {
-      console.warn("[gasto] erro ao ler o registro:", err instanceof Error ? err.message : err);
+      console.warn("[gasto] erro ao ler o registro:", (err as NodeJS.ErrnoException | null)?.code ?? "erro");
     });
   }
 
-  private async lerAlvos(alvos: Alvo[], missao: string | null, fimDaSessao: boolean) {
+  private async lerAlvos(alvos: Alvo[], missao: Missao | null, fimDaSessao: boolean) {
     const projetos = (this.o.projetosDir ?? (() => projetosDirPadrao()))();
     let mudou = false;
     for (const alvo of alvos) {
       const real = await caminhoPermitido(alvo.caminho, projetos);
       if (!real) continue;
       try {
-        const delta = await this.lerArquivo(real, alvo.papel);
-        if (delta !== null) mudou = true;
-        if (missao && delta && delta > 0) this.pendenteNota.set(missao, (this.pendenteNota.get(missao) ?? 0) + delta);
+        const r = await this.lerArquivo(real, alvo.papel, missao?.desde ?? null, missao !== null);
+        if (r.mudou) mudou = true;
+        if (missao && r.missao > 0) this.pendenteNota.set(missao.id, (this.pendenteNota.get(missao.id) ?? 0) + r.missao);
       } catch (err) {
         console.warn("[gasto] não consegui ler um registro:", (err as NodeJS.ErrnoException).code ?? "erro");
       }
     }
     if (mudou || this.estadoSujo) await this.gravarTudo();
-    if (missao) await this.gravarNota(missao, fimDaSessao);
+    if (missao) await this.gravarNota(missao.id, fimDaSessao);
     if (mudou) this.notificar();
   }
 
-  /** Lê o que chegou depois do deslocamento. Devolve os tokens de HOJE somados agora (para a missão), ou null se nada mudou. */
-  private async lerArquivo(real: string, papelDoAlvo: string): Promise<number | null> {
+  /**
+   * Lê o que chegou depois do deslocamento. `missao` = tokens novos que contam para a nota da missão: só linhas com hora
+   * >= `desde` (quando a sessão pediu a missão); sem `desde`, só o que chegou depois da primeira leitura do arquivo.
+   */
+  private async lerArquivo(real: string, papelDoAlvo: string, desde: number | null, querMissao: boolean): Promise<{ mudou: boolean; missao: number }> {
     let est = this.arquivos.get(real);
-    if (!est) {
+    const jaConhecido = est !== undefined;
+    if (est) {
+      this.arquivos.delete(real); // último uso vai para o fim: o descarte tira o mais parado, não o mais antigo
+      if (est.papel === "outro" && papelDoAlvo !== "outro") est.papel = papelDoAlvo;
+    } else {
       est = { offset: 0, papel: papelDoAlvo, ids: {} };
-      this.arquivos.set(real, est);
-      while (this.arquivos.size > MAX_ARQUIVOS) this.arquivos.delete(this.arquivos.keys().next().value as string);
-    } else if (est.papel === "outro" && papelDoAlvo !== "outro") {
-      est.papel = papelDoAlvo;
     }
+    this.arquivos.set(real, est);
+    while (this.arquivos.size > MAX_ARQUIVOS) this.arquivos.delete(this.arquivos.keys().next().value as string);
+    const contaMissao = querMissao && (desde !== null || jaConhecido);
     const hoje = diaLocal(this.agora());
-    let somaHoje = 0;
+    let somaMissao = 0;
     let mudou = false;
+    const lst = await fsp.lstat(real);
+    if (lst.isSymbolicLink() || !lst.isFile()) return { mudou, missao: 0 };
     const fh = await fsp.open(real, "r");
     try {
-      const { size } = await fh.stat();
-      if (size >= MAX_BYTES_TRANSCRITO) return null;
+      const st = await fh.stat();
+      // o arquivo aberto tem de ser o mesmo que o lstat viu (troca no meio do caminho = ignora); no Windows o lstat dá dev 0
+      if (st.ino !== lst.ino || (lst.dev !== 0 && st.dev !== 0 && st.dev !== lst.dev)) return { mudou, missao: 0 };
+      const { size } = st;
+      let alinhar = false;
+      if (size - est.offset > MAX_BYTES_TRANSCRITO) {
+        // registro grande: só os últimos 50 MB, começando na próxima quebra de linha (o resto NÃO é contado)
+        if (!this.avisadosGrandes.has(real)) {
+          this.avisadosGrandes.add(real);
+          if (this.avisadosGrandes.size > MAX_ARQUIVOS) this.avisadosGrandes.delete(this.avisadosGrandes.values().next().value as string);
+          console.warn("[gasto] registro com 50 MB ou mais: lendo só o final; o gasto anterior não entra na conta");
+        }
+        est.offset = size - MAX_BYTES_TRANSCRITO;
+        alinhar = true;
+        this.estadoSujo = true;
+      }
       if (size < est.offset) {
         // arquivo reescrito/encurtado: não dá para saber o que já foi contado; segue do fim
         est.offset = size;
         this.estadoSujo = true;
-        return null;
+        return { mudou, missao: 0 };
       }
       while (est.offset < size) {
         const buf = Buffer.alloc(Math.min(TRECHO_BYTES, size - est.offset));
         const { bytesRead } = await fh.read(buf, 0, buf.length, est.offset);
         if (bytesRead <= 0) break;
         const fimDoArquivo = est.offset + bytesRead >= size;
+        if (alinhar) {
+          // começo no meio do arquivo: joga fora a linha cortada ao meio e recomeça na seguinte
+          const q = buf.subarray(0, bytesRead).indexOf(0x0a);
+          if (q >= 0) {
+            alinhar = false;
+            est.offset += q + 1;
+          } else if (fimDoArquivo) {
+            break;
+          } else {
+            est.offset += bytesRead;
+          }
+          continue;
+        }
         // corta na última quebra de linha em BYTES (um caractere acentuado nunca fica pela metade)
         let usar = buf.subarray(0, bytesRead).lastIndexOf(0x0a) + 1;
         if (usar === 0) {
@@ -342,7 +403,7 @@ export class GastoTokens {
           const delta = this.aplicar(est, u, dia);
           if (delta !== null) {
             mudou = true;
-            if (dia === hoje) somaHoje += delta;
+            if (contaMissao && (desde === null || u.ts >= desde)) somaMissao += delta;
           }
         }
         est.offset += usar;
@@ -351,7 +412,7 @@ export class GastoTokens {
     } finally {
       await fh.close().catch(() => undefined);
     }
-    return mudou ? somaHoje : null;
+    return { mudou, missao: somaMissao };
   }
 
   private linhaCompleta(txt: string): boolean {

@@ -288,11 +288,11 @@ test("GastoTokens grava na nota da missão da sessão (no máximo 1 vez por minu
     const f = path.join(v.missoes, "m1.md");
     fs.writeFileSync(f, notaMissao());
     let t = AGORA14;
-    const g = novo(c, { agora: () => t, vault: () => v.vault, missaoDaSessao: (sid) => (sid === "S1" ? "m1" : null) });
+    const g = novo(c, { agora: () => t, vault: () => v.vault, missaoDaSessao: (sid) => (sid === "S1" ? "m1" : null), missaoDesde: () => 0 });
     await g.iniciar();
     g.registrar(stop(c));
     await g.esperar();
-    assert.match(fs.readFileSync(f, "utf8"), /^tokens_total: 156$/m);
+    assert.match(fs.readFileSync(f, "utf8"), /^tokens_total: 180$/m);
     // 10 s depois, mais uso: ainda dentro do minuto, não grava
     fs.appendFileSync(
       c.lider,
@@ -301,11 +301,160 @@ test("GastoTokens grava na nota da missão da sessão (no máximo 1 vez por minu
     t += 10_000;
     g.registrar(stop(c));
     await g.esperar();
-    assert.match(fs.readFileSync(f, "utf8"), /^tokens_total: 156$/m);
+    assert.match(fs.readFileSync(f, "utf8"), /^tokens_total: 180$/m);
     // fim da sessão: grava na hora
     g.registrar({ hook_event_name: "SessionEnd", session_id: "S1", transcript_path: c.lider });
     await g.esperar();
-    assert.match(fs.readFileSync(f, "utf8"), /^tokens_total: 164$/m);
+    assert.match(fs.readFileSync(f, "utf8"), /^tokens_total: 188$/m);
+    g.parar();
+    await g.esperar();
+  } finally {
+    await c.fim();
+    v.limpar();
+  }
+});
+
+// ---------------------------------------------------------------- correções da revisão da Etapa 7
+
+const linhaUso = (id: string, ts: string, tokens: number) =>
+  `{"type":"assistant","timestamp":"${ts}","message":{"id":"${id}","usage":{"input_tokens":${tokens},"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}\n`;
+
+test("caminhoPermitido: UNC, prefixo de dispositivo e de rede são recusados sem tocar no disco; ..x.jsonl dentro da pasta vale", async () => {
+  const c = cenario();
+  try {
+    for (const ruim of [
+      String.raw`\\servidor\share\x.jsonl`,
+      "//servidor/share/x.jsonl",
+      String.raw`\\?\C:\x\y.jsonl`,
+      String.raw`\\.\C:\x\y.jsonl`,
+      String.raw`\\?\UNC\h\s\y.jsonl`,
+    ]) {
+      assert.equal(await caminhoPermitido(ruim, c.projetos), null, ruim);
+    }
+    // fora da pasta por texto (o arquivo nem precisa existir)
+    assert.equal(await caminhoPermitido(path.join(c.base, "outro", "x.jsonl"), c.projetos), null);
+    const estranho = path.join(c.projetos, "proj-x", "..x.jsonl");
+    fs.writeFileSync(estranho, "");
+    assert.ok(await caminhoPermitido(estranho, c.projetos));
+  } finally {
+    await c.fim();
+  }
+});
+
+test("registro com 50 MB ou mais: lê só o final (uma linha cortada ao meio é jogada fora) e avisa uma vez", async () => {
+  const c = cenario();
+  const avisos: string[] = [];
+  const original = console.warn;
+  console.warn = (...a: unknown[]) => void avisos.push(a.join(" "));
+  try {
+    const grande = path.join(c.projetos, "proj-x", "grande.jsonl");
+    const enchimento = Buffer.from("x".repeat(1023) + "\n");
+    const fd = fs.openSync(grande, "w");
+    fs.writeSync(fd, linhaUso("antigo", "2026-10-14T15:00:00.000Z", 1000));
+    for (let i = 0; i < 51 * 1024; i++) fs.writeSync(fd, enchimento);
+    fs.writeSync(fd, linhaUso("novo", "2026-10-14T15:30:00.000Z", 7));
+    fs.closeSync(fd);
+    const g = novo(c);
+    await g.iniciar();
+    g.registrar({ hook_event_name: "Stop", session_id: "S1", transcript_path: grande });
+    await g.esperar();
+    assert.deepEqual(g.getHoje()?.total, { tokens: 7, cacheLeitura: 0 }); // o "antigo" fica de fora
+    fs.appendFileSync(grande, linhaUso("novo2", "2026-10-14T15:31:00.000Z", 3));
+    g.registrar({ hook_event_name: "SessionEnd", session_id: "S1", transcript_path: grande });
+    await g.esperar();
+    assert.deepEqual(g.getHoje()?.total, { tokens: 10, cacheLeitura: 0 });
+    assert.equal(avisos.filter((a) => a.includes("50 MB")).length, 1);
+    g.parar();
+    await g.esperar();
+  } finally {
+    console.warn = original;
+    await c.fim();
+  }
+});
+
+test("descarte por último uso: arquivo ativo e antigo não é recontado; mapa reler tem teto", async () => {
+  const c = cenario();
+  try {
+    const pasta = path.join(c.projetos, "proj-x");
+    const ativo = path.join(pasta, "ativo.jsonl");
+    fs.writeFileSync(ativo, linhaUso("a1", "2026-10-14T15:00:00.000Z", 5));
+    const g = novo(c);
+    await g.iniciar();
+    const ler = async (f: string, sid: string) => {
+      g.registrar({ hook_event_name: "SessionEnd", session_id: sid, transcript_path: f });
+      await g.esperar();
+    };
+    await ler(ativo, "A");
+    for (let i = 0; i < 350; i++) {
+      const f = path.join(pasta, `f${i}.jsonl`);
+      fs.writeFileSync(f, linhaUso(`m${i}`, "2026-10-14T15:00:00.000Z", 1));
+      await ler(f, `S${i}`);
+      if (i % 100 === 99) await ler(ativo, "A"); // continua em uso
+    }
+    assert.deepEqual(g.getHoje()?.total, { tokens: 5 + 350, cacheLeitura: 0 });
+    // o antigo foi descartado? não: foi usado há pouco, então a releitura não recomeça do zero
+    await ler(ativo, "A");
+    assert.deepEqual(g.getHoje()?.total, { tokens: 5 + 350, cacheLeitura: 0 });
+    // mapa reler: Stops de muitas sessões não crescem sem limite
+    for (let i = 0; i < 400; i++) g.registrar({ hook_event_name: "Stop", session_id: `R${i}`, transcript_path: ativo });
+    assert.ok((g as unknown as { reler: Map<string, unknown> }).reler.size <= 200);
+    g.parar();
+    await g.esperar();
+  } finally {
+    await c.fim();
+  }
+});
+
+test("missão: só a pedida pela própria sessão recebe tokens, e só o que veio depois do pedido", async () => {
+  const c = cenario();
+  const v = novoVaultDeTeste();
+  try {
+    const f = path.join(v.missoes, "m1.md");
+    fs.writeFileSync(f, notaMissao());
+    const pasta = path.join(c.projetos, "proj-x");
+    const reg = path.join(pasta, "pedido.jsonl");
+    fs.writeFileSync(reg, linhaUso("antes", "2026-10-14T15:00:00.000Z", 1000) + linhaUso("depois", "2026-10-14T15:20:00.000Z", 20));
+    const desde = Date.parse("2026-10-14T15:10:00.000Z");
+    // sem pedido da sessão: nada vai para a nota
+    let pedida: string | null = null;
+    const g = novo(c, { vault: () => v.vault, missaoDaSessao: () => pedida, missaoDesde: () => desde, notaIntervaloMs: 0 });
+    await g.iniciar();
+    g.registrar({ hook_event_name: "SessionEnd", session_id: "S1", transcript_path: reg });
+    await g.esperar();
+    assert.doesNotMatch(fs.readFileSync(f, "utf8"), /tokens_total/);
+    // com pedido, em arquivo novo: o histórico anterior ao pedido não entra
+    const reg2 = path.join(pasta, "pedido2.jsonl");
+    fs.writeFileSync(reg2, linhaUso("antes2", "2026-10-14T15:00:00.000Z", 1000) + linhaUso("depois2", "2026-10-14T15:20:00.000Z", 20));
+    pedida = "m1";
+    g.registrar({ hook_event_name: "SessionEnd", session_id: "S1", transcript_path: reg2 });
+    await g.esperar();
+    assert.match(fs.readFileSync(f, "utf8"), /^tokens_total: 20$/m);
+    g.parar();
+    await g.esperar();
+  } finally {
+    await c.fim();
+    v.limpar();
+  }
+});
+
+test("missão sem horário do pedido: a primeira leitura do arquivo não conta, só o incremento depois dela", async () => {
+  const c = cenario();
+  const v = novoVaultDeTeste();
+  try {
+    const f = path.join(v.missoes, "m1.md");
+    fs.writeFileSync(f, notaMissao());
+    const reg = path.join(c.projetos, "proj-x", "antigo.jsonl");
+    fs.writeFileSync(reg, linhaUso("h1", "2026-10-14T15:00:00.000Z", 500));
+    const g = novo(c, { vault: () => v.vault, missaoDaSessao: () => "m1", notaIntervaloMs: 0 });
+    await g.iniciar();
+    g.registrar({ hook_event_name: "SessionEnd", session_id: "S1", transcript_path: reg });
+    await g.esperar();
+    assert.doesNotMatch(fs.readFileSync(f, "utf8"), /tokens_total/);
+    assert.deepEqual(g.getHoje()?.total, { tokens: 500, cacheLeitura: 0 }); // o painel do dia continua certo
+    fs.appendFileSync(reg, linhaUso("h2", "2026-10-14T15:40:00.000Z", 9));
+    g.registrar({ hook_event_name: "SessionEnd", session_id: "S1", transcript_path: reg });
+    await g.esperar();
+    assert.match(fs.readFileSync(f, "utf8"), /^tokens_total: 9$/m);
     g.parar();
     await g.esperar();
   } finally {

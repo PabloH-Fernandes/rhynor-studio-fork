@@ -417,7 +417,15 @@ O que falar em cada passo está em [docs/roteiro-apresentacao.md](docs/roteiro-a
 
 - **É:** uma contagem de tokens lida do registro do Claude, atualizada quando um agente termina. Sem dado, o painel mostra "—" (nunca 0 nem estimativa). Na demo aparece "—".
 - **Não é:** custo em dinheiro, gasto por tarefa nem leitura de conversa. Só números são lidos; nenhum texto do registro é guardado.
-- **Segurança:** só abre registros `.jsonl` dentro de `~/.claude/projects` (que não sejam link simbólico e tenham menos de 50 MB). Os totais ficam em `data/gasto/AAAA-MM-DD.json` (fora do git).
+- **Segurança:** só abre registros `.jsonl` dentro de `~/.claude/projects` (que não sejam link simbólico). O caminho vem do corpo do hook, então é conferido só por texto antes de tocar no disco: caminhos de rede (`\\host\...`, `//host/...`) e de dispositivo (`\\?\`, `\\.\`) são recusados. Os totais ficam em `data/gasto/AAAA-MM-DD.json` (fora do git).
+- **Limites conhecidos:**
+  - A nota da missão é **aproximada**. O valor ainda não gravado fica só na memória: servidor que cai, ou `fechar` cortado em 1 s, subconta. Se você editar `tokens_total` à mão, o valor novo vira a base do próximo incremento.
+  - Só conta para a nota a missão **pedida pela própria sessão** (`/time Missão [[nota]]`), de reunião e não concluída, e só o que veio depois do pedido. Sem pedido da sessão, nada vai para nota alguma. Se o horário do pedido não for conhecido, a primeira leitura de um registro não conta para a nota (só o que chegar depois).
+  - Registro reescrito ou truncado pelo Claude não é recontado (a leitura segue do novo fim).
+  - Registro com **50 MB ou mais**: lê só os últimos 50 MB e avisa uma vez no log do servidor. O que veio antes não entra na conta (subconta, nunca silenciosa).
+  - `data/gasto/_arquivos.json` guarda **caminhos absolutos** dos registros (a pasta fica fora do git; não a compartilhe). Guarda os 300 registros usados mais recentemente; um registro parado há muito tempo pode ser recontado se voltar a ser usado.
+  - Na primeira leitura de um registro antigo, o painel passa a contar também os dias anteriores que ele tiver (cria `AAAA-MM-DD.json` desses dias). Isso não vai para a nota da missão.
+  - É tokens, não dinheiro: **não** é custo em reais/dólares, nem por tarefa.
 
 ## Simulação
 
