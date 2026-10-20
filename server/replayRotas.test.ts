@@ -7,10 +7,10 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { INTERVALO_CHAVE_MS, MAX_MENSAGENS_REPLAY, type DiaReplay, type DiasReplay } from "../shared/replay.ts";
+import { INTERVALO_CHAVE_MS, MAX_MENSAGENS_REPLAY, calcularChaves, type DiaReplay, type DiasReplay } from "../shared/replay.ts";
 import type { ServerMessage } from "../shared/types.ts";
 import { lerJsonl, reproduzir } from "./replay.ts";
-import { calcularChaves, dataValida, lerJsonlTolerante, registrarReplay } from "./replayRotas.ts";
+import { dataValida, lerJsonlTolerante, registrarReplay } from "./replayRotas.ts";
 import { OfficeState } from "./state.ts";
 
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "sessoes", "lider-dois-subagentes.jsonl");

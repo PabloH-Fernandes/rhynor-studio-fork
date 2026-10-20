@@ -3,7 +3,7 @@
 // estado, que alimenta um segundo OfficeCanvas.
 
 import type { Agent, Progress } from "../../shared/types";
-import type { ChaveReplay, DiaReplay, MensagemDoDia, MensagemReplay } from "../../shared/replay";
+import type { ChaveReplay, DiaDisponivel, DiaReplay, MensagemDoDia, MensagemReplay } from "../../shared/replay";
 
 export const VELOCIDADES = [10, 30, 60] as const;
 export type Velocidade = (typeof VELOCIDADES)[number];
@@ -137,7 +137,7 @@ export function ehDiaReplay(v: unknown): v is DiaReplay {
   return o.ok === true && typeof o.inicio === "number" && typeof o.fim === "number" && Array.isArray(o.mensagens) && Array.isArray(o.chaves);
 }
 
-export function ehListaDias(v: unknown): v is { ok: true; dias: { data: string; eventos: number }[] } {
+export function ehListaDias(v: unknown): v is { ok: true; dias: DiaDisponivel[] } {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
   return o.ok === true && Array.isArray(o.dias) && o.dias.every((d) => typeof d === "object" && d !== null && typeof (d as { data?: unknown }).data === "string");

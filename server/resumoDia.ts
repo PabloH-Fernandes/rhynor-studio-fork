@@ -16,6 +16,11 @@ import { criarRotulos, enxugarEvento } from "./replay.ts";
 
 export const LIMITE_BYTES_DIA = 5 * 1024 * 1024;
 export const RETENCAO_DIAS = 30;
+/** parte da cota do dia que sessões ainda desconhecidas podem usar; o resto é de quem abriu sessão de verdade */
+export const FRACAO_COTA_DESCONHECIDAS = 0.7;
+/** sessões "conhecidas" (viram com SessionStart/UserPromptSubmit) por dia, e quantas podem virar por minuto */
+const MAX_CONHECIDAS = 300;
+const MAX_PROMOCOES_POR_MINUTO = 30;
 /** campos de texto curtos (ids, tipos) que passam; o que for maior é cortado */
 const MAX_TEXTO = 80;
 
@@ -48,7 +53,12 @@ export class ResumoDia {
   private rotulos = criarRotulos();
   /** bytes já escritos por arquivo (lido do disco na primeira vez) */
   private tamanhos = new Map<string, number>();
-  private estourou = new Set<string>();
+  /** datas (AAAA-MM-DD) em que algum evento foi descartado por falta de cota */
+  private cortados = new Set<string>();
+  private avisouCota = new Set<string>();
+  /** sessões que já mostraram um SessionStart/UserPromptSubmit neste dia: podem usar a cota inteira */
+  private conhecidas = new Set<string>();
+  private promocoesNoMinuto = { inicio: 0, n: 0 };
   private readonly now: () => number;
   private readonly limiteBytes: number;
   private readonly retencaoDias: number;
@@ -77,12 +87,41 @@ export class ResumoDia {
       if (arquivo !== this.diaDosRotulos) {
         this.diaDosRotulos = arquivo;
         this.rotulos = criarRotulos();
+        this.conhecidas.clear();
       }
       const enxuto = limitar(enxugarEvento(body as Record<string, unknown>, this.rotulos));
-      this.gravar({ chegada, hookTs, evento: enxuto }, chegada);
+      this.gravar({ chegada, hookTs, evento: enxuto }, chegada, this.sessaoConhecida(body as Record<string, unknown>, chegada));
     } catch (err) {
       this.avisar(err);
     }
+  }
+
+  /** O dia perdeu eventos por falta de cota? (`bytes`: tamanho do arquivo, para o caso do servidor ter reiniciado) */
+  limiteAtingido(data: string, bytes = 0): boolean {
+    return this.cortados.has(data) || (bytes > 0 && bytes + 4096 > this.limiteBytes);
+  }
+
+  /**
+   * Um flood de POSTs com sessões inventadas não pode esgotar a cota do dia: sessão só vira "conhecida" ao mandar
+   * SessionStart/UserPromptSubmit (no máximo 30 por minuto e 300 por dia); as desconhecidas
+   * usam só uma parte da cota.
+   */
+  private sessaoConhecida(body: Record<string, unknown>, agora: number): boolean {
+    const sid = typeof body.session_id === "string" ? body.session_id.slice(0, 200) : "";
+    if (!sid) return false;
+    if (this.conhecidas.has(sid)) return true;
+    const nome = body.hook_event_name;
+    if (nome !== "SessionStart" && nome !== "UserPromptSubmit") return false;
+    if (this.conhecidas.size >= MAX_CONHECIDAS) return false;
+    const j = this.promocoesNoMinuto;
+    if (agora - j.inicio >= 60_000) {
+      j.inicio = agora;
+      j.n = 0;
+    }
+    if (j.n >= MAX_PROMOCOES_POR_MINUTO) return false;
+    j.n++;
+    this.conhecidas.add(sid);
+    return true;
   }
 
   /** Espera as gravações pendentes (testes e encerramento). */
@@ -115,7 +154,7 @@ export class ResumoDia {
     return apagados;
   }
 
-  private gravar(linha: LinhaGravada, chegada: number) {
+  private gravar(linha: LinhaGravada, chegada: number, conhecida = true) {
     let texto: string;
     try {
       texto = JSON.stringify(linha) + "\n";
@@ -127,15 +166,21 @@ export class ResumoDia {
     const bytes = Buffer.byteLength(texto);
     this.cadeia = this.cadeia
       .then(async () => {
-        if (this.estourou.has(arquivo)) return;
         let atual = this.tamanhos.get(arquivo);
         if (atual === undefined) {
           await fs.promises.mkdir(this.pasta, { recursive: true });
           atual = await fs.promises.stat(arquivo).then((s) => s.size, () => 0);
         }
-        if (atual + bytes > this.limiteBytes) {
-          this.estourou.add(arquivo);
-          console.warn(`[resumo do dia] limite de ${Math.round(this.limiteBytes / 1024 / 1024)} MB do dia atingido: o replay deste dia para por aqui (aviso só uma vez)`);
+        const teto = conhecida ? this.limiteBytes : Math.floor(this.limiteBytes * FRACAO_COTA_DESCONHECIDAS);
+        if (atual + bytes > teto) {
+          const data = path.basename(arquivo, ".jsonl");
+          this.cortados.add(data);
+          if (!this.avisouCota.has(data + conhecida)) {
+            this.avisouCota.add(data + conhecida);
+            console.warn(
+              `[resumo do dia] limite do dia atingido (${Math.round(teto / 1024 / 1024 * 10) / 10} MB para ${conhecida ? "sessões conhecidas" : "sessões novas"}): o replay deste dia fica incompleto (aviso só uma vez)`,
+            );
+          }
           return;
         }
         await fs.promises.appendFile(arquivo, texto);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Agent } from "../../shared/types";
 import type { DiaReplay, MensagemDoDia } from "../../shared/replay";
-import { calcularChaves } from "../../server/replayRotas";
+import { calcularChaves } from "../../shared/replay";
 import { DT_MAXIMO_MS, Reprodutor, avancar, aplicar, ehDiaReplay, estadoVazio, indiceEm, rotuloData, rotuloHora } from "./replayLogic";
 
 function agente(id: string, status: Agent["status"]): Agent {

@@ -15,6 +15,7 @@
 //   npm run replay -- data/eventos/2026-10-05.jsonl
 //   npm run replay -- --anonimizar entrada.jsonl saida.jsonl
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -139,6 +140,31 @@ export function lerJsonl(texto: string): LinhaGravada[] {
 
 /** Reproduz as linhas gravadas num OfficeState novo. Marcador servidor_iniciou recria o estado. */
 export function reproduzir(linhas: readonly LinhaGravada[], opts: ReproduzirOpts = {}): Reproducao {
+  return drenar(reproduzirPassos(linhas, opts));
+}
+
+/** Roda um gerador até o fim, sem ceder o event loop (uso síncrono: testes e CLI). */
+export function drenar<T>(passos: Generator<void, T>): T {
+  for (let r = passos.next(); ; r = passos.next()) if (r.done) return r.value;
+}
+
+/**
+ * Roda um gerador até o fim cedendo o event loop a cada ~`fatiaMs` ms de trabalho: o servidor segue atendendo
+ * os hooks enquanto um dia grande é reproduzido.
+ */
+export async function drenarCedendo<T>(passos: Generator<void, T>, fatiaMs = 8): Promise<T> {
+  let inicio = performance.now();
+  for (let r = passos.next(); ; r = passos.next()) {
+    if (r.done) return r.value;
+    if (performance.now() - inicio >= fatiaMs) {
+      await new Promise<void>((ok) => setImmediate(ok));
+      inicio = performance.now();
+    }
+  }
+}
+
+/** Mesmo que `reproduzir`, mas como gerador: cede (yield) depois de cada linha, para quem quiser fatiar o trabalho. */
+export function* reproduzirPassos(linhas: readonly LinhaGravada[], opts: ReproduzirOpts = {}): Generator<void, Reproducao> {
   const relogio = new RelogioVirtual(linhas.length ? linhas[0].chegada : 0);
   const linhaDoTempo: Mudanca[] = [];
   const ultimo = new Map<string, string>();
@@ -217,10 +243,12 @@ export function reproduzir(linhas: readonly LinhaGravada[], opts: ReproduzirOpts
       desligar();
       state = ligar(opts.aoReiniciar ? opts.aoReiniciar(state, relogio) : estadoNovo());
       linhaDoTempo.push({ t: relogio.now(), id: "", nome: "(servidor)", status: "reiniciou", atividade: "Servidor reiniciou" });
+      yield;
       continue;
     }
     const ts = Math.min(linha.hookTs || linha.chegada, linha.chegada);
     fila.push({ ts, seq: ++seq, chegada: linha.chegada, evento: linha.evento });
+    yield;
   }
   processarAte(Infinity);
   if (opts.depoisDoFimMs && opts.depoisDoFimMs > 0) relogio.avancarAte(relogio.now() + opts.depoisDoFimMs);
@@ -253,19 +281,60 @@ export function agentePorNome(state: OfficeState, nome: string): Agent | undefin
 
 // ---------------------------------------------------------------- anonimizador
 
-/** troca textos por rótulos estáveis: o mesmo original vira sempre o mesmo "Prefixo N" */
-class Rotulos {
+/** quantos textos diferentes um conjunto de rótulos guarda; depois disso, todo texto novo vira o rótulo genérico */
+export const MAX_ROTULOS = 5000;
+
+/**
+ * troca textos por rótulos estáveis: o mesmo original vira sempre o mesmo "Prefixo N". Guarda só um hash curto do
+ * original (nunca o texto) e tem teto de entradas, então POSTs forjados não fazem a memória crescer sem limite.
+ */
+export class Rotulos {
   private mapa = new Map<string, string>();
-  constructor(private readonly fazer: (n: number, original: string) => string) {}
+  constructor(
+    private readonly fazer: (n: number, original: string) => string,
+    private readonly generico: string,
+    private readonly teto = MAX_ROTULOS,
+  ) {}
+  get tamanho(): number {
+    return this.mapa.size;
+  }
   de(original: unknown): string {
     const s = String(original ?? "");
-    let r = this.mapa.get(s);
-    if (!r) {
+    const chave = createHash("sha1").update(s.slice(0, 4096)).digest("hex").slice(0, 8);
+    let r = this.mapa.get(chave);
+    if (r === undefined) {
+      if (this.mapa.size >= this.teto) return this.generico;
       r = this.fazer(this.mapa.size + 1, s);
-      this.mapa.set(s, r);
+      this.mapa.set(chave, r);
     }
     return r;
   }
+}
+
+const ID_SEGURO = /^[\w.:-]{1,40}$/;
+const EXTENSAO_SEGURA = /^\.[A-Za-z0-9]{1,8}$/;
+
+/** id/tipo curto só com letras, números e _ . : - (até 40); o resto vira `generico` */
+function curto(v: unknown, generico: string): string {
+  return typeof v === "string" && ID_SEGURO.test(v) ? v : generico;
+}
+
+/** número e booleano passam; texto só se tiver cara de identificador curto */
+function escalar(v: unknown): string | number | boolean {
+  return typeof v === "number" || typeof v === "boolean" ? v : curto(v, "outro");
+}
+
+/** identificador que o estado usa como chave (sessão, agente, tool_use): fora do padrão vira um hash estável */
+function idEstavel(v: unknown): string {
+  if (typeof v === "string" && ID_SEGURO.test(v)) return v;
+  return `id-${createHash("sha1").update(String(v).slice(0, 4096)).digest("hex").slice(0, 8)}`;
+}
+
+/** o nome da ferramenta MCP (mcp__servidor__ferramenta) pode revelar cliente/serviço: só o prefixo fica */
+function ferramentaSegura(v: unknown): string {
+  const s = typeof v === "string" ? v : "";
+  if (s.startsWith("mcp__")) return "mcp__*";
+  return curto(s, "Ferramenta");
 }
 
 /** campos do evento que o state/progress leem e que não têm texto da pessoa: passam iguais */
@@ -297,14 +366,17 @@ export function anonimizar(linhas: readonly LinhaGravada[]): LinhaGravada[] {
 /** Rótulos estáveis para um conjunto de eventos (o mesmo arquivo vira sempre o mesmo "arquivo-N"). */
 export function criarRotulos(): RotulosAnon {
   return {
-    arquivo: new Rotulos((n, orig) => `arquivo-${n}${path.extname(orig)}`),
-    tarefa: new Rotulos((n) => `Tarefa ${n}`),
-    pedido: new Rotulos((n) => `Pedido ${n}`),
-    descricao: new Rotulos((n) => `Descrição ${n}`),
-    comando: new Rotulos((n) => `Comando ${n}`),
-    padrao: new Rotulos((n) => `padrão ${n}`),
-    busca: new Rotulos((n) => `Busca ${n}`),
-    mensagem: new Rotulos((n) => `Mensagem ${n}`),
+    arquivo: new Rotulos((n, orig) => {
+      const ext = path.extname(orig);
+      return `arquivo-${n}${EXTENSAO_SEGURA.test(ext) ? ext : ""}`;
+    }, "arquivo-?"),
+    tarefa: new Rotulos((n) => `Tarefa ${n}`, "Tarefa ?"),
+    pedido: new Rotulos((n) => `Pedido ${n}`, "Pedido ?"),
+    descricao: new Rotulos((n) => `Descrição ${n}`, "Descrição ?"),
+    comando: new Rotulos((n) => `Comando ${n}`, "Comando ?"),
+    padrao: new Rotulos((n) => `padrão ${n}`, "padrão ?"),
+    busca: new Rotulos((n) => `Busca ${n}`, "Busca ?"),
+    mensagem: new Rotulos((n) => `Mensagem ${n}`, "Mensagem ?"),
   };
 }
 
@@ -326,7 +398,7 @@ export type RotulosAnon = Record<"arquivo" | "tarefa" | "pedido" | "descricao" |
 
 function anonimizarEvento(ev: Record<string, unknown>, r: RotulosAnon): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const campo of CAMPOS_MANTIDOS) if (ev[campo] !== undefined) out[campo] = ev[campo];
+  for (const campo of CAMPOS_MANTIDOS) if (ev[campo] !== undefined) out[campo] = campoMantido(campo, ev[campo]);
   if (ev.cwd !== undefined) out.cwd = "/projeto";
   if (ev.user_prompt !== undefined) out.user_prompt = r.pedido.de(ev.user_prompt);
   if (ev.prompt !== undefined) out.prompt = r.pedido.de(ev.prompt);
@@ -336,6 +408,20 @@ function anonimizarEvento(ev: Record<string, unknown>, r: RotulosAnon): Record<s
   const resp = anonimizarResposta(tool, ev.tool_response);
   if (resp !== undefined) out.tool_response = resp;
   return out;
+}
+
+/** os campos "mantidos" não são texto da pessoa, mas vêm do corpo do POST: só passa o que tem cara de identificador */
+function campoMantido(campo: (typeof CAMPOS_MANTIDOS)[number], v: unknown): string {
+  switch (campo) {
+    case "session_id":
+    case "agent_id":
+    case "tool_use_id":
+      return idEstavel(v);
+    case "tool_name":
+      return ferramentaSegura(v);
+    default:
+      return curto(v, "outro");
+  }
 }
 
 /** a Notification sem notification_type é classificada pelo texto: mantém só a classe */
@@ -349,7 +435,7 @@ function mensagemGenerica(msg: string): string {
 function anonimizarToolInput(tool: string, ti: Record<string, unknown>, r: RotulosAnon): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const copiar = (...campos: string[]) => {
-    for (const c of campos) if (ti[c] !== undefined) out[c] = ti[c];
+    for (const c of campos) if (ti[c] !== undefined) out[c] = escalar(ti[c]);
   };
   switch (tool) {
     case "Agent":
@@ -392,7 +478,7 @@ function anonimizarToolInput(tool: string, ti: Record<string, unknown>, r: Rotul
         out.todos = ti.todos.map((t) => {
           if (!isObj(t)) return null;
           const assunto = r.tarefa.de(t.content ?? t.subject);
-          const item: Record<string, unknown> = { content: assunto, status: t.status };
+          const item: Record<string, unknown> = { content: assunto, status: escalar(t.status) };
           if (t.activeForm !== undefined || t.active_form !== undefined) item.activeForm = `Fazendo ${assunto.toLowerCase()}`;
           return item;
         });
@@ -418,8 +504,8 @@ function anonimizarToolInput(tool: string, ti: Record<string, unknown>, r: Rotul
 function anonimizarResposta(tool: string, resp: unknown): unknown {
   if ((tool !== "TaskCreate" && tool !== "TaskUpdate") || !isObj(resp)) return undefined;
   const out: Record<string, unknown> = {};
-  if (isObj(resp.task) && resp.task.id !== undefined) out.task = { id: resp.task.id };
-  for (const c of ["taskId", "id", "success"]) if (resp[c] !== undefined) out[c] = resp[c];
+  if (isObj(resp.task) && resp.task.id !== undefined) out.task = { id: escalar(resp.task.id) };
+  for (const c of ["taskId", "id", "success"]) if (resp[c] !== undefined) out[c] = escalar(resp[c]);
   return out;
 }
 

@@ -204,7 +204,7 @@ registrarBusca(app, { resolverVault: () => resolverVault(process.env, os.homedir
 registrarTransparencia(app, { log: transparencia, atasDoMes: (mes) => resultados.atasDoMes(mes), porta: () => PORT });
 
 // Replay do dia: GET /api/replay/dias e GET /api/replay/dia?data=AAAA-MM-DD (só leitura; roda num estado virtual isolado)
-registrarReplay(app, { dir: () => REPLAY_DIR, porta: () => PORT, roster: () => state.getRoster() });
+registrarReplay(app, { dir: () => REPLAY_DIR, porta: () => PORT, roster: () => state.getRoster(), limiteAtingido: (data, bytes) => resumoDia.limiteAtingido(data, bytes) });
 
 // Elenco dos AGzinhos: o atual e o padrão (para "Voltar ao padrão" no vestiário).
 app.get("/api/roster", (_req, res) => {

@@ -3123,4 +3123,15 @@ h2 {
   .replay-palco {
     height: 360px;
   }
+
+  /* alvo de toque de pelo menos 44 px */
+  .replay-play,
+  .replay-vel,
+  .replay-select {
+    min-height: 44px;
+  }
+
+  .replay-slider {
+    min-height: 44px;
+  }
 }

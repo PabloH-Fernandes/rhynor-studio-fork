@@ -27,6 +27,8 @@ interface Props {
   ampliar?: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** false: o loop de desenho para (sem requestAnimationFrame) até voltar a true. Padrão: sempre ativo. */
+  ativo?: boolean;
 }
 
 const Z_STEP = 1.25; // botões e teclado
@@ -44,7 +46,7 @@ const VELOCITY_WINDOW = 100; // ms usados pra medir a velocidade de soltura
 const K_MAX = 8; // teto da resolução interna do canvas (W*k px de largura) pra não estourar memória
 const MAX_PIXELS = 16e6; // Safari/iOS deixa o canvas em branco acima de ~16,7 Mpx
 
-export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, reuniao, missao, atrasadas, ampliar = false, selectedId, onSelect }, ref) {
+export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanvas({ agents, roster, progress, reuniao, missao, atrasadas, ampliar = false, selectedId, onSelect, ativo = true }, ref) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OfficeEngine>();
@@ -197,6 +199,7 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
 
   // loop de animação (também move a câmera: zoom animado e inércia)
   useEffect(() => {
+    if (!ativo) return;
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     let raf = 0;
@@ -276,7 +279,7 @@ export const OfficeCanvas = forwardRef<OfficeHandle, Props>(function OfficeCanva
     // espera as fontes pixel carregarem pra não piscar texto errado
     document.fonts.ready.then(() => (raf = requestAnimationFrame(frame)));
     return () => cancelAnimationFrame(raf);
-  }, [engine]);
+  }, [engine, ativo]);
 
   const toBase = (clientX: number, clientY: number) => {
     const r = canvasRef.current!.getBoundingClientRect();

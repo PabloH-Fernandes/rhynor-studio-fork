@@ -48,6 +48,8 @@ function ReplayPainel({ roster }: { roster: Roster | null }) {
   const [velocidade, setVelocidade] = useState<Velocidade>(30);
   const [t, setT] = useState(0);
   const tRef = useRef(0);
+  /** o escritório do replay só desenha enquanto toca ou logo depois de mexer (parado, não gasta quadro nenhum) */
+  const [desenhando, setDesenhando] = useState(false);
 
   // lista de dias: só pede depois que a seção abre (fechada, o painel não faz pedido nenhum)
   useEffect(() => {
@@ -60,7 +62,7 @@ function ReplayPainel({ roster }: { roster: Roster | null }) {
         if (controle.signal.aborted) return;
         if (!ehListaDias(corpo)) return setDias({ tipo: "erro" });
         setDias({ tipo: "ok", lista: corpo.dias });
-        setData((atual) => (atual && corpo.dias.some((d) => d.data === atual) ? atual : (corpo.dias[0]?.data ?? "")));
+        setData((atual) => (atual && corpo.dias.some((d) => d.data === atual) ? atual : (corpo.dias.find((d) => !d.semMovimento) ?? corpo.dias[0])?.data ?? ""));
       })
       .catch(() => {
         if (!controle.signal.aborted) setDias({ tipo: "erro" });
@@ -126,13 +128,28 @@ function ReplayPainel({ roster }: { roster: Roster | null }) {
 
   // o estado só muda quando passa uma mensagem (não a cada quadro)
   const indice = dia ? indiceEm(dia.mensagens, t) : 0;
+
+  // desenha enquanto toca; ao pausar/arrastar, mais um instante para o último quadro aparecer, e para
+  useEffect(() => {
+    if (!aberto || !dia) {
+      setDesenhando(false);
+      return;
+    }
+    setDesenhando(true);
+    if (tocando) return;
+    const espera = window.setTimeout(() => setDesenhando(false), 2500);
+    return () => window.clearTimeout(espera);
+  }, [aberto, dia, tocando, indice]);
+
+  // irPara é idempotente (o mesmo t dá o mesmo estado; o Reprodutor só guarda cursor e retratos como cache),
+  // então refazer no render é seguro, inclusive no StrictMode
   const estado = useMemo(() => (reprodutor ? reprodutor.irPara(t) : estadoVazio()), [reprodutor, indice]);
   const agentes = useMemo(() => Object.values(estado.agents), [estado]);
   const palco = useMemo(
     () => (
-      <OfficeCanvas agents={agentes} roster={roster} progress={estado.progress} reuniao={null} missao={null} atrasadas={0} selectedId={null} onSelect={semSelecao} />
+      <OfficeCanvas agents={agentes} roster={roster} progress={estado.progress} reuniao={null} missao={null} atrasadas={0} selectedId={null} onSelect={semSelecao} ativo={desenhando} />
     ),
-    [agentes, roster, estado.progress],
+    [agentes, roster, estado.progress, desenhando],
   );
 
   const alternarPlay = () => {
@@ -153,6 +170,8 @@ function ReplayPainel({ roster }: { roster: Roster | null }) {
 
   const semDias = dias.tipo === "ok" && dias.lista.length === 0;
   const duracao = dia ? duracaoMs(dia) : 0;
+  // o max do slider é múltiplo do passo (1 s), arredondado para cima: o fim do dia é alcançável
+  const maxSlider = Math.max(1000, Math.ceil(duracao / 1000) * 1000);
   const fimDoDia = dia ? t >= dia.fim : false;
 
   return (
@@ -179,6 +198,7 @@ function ReplayPainel({ roster }: { roster: Roster | null }) {
                 {dias.lista.map((d) => (
                   <option key={d.data} value={d.data}>
                     {rotuloData(d.data)}
+                    {d.semMovimento ? " (sem movimento)" : ""}
                   </option>
                 ))}
               </select>
@@ -218,9 +238,9 @@ function ReplayPainel({ roster }: { roster: Roster | null }) {
                       aria-label="Hora do replay"
                       aria-valuetext={`${rotuloHoraSegundos(t)}, de ${rotuloHora(dia.inicio)} a ${rotuloHora(dia.fim)}`}
                       min={0}
-                      max={Math.max(1, duracao)}
+                      max={maxSlider}
                       step={1000}
-                      value={Math.min(Math.max(0, t - dia.inicio), Math.max(1, duracao))}
+                      value={Math.min(Math.max(0, t - dia.inicio), maxSlider)}
                       onChange={(e) => mover(Number(e.target.value))}
                     />
                     <div className="replay-extremos" aria-hidden="true">
@@ -229,7 +249,10 @@ function ReplayPainel({ roster }: { roster: Roster | null }) {
                     </div>
 
                     <p className="caixa-meta replay-aviso">{AVISO_VELOCIDADE}</p>
-                    {dia.reduzido && <p className="caixa-meta replay-aviso">Dia muito cheio: o replay mostra só as mudanças de status.</p>}
+                    {dia.reduzido && (
+                      <p className="caixa-meta replay-aviso">Dia muito cheio: o replay mostra só as mudanças de status e o fim do dia foi cortado.</p>
+                    )}
+                    {dia.limiteAtingido && <p className="caixa-meta replay-aviso">O dia atingiu o limite de registro: o que veio depois não está no replay.</p>}
                     {dia.linhasIgnoradas ? <p className="caixa-meta replay-aviso">{dia.linhasIgnoradas} linha(s) do resumo estavam estragadas e foram ignoradas.</p> : null}
                   </>
                 )}
