@@ -56,7 +56,45 @@ export interface Entrada {
   soTitulo: boolean;
 }
 
-export type LerTexto = (arq: string) => Promise<string>;
+/** `maxBytes` limita a leitura (só os primeiros bytes do arquivo) */
+export type LerTexto = (arq: string, maxBytes?: number) => Promise<string>;
+
+/** teto da releitura de cada item do topo */
+export const MAX_BYTES_RELEITURA = 256 * 1024;
+/** nota além do teto do índice: só o início é lido para conferir o frontmatter */
+const BYTES_INICIO = 4096;
+/** espera máxima da consulta pelo índice inicial antes de responder "montando" */
+export const ESPERA_INDICE_MS = 300;
+
+async function lerArquivoPadrao(arq: string, maxBytes?: number): Promise<string> {
+  if (maxBytes === undefined) return fsp.readFile(arq, "utf8");
+  const fh = await fsp.open(arq, "r");
+  try {
+    const buf = Buffer.alloc(maxBytes);
+    const { bytesRead } = await fh.read(buf, 0, maxBytes, 0);
+    return buf.subarray(0, bytesRead).toString("utf8");
+  } finally {
+    await fh.close();
+  }
+}
+
+/** resolve com o valor, ou com null se passar de `ms` (leitura travada); nunca rejeita */
+function comLimite<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(null), ms);
+    t.unref();
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      () => {
+        clearTimeout(t);
+        resolve(null);
+      },
+    );
+  });
+}
 
 // ---------------------------------------------------------------- construção do índice
 
@@ -172,6 +210,8 @@ export interface OpcoesConsulta {
   /** raiz do vault e leitor: com eles o trecho vem da releitura do arquivo (e a privacidade é conferida de novo) */
   raiz?: string;
   ler?: LerTexto;
+  /** tempo máximo de cada releitura e do conjunto (testes) */
+  limiteLeituraMs?: number;
 }
 
 /**
@@ -184,7 +224,7 @@ export async function buscarNoIndice(
   palavras: readonly string[],
   nomeVault: string,
   opc: OpcoesConsulta = {},
-): Promise<{ itens: BuscaItem[]; total: number }> {
+): Promise<{ itens: BuscaItem[]; total: number; maisResultados: boolean }> {
   const achados: { e: Entrada; nivel: number }[] = [];
   let t0 = performance.now();
   let n = 0;
@@ -202,28 +242,37 @@ export async function buscarNoIndice(
   achados.sort((a, b) => b.nivel - a.nivel || (a.e.rel < b.e.rel ? -1 : a.e.rel > b.e.rel ? 1 : 0));
   const topo = achados.slice(0, MAX_RESULTADOS);
   const { raiz, ler } = opc;
-  let textos: (string | null)[] = topo.map(() => null);
+  const limiteMs = opc.limiteLeituraMs ?? LEITURA_TRECHOS_MS;
+  // tentou: houve releitura; texto null com tentou = a releitura falhou ou estourou o tempo (fail-closed)
+  const naoLe = (e: Entrada) => e.confidencial || e.soTitulo;
+  let leituras: { tentou: boolean; texto: string | null }[] = topo.map(() => ({ tentou: false, texto: null }));
   if (raiz && ler) {
     const lendo = Promise.all(
       topo.map(async ({ e }) => {
-        if (e.confidencial || e.soTitulo) return null;
-        try {
-          return await ler(path.join(raiz, ...e.rel.split("/")));
-        } catch {
-          return null; // sem releitura, sem trecho
-        }
+        if (naoLe(e)) return { tentou: false, texto: null };
+        const texto = await comLimite(Promise.resolve().then(() => ler(path.join(raiz, ...e.rel.split("/")), MAX_BYTES_RELEITURA)), limiteMs);
+        return { tentou: true, texto };
       }),
     );
-    const limite = new Promise<null>((r) => setTimeout(() => r(null), LEITURA_TRECHOS_MS).unref());
-    textos = (await Promise.race([lendo, limite])) ?? topo.map(() => null);
+    // limite do conjunto: se estourar, todas as releituras contam como falha
+    leituras = (await comLimite(lendo, limiteMs)) ?? topo.map(({ e }) => ({ tentou: !naoLe(e), texto: null }));
   }
-  let total = achados.length;
+  const mais = achados.length > MAX_RESULTADOS;
+  // com mais que o limite, o número exato seria um oráculo de existência: devolve só o limite
+  let total = mais ? MAX_RESULTADOS : achados.length;
   const itens: BuscaItem[] = [];
   topo.forEach(({ e, nivel }, i) => {
-    const texto = textos[i];
+    const { tentou, texto } = leituras[i];
     let confidencial = e.confidencial;
     let trecho: string | undefined;
-    if (texto !== null) {
+    if (tentou && texto === null) {
+      // não deu para conferir: se casou só pelo conteúdo, some; se casou pelo título, fica fechada
+      if (nivel < 3) {
+        total--;
+        return;
+      }
+      confidencial = true;
+    } else if (texto !== null) {
       if (confidencialPeloTexto(texto)) {
         if (nivel < 3) {
           total--; // casou só pelo conteúdo de uma nota que agora é confidencial: nem aparece
@@ -236,7 +285,7 @@ export async function buscarNoIndice(
     }
     itens.push({ titulo: e.titulo, rel: e.rel, ...(trecho ? { trecho } : {}), confidencial, uri: uriObsidian(nomeVault, e.rel) });
   });
-  return { itens, total };
+  return { itens, total, maisResultados: mais };
 }
 
 // ---------------------------------------------------------------- observador
@@ -280,7 +329,7 @@ export class ObservadorBusca {
     this.debounceMs = opts.debounceMs ?? DEBOUNCE_MS;
     this.intervaloMs = opts.intervaloMs ?? INTERVALO_MS;
     this.semWatch = opts.semWatch ?? false;
-    this.lerArquivo = opts.lerArquivo ?? ((arq) => fsp.readFile(arq, "utf8"));
+    this.lerArquivo = opts.lerArquivo ?? lerArquivoPadrao;
     this.maxBytesIndice = opts.maxBytesIndice ?? MAX_BYTES_INDICE;
   }
 
@@ -308,6 +357,11 @@ export class ObservadorBusca {
     await this.pronto;
     if (this.ultimaLeitura === 0) await this.recarregar();
     else if (Date.now() - this.ultimaLeitura > VELHICE_MS) void this.recarregar();
+  }
+
+  /** como garantir(), mas devolve false se o índice inicial não ficou pronto em `ms` (a montagem segue em segundo plano) */
+  async garantirAte(ms: number): Promise<boolean> {
+    return (await comLimite(this.garantir().then(() => true), ms)) === true;
   }
 
   getEntradas(): readonly Entrada[] {
@@ -452,7 +506,14 @@ export class ObservadorBusca {
         if (!cabe) {
           if (!avisou) console.warn(`[busca] o índice passou de ${Math.round(this.maxBytesIndice / 1048576)} MB: as demais notas entram só pelo título`);
           avisou = true;
-          this.cache.set(rel, { mtime, size: st.size, entrada: montarEntrada(rel, "", true) });
+          // além do teto: lê só o início para conferir o frontmatter (fail-closed: sem frontmatter fechado, é confidencial)
+          let inicio: string | null = null;
+          try {
+            inicio = (await this.lerArquivo(arq, BYTES_INICIO)).slice(0, BYTES_INICIO);
+          } catch {
+            inicio = null;
+          }
+          this.cache.set(rel, { mtime, size: st.size, entrada: montarEntrada(rel, inicio, true) });
           continue;
         }
         const pastaFechada = PASTAS_CONFIDENCIAIS.has(rel.split("/")[0].normalize("NFC").toLowerCase());
@@ -477,6 +538,8 @@ export interface RotasBuscaDeps {
   resolverVault: () => string | null;
   busca: ObservadorBusca;
   porta: () => number;
+  /** espera pelo índice inicial antes de responder "montando" (testes) */
+  esperaIndiceMs?: number;
 }
 
 export function registrarBusca(app: Express, deps: RotasBuscaDeps) {
@@ -492,8 +555,11 @@ export function registrarBusca(app: Express, deps: RotasBuscaDeps) {
       res.json({ ok: true, itens: [], total: 0, semVault: true } satisfies BuscaResposta);
       return;
     }
-    await deps.busca.garantir();
-    const { itens, total } = await buscarNoIndice(deps.busca.getEntradas(), c.palavras, path.basename(vault), { raiz: vault, ler: deps.busca.lerArquivo });
-    res.json({ ok: true, itens, total } satisfies BuscaResposta);
+    if (!(await deps.busca.garantirAte(deps.esperaIndiceMs ?? ESPERA_INDICE_MS))) {
+      res.json({ ok: true, itens: [], total: 0, montando: true } satisfies BuscaResposta);
+      return;
+    }
+    const { itens, total, maisResultados } = await buscarNoIndice(deps.busca.getEntradas(), c.palavras, path.basename(vault), { raiz: vault, ler: deps.busca.lerArquivo });
+    res.json({ ok: true, itens, total, ...(maisResultados ? { maisResultados: true } : {}) } satisfies BuscaResposta);
   });
 }

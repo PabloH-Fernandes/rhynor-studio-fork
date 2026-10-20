@@ -298,8 +298,12 @@ export interface BuscaItem {
 export interface BuscaResposta {
   ok: true;
   itens: BuscaItem[];
-  /** quantas notas casaram (os itens são no máximo 20) */
+  /** quantas notas casaram; com `maisResultados` é só o limite (20), nunca a contagem exata */
   total: number;
+  /** true quando casaram mais notas que o limite: refine a busca */
+  maisResultados?: boolean;
+  /** true quando o índice ainda está sendo montado (itens vazios; tente de novo em instantes) */
+  montando?: boolean;
   /** true quando não há vault configurado */
   semVault?: boolean;
 }

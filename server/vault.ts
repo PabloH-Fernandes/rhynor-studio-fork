@@ -133,11 +133,15 @@ export function temConfidencialTrue(texto: string): boolean {
     const l = linhas[i].slice(0, MAX_LINHA_FM);
     const m = /^\s*["']?confidencial["']?\s*:(.*)$/i.exec(l);
     if (m && /\b(true|yes|sim|1)\b/i.test(limparValor(m[1]))) return true;
-    // fluxo: `{confidencial: true}` ou `{a: 1, "confidencial": "sim"}`
-    if (/[{,]\s*["']?confidencial["']?\s*:\s*["']?\s*(true|yes|sim|1)\b/i.test(l)) return true;
+    // fluxo: `{confidencial: true}` ou `{a: 1, "confidencial": "sim"}`, só em linha que começa com `{` ou em
+    // valor de chave que começa com `{` (texto corrido como `resumo: ok, confidencial: sim` não conta)
+    const valor = l.includes(":") ? l.slice(l.indexOf(":") + 1).trim() : "";
+    if ((l.trim().startsWith("{") || valor.startsWith("{")) && FLUXO_CONF_TRUE.test(l)) return true;
   }
   return false;
 }
+
+const FLUXO_CONF_TRUE = /[{,]\s*["']?confidencial["']?\s*:\s*["']?\s*(true|yes|sim|1)\b/i;
 
 /**
  * Linha do frontmatter que fala de `confidencial` antes do ":" de um jeito que o leitor simples não entende
@@ -151,6 +155,7 @@ export function frontmatterMencionaConfidencial(texto: string): boolean {
     const l = linhas[i].slice(0, MAX_LINHA_FM);
     const dp = l.indexOf(":");
     const antes = dp < 0 ? l : l.slice(0, dp);
+    if (FLUXO_CONF_TRUE.test(l)) return true; // busca é fail-closed: fluxo "solto" também fecha a nota
     if (!/confidencial/i.test(antes)) continue;
     if (dp >= 0 && /^\s*["']?confidencial["']?\s*$/i.test(antes)) continue; // chave simples: lerFrontmatter decide
     return true;

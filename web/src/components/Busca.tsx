@@ -10,6 +10,8 @@ import {
   MAX_BUSCA,
   TEXTO_CADEADO,
   TEXTO_DICA,
+  TEXTO_MONTANDO,
+  RETENTAR_MONTANDO_MS,
   TEXTO_SEM_CEREBRO,
   comandoPergunta,
   consultaDe,
@@ -34,6 +36,7 @@ export function Busca() {
 function BuscaPainel() {
   const [texto, setTexto] = useState("");
   const [estado, setEstado] = useState<Estado>({ tipo: "ocioso" });
+  const [tentativa, setTentativa] = useState(0);
   const [copia, setCopia] = useState<boolean | null>(null);
   const timerCopia = useRef<ReturnType<typeof setTimeout>>();
   const q = consultaDe(texto);
@@ -46,6 +49,7 @@ function BuscaPainel() {
       return;
     }
     const controle = new AbortController();
+    let retentar: ReturnType<typeof setTimeout> | undefined;
     const timer = setTimeout(() => {
       setEstado({ tipo: "buscando" });
       fetch(urlBusca(q), { signal: controle.signal })
@@ -54,6 +58,7 @@ function BuscaPainel() {
           const lida = r.ok ? lerRespostaBusca(json) : null;
           if (controle.signal.aborted) return;
           setEstado(lida ? { tipo: "ok", r: lida } : { tipo: "erro", status: r.ok ? 500 : r.status });
+          if (lida?.montando) retentar = setTimeout(() => setTentativa((n) => n + 1), RETENTAR_MONTANDO_MS);
         })
         .catch(() => {
           if (!controle.signal.aborted) setEstado({ tipo: "erro", status: null });
@@ -61,9 +66,10 @@ function BuscaPainel() {
     }, DEBOUNCE_BUSCA_MS);
     return () => {
       clearTimeout(timer);
+      clearTimeout(retentar);
       controle.abort();
     };
-  }, [q]);
+  }, [q, tentativa]);
 
   const perguntar = async () => {
     if (q === null) return;
@@ -77,7 +83,7 @@ function BuscaPainel() {
   if (q === null) aviso = texto.trim() ? TEXTO_DICA : "";
   else if (estado.tipo === "buscando") aviso = "Buscando...";
   else if (estado.tipo === "erro") aviso = textoErroBusca(estado.status);
-  else if (estado.tipo === "ok") aviso = estado.r.semVault ? TEXTO_SEM_CEREBRO : textoContagem(estado.r.itens.length, estado.r.total);
+  else if (estado.tipo === "ok") aviso = estado.r.semVault ? TEXTO_SEM_CEREBRO : estado.r.montando ? TEXTO_MONTANDO : textoContagem(estado.r.itens.length, estado.r.total, estado.r.maisResultados);
 
   return (
     <section className="secao busca" aria-label="Buscar no cérebro">

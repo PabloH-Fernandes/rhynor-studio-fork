@@ -40,8 +40,12 @@ export function comandoPergunta(pergunta: string): string {
   return `/memoria ${textoComum(pergunta).slice(0, MAX_PERGUNTA).trim()}`;
 }
 
-export function textoContagem(mostrados: number, total: number): string {
+export const TEXTO_MONTANDO = "Montando o índice das notas... um instante.";
+export const RETENTAR_MONTANDO_MS = 1000;
+
+export function textoContagem(mostrados: number, total: number, maisResultados = false): string {
   if (total === 0) return TEXTO_VAZIO;
+  if (maisResultados) return `Mostrando ${mostrados}; refine a busca.`;
   if (total === 1) return "1 nota encontrada.";
   if (total > mostrados) return `${total} notas encontradas. Mostrando as ${mostrados} primeiras.`;
   return `${total} notas encontradas.`;
@@ -58,6 +62,9 @@ export interface RespostaBuscaLida {
   itens: BuscaItem[];
   total: number;
   semVault: boolean;
+  maisResultados: boolean;
+  /** o índice ainda está sendo montado: tente de novo */
+  montando: boolean;
 }
 
 /** lê a resposta sem confiar nela: descarta item torto e nunca deixa passar trecho de nota confidencial */
@@ -75,5 +82,5 @@ export function lerRespostaBusca(json: unknown): RespostaBuscaLida | null {
     itens.push({ titulo: i.titulo, rel: i.rel, confidencial, uri: i.uri, ...(trecho ? { trecho } : {}) });
   }
   const total = typeof o.total === "number" && Number.isFinite(o.total) ? Math.max(o.total, itens.length) : itens.length;
-  return { itens, total, semVault: o.semVault === true };
+  return { itens, total, semVault: o.semVault === true, maisResultados: o.maisResultados === true, montando: o.montando === true };
 }

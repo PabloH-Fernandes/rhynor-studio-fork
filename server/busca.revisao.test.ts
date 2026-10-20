@@ -11,25 +11,26 @@ import { test } from "node:test";
 import type { BuscaItem } from "../shared/types.ts";
 import { ObservadorBusca, confidencialPeloTexto, montarEntrada, registrarBusca, type ObservadorBuscaOpcoes } from "./busca.ts";
 import { lerFrontmatter, temConfidencialTrue } from "./vault.ts";
+import { MAX_BYTES_RELEITURA } from "./busca.ts";
 
 interface Amb {
   vault: string;
   busca: ObservadorBusca;
   escrever: (rel: string, texto: string) => void;
   /** consulta SEM reler o vault antes */
-  consultar: (q: string) => Promise<{ itens: BuscaItem[]; total: number; corpo: string; ms: number }>;
+  consultar: (q: string) => Promise<{ itens: BuscaItem[]; total: number; maisResultados?: boolean; montando?: boolean; corpo: string; ms: number }>;
   recarregar: () => Promise<void>;
   fechar: () => Promise<void>;
 }
 
-async function ambiente(opts: ObservadorBuscaOpcoes = {}): Promise<Amb> {
+async function ambiente(opts: ObservadorBuscaOpcoes = {}, esperaIndiceMs?: number): Promise<Amb> {
   const pai = fs.mkdtempSync(path.join(os.tmpdir(), "busca-rev-"));
   const vault = path.join(pai, "cerebro-teste");
   fs.mkdirSync(vault);
   const busca = new ObservadorBusca(() => vault, { semWatch: true, intervaloMs: 0, ...opts });
   const app = express();
   let porta = 0;
-  registrarBusca(app, { resolverVault: () => vault, busca, porta: () => porta });
+  registrarBusca(app, { resolverVault: () => vault, busca, porta: () => porta, esperaIndiceMs });
   const server = http.createServer(app);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   porta = (server.address() as AddressInfo).port;
@@ -46,8 +47,8 @@ async function ambiente(opts: ObservadorBuscaOpcoes = {}): Promise<Amb> {
       const r = await fetch(`http://127.0.0.1:${porta}/api/busca?q=${encodeURIComponent(q)}`);
       const corpo = await r.text();
       const ms = performance.now() - t0;
-      const j = JSON.parse(corpo) as { itens: BuscaItem[]; total: number };
-      return { itens: j.itens, total: j.total, corpo, ms };
+      const j = JSON.parse(corpo) as { itens: BuscaItem[]; total: number; maisResultados?: boolean; montando?: boolean };
+      return { itens: j.itens, total: j.total, maisResultados: j.maisResultados, montando: j.montando, corpo, ms };
     },
     recarregar: () => busca.recarregar(),
     fechar: async () => {
@@ -233,4 +234,132 @@ test("trecho: some comentário HTML e bloco de código", async () => {
   } finally {
     await a.fechar();
   }
+});
+
+// ---------------------------------------------------------------- buracos da busca (Etapa 8, fechamento)
+
+type Modo = { v: "ok" | "falha" | "trava" };
+
+/** leitor injetado: a releitura (com teto de bytes) falha ou nunca resolve; a indexação lê normal */
+function ambienteComLeitor(modo: Modo, tamanhos: number[] = []) {
+  return ambiente({
+    lerArquivo: async (arq, max) => {
+      if (max === MAX_BYTES_RELEITURA) {
+        tamanhos.push(max);
+        if (modo.v === "falha") throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
+        if (modo.v === "trava") return new Promise<string>(() => {});
+      }
+      return fsp.readFile(arq, "utf8");
+    },
+  });
+}
+
+test("releitura falha: casou por corpo some (total desce); casou por título fica fechada, sem trecho", async () => {
+  const modo: Modo = { v: "ok" };
+  const tam: number[] = [];
+  const a = await ambienteComLeitor(modo, tam);
+  try {
+    a.escrever("Reuniao geral.md", "# Geral\n\nlaranja lima\n");
+    a.escrever("Laranja lima.md", "# Outra\n\ntexto qualquer\n");
+    await a.recarregar();
+    const ok = await a.consultar("laranja lima");
+    assert.equal(ok.itens.length, 2);
+    assert.ok(tam.length >= 2 && tam.every((n) => n === MAX_BYTES_RELEITURA), "releitura limitada a 256 KB");
+    modo.v = "falha";
+    const r = await a.consultar("laranja lima");
+    assert.equal(r.itens.length, 1, "o de corpo some");
+    assert.equal(r.itens[0].titulo, "Laranja lima");
+    assert.equal(r.itens[0].confidencial, true);
+    assert.equal(r.itens[0].trecho, undefined);
+    assert.equal(r.total, 1);
+  } finally {
+    await a.fechar();
+  }
+});
+
+test("releitura travada: o GET responde em ~1,5 s e trata como falha de leitura", async () => {
+  const modo: Modo = { v: "trava" };
+  const a = await ambienteComLeitor(modo);
+  try {
+    a.escrever("Geral.md", "# Geral\n\nlaranja lima\n");
+    a.escrever("Laranja lima.md", "# Outra\n\nx\n");
+    await a.recarregar();
+    const r = await a.consultar("laranja lima");
+    assert.ok(r.ms < 4000, `demorou ${r.ms} ms`);
+    assert.deepEqual(r.itens.map((i) => [i.titulo, i.confidencial]), [["Laranja lima", true]]);
+  } finally {
+    await a.fechar();
+  }
+});
+
+test("nota além do teto do índice: confere o frontmatter e não vira aberta por engano", async () => {
+  const orig = console.warn;
+  console.warn = () => {};
+  const a = await ambiente({ maxBytesIndice: 10 });
+  try {
+    a.escrever("Segredo de caju.md", "---\nconfidencial: true\n---\n\nsegredo no corpo\n");
+    a.escrever("Aberta de caju.md", "---\ntipo: nota\n---\n\ncorpo comum\n");
+    await a.recarregar();
+    const r = await a.consultar("caju");
+    const seg = r.itens.find((i) => i.titulo === "Segredo de caju");
+    const ab = r.itens.find((i) => i.titulo === "Aberta de caju");
+    assert.equal(seg?.confidencial, true);
+    assert.equal(seg?.trecho, undefined);
+    assert.equal(ab?.confidencial, false);
+    assert.ok(!r.corpo.includes("segredo no corpo"));
+  } finally {
+    console.warn = orig;
+    await a.fechar();
+  }
+});
+
+test("mais de 20 casos: total vira o limite com maisResultados", async () => {
+  const a = await ambiente();
+  try {
+    for (let i = 0; i < 25; i++) a.escrever(`n${String(i).padStart(2, "0")}.md`, "assunto comum\n");
+    await a.recarregar();
+    const r = await a.consultar("comum");
+    assert.equal(r.itens.length, 20);
+    assert.equal(r.total, 20);
+    assert.equal(r.maisResultados, true);
+    a.escrever("so.md", "unico\n");
+    await a.recarregar();
+    const u = await a.consultar("unico");
+    assert.equal(u.total, 1);
+    assert.equal(u.maisResultados, undefined);
+  } finally {
+    await a.fechar();
+  }
+});
+
+test("índice ainda sendo montado: responde 'montando' sem erro e depois responde normal", async () => {
+  const a = await ambiente(
+    {
+      lerArquivo: async (arq) => {
+        await new Promise((r) => setTimeout(r, 400));
+        return fsp.readFile(arq, "utf8");
+      },
+    },
+    50,
+  );
+  try {
+    a.escrever("Pera doce.md", "pera\n");
+    const primeira = await a.consultar("pera");
+    assert.equal(primeira.montando, true);
+    assert.equal(primeira.itens.length, 0);
+    await a.recarregar();
+    const depois = await a.consultar("pera");
+    assert.equal(depois.montando, undefined);
+    assert.equal(depois.itens.length, 1);
+  } finally {
+    await a.fechar();
+  }
+});
+
+test("fluxo de frontmatter: texto corrido não esconde nota; fluxo de verdade continua fechado", () => {
+  assert.equal(temConfidencialTrue("---\nresumo: ok, confidencial: sim\n---\ncorpo"), false);
+  assert.equal(temConfidencialTrue("---\n{a: 1, confidencial: sim}\n---\n"), true);
+  assert.equal(temConfidencialTrue("---\nmeta: {confidencial: true}\n---\n"), true);
+  // a busca continua fail-closed
+  assert.equal(confidencialPeloTexto("---\nresumo: ok, confidencial: sim\n---\ncorpo"), true);
 });

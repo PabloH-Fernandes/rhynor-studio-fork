@@ -254,7 +254,8 @@ test("no máximo 20 resultados, com o total", async () => {
     for (let i = 0; i < 25; i++) a.escrever(`n${String(i).padStart(2, "0")}.md`, "assunto comum\n");
     const r = await a.buscar("comum");
     assert.equal(r.json.itens!.length, 20);
-    assert.equal(r.json.total, 25);
+    assert.equal(r.json.total, 20, "com mais que o limite, o total é só o limite (sem contagem exata)");
+    assert.equal((r.json as { maisResultados?: boolean }).maisResultados, true);
   } finally {
     await a.fechar();
   }

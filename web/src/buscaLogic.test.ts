@@ -46,6 +46,7 @@ test("textos em português simples", () => {
   assert.equal(textoContagem(1, 1), "1 nota encontrada.");
   assert.equal(textoContagem(5, 5), "5 notas encontradas.");
   assert.equal(textoContagem(20, 31), "31 notas encontradas. Mostrando as 20 primeiras.");
+  assert.equal(textoContagem(20, 20, true), "Mostrando 20; refine a busca.");
   assert.match(textoErroBusca(null), /conexão/);
   assert.match(textoErroBusca(400), /2 a 80/);
   assert.match(textoErroBusca(500), /não funcionou/);
