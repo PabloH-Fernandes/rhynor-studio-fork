@@ -11,7 +11,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { ServerMessage } from "../shared/types.ts";
 import { DEFAULT_SESSION_TIMEOUT_MIN, OfficeState } from "./state.ts";
 import { Gravador, lerHookTs } from "./gravador.ts";
-import { cancelDemo, iniciarDemo } from "./demo.ts";
+import { cancelDemo, iniciarDemo, observarDemo } from "./demo.ts";
 import { aplicarPut, loadRoster, saveRoster } from "./roster.ts";
 import { ESTADO_FILE, PersistenciaEstado } from "./persistencia.ts";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
@@ -27,6 +27,8 @@ import { LogTransparencia, registrarTransparencia } from "./transparenciaLog.ts"
 import { clienteWsPermitido } from "./seguranca.ts";
 import { GastoTokens } from "./gastoTokens.ts";
 import { ObservadorBusca, registrarBusca } from "./busca.ts";
+import { ResumoDia } from "./resumoDia.ts";
+import { registrarReplay } from "./replayRotas.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
@@ -45,6 +47,15 @@ const HOOK_LOG_OBSOLETO = process.env.AG_HOOK_LOG === "1";
 const GRAVAR = process.env.AGPOCKET_GRAVAR === "1" || HOOK_LOG_OBSOLETO;
 const gravador = GRAVAR ? new Gravador(path.join(ROOT, "data", "eventos")) : null;
 gravador?.servidorIniciou();
+
+// Replay do dia: resumo LEVE (sem prompt, comando nem texto livre) em data/replay/AAAA-MM-DD.jsonl, sempre ligado.
+// AGPOCKET_REPLAY_DIR troca a pasta (testes isolados); relativo à raiz do projeto. Guarda ~30 dias (limpeza no boot).
+const REPLAY_DIR = process.env.AGPOCKET_REPLAY_DIR?.trim() ? path.resolve(ROOT, process.env.AGPOCKET_REPLAY_DIR.trim()) : path.join(ROOT, "data", "replay");
+const resumoDia = new ResumoDia(REPLAY_DIR);
+void resumoDia.limpar();
+resumoDia.servidorIniciou();
+// a simulação (POST /api/demo) não passa pela fila dos hooks: entra no resumo daqui
+observarDemo((ev) => resumoDia.evento(ev, null));
 
 const state = new OfficeState({ sessionTimeoutMs: SESSION_TIMEOUT_MIN * 60_000 });
 state.setRoster(loadRoster());
@@ -132,7 +143,7 @@ setInterval(() => {
   const cutoff = Date.now() - 150;
   queue.sort((a, b) => a.ts - b.ts || a.seq - b.seq);
   while (queue.length && queue[0].ts <= cutoff) {
-    const { body } = queue.shift()!;
+    const { body, ts: hookTs } = queue.shift()!;
     try {
       // a missão atual vem do prompt "/time Missão [[nota]]" (o texto do prompt não é guardado)
       const sid: unknown = body?.session_id;
@@ -145,6 +156,11 @@ setInterval(() => {
         void transparencia.registrar(body); // ANTES do handleHook: a reunião (/reuniao) ainda é a de agora
       } catch (err) {
         console.warn("[transparencia] erro ao registrar:", err instanceof Error ? err.message : err);
+      }
+      try {
+        resumoDia.evento(body, hookTs); // resumo leve do dia: síncrono e barato, grava em segundo plano e nunca lança
+      } catch (err) {
+        console.warn("[resumo do dia] erro ao registrar:", err instanceof Error ? err.message : err);
       }
       state.handleHook(body);
     } catch (err) {
@@ -186,6 +202,9 @@ registrarBusca(app, { resolverVault: () => resolverVault(process.env, os.homedir
 
 // Transparência: GET /api/transparencia?mes=AAAA-MM e POST /api/transparencia/exportar (grava data/transparencia/AAAA-MM.md)
 registrarTransparencia(app, { log: transparencia, atasDoMes: (mes) => resultados.atasDoMes(mes), porta: () => PORT });
+
+// Replay do dia: GET /api/replay/dias e GET /api/replay/dia?data=AAAA-MM-DD (só leitura; roda num estado virtual isolado)
+registrarReplay(app, { dir: () => REPLAY_DIR, porta: () => PORT, roster: () => state.getRoster() });
 
 // Elenco dos AGzinhos: o atual e o padrão (para "Voltar ao padrão" no vestiário).
 app.get("/api/roster", (_req, res) => {
@@ -308,7 +327,7 @@ async function desligar(codigo: number) {
   // linhas de transparência ainda na corrente: espera, mas no máximo 1 s (corrente travada não segura o desligamento)
   let t: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([
-    Promise.all([transparencia.esperarGravacoes(), gasto.fechar().catch(() => undefined)]),
+    Promise.all([transparencia.esperarGravacoes(), gasto.fechar().catch(() => undefined), resumoDia.esvaziar()]),
     new Promise<void>((resolve) => {
       t = setTimeout(resolve, 1000);
     }),

@@ -385,6 +385,18 @@ npm run replay -- --anonimizar data/eventos/2026-10-05.jsonl saida.jsonl   # có
 
 Atenção: o arquivo guarda o prompt cru, **inclusive a ata colada com `/reuniao`** (que é confidencial), além de comandos, pastas e caminhos da sua máquina. **Nunca compartilhe o arquivo cru**; para virar fixture de teste (`server/fixtures/sessoes/`), use só a cópia anonimizada. Os testes de sessões reais usam essas fixtures via `reproduzir()` (`server/replay.ts`).
 
+## Replay do dia
+
+Seção **Replay do dia** no painel: toca de novo o que o time fez num dia, num segundo escritório dentro do painel. O escritório ao vivo continua por trás e o replay nunca escreve nele (tem estado próprio, num relógio virtual).
+
+- **Como usar:** abra a seção, escolha o dia, aperte **Tocar** e escolha **10x, 30x ou 60x**. Arraste a barra para ir a qualquer hora. Sem dias gravados, aparece "Ligue o servidor durante o dia para ter replay." A 60x os AGzinhos saltam de status; andam na velocidade normal.
+- **Onde fica:** `data/replay/AAAA-MM-DD.jsonl` (dia local, fora do git). `AGPOCKET_REPLAY_DIR` troca a pasta (relativa à raiz do projeto). Fica ligado sempre, sem precisar do gravador.
+- **O que o resumo guarda:** a hora de cada evento, o tipo do evento (`PreToolUse`, `SubagentStart`...), o id da sessão e do agente, o tipo do agente (`dev`, `revisor`), o nome da ferramenta, o status e a estrutura das listas de tarefas (assuntos viram "Tarefa N"), e os marcadores de "servidor iniciou". Caminhos de arquivo viram `arquivo-N.ext` e a pasta vira `/projeto`.
+- **O que NÃO guarda:** prompts, a ata do `/reuniao`, mensagens entre agentes, comandos, buscas, URLs, respostas das ferramentas, caminhos reais e qualquer texto livre. Descrições de subagente e de comando viram "Descrição N" e "Comando N". Por isso o replay mostra o que cada AGzinho fazia (trabalhando, pensando, esperando), mas não o assunto.
+- **Limites:** cerca de 5 MB por dia (passou disso, o dia para de gravar e o terminal avisa uma vez) e 30 dias de retenção (dias mais antigos são apagados quando o servidor sobe). Dia com mais de 20 mil mudanças mostra só as mudanças de status.
+- **Na apresentação** a seção fica escondida. O gravador completo (`AGPOCKET_GRAVAR=1`) é outra coisa e continua desligado por padrão.
+- **API (só no próprio computador):** `GET /api/replay/dias` e `GET /api/replay/dia?data=AAAA-MM-DD`. Código: `server/resumoDia.ts` (grava), `server/replayRotas.ts` (rotas), `web/src/replayLogic.ts` e `web/src/components/ReplayDia.tsx`.
+
 ## Painel lateral (para quem não é de TI)
 
 - **Time** e **O que tá rolando** são seções recolhíveis; o navegador lembra se você as deixou abertas.

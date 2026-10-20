@@ -3011,3 +3011,116 @@ h2 {
 .busca-abrir:focus-visible {
   outline: 3px solid var(--focus);
 }
+
+/* ---------------------------------------------------------------- replay do dia (reaproveita .caixa-meta e .btn-tecnico) */
+
+.replay-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 8px;
+}
+
+.replay-rotulo {
+  color: var(--muted);
+  font-size: var(--fs-menor);
+}
+
+.replay-select {
+  box-sizing: border-box;
+  min-height: 32px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 2px solid var(--blue);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-texto);
+}
+
+.replay-aviso {
+  min-height: 1.15em;
+  margin-top: 6px;
+}
+
+.replay-erro {
+  color: var(--red);
+}
+
+/* o segundo escritório: altura fixa, o zoom e o arrasto são os mesmos do ao vivo */
+.replay-palco {
+  display: flex;
+  height: 280px;
+  min-width: 0;
+  margin-top: 8px;
+  overflow: hidden;
+  background-color: var(--bg);
+  border: 2px solid var(--line);
+}
+
+.replay-controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 12px;
+}
+
+.replay-velocidades {
+  display: flex;
+  gap: 6px;
+}
+
+.replay-play,
+.replay-vel {
+  min-width: 44px;
+  min-height: 36px;
+}
+
+/* a velocidade escolhida não depende só de cor: ganha um visto, fundo e moldura mais clara */
+.replay-vel[aria-pressed="true"] {
+  --mc: var(--navy-100);
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.replay-vel[aria-pressed="true"]::before {
+  content: "\2713\00a0";
+}
+
+.replay-hora {
+  margin-left: auto;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.replay-slider {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  margin: 10px 0 0;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+.replay-slider:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.replay-extremos {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: var(--fs-menor);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .replay-palco {
+    height: 360px;
+  }
+}

@@ -49,6 +49,12 @@ let ultimoInicio: { em: number; info: ResultadoDemo } | null = null;
 /** pedido repetido dentro dessa janela devolve a mesma simulação, sem reiniciar */
 export const DEMO_JANELA_REPETIDO_MS = 5_000;
 
+/** quem quiser ver os eventos da simulação (o resumo do dia): ela não passa pela fila dos hooks */
+let observador: ((ev: HookInput) => void) | null = null;
+export function observarDemo(fn: ((ev: HookInput) => void) | null) {
+  observador = fn;
+}
+
 type ResultadoDemo = { session_id: string; durationMs: number };
 
 /** Para a simulação em andamento (nenhum evento dela chega depois). Devolve a sessão dela, se havia. */
@@ -258,12 +264,26 @@ export function runDemo(state: OfficeState, relogio: Agenda = AGENDA_PADRAO) {
   let at = 0;
   for (const [sec, input] of steps) {
     at = Math.round(sec * 1000);
-    schedule(at, () => state.handleHook({ ...input, session_id, cwd } as HookInput));
+    schedule(at, () => {
+      const ev = { ...input, session_id, cwd } as HookInput;
+      try {
+        observador?.(ev);
+      } catch {
+        /* o observador nunca atrapalha a simulação */
+      }
+      state.handleHook(ev);
+    });
   }
   // h) encerra a sessão de demo um tempo depois (até lá o time todo fica de boa no escritório)
   schedule(at + DEMO_END_AFTER_STOP_MS, () => {
     activeSession = null;
-    state.handleHook({ hook_event_name: "SessionEnd", session_id, cwd });
+    const fim: HookInput = { hook_event_name: "SessionEnd", session_id, cwd };
+    try {
+      observador?.(fim);
+    } catch {
+      /* idem */
+    }
+    state.handleHook(fim);
   });
   return { session_id, durationMs: at + DEMO_END_AFTER_STOP_MS };
 }

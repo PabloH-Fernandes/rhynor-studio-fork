@@ -18,7 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Agent, AgentStatus } from "../shared/types.ts";
+import type { Agent, AgentStatus, ServerMessage } from "../shared/types.ts";
 import { DEFAULT_ROSTER, type Roster } from "../shared/roster.ts";
 import type { LinhaGravada } from "./gravador.ts";
 import { OfficeState, type HookInput, type Relogio, type Timer } from "./state.ts";
@@ -51,6 +51,11 @@ export interface ReproduzirOpts {
    * persistência; o estado criado deve usar o `relogio` recebido.
    */
   aoReiniciar?: (anterior: OfficeState, relogio: RelogioVirtual) => OfficeState;
+  /**
+   * Chamado com cada mensagem que o estado (virtual) emite, no instante `t` do relógio virtual: serve para o
+   * replay do dia mandar ao painel o que mudou. O estado é novo e isolado: nada disso chega ao estado real.
+   */
+  aoMensagem?: (t: number, msg: ServerMessage) => void;
 }
 
 export interface Reproducao {
@@ -159,6 +164,13 @@ export function reproduzir(linhas: readonly LinhaGravada[], opts: ReproduzirOpts
     relogio.setTimeout(varrer, VARREDURA_MS);
     desligar = s.subscribe((msg) => {
       const t = relogio.now();
+      if (opts.aoMensagem) {
+        try {
+          opts.aoMensagem(t, msg);
+        } catch (err) {
+          console.error("[replay] erro em aoMensagem:", err);
+        }
+      }
       if (msg.type === "agent") {
         const a = msg.agent;
         nomes.set(a.id, a.name);
@@ -275,7 +287,16 @@ const CAMPOS_MANTIDOS = [
  * de tarefas mantêm status e estrutura com os assuntos trocados por "Tarefa N".
  */
 export function anonimizar(linhas: readonly LinhaGravada[]): LinhaGravada[] {
-  const r = {
+  const r = criarRotulos();
+  return linhas.map((linha) => {
+    if ("marcador" in linha) return { ...linha };
+    return { chegada: linha.chegada, hookTs: linha.hookTs, evento: isObj(linha.evento) ? anonimizarEvento(linha.evento, r) : null };
+  });
+}
+
+/** Rótulos estáveis para um conjunto de eventos (o mesmo arquivo vira sempre o mesmo "arquivo-N"). */
+export function criarRotulos(): RotulosAnon {
+  return {
     arquivo: new Rotulos((n, orig) => `arquivo-${n}${path.extname(orig)}`),
     tarefa: new Rotulos((n) => `Tarefa ${n}`),
     pedido: new Rotulos((n) => `Pedido ${n}`),
@@ -285,13 +306,23 @@ export function anonimizar(linhas: readonly LinhaGravada[]): LinhaGravada[] {
     busca: new Rotulos((n) => `Busca ${n}`),
     mensagem: new Rotulos((n) => `Mensagem ${n}`),
   };
-  return linhas.map((linha) => {
-    if ("marcador" in linha) return { ...linha };
-    return { chegada: linha.chegada, hookTs: linha.hookTs, evento: isObj(linha.evento) ? anonimizarEvento(linha.evento, r) : null };
-  });
 }
 
-type RotulosAnon = Record<"arquivo" | "tarefa" | "pedido" | "descricao" | "comando" | "padrao" | "busca" | "mensagem", Rotulos>;
+/**
+ * Versão ENXUTA do evento para o resumo do dia (server/resumoDia.ts): o anonimizar, mais: sem prompt, sem
+ * user_prompt, sem busca/padrão/URL/mensagem de SendMessage. Fica só estrutura e identificadores curtos.
+ */
+export function enxugarEvento(ev: Record<string, unknown>, r: RotulosAnon): Record<string, unknown> {
+  const out = anonimizarEvento(ev, r);
+  delete out.prompt;
+  delete out.user_prompt;
+  if (isObj(out.tool_input)) {
+    for (const c of ["pattern", "query", "url", "message", "content", "text"]) delete out.tool_input[c];
+  }
+  return out;
+}
+
+export type RotulosAnon = Record<"arquivo" | "tarefa" | "pedido" | "descricao" | "comando" | "padrao" | "busca" | "mensagem", Rotulos>;
 
 function anonimizarEvento(ev: Record<string, unknown>, r: RotulosAnon): Record<string, unknown> {
   const out: Record<string, unknown> = {};

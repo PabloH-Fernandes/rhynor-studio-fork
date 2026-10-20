@@ -6,6 +6,7 @@ import { Busca } from "./components/Busca";
 import { Pendencias } from "./components/Pendencias";
 import { Resultados, ResumoResultados } from "./components/Resultados";
 import { Transparencia } from "./components/Transparencia";
+import { ReplayDia } from "./components/ReplayDia";
 import { Cracha } from "./components/Cracha";
 import { GastoTotal } from "./components/GastoTokens";
 import { IconeStatus } from "./components/IconePixel";
@@ -298,6 +299,9 @@ export default function App() {
         <Resultados resultados={resultados} somenteLeitura={APRESENTACAO} />
 
         {!APRESENTACAO && <Transparencia resumo={transparencia} />}
+
+        {/* tem o próprio estado e o próprio escritório: nunca escreve no estado ao vivo (escondido na apresentação) */}
+        <ReplayDia roster={roster} />
 
         <Progresso progress={progressoVisivel} />
 
