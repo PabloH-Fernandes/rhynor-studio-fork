@@ -58,6 +58,13 @@ npm run setup:check
 
 Não instala nem escreve nada: lista o que está em dia e o que falta. Dentro do Claude Code, `/agents` deve listar os 6 agentes (planejador, pesquisador, dev, testador, revisor, documentador) e `/time`, `/memoria` e `/reuniao` devem existir como comandos. Para testar a memória, rode `/memoria o que tem no vault?`.
 
+**Mudou o `model:` de um agente em `agents/`?** Rode `npm run install-agents` antes de qualquer outra coisa. Até lá, o `npm run setup:check` acusa os agentes como "desatualizados" (isso é esperado, não é erro do setup).
+
+```bash
+npm run install-agents
+npm run setup:check      # deve ficar verde
+```
+
 ## 5. O que é instalado
 
 O setup roda os comandos oficiais do `claude` no escopo de **usuário** (vale para todos os projetos). A lista vem de `setup/skills.json`.
@@ -123,6 +130,8 @@ O `.gitignore` deixa de fora:
 |---|---|---|
 | `data/agzinhos.json` | Seu elenco personalizado (nomes, roupas, textos) | Copie o arquivo para a pasta `data/` do novo PC. Sem ele, vale o elenco de exemplo. |
 | `data/escritorio.json` e `data/eventos/` | Estado do escritório e gravação de eventos (têm caminhos e prompts da sua máquina) | Não leve. Não compartilhe. |
+| `data/replay/`, `data/gasto/`, `data/transparencia/`, `data/exportacoes/` | Resumo do dia, contagem de tokens, log de acesso ao vault e cópias exportadas (têm nomes de arquivos e caminhos) | Não leve. Veja a seção 12. |
+| `data/estimativas.json` | Minutos usados na estimativa de tempo economizado (só números) | Pode copiar. Se não existir, vale o padrão. |
 | `referencias/` | Material de referência (logos, manual de marca etc.) | Copie à mão, por um canal que a empresa aprove. |
 | `prints/` | Prints de conferência de quem desenvolveu | Opcional; não é necessário para rodar. |
 | `node_modules/` e `web/dist/` | Gerados pelo `npm install` e pelo build | O setup recria. |
@@ -187,3 +196,69 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 - **O bloco de memória (Obsidian) não tem caminho pessoal.** O `team/CLAUDE-memoria.md` manda ler o vault da variável `AGPOCKET_VAULT` (`env` do `~/.claude/settings.json`), que o passo do vault grava.
 - **Privacidade do vault:** nota com `confidencial: true` não é lida pelos agentes nem pelo painel; toda nota de reunião nasce confidencial; o painel recebe só títulos e a contagem de atas novas; o `/reuniao` troca nomes por papéis (revise a nota gerada). Nunca guarde senha, token, chave ou dado pessoal no vault. Regras completas no README ("Segundo cérebro").
 - **Conteúdo de reunião em IA precisa de aprovação da TI/governança.** E lembre: com `AGPOCKET_GRAVAR=1` (desligado por padrão) o prompt cru, inclusive a ata colada no `/reuniao`, vai para `data/eventos/`.
+
+## 10. Vault de teste e vault real
+
+Para testar sem mexer na memória de verdade, use um **vault de teste**, com dados inventados.
+
+1. Escolha uma pasta fora do repositório e fora do OneDrive da empresa, por exemplo `C:\Users\<voce>\dev\AG-Cerebro-teste`.
+2. Aponte o setup para ela:
+   ```powershell
+   npm run setup -- --vault=C:\Users\<voce>\dev\AG-Cerebro-teste
+   ```
+   Se o `AGPOCKET_VAULT` já existir no `settings.json`, a flag é ignorada com aviso. Nesse caso, troque o valor à mão (veja abaixo).
+3. Confira com `npm run setup:check`.
+4. Gere atas fictícias para testar a leitura: `npm run ata-ficticia -- --cenario=projeto-software`. Detalhes no README, em "Atas fictícias".
+
+**Apontar para o vault real depois:**
+- O setup **não troca** um `AGPOCKET_VAULT` que já existe. Para mudar, edite o valor à mão no `env` do `~/.claude/settings.json` (faça backup antes).
+- Se o terminal que sobe o `npm start` tiver `AGPOCKET_VAULT` definido, esse valor vence o do `settings.json`. Tire-o do terminal se for o caso.
+- Depois, reinicie o `npm start` e abra uma sessão **nova** do Claude Code. Rode `npm run setup:check`.
+- Se o vault real estiver incompleto, o setup não grava o caminho e avisa o que falta.
+- Mantenha os dois separados: um vault de teste nunca deve apontar para a memória real, e vice-versa.
+
+**Abrir o vault no Obsidian:**
+1. Instale o Obsidian (https://obsidian.md) se ainda não tiver.
+2. No Obsidian, escolha a opção de abrir uma **pasta como cofre** (vault).
+3. Escolha a pasta do vault (a que está em `AGPOCKET_VAULT`).
+4. No painel do AG Pocket, o botão "Abrir no Obsidian" da busca usa o **nome** dessa pasta. Dois vaults com o mesmo nome podem abrir o errado.
+
+## 11. Variáveis `AGPOCKET_*`
+
+Defina a variável no terminal antes de subir o servidor:
+
+```powershell
+$env:AGPOCKET_INGESTAO = "0"; npm start
+```
+
+O servidor **não herda** o `env` do `settings.json` do Claude Code. A única exceção é `AGPOCKET_VAULT`, que ele lê de lá quando a variável do terminal está vazia. Por isso, as outras variáveis precisam estar no terminal que sobe o `npm start`.
+
+| Variável | Para que serve | Padrão |
+|---|---|---|
+| `AGPOCKET_VAULT` | Pasta do vault do Obsidian | Sem valor, o servidor lê o `env` do `~/.claude/settings.json` |
+| `AGPOCKET_INGESTAO` | `0` desliga a leitura automática das atas do `00-Inbox/` (o `/reuniao` continua funcionando) | Ligada |
+| `AGPOCKET_PROJETOS_DIR` | Pasta onde o Claude Code guarda as transcrições, usada na contagem de tokens. Serve sobretudo para testes | `~/.claude/projects` |
+| `AGPOCKET_REPLAY_DIR` | Pasta do replay do dia (caminho relativo à raiz do projeto) | `data/replay` |
+| `AGPOCKET_ESTADO` | Arquivo com o estado do escritório (caminho relativo à raiz do projeto) | `data/escritorio.json` |
+| `AGPOCKET_GRAVAR` | `1` grava cada evento dos hooks em `data/eventos/`. Guarda o prompt cru, inclusive a ata do `/reuniao` | Desligada |
+| `AG_SESSION_TIMEOUT_MIN` | Minutos sem nenhum evento até uma sessão sem sinal sair do escritório | 30 |
+| `AG_SETUP_TIMEOUT_S` | Segundos de espera por item do `npm run setup` | 300 |
+| `PORT` | Porta do servidor | 4747 |
+
+Se a porta 4747 já estiver em uso por outro programa, escolha outra com `PORT` (por exemplo `$env:PORT = "4800"; npm start`) e abra o endereço com essa porta.
+
+## 12. Onde ficam os dados do painel
+
+Tudo isso fica em `data/`, **fora do git**. Nenhum desses arquivos tem senha ou token, mas podem ter nomes de arquivos e caminhos da sua máquina.
+
+| Caminho | O que é | Pode apagar? |
+|---|---|---|
+| `data/replay/AAAA-MM-DD.jsonl` | Resumo leve do dia, para o Replay. Guarda 30 dias (cerca de 5 MB por dia) | Sim |
+| `data/gasto/AAAA-MM-DD.json` | Total de tokens por função, por dia. `_arquivos.json` guarda caminhos absolutos | Sim (o total de tokens zera) |
+| `data/transparencia/AAAA-MM.jsonl` e `.md` | Log de arquivos do vault abertos pelos agentes, e a exportação do mês | Guarde ou apague à mão. Pode ter nome de arquivo sensível |
+| `data/exportacoes/resultados-AAAA-MM-DD.md` | Cópia do resumo de Resultados exportado | Sim. No mesmo dia, o arquivo é substituído |
+| `data/estimativas.json` | Minutos da estimativa de tempo economizado. Copie de `data/estimativas.example.json` | Sim. Sem o arquivo, vale o padrão |
+| `data/escritorio.json` | Estado do escritório | Sim |
+
+- Os dados de `data/replay/`, `data/gasto/`, `data/transparencia/` e `data/exportacoes/` **não** devem ir para outro PC (veja a seção 6).
+- `AGPOCKET_ESTADO` troca só o `escritorio.json`. `data/gasto/` e `data/replay/` continuam na mesma pasta `data/`: dois servidores usando a mesma pasta misturam esses dados. Para testes em paralelo, use outra cópia do projeto.
