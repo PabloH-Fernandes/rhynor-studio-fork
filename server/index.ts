@@ -26,6 +26,7 @@ import { criarLeitorEstimativas } from "./estimativas.ts";
 import { LogTransparencia, registrarTransparencia } from "./transparenciaLog.ts";
 import { clienteWsPermitido } from "./seguranca.ts";
 import { GastoTokens } from "./gastoTokens.ts";
+import { ObservadorBusca, registrarBusca } from "./busca.ts";
 
 const PORT = Number(process.env.PORT ?? 4747);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
@@ -66,6 +67,9 @@ void pendencias.iniciar();
 // estimado (data/estimativas.json). Só leitura: o painel nunca dispara o Claude.
 const resultados = new ObservadorResultados(() => resolverVault(process.env, os.homedir()), criarLeitorEstimativas());
 void resultados.iniciar();
+// Busca no cérebro: índice em memória do vault (nota confidencial entra só com o título). Só leitura.
+const busca = new ObservadorBusca(() => resolverVault(process.env, os.homedir()));
+void busca.iniciar();
 // Transparência: o que os agentes abriram no vault (só PreToolUse; caminho relativo, nunca conteúdo) em
 // data/transparencia/AAAA-MM.jsonl. Roda na fila dos hooks sem esperar nada e sem lançar erro.
 // O caminho do vault pode vir de um arquivo (settings.json, lido de forma síncrona): guarda por 5 s para o loop dos hooks.
@@ -176,6 +180,9 @@ registrarPendencias(app, { resolverVault: () => resolverVault(process.env, os.ho
 
 // Resultados: GET /api/resultados e POST /api/resultados/exportar (grava data/exportacoes/resultados-AAAA-MM-DD.md)
 registrarResultados(app, { resultados, porta: () => PORT });
+
+// Busca no cérebro: GET /api/busca?q=... (só leitura; nunca recebe caminho nem devolve caminho absoluto)
+registrarBusca(app, { resolverVault: () => resolverVault(process.env, os.homedir()), busca, porta: () => PORT });
 
 // Transparência: GET /api/transparencia?mes=AAAA-MM e POST /api/transparencia/exportar (grava data/transparencia/AAAA-MM.md)
 registrarTransparencia(app, { log: transparencia, atasDoMes: (mes) => resultados.atasDoMes(mes), porta: () => PORT });
@@ -311,6 +318,7 @@ async function desligar(codigo: number) {
   caixa.parar();
   pendencias.parar();
   resultados.parar();
+  busca.parar();
   transparencia.parar();
   ingestao?.parar();
   process.exit(codigo);

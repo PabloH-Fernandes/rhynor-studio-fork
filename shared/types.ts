@@ -281,3 +281,25 @@ export type ServerMessage =
   | { type: "roster"; roster: Roster }
   /** o quadro de etapas mudou */
   | { type: "progress"; progress: Progress };
+
+/** Um resultado da busca no vault (GET /api/busca). Nunca traz caminho absoluto nem corpo de nota confidencial. */
+export interface BuscaItem {
+  /** nome do arquivo sem .md */
+  titulo: string;
+  /** caminho dentro do vault, com "/" */
+  rel: string;
+  /** ~160 caracteres em volta do primeiro acerto; ausente em nota confidencial */
+  trecho?: string;
+  confidencial: boolean;
+  /** obsidian://open?vault=...&file=... */
+  uri: string;
+}
+
+export interface BuscaResposta {
+  ok: true;
+  itens: BuscaItem[];
+  /** quantas notas casaram (os itens são no máximo 20) */
+  total: number;
+  /** true quando não há vault configurado */
+  semVault?: boolean;
+}

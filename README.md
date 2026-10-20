@@ -409,6 +409,17 @@ Para mostrar o escritório a outras pessoas (reunião, projetor, gravação de t
 
 O que falar em cada passo está em [docs/roteiro-apresentacao.md](docs/roteiro-apresentacao.md). Testes: `web/src/demo/*.test.ts` (roteiro e dados), `web/src/privacidade.test.ts` (privacidade e leitura das flags).
 
+## Buscar no cérebro
+
+Campo **Buscar no cérebro** no alto do painel: procura texto nas notas do vault, na hora, **sem IA** e só leitura (`GET /api/busca?q=...`, restrito ao próprio servidor local).
+
+- **O que busca:** o nome da nota, os cabeçalhos (`#`) e o texto. Maiúscula e acento não importam; várias palavras valem juntas (todas precisam aparecer). Precisa de pelo menos 2 letras (até 80). Mostra no máximo 20 notas, com o título primeiro, depois cabeçalho, depois texto, e um trecho de uns 160 caracteres. Ignora `.obsidian`, `.trash`, `.git`, `Templates`, arquivos que não são `.md`, links simbólicos, arquivos maiores que ~200 KB, pastas muito fundas (mais de 6 níveis) e passa de 5000 notas (avisa no terminal).
+- **O que nunca mostra:** nota com `confidencial: true`, com o início (frontmatter) ilegível ou sem fechar, e **tudo em `00-Inbox/` e `10-Reunioes/`** (mesmo sem a marca) aparecem **só pelo título**, com cadeado 🔒 e o texto "Nota confidencial: só o título aparece". O texto dessas notas nem fica na memória do servidor, e a busca não olha dentro delas (senão dava para descobrir o que há nelas). A resposta nunca traz caminho completo do computador, só o caminho dentro do vault.
+- **Abrir no Obsidian:** botão que usa um link `obsidian://open?vault=NOME&file=...`. O link só leva o **nome da pasta** do vault. Limitação: dois vaults com o mesmo nome de pasta podem abrir o errado.
+- **Perguntar ao time:** só **copia** `/memoria <sua busca>` (uma linha, até ~200 caracteres) para você colar no terminal. O painel nunca roda o Claude.
+- **No modo apresentação a busca não aparece** e o painel não faz nenhum pedido a ela.
+- Código: `server/busca.ts` (índice e rota), `web/src/components/Busca.tsx` e `web/src/buscaLogic.ts`.
+
 ## Modelos por função e gasto de tokens
 
 **Modelo por função.** Cada agente em `agents/*.md` tem um campo `model`: dev, revisor e planejador usam o modelo da conversa (`inherit`), o testador usa `sonnet`, o documentador e o pesquisador usam `haiku` (mais leve, para tarefas simples). A tabela com o motivo de cada um está em [docs/agentes-modelos.md](docs/agentes-modelos.md). Depois de mudar `agents/`, rode `npm run install-agents`; até lá o `npm run setup:check` avisa "desatualizado". Se a variável `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` estiver definida no seu computador, ela ignora esse campo.

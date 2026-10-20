@@ -2942,3 +2942,72 @@ h2 {
   border: 1px solid var(--waiting);
   padding: 0 6px;
 }
+
+/* ---------------------------------------------------------------- busca no cérebro (reaproveita .caixa-*) */
+
+.busca-campo {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border: 2px solid var(--blue);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-texto);
+}
+
+.busca-campo::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.busca-campo:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.busca-aviso {
+  min-height: 1.15em;
+  margin-top: 6px;
+}
+
+.busca-erro {
+  color: var(--red);
+}
+
+.busca-perguntar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+
+.busca-perguntar .caixa-copiado {
+  flex-basis: 100%;
+}
+
+.busca-titulo {
+  font-weight: 700;
+}
+
+.busca-rel {
+  color: var(--muted);
+}
+
+.busca-acoes {
+  margin: 0;
+}
+
+.busca-abrir {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.busca-abrir:focus-visible {
+  outline: 3px solid var(--focus);
+}

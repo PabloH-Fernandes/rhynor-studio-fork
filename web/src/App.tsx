@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Agent, AgentStatus, FeedItem, ReuniaoAtiva, Roster } from "../../shared/types";
 import { OfficeCanvas, type OfficeHandle } from "./OfficeCanvas";
 import { CaixaEntrada } from "./components/CaixaEntrada";
+import { Busca } from "./components/Busca";
 import { Pendencias } from "./components/Pendencias";
 import { Resultados, ResumoResultados } from "./components/Resultados";
 import { Transparencia } from "./components/Transparencia";
@@ -284,6 +285,8 @@ export default function App() {
           )}
         </header>
         <GastoTotal hoje={gasto} />
+
+        {!APRESENTACAO && <Busca />}
 
         <CaixaEntrada
           itens={caixa}
