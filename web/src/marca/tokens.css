@@ -1,0 +1,67 @@
+/* Rhynor Studio — tokens de marca. Única fonte de cores, fontes e raios do projeto. */
+:root {
+  /* Cores da logo (não alterar) */
+  --rh-laranja: #FF6500;   /* chifres e triângulo: destaque, ação, "ao vivo" */
+  --rh-ardosia: #263747;   /* corpo do rinoceronte */
+  --rh-aco: #A8B0B3;       /* sombra do rosto */
+  --rh-nevoa: #E2E5E7;     /* olho e brilho */
+
+  /* Interface (tema escuro padrão) */
+  --rh-noite: #0F1820;      /* fundo da página */
+  --rh-superficie: #18232E; /* painéis, crachás, cards */
+  --rh-elevado: #263747;    /* card em destaque, hover de painel */
+  --rh-borda: #2F4253;
+  --rh-texto: #E2E5E7;
+  --rh-texto-suave: #A8B0B3;
+  --rh-brasa: #FF8A3D;      /* hover do laranja */
+  --rh-ok: #3DDC97;         /* concluído, aprovado */
+  --rh-alerta: #FF4D4D;     /* erro, reprovado */
+  --rh-aviso: #FFC24D;      /* aguardando aprovação */
+
+  /* Tipografia (todas OFL, Google Fonts) */
+  --rh-fonte-titulo: "Space Grotesk", system-ui, sans-serif;
+  --rh-fonte-texto: "Inter", system-ui, sans-serif;
+  --rh-fonte-mono: "JetBrains Mono", ui-monospace, monospace;
+  --rh-fonte-pixel: "Silkscreen", "VT323", monospace;   /* letreiros, placas, HUD */
+  --rh-fonte-pixel-texto: "VT323", ui-monospace, monospace; /* balões e nomes pequenos no canvas */
+
+  /* Forma */
+  --rh-raio-sm: 6px;
+  --rh-raio: 12px;
+  --rh-raio-lg: 20px;
+  --rh-sombra: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --rh-sombra-pixel: 4px 4px 0 var(--rh-noite); /* sombra dura de jogo, sem blur */
+  --rh-borda-px: 2px;
+
+  /* Pixel art (aprovada em 2026-10-25): pele, cabelo, roupa e cenário do escritório */
+  --rh-pixel-pele-1: #F1C9A5;
+  --rh-pixel-pele-2: #E0AC84;
+  --rh-pixel-pele-3: #C68B62;
+  --rh-pixel-pele-4: #A86F4C;
+  --rh-pixel-pele-5: #7D5038;
+  --rh-pixel-pele-6: #5C3A28;
+  --rh-pixel-cabelo-preto: #1C1C1C;
+  --rh-pixel-cabelo-castanho-escuro: #2A1D17;
+  --rh-pixel-cabelo-castanho: #4A3021;
+  --rh-pixel-cabelo-castanho-claro: #7A4B2A;
+  --rh-pixel-cabelo-ruivo: #8A3B1F;
+  --rh-pixel-cabelo-loiro: #D9B46A;
+  --rh-pixel-roupa-jeans: #3E5C7A;
+  --rh-pixel-roupa-petroleo: #1F4E5A;
+  --rh-pixel-roupa-oliva: #5B6B3A;
+  --rh-pixel-roupa-vinho: #6B2E3A;
+  --rh-pixel-roupa-ocre: #9C7A3C;
+  --rh-pixel-roupa-creme: #D8CFC0;
+  --rh-pixel-roupa-grafite: #3A3F45;
+  --rh-pixel-folha: #3F8A55;
+}
+
+/* Tema claro (opcional: relatórios, páginas públicas) */
+:root[data-theme="claro"] {
+  --rh-noite: #F5F6F7;
+  --rh-superficie: #FFFFFF;
+  --rh-elevado: #E2E5E7;
+  --rh-borda: #C9CED1;
+  --rh-texto: #263747;
+  --rh-texto-suave: #5A6670;
+}

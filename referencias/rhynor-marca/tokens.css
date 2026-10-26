@@ -22,12 +22,38 @@
   --rh-fonte-titulo: "Space Grotesk", system-ui, sans-serif;
   --rh-fonte-texto: "Inter", system-ui, sans-serif;
   --rh-fonte-mono: "JetBrains Mono", ui-monospace, monospace;
+  --rh-fonte-pixel: "Silkscreen", "VT323", monospace;   /* letreiros, placas, HUD */
+  --rh-fonte-pixel-texto: "VT323", ui-monospace, monospace; /* balões e nomes pequenos no canvas */
 
   /* Forma */
   --rh-raio-sm: 6px;
   --rh-raio: 12px;
   --rh-raio-lg: 20px;
   --rh-sombra: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --rh-sombra-pixel: 4px 4px 0 var(--rh-noite); /* sombra dura de jogo, sem blur */
+  --rh-borda-px: 2px;
+
+  /* Pixel art (aprovada em 2026-10-25): pele, cabelo, roupa e cenário do escritório */
+  --rh-pixel-pele-1: #F1C9A5;
+  --rh-pixel-pele-2: #E0AC84;
+  --rh-pixel-pele-3: #C68B62;
+  --rh-pixel-pele-4: #A86F4C;
+  --rh-pixel-pele-5: #7D5038;
+  --rh-pixel-pele-6: #5C3A28;
+  --rh-pixel-cabelo-preto: #1C1C1C;
+  --rh-pixel-cabelo-castanho-escuro: #2A1D17;
+  --rh-pixel-cabelo-castanho: #4A3021;
+  --rh-pixel-cabelo-castanho-claro: #7A4B2A;
+  --rh-pixel-cabelo-ruivo: #8A3B1F;
+  --rh-pixel-cabelo-loiro: #D9B46A;
+  --rh-pixel-roupa-jeans: #3E5C7A;
+  --rh-pixel-roupa-petroleo: #1F4E5A;
+  --rh-pixel-roupa-oliva: #5B6B3A;
+  --rh-pixel-roupa-vinho: #6B2E3A;
+  --rh-pixel-roupa-ocre: #9C7A3C;
+  --rh-pixel-roupa-creme: #D8CFC0;
+  --rh-pixel-roupa-grafite: #3A3F45;
+  --rh-pixel-folha: #3F8A55;
 }
 
 /* Tema claro (opcional: relatórios, páginas públicas) */

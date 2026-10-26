@@ -1,36 +1,37 @@
-/* Tokens da interface — manter em sincronia com palette em theme.ts */
+/* Interface do Studio. Cores, fontes e sombras só por var(--rh-*) (web/src/marca/tokens.css). */
 :root {
-  --bg: #020b1c; /* navy950 */
-  --bg-2: #051733; /* navy900, cor da marca */
-  --bg-3: #0b2550; /* navy800 */
-  --line: #1e3a66;
-  --white: #ffffff;
-  --text: var(--white);
-  --muted: #8fa8cc; /* navy300 */
-  --navy-600: #2a4f86;
-  --navy-600-hover: #35609c;
-  --navy-500: #4a6fa5;
-  --navy-100: #d5dfee;
-  --feed-time: #6f86ab; /* 5,2:1 sobre --bg */
-  --waiting: #ff8a00; /* exclusivo de "te esperando" */
-  --focus: var(--white); /* anel de foco; nas superfícies claras vira marinho */
-  --waiting-pulse-bg: #10305f; /* fundo do alerta no pico do pulse */
-  --waiting-ink: #8a4a00; /* âmbar escuro: texto de "vence em até 2 dias" sobre fundo claro (nunca o laranja de "te esperando") */
-  --green: #3fbf86;
-  --red: #ef5f7b;
-  --blue: #5aaef0;
-  /* crachá: cartão de PVC branco, foto com fundo de estúdio, presilha de metal */
-  --badge-ink: var(--bg-2); /* texto principal no cartão (16:1 sobre branco) */
-  --badge-ink-soft: var(--navy-600); /* texto secundário (8,4:1 sobre branco) */
-  --badge-rule: var(--navy-100);
-  --photo-bg: #e6edf6;
-  --clip-metal: #c4cdd9;
-  --clip-metal-edge: #6f7f96;
-  --cordao-visitante: #a3a8b5;
+  /* apelidos da interface: todos apontam para os tokens da marca (web/src/marca/tokens.css) */
+  --bg: var(--rh-noite);
+  --bg-2: var(--rh-superficie);
+  --bg-3: var(--rh-elevado);
+  --line: var(--rh-borda);
+  --white: var(--rh-nevoa);
+  --text: var(--rh-texto);
+  --muted: var(--rh-texto-suave);
+  --navy-600: var(--rh-elevado);
+  --navy-600-hover: var(--rh-borda);
+  --navy-500: var(--rh-aco);
+  --navy-100: var(--rh-nevoa);
+  --feed-time: var(--rh-texto-suave);
+  --waiting: var(--rh-aviso); /* exclusivo de "te esperando" */
+  --focus: var(--rh-laranja); /* anel de foco */
+  --waiting-pulse-bg: var(--rh-elevado); /* fundo do alerta no pico do pulse */
+  --waiting-ink: var(--rh-ardosia); /* texto de "vence em até 2 dias" sobre fundo claro */
+  --green: var(--rh-ok);
+  --red: var(--rh-alerta);
+  --blue: var(--rh-aco);
+  /* crachá */
+  --badge-ink: var(--rh-ardosia);
+  --badge-ink-soft: var(--rh-ardosia);
+  --badge-rule: var(--rh-aco);
+  --photo-bg: var(--rh-nevoa);
+  --clip-metal: var(--rh-aco);
+  --clip-metal-edge: var(--rh-ardosia);
+  --cordao-visitante: var(--rh-aco);
   --pixel: "Press Start 2P", monospace;
   --term: "VT323", monospace;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
-  --sombra-dura: #000814; /* sombra de jogo: dura, sem blur */
+  --sombra-dura: var(--rh-noite); /* sombra de jogo: dura, sem blur */
   /* texto corrido do painel em pixel legível: a VT323 a 20px equivale a ~14px de sans */
   --fs-texto: 20px;
   --fs-menor: 18px;
@@ -98,8 +99,8 @@ html.vest-aberto body {
   min-width: 0;
   background-color: var(--bg);
   background-image:
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 24px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 24px);
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--rh-nevoa) 4%, transparent) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--rh-nevoa) 4%, transparent) 0 1px, transparent 1px 24px);
 }
 
 .office-wrap {
@@ -254,7 +255,7 @@ html.vest-aberto body {
   box-shadow:
     0 0 0 1px var(--white),
     0 0 0 3px var(--bg-2),
-    0 24px 60px rgba(0, 0, 0, 0.6);
+    0 24px 60px color-mix(in srgb, var(--rh-noite) 60%, transparent);
 }
 
 .empty {
@@ -265,7 +266,7 @@ html.vest-aberto body {
   max-width: 360px;
   padding: 20px 22px;
   text-align: center;
-  background: rgba(5, 23, 51, 0.96); /* navy900 (--bg-2) a 96% */
+  background: color-mix(in srgb, var(--bg-2) 96%, transparent);
 }
 
 .empty p {
@@ -576,7 +577,7 @@ h2 {
 
 /* quadro de etapas: o quadro branco da parede do escritório, com moldura de alumínio */
 .progresso {
-  --board-frame: #8a96a8; /* gray400, a moldura do quadro no canvas */
+  --board-frame: var(--rh-aco); /* a moldura do quadro no canvas */
   --mc: var(--board-frame);
   display: flex;
   flex-direction: column;
@@ -760,7 +761,7 @@ h2 {
 
 .btn.primary {
   --luz: var(--white);
-  --fundo: #a9bcd8; /* navy100 escurecido: o pé do botão branco */
+  --fundo: var(--rh-aco); /* o pé do botão claro */
   background: var(--white);
   color: var(--bg-2);
 }
@@ -921,12 +922,12 @@ h2 {
 }
 
 .pill-trabalhando {
-  background: rgba(63, 191, 134, 0.14);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
   color: var(--green);
 }
 
 .pill-pensando {
-  background: rgba(90, 174, 240, 0.14);
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
   color: var(--blue);
 }
 
@@ -1004,8 +1005,8 @@ h2 {
   transform-origin: 50% 100%;
   background-color: var(--cordao);
   /* trama do tecido */
-  background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.14) 0 1px, transparent 1px 3px);
-  box-shadow: inset 2px 0 rgba(255, 255, 255, 0.25), inset -2px 0 rgba(0, 0, 0, 0.2);
+  background-image: repeating-linear-gradient(0deg, color-mix(in srgb, var(--rh-noite) 14%, transparent) 0 1px, transparent 1px 3px);
+  box-shadow: inset 2px 0 color-mix(in srgb, var(--rh-nevoa) 25%, transparent), inset -2px 0 color-mix(in srgb, var(--rh-noite) 20%, transparent);
 }
 
 .cordao-esq {
@@ -1313,8 +1314,8 @@ h2 {
 .cracha-xp-barra i.cheio {
   background: var(--cordao);
   box-shadow:
-    inset 0 3px rgba(255, 255, 255, 0.4),
-    inset 0 -3px rgba(0, 0, 0, 0.25);
+    inset 0 3px color-mix(in srgb, var(--rh-nevoa) 40%, transparent),
+    inset 0 -3px color-mix(in srgb, var(--rh-noite) 25%, transparent);
 }
 
 .cracha-xp-legenda {
@@ -1454,7 +1455,7 @@ h2 {
 
 .dest.dest-precisa {
   border-color: var(--waiting);
-  background: rgba(255, 138, 0, 0.12);
+  background: color-mix(in srgb, var(--waiting) 12%, transparent);
 }
 
 .dest.dest-precisa b {
@@ -1463,12 +1464,12 @@ h2 {
 
 .dest.dest-etapa {
   border-color: var(--blue);
-  background: rgba(90, 174, 240, 0.12);
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
 }
 
 .dest.dest-concluido {
   border-color: var(--green);
-  background: rgba(63, 191, 134, 0.14);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
 }
 
 .dest.dest-terminou {
@@ -1504,7 +1505,7 @@ h2 {
 }
 
 .vest::backdrop {
-  background: rgba(2, 11, 28, 0.78); /* --bg a 78% */
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
 }
 
 .vest-topo {
@@ -2425,12 +2426,12 @@ h2 {
 }
 
 .missao-andamento {
-  background: rgba(90, 174, 240, 0.14);
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
   color: var(--blue);
 }
 
 .missao-concluida {
-  background: rgba(63, 191, 134, 0.14);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
   color: var(--green);
 }
 
