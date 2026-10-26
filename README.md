@@ -4,7 +4,7 @@
 
 > Instalando em outro PC? Veja o [SETUP.md](SETUP.md).
 
-Um escritório em pixel art que mostra, ao vivo, o seu time de agentes do Claude Code trabalhando. Cada agente é um **AGzinho**: um personagem com nome, uniforme da sua função e jeito próprio. Ele senta na mesa, digita quando usa uma ferramenta, levanta um **!** quando precisa de você, manda envelopes para os colegas e, quando fica de boa, vai tomar café, jogar ping-pong ou bater papo.
+Um escritório em pixel art que mostra, ao vivo, o seu time de agentes do Claude Code trabalhando. Cada agente vira um **personagem**: alguém com nome, uniforme da sua função e jeito próprio. Ele senta na mesa, digita quando usa uma ferramenta, levanta um **!** quando precisa de você, manda envelopes para os colegas e, quando fica de boa, vai tomar café, jogar ping-pong ou bater papo.
 
 ```
 Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──▶ tela React + canvas
@@ -30,11 +30,11 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 | `team/CLAUDE-memoria.md` | Bloco de memória no Obsidian; o vault vem de `STUDIO_VAULT` e o setup instala ([[CLAUDE-memoria]]) |
 | `hooks/hook.mjs` | O hook: pega cada evento do Claude Code e manda para o servidor |
 | `server/` | Recebe os eventos, traduz em "quem está fazendo o quê", guarda o elenco, lê o vault e transmite tudo para a tela |
-| `shared/roster.ts` | Elenco padrão dos AGzinhos e as regras de validação (roda no servidor e no navegador) |
+| `shared/roster.ts` | Elenco padrão dos personagens e as regras de validação (roda no servidor e no navegador) |
 | `web/` | O escritório em si (React + canvas, tudo desenhado por código) |
 | `web/src/theme.ts` | **Onde você personaliza** nome, logo, cores e uniformes |
 | `web/src/office/map.ts` | Planta do escritório (posição das mesas e móveis) |
-| `data/agzinhos.example.json` | Elenco de exemplo, versionado. O `data/agzinhos.json` real fica fora do git |
+| `data/elenco.example.json` | Elenco de exemplo, versionado. O `data/elenco.json` real fica fora do git |
 | `data/estimativas.example.json` | Modelo dos minutos usados na estimativa de tempo economizado |
 | `setup/skills.json` | Catálogo do que o `npm run setup` instala (essenciais e extras de terceiros) |
 | `commands/` | Comandos `/time`, `/memoria` e `/reuniao`, copiados para `~/.claude/commands/` pelo setup |
@@ -229,7 +229,7 @@ Aparece no topo do painel só quando há reunião para decidir. Cada reunião li
 - **Limite:** o painel mostra as 40 primeiras tarefas em aberto (com aviso). As demais ficam intocadas na nota.
 - **A aprovação é a sua revisão.** A missão nasce com `confidencial: false` e com o texto da tarefa como está na nota. Leia as tarefas antes de aprovar.
 - **Conferência:** se a nota foi editada depois que o painel carregou, o servidor responde "A nota mudou, tente de novo", desfaz a missão criada e não sobrescreve a sua edição.
-- **Ata nova no escritório:** quando a leitura automática lê uma ata, os AGzinhos livres sentam na mesa de reunião por ~12 s e o quadro da parede mostra "Nova ata" (sem o título, de propósito). Não substitui uma reunião de verdade (`/reuniao`) em andamento.
+- **Ata nova no escritório:** quando a leitura automática lê uma ata, os personagens livres sentam na mesa de reunião por ~12 s e o quadro da parede mostra "Nova ata" (sem o título, de propósito). Não substitui uma reunião de verdade (`/reuniao`) em andamento.
 
 ### Pendências
 
@@ -241,7 +241,7 @@ As tarefas em aberto com prazo, de duas fontes:
 - Filtros **Minhas**, **Do time** e **Atrasadas** (o escolhido fica lembrado).
 - **Concluir** marca a tarefa na nota (`- [x] ... | concluída: AAAA-MM-DD`) e o foco vai para o próximo item. Se era a última tarefa aberta da missão, a missão também vira `concluída` (com a data) e sai das pendências, indo para os Resultados. A resposta traz `missaoConcluida: true`. Missão `cancelada`, `pausada` ou com outro status não muda de status; só a tarefa é marcada.
 - **Reabrir uma tarefa no Obsidian:** desmarque a caixinha de uma linha que o painel concluiu (a marca `| concluída: AAAA-MM-DD` continua na linha). O painel reabre a missão: ela volta a "em andamento", a pendência volta e os Resultados deixam de contar aquela missão e aquela pendência. A reabertura é calculada na leitura; o arquivo não é regravado. Concluir de novo troca a marca pela data nova.
-- **No escritório:** com pelo menos uma pendência atrasada, um AGzinho do time que está de boa segura uma plaquinha de aviso (quadrado vermelho com "!"). Ela some quando não há mais atrasadas e fica parada se o sistema pede menos movimento.
+- **No escritório:** com pelo menos uma pendência atrasada, um personagem do time que está de boa segura uma plaquinha de aviso (quadrado vermelho com "!"). Ela some quando não há mais atrasadas e fica parada se o sistema pede menos movimento.
 - **Limites:** a tabela de `## Tarefas` que o `/reuniao` escreve (colunas com `|`, sem caixinha) **não entra**: só linhas `- [ ] texto | responsável: ... | prazo: AAAA-MM-DD`. Notas com nome fora de letras, números, espaço, hífen e sublinhado também ficam de fora. O painel mostra até 100 pendências.
 
 ### Resultados (estimativa)
@@ -296,7 +296,7 @@ Toca de novo o que o time fez num dia, num segundo escritório dentro do painel.
 - **Como usar:** abra a seção, escolha o dia, aperte **Tocar** e escolha **10x, 30x ou 60x**. Arraste a barra para ir a qualquer hora. Sem dias gravados, aparece "Ligue o servidor durante o dia para ter replay."
 - **Onde fica:** `data/replay/AAAA-MM-DD.jsonl` (dia local, fora do git). `STUDIO_REPLAY_DIR` troca a pasta (relativa à raiz do projeto). Fica sempre ligado, sem precisar do gravador.
 - **O que guarda:** a hora de cada evento, o tipo, os ids da sessão e do agente, o tipo do agente (`dev`, `revisor`), o nome da ferramenta, o status e a estrutura das listas de tarefas. Caminhos viram `arquivo-N.ext` e a pasta vira `/projeto`.
-- **O que NÃO guarda:** prompts, a ata do `/reuniao`, mensagens entre agentes, comandos, buscas, URLs, respostas das ferramentas, caminhos reais e texto livre. Por isso o replay mostra o que cada AGzinho fazia (trabalhando, pensando, esperando), mas não o assunto.
+- **O que NÃO guarda:** prompts, a ata do `/reuniao`, mensagens entre agentes, comandos, buscas, URLs, respostas das ferramentas, caminhos reais e texto livre. Por isso o replay mostra o que cada personagem fazia (trabalhando, pensando, esperando), mas não o assunto.
 - **Limites:** cerca de 5 MB por dia (passou disso, o dia para de gravar e o terminal avisa uma vez) e 30 dias de retenção (os mais antigos são apagados quando o servidor sobe). Dia com mais de 20 mil mudanças mostra só as mudanças de status.
 - **Na apresentação** a seção fica escondida.
 - **API (só no próprio computador):** `GET /api/replay/dias` e `GET /api/replay/dia?data=AAAA-MM-DD`.
@@ -307,7 +307,7 @@ Toca de novo o que o time fez num dia, num segundo escritório dentro do painel.
 - Cada linha do Time tem mini retrato, apelido, função e o status com ícone.
 - O feed usa frases simples, sem jargão ("Editando App.tsx" vira "mexendo num arquivo"). Repetidos são agrupados. Há destaques: 🙋 precisa de você, 🏁 etapa concluída, 🎉 trabalho concluído, ✅ terminou a parte.
 - O botão **Ver detalhes técnicos** troca as frases simples pelas técnicas; **Ver frases simples** volta.
-- **Som** (no topo, ao lado do indicador de conexão): sons sintetizados no navegador, em volume baixo. Um **bip duplo** quando alguém passa a te esperar (o **!**), um **ding** quando um AGzinho entrega uma tarefa e cliques leves de teclado enquanto alguém trabalha (no máximo ~4 por segundo). Vem **ligado**; o botão desliga e o navegador lembra. Navegadores só liberam áudio depois de um clique ou tecla na página. Ao abrir ou reconectar o painel, nada toca.
+- **Som** (no topo, ao lado do indicador de conexão): sons sintetizados no navegador, em volume baixo. Um **bip duplo** quando alguém passa a te esperar (o **!**), um **ding** quando um personagem entrega uma tarefa e cliques leves de teclado enquanto alguém trabalha (no máximo ~4 por segundo). Vem **ligado**; o botão desliga e o navegador lembra. Navegadores só liberam áudio depois de um clique ou tecla na página. Ao abrir ou reconectar o painel, nada toca.
 - Visual de jogo em pixel: molduras em degrau, letras pixeladas e botões que afundam ao clicar.
 
 As frases ficam em `shared/frases.ts` (reexportadas por `server/frases.ts`). As fontes são Press Start 2P (títulos) e VT323 (texto).
@@ -327,7 +327,7 @@ As frases ficam em `shared/frases.ts` (reexportadas por `server/frases.ts`). As 
 
 A justificativa completa está em [docs/agentes-modelos.md](docs/agentes-modelos.md). Depois de mudar `agents/`, rode `npm run install-agents`. Se a variável `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` estiver definida no seu computador, ela ignora esse campo para todos os subagentes.
 
-**Gasto de tokens.** O escritório lê o registro (transcript) que o próprio Claude Code grava e soma os **tokens de hoje por função**. Aparece em "Tokens hoje" no topo do painel e no crachá de cada AGzinho (o cache lido vem à parte). Quando a missão atual vem de uma reunião, o total também vai para a nota dela (`tokens_total` e `tokens_atualizado_em`, no máximo 1 vez por minuto e ao fim da sessão).
+**Gasto de tokens.** O escritório lê o registro (transcript) que o próprio Claude Code grava e soma os **tokens de hoje por função**. Aparece em "Tokens hoje" no topo do painel e no crachá de cada personagem (o cache lido vem à parte). Quando a missão atual vem de uma reunião, o total também vai para a nota dela (`tokens_total` e `tokens_atualizado_em`, no máximo 1 vez por minuto e ao fim da sessão).
 
 - **É:** uma contagem de tokens lida do registro, atualizada quando um agente termina. Sem dado, o painel mostra "—" (nunca 0 nem estimativa). Na demo aparece "—".
 - **Não é:** custo em dinheiro, gasto por tarefa nem leitura de conversa. Só números são lidos; nenhum texto do registro é guardado.
@@ -350,7 +350,7 @@ Para mostrar o escritório a outras pessoas (reunião, projetor, gravação de t
   1. chega uma ata fictícia (a animação de ata nova);
   2. ela aparece na Caixa com as tarefas;
   3. duas tarefas são aprovadas para o time e o comando `/time` aparece pronto;
-  4. a simulação de AGzinhos trabalha;
+  4. a simulação de personagens trabalha;
   5. Pendências e Resultados atualizam, com os contadores subindo (sem animação se o sistema pede menos movimento). O tempo economizado aparece sempre como **estimativa**.
   `?demo=1` sozinho, sem `apresentacao=1`, não faz nada.
 - **Teclas da demo:** `espaço` pausa e continua o roteiro (mesmo com um botão em foco), `→` avança um passo, `F` tela cheia. A pausa vale só para o roteiro: a simulação do servidor, depois de começar (passo 4), segue até o fim.
@@ -390,9 +390,9 @@ O servidor só ouve `127.0.0.1`, mas uma página aberta no navegador poderia ten
 
 A ideia é um fluxo do Power Automate gravar o resumo do Facilitator do Teams direto no `00-Inbox/`. O formato exato, as recomendações e o que conferir com a TI estão em [docs/power-automate-reunioes.md](docs/power-automate-reunioes.md). **O fluxo não existe e nada disso foi testado** com Power Automate real.
 
-## Os AGzinhos
+## Os personagens
 
-Cada agente do Claude Code vira um AGzinho do **elenco fixo**. O elenco padrão tem 12 pessoas (`DEFAULT_ROSTER` em `shared/roster.ts`). Todos os nomes são **fictícios**: qualquer semelhança com gente de verdade é coincidência.
+Cada agente do Claude Code vira um personagem do **elenco fixo**. O elenco padrão tem 12 pessoas (`DEFAULT_ROSTER` em `shared/roster.ts`). Todos os nomes são **fictícios**: qualquer semelhança com gente de verdade é coincidência.
 
 | Nome | Apelido | Papel | Roupa | Acessório |
 |---|---|---|---|---|
@@ -411,16 +411,16 @@ Cada agente do Claude Code vira um AGzinho do **elenco fixo**. O elenco padrão 
 
 Como a escalação funciona:
 - **O mesmo papel volta como a mesma pessoa.** Toda vez que o `dev` aparece, é a Bia; o `revisor` é sempre a Lúcia. O mesmo agente chamado de novo volta **à mesma mesa**.
-- **Cada evento mexe só no AGzinho do próprio `agent_id`.** Um subagente nunca "puxa" o estado de outro.
+- **Cada evento mexe só no personagem do próprio `agent_id`.** Um subagente nunca "puxa" o estado de outro.
 - **Trabalho em paralelo ganha variação.** Se dois devs (ou dois pesquisadores) trabalham ao mesmo tempo, o segundo é a Yasmin (Dev 2) ou o Tomás (Pesquisa 2), com visual próprio.
 - **Convidados por tipo de agente.** `Explore` é a Iara, `general-purpose` é o Jorge e qualquer outro tipo (como `Plan`) é a Sofia.
-- **Visitantes são temporários.** Visitante é todo subagente de fora do time (Iara, Jorge, Sofia e os extras `ag:extra:<id>`). Ele usa uma mesa de visita e, no `SubagentStop`, **sai andando até a porta** (nunca fica "de boa": isso é só do time). Sem `SubagentStop`, sai sozinho depois de **3 min sem eventos** (`VISITANTE_SEM_EVENTO_MS`), a não ser que esteja esperando você. Depois de sair, o `agent_id` fica "aposentado" por ~60 s: evento atrasado dele não o traz de volta; só um `SubagentStart` do mesmo id reabre.
+- **Visitantes são temporários.** Visitante é todo subagente de fora do time (Iara, Jorge, Sofia e os extras `p:extra:<id>`). Ele usa uma mesa de visita e, no `SubagentStop`, **sai andando até a porta** (nunca fica "de boa": isso é só do time). Sem `SubagentStop`, sai sozinho depois de **3 min sem eventos** (`VISITANTE_SEM_EVENTO_MS`), a não ser que esteja esperando você. Depois de sair, o `agent_id` fica "aposentado" por ~60 s: evento atrasado dele não o traz de volta; só um `SubagentStart` do mesmo id reabre.
 - **No máximo 3 visitantes na tela.** Os que passam disso continuam no estado, mas não aparecem no mapa (o painel mostra "+N visitantes"); o 4º entra quando um dos 3 sai, por ordem de chegada.
 - **Visitante não conta no TIME.** O quadro da parede mostra `TIME 7 · VISITANTES 2 · FAZENDO 3`. `TIME` só tem o time (o trecho `VISITANTES` some quando não há nenhum), e `FAZENDO` é quem está trabalhando no mapa. Visitante também não conta na fase do quadro de etapas e não é gravado em `data/escritorio.json`.
 
 ## Ciclo de vida
 
-- **Os AGzinhos ficam até o `SessionEnd`.** Terminar a tarefa (`Stop`) não manda ninguém embora: o time fica no escritório, de boa, até a sessão acabar.
+- **Os personagens ficam até o `SessionEnd`.** Terminar a tarefa (`Stop`) não manda ninguém embora: o time fica no escritório, de boa, até a sessão acabar.
 - **"Trabalhando" só vale com ferramenta em andamento ou evento recente.** O servidor guarda, por agente, as ferramentas que começaram (`PreToolUse`) e ainda não terminaram (`PostToolUse` ou falha). Sem nenhum evento por **2 min** (`TRABALHANDO_EXPIRA_MS`), ou **10 min** se a ferramenta em andamento for o `Bash` ou um `Agent`/`Task` (`TRABALHANDO_BASH_MS`), o agente volta para "De boa". "Pensando" expira em **5 min** (`PENSANDO_EXPIRA_MS`): o Esc no prompt não dispara `Stop`. Ferramenta em andamento há mais de 10 min é descartada. Entregar o resultado (`SubagentHandback`) e perguntar a você (`AskUserQuestion`) não contam como trabalho; "esperando" (!) nunca expira.
 - O `Stop` do líder faz todo mundo **daquela sessão** voltar para "de boa" (visitantes sem ferramenta em andamento saem; quem espera você continua esperando). Evento atrasado de quem acabou de dar `SubagentStop` (até ~5 s, `JANELA_TARDIO_MS`) não o traz de volta.
 - **Ao restaurar, ninguém volta trabalhando.** `trabalhando` e `pensando` do `data/escritorio.json` viram "De boa" (o líder, "Esperando seu próximo pedido"); o próximo evento de verdade põe o agente para trabalhar de novo.
@@ -458,7 +458,7 @@ O **trabalho sempre ganha do descanso**: quando chega tarefa, quem está descans
 ## Crachá e Vestiário
 
 - **Mesas com a função:** cada mesa mostra a função de quem a usa (LÍDER, PLANEJAMENTO, PESQUISA, DESENVOLVIMENTO, TESTES, REVISÃO, DOCUMENTAÇÃO, CONVIDADO ou LIVRE). Quando não cabe, abrevia ("DESENVOLV. 2"). O apelido não aparece na mesa.
-- **Crachá:** clique num AGzinho no escritório ou na lista "Time" do painel. Abre uma ficha com nome, cargo, matrícula, personalidade, o estado atual, **"O que eu faço"**, **"Sou responsável por"** e a barra de entregas do dia (10 por nível; "Nível N" só aparece a partir da 10ª entrega).
+- **Crachá:** clique num personagem no escritório ou na lista "Time" do painel. Abre uma ficha com nome, cargo, matrícula, personalidade, o estado atual, **"O que eu faço"**, **"Sou responsável por"** e a barra de entregas do dia (10 por nível; "Nível N" só aparece a partir da 10ª entrega).
 - **Vestiário:** botão **Vestiário** no painel, ou **Personalizar** no crachá. Dá para mudar nome, apelido, gênero, tom de pele, cabelo (estilo e cor), roupa, destaque, acessórios e os textos "O que eu faço" e "Sou responsável por", com a pré-visualização ao lado.
 
 Regras de uniforme (o vestiário só oferece o que é permitido, e o servidor confere de novo):
@@ -469,7 +469,7 @@ Regras de uniforme (o vestiário só oferece o que é permitido, e o servidor co
 - **O cargo acompanha o gênero**: Desenvolvedora ou Desenvolvedor, Revisora ou Revisor.
 - **Campos fixos**, que o vestiário não muda: papel, cordão do crachá, matrícula e falas.
 
-**Onde fica salvo:** `data/agzinhos.json`, escrito pelo servidor e **fora do git**. O `data/agzinhos.example.json` é o modelo. Sem o arquivo, vale o elenco padrão.
+**Onde fica salvo:** `data/elenco.json`, escrito pelo servidor e **fora do git**. O `data/elenco.example.json` é o modelo. Sem o arquivo, vale o elenco padrão.
 
 **API:**
 ```bash
@@ -534,7 +534,7 @@ O botão **Rodar simulação** conta uma sessão inteira, com as mesmas situaç�
 - a Lúcia revisa, o Davi documenta e o quadro chega em "concluíram 6 de 6";
 - o líder termina ("Terminou, esperando você") e, no fim da sessão, todos saem pela porta.
 
-Dá para ver tudo sem ligar o Claude. Ela vive em `server/demo.ts`; **Limpar** interrompe. Se uma sessão real estiver aberta, ela fica com o Guto e a simulação usa convidados no lugar dos AGzinhos ocupados.
+Dá para ver tudo sem ligar o Claude. Ela vive em `server/demo.ts`; **Limpar** interrompe. Se uma sessão real estiver aberta, ela fica com o Guto e a simulação usa convidados no lugar dos personagens ocupados.
 
 ## Identidade
 
@@ -567,7 +567,7 @@ O produto se chama **Rhynor Studio** (nome no cabeçalho do painel, logo da Rhyn
 | Documentador | camisa branca, marquinha escura no peito | manga |
 | Convidado | polo ou camisa + crachá cinza "visitante" | só o crachá |
 
-Os acessórios (óculos, headset etc.) são do AGzinho, não do papel: veja o elenco acima.
+Os acessórios (óculos, headset etc.) são do personagem, não do papel: veja o elenco acima.
 
 **Iluminação pela hora real.** O escritório acompanha o relógio do computador: manhã, tarde, entardecer e noite. Para ver uma hora específica, use `?hora=HH.MM` na URL:
 
@@ -584,16 +584,16 @@ Também aceita `HH:MM`. Valor inválido é ignorado e vale a hora real.
 - **Mouse:** roda dá zoom no ponto do cursor; arrastar move; duplo clique alterna 2x e "ajustar".
 - **Trackpad e toque:** pinça (ou Ctrl + roda) dá zoom; um dedo arrasta; duplo toque alterna 2x e "ajustar".
 - **Teclado:** setas movem, `+`/`-` dão zoom, `0` ajusta.
-- Botão **Ajustar** e o rótulo ZOOM no canto. Um clique simples seleciona um AGzinho após ~300 ms (espera o duplo clique). Respeita `prefers-reduced-motion`.
+- Botão **Ajustar** e o rótulo ZOOM no canto. Um clique simples seleciona um personagem após ~300 ms (espera o duplo clique). Respeita `prefers-reduced-motion`.
 - Nos botões e no teclado o zoom para em escala inteira; no zoom intermediário (roda, pinça) os pixels ficam um pouco menos nítidos.
 
 ## Como personalizar
 
-Tudo visual fica em `web/src/theme.ts`. O resto do código lê de lá. Quem são os AGzinhos fica no elenco.
+Tudo visual fica em `web/src/theme.ts`. O resto do código lê de lá. Quem são os personagens fica no elenco.
 
 ### Mudar o elenco
 - **Pelo Vestiário**, na tela (o jeito fácil), ou
-- **Pelo JSON**: copie `data/agzinhos.example.json` para `data/agzinhos.json` e edite. Campo ausente cai no padrão; um arquivo inválido é recusado com a lista de erros. O padrão de fábrica está em `DEFAULT_ROSTER` (`shared/roster.ts`).
+- **Pelo JSON**: copie `data/elenco.example.json` para `data/elenco.json` e edite. Campo ausente cai no padrão; um arquivo inválido é recusado com a lista de erros. O padrão de fábrica está em `DEFAULT_ROSTER` (`shared/roster.ts`).
 
 ### Criar um acessório novo
 Os passos estão no comentário de `web/src/office/accessories.ts`:
@@ -709,7 +709,7 @@ O Rhynor Studio segue o mesmo ciclo. A missão atual está em `referencias/missa
 - **Ping-pong e papo se formam pouco em uso real**: só nascem nas trocas de atividade, então com pouca gente de boa quase não aparecem.
 - **O pareamento Start↔Agent depende da ordem de chegada** dos eventos: se o `SubagentStart` e o `Agent` chegarem trocados, um subagente pode ser ligado ao pedido errado.
 - **Em telas estreitas (< ~600 px)** o canvas é reduzido por CSS, e o pixel deixa de ser inteiro.
-- **Simulação não sobrevive a reinício**: os AGzinhos da simulação não são salvos de propósito.
+- **Simulação não sobrevive a reinício**: os personagens da simulação não são salvos de propósito.
 - **"Foi chamado de novo" repetido**: se o servidor reiniciar entre o líder chamar alguém e o primeiro passo dessa pessoa, a linha pode aparecer duas vezes no feed.
 - **"Limpar" zera também a sessão real** (e apaga o `data/escritorio.json`); ela volta no evento seguinte do Claude Code.
 - **Líder duplicado num `/clear` com eventos fora de ordem**: o líder antigo pode caminhar até a porta enquanto o novo já está na mesa.

@@ -31,7 +31,7 @@ export function textoDoProgresso(p: Progress): TextoProgresso {
     if (p.concluidas >= p.total) {
       return {
         estado: "concluido",
-        titulo: `AGzinhos concluíram ${p.total} de ${p.total}`,
+        titulo: `Time concluiu ${p.total} de ${p.total}`,
         curto: `Concluíram ${p.total} de ${p.total}`,
         detalhe: "",
         valor: p.total,
@@ -48,9 +48,9 @@ export function textoDoProgresso(p: Progress): TextoProgresso {
     };
   }
   if (p.fonte === "papel") {
-    return { estado: "papel", titulo: `AGzinhos em ${p.titulo}`, curto: `Em ${p.titulo}`, detalhe: "", valor: 0, max: 0 };
+    return { estado: "papel", titulo: `Personagens em ${p.titulo}`, curto: `Em ${p.titulo}`, detalhe: "", valor: 0, max: 0 };
   }
-  return { estado: "nada", titulo: "AGzinhos de boa", curto: "De boa", detalhe: "", valor: 0, max: 0 };
+  return { estado: "nada", titulo: "Time de boa", curto: "De boa", detalhe: "", valor: 0, max: 0 };
 }
 
 /** segmentos cheios da barra de 10 (etapa 4 de 7 → 6) */

@@ -53,7 +53,7 @@ test("agrupamento: intercalado, intervalo, destaque no meio, filtro e ordem", ()
   const longo = agruparFeed([it(1, "A", "estudo", 0), it(2, "A", "estudo", 9 * m), it(3, "A", "estudo", 18 * m), it(4, "A", "estudo", 29 * m)]);
   assert.deepEqual(longo.map((l) => l.n), [3, 1]);
   assert.equal(agruparFeed([it(1, "A", "estudo", 0), it(2, "A", "estudo", 10 * m)]).length, 1, "exatamente 10 min junta");
-  // destaque no meio quebra o grupo do próprio AGzinho
+  // destaque no meio quebra o grupo do próprio Personagem
   const meio = agruparFeed([it(1, "A", "estudo", 0), it(2, "A", "precisa", 1, undefined), it(3, "A", "estudo", 2)]);
   assert.deepEqual(meio.map((l) => [l.item.categoria, l.n]), [["estudo", 1], ["precisa", 1], ["estudo", 1]]);
   // ordem: grupo sobe para a posição do item mais recente

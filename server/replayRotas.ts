@@ -33,7 +33,7 @@ export interface RotasReplayDeps {
   /** pasta dos resumos (data/replay) */
   dir: () => string;
   porta: () => number;
-  /** elenco atual (os nomes dos AGzinhos vêm dele) */
+  /** elenco atual (os nomes dos Personagens vêm dele) */
   roster?: () => Roster;
   /** o dia bateu no limite de gravação? (bytes = tamanho do arquivo, para quem reiniciou o servidor) */
   limiteAtingido?: (data: string, bytes: number) => boolean;
@@ -85,8 +85,8 @@ export function lerJsonlTolerante(texto: string): LeituraTolerante {
 }
 
 /** assinatura do que o painel desenha de um agente: se não mudou, a mensagem não entra no dia */
-function assinatura(a: { status: string; activity: string; name: string; agzinho?: string; role: string; excedente?: boolean; parentId?: string }): string {
-  return [a.status, a.activity, a.name, a.agzinho ?? "", a.role, a.excedente ? 1 : 0, a.parentId ?? ""].join("|");
+function assinatura(a: { status: string; activity: string; name: string; personagem?: string; role: string; excedente?: boolean; parentId?: string }): string {
+  return [a.status, a.activity, a.name, a.personagem ?? "", a.role, a.excedente ? 1 : 0, a.parentId ?? ""].join("|");
 }
 
 /** Reproduz as linhas e devolve só o que o painel precisa (agent, remove, progress, limpar). Cede o event loop entre as linhas. */

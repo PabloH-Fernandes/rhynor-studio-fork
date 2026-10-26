@@ -1,11 +1,11 @@
-// Vestiário: modal pra trocar o visual dos AGzinhos (nome, apelido, pele, cabelo, roupa e
+// Vestiário: modal pra trocar o visual dos Personagens (nome, apelido, pele, cabelo, roupa e
 // acessórios) e o "O que eu faço" do crachá, com o boneco girando ao vivo. Salvar manda o elenco inteiro no PUT /api/roster e
 // todos os navegadores recebem pelo WS. As regras puras ficam em vestiarioLogic.ts.
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type SyntheticEvent } from "react";
 import { DEFAULT_ROSTER, ESTILOS_CABELO, GENEROS, HAIR_COLORS, ROUPAS_PERMITIDAS, SKIN_TONES } from "../../../shared/roster";
-import type { Acessorio, AGzinho, Roster } from "../../../shared/types";
-import { lookOfAgzinho } from "../office/engine";
+import type { Acessorio, Personagem, Roster } from "../../../shared/types";
+import { lookOfPersonagem } from "../office/engine";
 import { PORTRAIT_H, PORTRAIT_W, drawCharacter, drawPortrait, type CharLook, type Dir } from "../office/sprites";
 import { SPRITE_H, SPRITE_OX, SPRITE_OY, SPRITE_W } from "../office/spriteCache";
 import { useDevicePixelRatio } from "./Cracha";
@@ -23,7 +23,7 @@ import {
   NOME_ROUPA,
   acessorioDaCamada,
   acessoriosPorCamada,
-  agzinhoDe,
+  personagemDe,
   chavesSujas,
   conflitos,
   contarCaracteres,
@@ -66,7 +66,7 @@ const mesmaCor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 interface Props {
   /** elenco atual (atualiza sozinho pelo WS) */
   roster: Roster;
-  /** key do AGzinho que abre selecionado */
+  /** key do Personagem que abre selecionado */
   inicial: string;
   onClose: () => void;
 }
@@ -80,7 +80,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
   /** última versão salva que este modal conhece */
   const [base, setBase] = useState<Roster>(roster);
   const [rascunhos, setRascunhos] = useState<Rascunhos>({});
-  const [atual, setAtual] = useState(() => (agzinhoDe(roster, inicial) ? inicial : roster.agzinhos[0].key));
+  const [atual, setAtual] = useState(() => (personagemDe(roster, inicial) ? inicial : roster.personagens[0].key));
   const [enviando, setEnviando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   /** depois da 1ª tentativa de salvar, os erros do front aparecem (e somem conforme corrige) */
@@ -89,11 +89,11 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
   const [confirmarPadrao, setConfirmarPadrao] = useState(false);
   const [avisoFechar, setAvisoFechar] = useState(false);
 
-  const salvoAtual = agzinhoDe(base, atual) ?? base.agzinhos[0];
+  const salvoAtual = personagemDe(base, atual) ?? base.personagens[0];
   const ed = rascunhos[atual] ?? salvoAtual;
   const sujas = useMemo(() => chavesSujas(base, rascunhos), [base, rascunhos]);
   const sujo = sujas.includes(atual);
-  const padrao = agzinhoDe(DEFAULT_ROSTER, atual);
+  const padrao = personagemDe(DEFAULT_ROSTER, atual);
 
   // ---- elenco novo pelo WS: adota sozinho, menos quando mexe em algo que você está editando.
   // Só o mais novo (atualizadoEm): se a resposta do PUT chegou antes do WS, o WS atrasado não
@@ -119,9 +119,9 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
   const erros = tentou ? (errosFront.length ? errosFront : errosServidor.erros) : [];
   const tipoErro: TipoErro = errosFront.length ? "validacao" : errosServidor.tipo;
   const porCampo = errosPorCampo(erros, atual);
-  const elencoMostrado = useMemo(() => ({ ...base, agzinhos: base.agzinhos.map((a) => rascunhos[a.key] ?? a) }), [base, rascunhos]);
+  const elencoMostrado = useMemo(() => ({ ...base, personagens: base.personagens.map((a) => rascunhos[a.key] ?? a) }), [base, rascunhos]);
 
-  const editar = (fn: (a: AGzinho) => AGzinho) => {
+  const editar = (fn: (a: Personagem) => Personagem) => {
     setRascunhos((r) => ({ ...r, [atual]: fn(r[atual] ?? salvoAtual) }));
     setSalvo(false);
     setErrosServidor({ tipo: "validacao", erros: [] });
@@ -263,11 +263,11 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
     if (!sujas.length) setAvisoFechar(false);
   }, [sujas.length]);
 
-  const look = useMemo(() => lookOfAgzinho(ed), [ed]);
+  const look = useMemo(() => lookOfPersonagem(ed), [ed]);
   const roupas = ROUPAS_PERMITIDAS(ed.papel);
   const regra = regraRoupa(ed.papel);
   const destaques = opcoesDestaque(ed.papel, ed.roupa);
-  const apelidoDe = (k: string) => agzinhoDe(elencoMostrado, k)?.apelido.trim() || agzinhoDe(elencoMostrado, k)?.nome || k;
+  const apelidoDe = (k: string) => personagemDe(elencoMostrado, k)?.apelido.trim() || personagemDe(elencoMostrado, k)?.nome || k;
   const campoErro = (campo: string) => porCampo[campo]?.join(" · ");
 
   return (
@@ -278,7 +278,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
             Vestiário
           </h2>
           <p id={`${id}-sub`} className="vest-sub">
-            Troque o visual dos AGzinhos.
+            Troque o visual dos Personagens.
           </p>
         </div>
         <button type="button" className="vest-x" aria-label="Fechar vestiário" title="Fechar (Esc)" onClick={pedirFechar}>
@@ -289,7 +289,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
       <div className="vest-corpo">
         <nav className="vest-elenco" aria-label="Elenco">
           <ul>
-            {elencoMostrado.agzinhos.map((a) => {
+            {elencoMostrado.personagens.map((a) => {
               const naoSalvo = sujas.includes(a.key);
               return (
                 <li key={a.key}>
@@ -321,7 +321,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
             <div className="vest-conflito" role="alert">
               <p>
                 <strong>O elenco foi alterado em outro navegador</strong> ({emConflito.map(apelidoDe).join(", ")}). Recarregar
-                descarta a sua edição desses AGzinhos.
+                descarta a sua edição desses Personagens.
               </p>
               <div className="vest-linha-botoes">
                 <button type="button" className="btn" onClick={recarregar}>
@@ -557,7 +557,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
                     const texto = mensagemDeErro(e, elencoMostrado);
                     return (
                       <li key={e}>
-                        {key && key !== atual && agzinhoDe(base, key) ? (
+                        {key && key !== atual && personagemDe(base, key) ? (
                           <button type="button" className="vest-erro-link" onClick={() => setAtual(key)}>
                             {texto}
                           </button>
@@ -612,7 +612,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
               type="button"
               className="btn ghost"
               disabled={!padrao || enviando}
-              title={padrao ? undefined : "Este AGzinho não existe no elenco padrão"}
+              title={padrao ? undefined : "Este Personagem não existe no elenco padrão"}
               onClick={() => setConfirmarPadrao(true)}
             >
               Voltar ao padrão
@@ -629,7 +629,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
                 : emConflito.length
                   ? "Escolha uma opção para poder salvar"
                   : sujas.length
-                    ? `${sujas.length === 1 ? "1 AGzinho" : `${sujas.length} AGzinhos`} com alteração não salva`
+                    ? `${sujas.length === 1 ? "1 Personagem" : `${sujas.length} Personagens`} com alteração não salva`
                     : ""}
           </p>
           <div className="vest-acoes-dir">
@@ -741,10 +741,10 @@ function escalaInteira(canvas: HTMLCanvasElement, w: number, h: number, escala: 
   return k;
 }
 
-function MiniRetrato({ ag }: { ag: AGzinho }) {
+function MiniRetrato({ ag }: { ag: Personagem }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dpr = useDevicePixelRatio();
-  const look = useMemo(() => lookOfAgzinho(ag), [ag]);
+  const look = useMemo(() => lookOfPersonagem(ag), [ag]);
   useLayoutEffect(() => {
     const canvas = ref.current;
     const ctx = canvas?.getContext("2d");

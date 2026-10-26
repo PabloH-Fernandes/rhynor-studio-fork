@@ -5,7 +5,7 @@
 //  é referencias/rhynor-marca.md.
 // =====================================================================
 
-import { HAIR_COLORS, SKIN_TONES, type AGzinho } from "../../shared/roster";
+import { HAIR_COLORS, SKIN_TONES, type Personagem } from "../../shared/roster";
 
 /**
  * Paleta herdada do motor upstream (troca pelos tokens Rhynor nas próximas etapas). Fonte única dos HEX:
@@ -313,11 +313,11 @@ export const uniformFor = (role: string) => theme.uniforms[role] ?? theme.unifor
 export const roleColor = (role: string) => theme.roleColors[role] ?? theme.roleColors.convidado;
 
 /**
- * Uniforme de um AGzinho do elenco: a roupa dele com o cordão na cor dele. Gola, faixa e
+ * Uniforme de um Personagem do elenco: a roupa dele com o cordão na cor dele. Gola, faixa e
  * lenço seguem o uniforme do papel quando a peça é a mesma; o destaque troca o detalhe
  * (gravata dourada, blazer cinza, crachá de visitante).
  */
-export function uniformForAgzinho(ag: AGzinho): Uniform {
+export function uniformForPersonagem(ag: Personagem): Uniform {
   const base = theme.uniforms[ag.papel];
   const trim = base?.kind === ag.roupa ? base.trim : undefined;
   const accent = ag.cordao;

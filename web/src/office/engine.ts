@@ -2,12 +2,12 @@
 // (mesa, reunião, porta e, quando está de boa, o descanso do agendador em activities.ts),
 // anda pelos caminhos e desenha tudo no canvas.
 
-import type { AGzinho, Acessorio, Agent, Progress, ReuniaoAtiva, Roster } from "../../../shared/types";
+import type { Personagem, Acessorio, Agent, Progress, ReuniaoAtiva, Roster } from "../../../shared/types";
 import { textoDoProgresso, type TextoProgresso } from "../progresso";
 import { HAIR_STYLE_INDEX } from "../../../shared/roster";
 import { ehVisitante } from "../../../shared/visitante";
 import { rotulosDasMesas } from "./deskLabel";
-import { HAIRS, SKINS, palette, roleColor, theme, uniformFor, uniformForAgzinho } from "../theme";
+import { HAIRS, SKINS, palette, roleColor, theme, uniformFor, uniformForPersonagem } from "../theme";
 import { AreaLayer, bakeCount, bakeDrawing, drawBaked, type Baked } from "./bake";
 import { RestScheduler, type RallyFrame, type RestActor, type RestMover, type RestPose } from "./activities";
 import { mostraBalaoDeTrabalho, placeBubbles, type BubbleReq, type FloatReq, type Placement } from "./bubbles";
@@ -115,7 +115,7 @@ const CONFETTI_AT_MS = 150; // sai no primeiro impulso do pulo
 const CONFETTI_LIFE_MS = 800;
 const CONFETTI_GRAVITY = 0.00012; // px/ms²
 
-/** balão de descanso (fala do papo): fica 2,5–3 s, no máximo 2 na tela, 1 a cada 12 s por AGzinho */
+/** balão de descanso (fala do papo): fica 2,5–3 s, no máximo 2 na tela, 1 a cada 12 s por Personagem */
 const REST_BUBBLE_MIN_MS = 2500;
 const REST_BUBBLE_MAX_MS = 3000;
 const REST_BUBBLE_MAX = 2;
@@ -168,21 +168,21 @@ export function ehLider(agent: Agent): boolean {
   return !agent.parentId;
 }
 
-/** AGzinho do elenco que o agente está usando (undefined no visitante extra ou sem elenco) */
-export function agzinhoOf(agent: Agent, roster: Roster | null): AGzinho | undefined {
-  return agent.agzinho ? roster?.agzinhos.find((a) => a.key === agent.agzinho) : undefined;
+/** Personagem do elenco que o agente está usando (undefined no visitante extra ou sem elenco) */
+export function personagemOf(agent: Agent, roster: Roster | null): Personagem | undefined {
+  return agent.personagem ? roster?.personagens.find((a) => a.key === agent.personagem) : undefined;
 }
 
-/** Aparência do AGzinho do elenco; sem elenco ou visitante extra, a de sempre (papel + hash do id). */
+/** Aparência do Personagem do elenco; sem elenco ou visitante extra, a de sempre (papel + hash do id). */
 export function lookFor(agent: Agent, roster: Roster | null): CharLook {
-  const ag = agzinhoOf(agent, roster);
-  return ag ? lookOfAgzinho(ag) : lookByHash(agent, hashString(agent.id));
+  const ag = personagemOf(agent, roster);
+  return ag ? lookOfPersonagem(ag) : lookByHash(agent, hashString(agent.id));
 }
 
-/** aparência de um AGzinho do elenco: todos os acessórios, cada um na sua camada */
-export function lookOfAgzinho(ag: AGzinho): CharLook {
+/** aparência de um Personagem do elenco: todos os acessórios, cada um na sua camada */
+export function lookOfPersonagem(ag: Personagem): CharLook {
   return {
-    uniform: uniformForAgzinho(ag),
+    uniform: uniformForPersonagem(ag),
     skin: ag.pele,
     hair: ag.cabelo.cor,
     hairStyle: HAIR_STYLE_INDEX[ag.cabelo.estilo] ?? 0,
@@ -321,7 +321,7 @@ export class OfficeEngine {
   private lightmap = new Lightmap();
   private rosterData: Roster | null = null;
   /** elenco por chave (falas, apelido e nome curto sem procurar na lista a cada quadro) */
-  private agzByKey = new Map<string, AGzinho>();
+  private agzByKey = new Map<string, Personagem>();
   /** descanso de quem está de boa; as reservas também guardam quem mora em pé na reunião */
   private rest: RestScheduler;
   private cups: CupDecal[] = [];
@@ -445,7 +445,7 @@ export class OfficeEngine {
   set roster(roster: Roster | null) {
     if (roster === this.rosterData) return;
     this.rosterData = roster;
-    this.agzByKey = new Map((roster?.agzinhos ?? []).map((a) => [a.key, a]));
+    this.agzByKey = new Map((roster?.personagens ?? []).map((a) => [a.key, a]));
     clearSpriteCache();
     for (const v of this.visuals.values()) v.look = lookFor(v.agent, roster);
   }
@@ -469,7 +469,7 @@ export class OfficeEngine {
     this.missaoNome = nome || undefined;
   }
 
-  /** pendências atrasadas: com pelo menos uma, um AGzinho de boa segura a plaquinha de aviso */
+  /** pendências atrasadas: com pelo menos uma, um Personagem de boa segura a plaquinha de aviso */
   set atrasadas(n: number) {
     this.atrasadasN = Math.max(0, Math.floor(n) || 0);
   }
@@ -495,7 +495,7 @@ export class OfficeEngine {
     }
     const prev = v.agent.status;
     const delivered = agent.tasksDone !== v.agent.tasksDone && agent.tasksDone > 0;
-    if (agent.agzinho !== v.agent.agzinho) v.look = lookFor(agent, this.rosterData);
+    if (agent.personagem !== v.agent.personagem) v.look = lookFor(agent, this.rosterData);
     // evento de trabalho: o descanso fica bloqueado por um tempo (a entrega, ocupado→ocioso, não conta)
     if (BUSY.has(agent.status)) v.workedAt = now;
     if (agent.status !== "ocioso" && this.rest.isResting(agent.id)) {
@@ -774,13 +774,13 @@ export class OfficeEngine {
     this.cups.push({ deskId: id, surface: cupSurface(desk), until: now + CUP_DECAL_MS });
   }
 
-  /** falas do bate-papo: as do AGzinho no elenco; visitante extra usa umas genéricas */
+  /** falas do bate-papo: as do Personagem no elenco; visitante extra usa umas genéricas */
   private falasOf(agent: Agent): readonly string[] {
-    const ag = agent.agzinho ? this.agzByKey.get(agent.agzinho) : undefined;
+    const ag = agent.personagem ? this.agzByKey.get(agent.personagem) : undefined;
     return ag?.falas.length ? ag.falas : FALAS_VISITANTE;
   }
 
-  /** fala nova do papo: entra na fila (uma por AGzinho; a nova substitui a que ainda esperava) */
+  /** fala nova do papo: entra na fila (uma por Personagem; a nova substitui a que ainda esperava) */
   private queueRestLine(id: string, text: string, now: number) {
     const q = this.restQueue.find((e) => e.id === id);
     if (q) {
@@ -794,7 +794,7 @@ export class OfficeEngine {
     return this.rest.restLabel(id);
   }
 
-  /** Tem algum AGzinho sentado digitando agora? (mesmo critério do `typing` do desenho; alimenta o som do teclado) */
+  /** Tem algum Personagem sentado digitando agora? (mesmo critério do `typing` do desenho; alimenta o som do teclado) */
   alguemDigitando(): boolean {
     const now = performance.now();
     for (const v of this.visuals.values()) {
@@ -854,7 +854,7 @@ export class OfficeEngine {
     // a função de quem está em cada mesa (ex.: DESENVOLVIMENTO 2 com a dev-2); vazia, a do setor ou LIVRE
     const labels = rotulosDasMesas(
       DESKS.map((d, i) => ({ papel: d.role, quem: occupants[i]?.agent ?? null })),
-      this.rosterData?.agzinhos ?? [],
+      this.rosterData?.personagens ?? [],
     );
     for (const [i, d] of DESKS.entries()) {
       const seated = seatedAt.get(d.id);
@@ -1256,7 +1256,7 @@ export class OfficeEngine {
 
   /**
    * Fila das falas de descanso: a cada ~300 ms tenta mostrar quem está esperando, se houver menos
-   * de 2 na tela, se o AGzinho não falou nos últimos 12 s e se o balão couber sem cobrir nada.
+   * de 2 na tela, se o Personagem não falou nos últimos 12 s e se o balão couber sem cobrir nada.
    */
   private tickRestSpeech(ctx: CanvasRenderingContext2D, now: number) {
     for (const [id, b] of this.restBubbles) if (now >= b.until) this.restBubbles.delete(id);

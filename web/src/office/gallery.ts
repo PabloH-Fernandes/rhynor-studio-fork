@@ -1,9 +1,9 @@
 // Galeria de conferência dos bonecos (só pra dev e prints): `?galeria=1` na URL.
-// Uma linha por AGzinho do elenco, com as poses e animações lado a lado.
+// Uma linha por Personagem do elenco, com as poses e animações lado a lado.
 
-import type { AGzinho } from "../../../shared/types";
+import type { Personagem } from "../../../shared/types";
 import { inkAlpha, palette } from "../theme";
-import { lookOfAgzinho } from "./engine";
+import { lookOfPersonagem } from "./engine";
 import { PORTRAIT_H, PORTRAIT_W, drawCharacter, drawPortrait, type CharAnim, type CharPose, type Dir } from "./sprites";
 
 export const GALLERY_ENABLED =
@@ -48,8 +48,8 @@ const HEAD_H = 12;
 export const GALLERY_W = LABEL_W + (COLUMNS.length + 1) * CELL_W + 4;
 export const GALLERY_H = (rows: number) => HEAD_H + rows * CELL_H + 4;
 
-export function drawGallery(ctx: CanvasRenderingContext2D, agzinhos: readonly AGzinho[]) {
-  const h = GALLERY_H(agzinhos.length);
+export function drawGallery(ctx: CanvasRenderingContext2D, personagens: readonly Personagem[]) {
+  const h = GALLERY_H(personagens.length);
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = palette.floor.tileA;
   ctx.fillRect(0, 0, GALLERY_W, h);
@@ -61,7 +61,7 @@ export function drawGallery(ctx: CanvasRenderingContext2D, agzinhos: readonly AG
   COLUMNS.forEach((c, i) => ctx.fillText(c.label, LABEL_W + i * CELL_W + CELL_W / 2, 6));
   ctx.fillText("retrato", LABEL_W + COLUMNS.length * CELL_W + CELL_W / 2, 6);
 
-  agzinhos.forEach((ag, row) => {
+  personagens.forEach((ag, row) => {
     const top = HEAD_H + row * CELL_H;
     ctx.fillStyle = row % 2 ? palette.floor.tileB : palette.floor.tileA;
     ctx.fillRect(0, top, GALLERY_W, CELL_H);
@@ -75,7 +75,7 @@ export function drawGallery(ctx: CanvasRenderingContext2D, agzinhos: readonly AG
     ctx.fillText(ag.genero === "feminino" ? "F" : "M", 3, top + CELL_H / 2 + 4);
     ctx.textAlign = "center";
 
-    const look = lookOfAgzinho(ag);
+    const look = lookOfPersonagem(ag);
     COLUMNS.forEach((c, i) => {
       const pose: CharPose = {
         dir: "down",

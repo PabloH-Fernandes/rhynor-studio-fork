@@ -178,7 +178,7 @@ export function tocarTeclado(): void {
   }
 }
 
-/** Clique agregado com limite de taxa (compartilhado por todos os AGzinhos). */
+/** Clique agregado com limite de taxa (compartilhado por todos os Personagens). */
 export function tocarTecladoLimitado(agora: number = Date.now()): void {
   if (agora - ultimoClique < INTERVALO_TECLADO_MS - 10) return;
   ultimoClique = agora;

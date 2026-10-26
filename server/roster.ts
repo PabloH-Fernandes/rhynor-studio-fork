@@ -1,5 +1,5 @@
-// Persistência do elenco dos AGzinhos em data/agzinhos.json.
-// Sem o arquivo o escritório usa o DEFAULT_ROSTER; com erros, saneia AGzinho por AGzinho.
+// Persistência do elenco dos Personagens em data/elenco.json.
+// Sem o arquivo o escritório usa o DEFAULT_ROSTER; com erros, saneia Personagem por Personagem.
 // A gravação é atômica (tmp + fsync + rename) e tenta de novo quando o OneDrive
 // ou o antivírus seguram o arquivo por um instante (EPERM/EBUSY/EACCES no Windows).
 
@@ -10,29 +10,29 @@ import { fileURLToPath } from "node:url";
 import {
   CAMADA_DO_ACESSORIO,
   DEFAULT_ROSTER,
-  agzinhoErrors,
+  personagemErrors,
   aplicarEditaveis,
   mergeWithDefaults,
   oQueFacoErrors,
   oQueFacoPadrao,
   validateRoster,
-  type AGzinho,
+  type Personagem,
   type Roster,
   type RosterResult,
 } from "../shared/roster.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DATA_DIR = path.join(ROOT, "data");
-export const ROSTER_FILE = path.join(DATA_DIR, "agzinhos.json");
+export const ROSTER_FILE = path.join(DATA_DIR, "elenco.json");
 
 export const RENAME_RETRIES = 5;
 export const RENAME_BACKOFF_MS = 50; // 50, 100, 200, 400, 800
 export const RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
 
 /**
- * Lê o elenco salvo, completa com os padrões e saneia AGzinho por AGzinho: o inválido volta
+ * Lê o elenco salvo, completa com os padrões e saneia Personagem por Personagem: o inválido volta
  * ao seu padrão e o extra inválido sai. Se precisou sanear (ou o JSON estava quebrado), guarda
- * uma cópia do arquivo em agzinhos.invalido-<data>.json e grava o elenco saneado no lugar
+ * uma cópia do arquivo em elenco.invalido-<data>.json e grava o elenco saneado no lugar
  * (em segundo plano), para não gerar um backup novo a cada reinício. Nunca lança.
  */
 export function loadRoster(file = ROSTER_FILE): Roster {
@@ -74,16 +74,16 @@ function rewrite(roster: Roster, file: string) {
 export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
   const notas: string[] = [];
   const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
-  if (!isObj(parsed) || !Array.isArray(parsed.agzinhos)) {
-    return { roster: structuredClone(DEFAULT_ROSTER), notas: ["formato inesperado (sem a lista agzinhos); usando o elenco padrão"] };
+  if (!isObj(parsed) || !Array.isArray(parsed.personagens)) {
+    return { roster: structuredClone(DEFAULT_ROSTER), notas: ["formato inesperado (sem a lista personagens); usando o elenco padrão"] };
   }
-  const semKey = parsed.agzinhos.filter((a) => !isObj(a) || typeof a.key !== "string").length;
-  if (semKey) notas.push(`${semKey} AGzinho(s) sem key descartado(s)`);
+  const semKey = parsed.personagens.filter((a) => !isObj(a) || typeof a.key !== "string").length;
+  if (semKey) notas.push(`${semKey} Personagem(s) sem key descartado(s)`);
   if (parsed.atualizadoEm !== undefined && Number.isNaN(Date.parse(String(parsed.atualizadoEm)))) notas.push("atualizadoEm inválido; usando a data padrão");
 
   const merged = mergeWithDefaults(parsed);
   // elenco de antes da regra de 1 acessório por camada: fica o primeiro de cada camada
-  for (const a of merged.agzinhos) {
+  for (const a of merged.personagens) {
     if (!Array.isArray(a.acessorios)) continue;
     const vistas = new Set<string>();
     const fica = a.acessorios.filter((x) => {
@@ -97,41 +97,41 @@ export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
     notas.push(`${a.key}: ficou 1 acessório por camada (saiu ${a.acessorios.filter((x) => !fica.includes(x)).join(", ")})`);
     a.acessorios = fica;
   }
-  const defaults = new Map(DEFAULT_ROSTER.agzinhos.map((a) => [a.key, a]));
+  const defaults = new Map(DEFAULT_ROSTER.personagens.map((a) => [a.key, a]));
   // "O que eu faço" inválido (editado à mão): só esse texto volta ao padrão, o visual fica
-  for (const a of merged.agzinhos) {
+  for (const a of merged.personagens) {
     if (!oQueFacoErrors(a as unknown as Record<string, unknown>, a.key).length) continue;
     const pad = defaults.get(a.key) ?? oQueFacoPadrao(a.papel);
     notas.push(`${a.key}: "O que eu faço" voltou ao padrão`);
     a.oQueFaco = pad.oQueFaco;
     a.responsabilidades = [...pad.responsabilidades];
   }
-  const agzinhos: AGzinho[] = [];
-  merged.agzinhos.forEach((a, i) => {
-    const erros = agzinhoErrors(a, i);
-    if (!erros.length) return void agzinhos.push(a);
+  const personagens: Personagem[] = [];
+  merged.personagens.forEach((a, i) => {
+    const erros = personagemErrors(a, i);
+    if (!erros.length) return void personagens.push(a);
     const def = defaults.get(a.key);
     notas.push(`${a.key}: ${def ? "voltou ao padrão" : "removido"} (${erros.join("; ")})`);
-    if (def) agzinhos.push(structuredClone(def));
+    if (def) personagens.push(structuredClone(def));
   });
 
-  // matrícula repetida entre AGzinhos do padrão: os envolvidos voltam ao padrão antes de mexer nos extras
-  const doPadrao = agzinhos.filter((a) => defaults.has(a.key));
-  for (const [i, a] of agzinhos.entries()) {
+  // matrícula repetida entre Personagens do padrão: os envolvidos voltam ao padrão antes de mexer nos extras
+  const doPadrao = personagens.filter((a) => defaults.has(a.key));
+  for (const [i, a] of personagens.entries()) {
     if (!defaults.has(a.key) || !doPadrao.some((b) => b !== a && b.matricula === a.matricula)) continue;
-    notas.push(`${a.key}: voltou ao padrão (matrícula ${a.matricula} repetida em outro AGzinho do padrão)`);
-    agzinhos[i] = structuredClone(defaults.get(a.key)!);
+    notas.push(`${a.key}: voltou ao padrão (matrícula ${a.matricula} repetida em outro Personagem do padrão)`);
+    personagens[i] = structuredClone(defaults.get(a.key)!);
   }
 
-  // conflitos entre AGzinhos (key ou matrícula repetida, variação órfã): os extras saem, do último para o primeiro
-  let result = validateRoster({ ...merged, agzinhos });
+  // conflitos entre Personagens (key ou matrícula repetida, variação órfã): os extras saem, do último para o primeiro
+  let result = validateRoster({ ...merged, personagens });
   while (!result.ok) {
-    const extras = agzinhos.map((a, i) => (defaults.has(a.key) ? -1 : i)).filter((i) => i >= 0);
+    const extras = personagens.map((a, i) => (defaults.has(a.key) ? -1 : i)).filter((i) => i >= 0);
     const extra = extras.length ? extras[extras.length - 1] : -1;
     if (extra < 0) break;
-    notas.push(`${agzinhos[extra].key}: removido (${result.erros.join("; ")})`);
-    agzinhos.splice(extra, 1);
-    result = validateRoster({ ...merged, agzinhos });
+    notas.push(`${personagens[extra].key}: removido (${result.erros.join("; ")})`);
+    personagens.splice(extra, 1);
+    result = validateRoster({ ...merged, personagens });
   }
   if (!result.ok) {
     notas.push(`elenco inválido, usando o padrão (${result.erros.join("; ")})`);
@@ -141,29 +141,29 @@ export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
 }
 
 /**
- * Corpo do PUT /api/roster sobre o elenco atual do servidor. Cada AGzinho do corpo parte do atual
+ * Corpo do PUT /api/roster sobre o elenco atual do servidor. Cada Personagem do corpo parte do atual
  * com a mesma key e só traz os CAMPOS_EDITAVEIS (inclusive o "O que eu faço" do crachá); papel, cargo (que segue o gênero), cordão,
  * matrícula, key e falas ficam como estão. O corpo tem de trazer exatamente as keys do elenco
  * atual: key desconhecida, faltando ou repetida é recusada (lista vazia também).
  */
 export function aplicarPut(atual: Roster, corpo: unknown, agora = new Date()): RosterResult {
   const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
-  if (!isObj(corpo) || !Array.isArray(corpo.agzinhos)) return { ok: false, erros: ["o elenco precisa ser um objeto com a lista agzinhos"] };
+  if (!isObj(corpo) || !Array.isArray(corpo.personagens)) return { ok: false, erros: ["o elenco precisa ser um objeto com a lista personagens"] };
   const erros: string[] = [];
   const vindos = new Map<string, Record<string, unknown>>();
-  corpo.agzinhos.forEach((a, i) => {
-    if (!isObj(a) || typeof a.key !== "string") return void erros.push(`agzinhos[${i}]: precisa ter a key do AGzinho`);
+  corpo.personagens.forEach((a, i) => {
+    if (!isObj(a) || typeof a.key !== "string") return void erros.push(`personagens[${i}]: precisa ter a key do Personagem`);
     if (vindos.has(a.key)) return void erros.push(`key repetida: ${a.key}`);
     vindos.set(a.key, a);
   });
-  const conhecidas = new Set(atual.agzinhos.map((a) => a.key));
-  for (const k of vindos.keys()) if (!conhecidas.has(k)) erros.push(`key desconhecida: ${k} (o vestiário não cria AGzinhos)`);
-  for (const k of conhecidas) if (!vindos.has(k)) erros.push(`faltou o AGzinho ${k} (mande o elenco inteiro)`);
+  const conhecidas = new Set(atual.personagens.map((a) => a.key));
+  for (const k of vindos.keys()) if (!conhecidas.has(k)) erros.push(`key desconhecida: ${k} (o vestiário não cria Personagens)`);
+  for (const k of conhecidas) if (!vindos.has(k)) erros.push(`faltou o Personagem ${k} (mande o elenco inteiro)`);
   if (erros.length) return { ok: false, erros };
-  const agzinhos = atual.agzinhos.map((a) => aplicarEditaveis(a, vindos.get(a.key)!));
+  const personagens = atual.personagens.map((a) => aplicarEditaveis(a, vindos.get(a.key)!));
   // sempre depois do atual, mesmo com dois PUTs no mesmo milissegundo
   const quando = Math.max(agora.getTime(), (Date.parse(atual.atualizadoEm) || 0) + 1);
-  return validateRoster({ versao: 1, atualizadoEm: new Date(quando).toISOString(), agzinhos });
+  return validateRoster({ versao: 1, atualizadoEm: new Date(quando).toISOString(), personagens });
 }
 
 /** Copia o arquivo para <nome>.invalido-<data>.json na mesma pasta; devolve o caminho ou null. */

@@ -11,12 +11,12 @@ import {
   LIMITS,
   ROUPAS_PERMITIDAS,
   cargoDe,
-  cleanAGzinho,
+  cleanPersonagem,
   validateRoster,
   type Camada,
   type RosterResult,
 } from "../../../shared/roster";
-import type { Acessorio, AGzinho, Destaque, EstiloCabelo, Genero, Roster, Roupa } from "../../../shared/types";
+import type { Acessorio, Personagem, Destaque, EstiloCabelo, Genero, Roster, Roupa } from "../../../shared/types";
 
 export { CAMADAS, type Camada };
 
@@ -110,8 +110,8 @@ export function opcoesDestaque(papel: string, roupa: Roupa): OpcaoDestaque[] {
 }
 
 /** troca a roupa e acerta o destaque (o que não combina sai; convidado continua com o crachá de visitante) */
-export function trocarRoupa(ag: AGzinho, roupa: Roupa): AGzinho {
-  const out: AGzinho = { ...ag, roupa };
+export function trocarRoupa(ag: Personagem, roupa: Roupa): Personagem {
+  const out: Personagem = { ...ag, roupa };
   const permitidos = DESTAQUES_PERMITIDOS(ag.papel, roupa);
   if (ag.papel === "convidado") out.destaque = "cracha-visitante";
   else if (out.destaque !== undefined && !permitidos.includes(out.destaque)) delete out.destaque;
@@ -119,12 +119,12 @@ export function trocarRoupa(ag: AGzinho, roupa: Roupa): AGzinho {
 }
 
 /** troca o gênero e o cargo junto ("Desenvolvedora" ↔ "Desenvolvedor") */
-export function trocarGenero(ag: AGzinho, genero: Genero): AGzinho {
+export function trocarGenero(ag: Personagem, genero: Genero): Personagem {
   return { ...ag, genero, cargo: cargoDe(ag.papel, genero, ag.cargo) };
 }
 
-export function trocarDestaque(ag: AGzinho, destaque: Destaque | undefined): AGzinho {
-  const out: AGzinho = { ...ag };
+export function trocarDestaque(ag: Personagem, destaque: Destaque | undefined): Personagem {
+  const out: Personagem = { ...ag };
   if (destaque === undefined) delete out.destaque;
   else out.destaque = destaque;
   return out;
@@ -171,14 +171,14 @@ export const limparResponsabilidades = (lista: readonly string[]) => lista.map((
 
 // ------------------------------------------------------------------ elenco, rascunhos e "sujo"
 
-/** forma canônica de um AGzinho pra comparar (campos na ordem do JSON salvo, acessórios ordenados) */
-function canonico(ag: AGzinho): string {
-  const c = cleanAGzinho(ag as unknown as Record<string, unknown>);
+/** forma canônica de um Personagem pra comparar (campos na ordem do JSON salvo, acessórios ordenados) */
+function canonico(ag: Personagem): string {
+  const c = cleanPersonagem(ag as unknown as Record<string, unknown>);
   // caixa de responsabilidade vazia não conta como alteração (some ao salvar)
   return JSON.stringify({ ...c, acessorios: ordenarAcessorios(c.acessorios ?? []), responsabilidades: limparResponsabilidades(c.responsabilidades ?? []) });
 }
 
-export function mesmoAGzinho(a: AGzinho | undefined, b: AGzinho | undefined): boolean {
+export function mesmoPersonagem(a: Personagem | undefined, b: Personagem | undefined): boolean {
   if (!a || !b) return a === b;
   return canonico(a) === canonico(b);
 }
@@ -193,17 +193,17 @@ export function elencoMaisNovo(base: Roster, remoto: Roster): boolean {
 
 /** mesmo elenco, ignorando a data de atualização */
 export function mesmoElenco(a: Roster, b: Roster): boolean {
-  return a.agzinhos.length === b.agzinhos.length && a.agzinhos.every((ag, i) => mesmoAGzinho(ag, b.agzinhos[i]));
+  return a.personagens.length === b.personagens.length && a.personagens.every((ag, i) => mesmoPersonagem(ag, b.personagens[i]));
 }
 
-export const agzinhoDe = (r: Roster, key: string) => r.agzinhos.find((a) => a.key === key);
+export const personagemDe = (r: Roster, key: string) => r.personagens.find((a) => a.key === key);
 
-/** rascunho de cada AGzinho em edição, por key */
-export type Rascunhos = Readonly<Record<string, AGzinho>>;
+/** rascunho de cada Personagem em edição, por key */
+export type Rascunhos = Readonly<Record<string, Personagem>>;
 
 /** keys com alteração não salva (rascunho diferente do salvo), na ordem do elenco */
 export function chavesSujas(base: Roster, rascunhos: Rascunhos): string[] {
-  return base.agzinhos.filter((a) => rascunhos[a.key] && !mesmoAGzinho(rascunhos[a.key], a)).map((a) => a.key);
+  return base.personagens.filter((a) => rascunhos[a.key] && !mesmoPersonagem(rascunhos[a.key], a)).map((a) => a.key);
 }
 
 /**
@@ -213,7 +213,7 @@ export function chavesSujas(base: Roster, rascunhos: Rascunhos): string[] {
 export function aplicarRascunhos(base: Roster, rascunhos: Rascunhos): Roster {
   return {
     ...base,
-    agzinhos: base.agzinhos.map((a) => {
+    personagens: base.personagens.map((a) => {
       const r = rascunhos[a.key];
       if (!r) return a;
       return {
@@ -232,8 +232,8 @@ export function prepararEnvio(base: Roster, rascunhos: Rascunhos, agora = new Da
   return validateRoster({ ...aplicarRascunhos(base, rascunhos), atualizadoEm: agora.toISOString() });
 }
 
-/** copia do outro AGzinho só o que o vestiário edita, com o cargo no gênero certo (pra "Voltar ao padrão") */
-export const copiarVisual = (atual: AGzinho, de: AGzinho): AGzinho => aplicarEditaveis(atual, de);
+/** copia do outro Personagem só o que o vestiário edita, com o cargo no gênero certo (pra "Voltar ao padrão") */
+export const copiarVisual = (atual: Personagem, de: Personagem): Personagem => aplicarEditaveis(atual, de);
 
 /**
  * Chegou um elenco novo pelo WS: as keys em que o outro navegador mudou algo que você também
@@ -241,7 +241,7 @@ export const copiarVisual = (atual: AGzinho, de: AGzinho): AGzinho => aplicarEdi
  */
 export function conflitos(base: Roster, remoto: Roster, rascunhos: Rascunhos): string[] {
   const sujas = chavesSujas(base, rascunhos);
-  return sujas.filter((k) => !mesmoAGzinho(agzinhoDe(base, k), agzinhoDe(remoto, k)));
+  return sujas.filter((k) => !mesmoPersonagem(personagemDe(base, k), personagemDe(remoto, k)));
 }
 
 // ------------------------------------------------------------------ erros da validação
@@ -271,7 +271,7 @@ const ROTULO_CAMPO: Record<string, string> = {
 export type TipoErro = "validacao" | "servidor";
 
 export interface ErroLido {
-  /** key do AGzinho, se o erro for de um só */
+  /** key do Personagem, se o erro for de um só */
   key?: string;
   /** caminho do campo sem índice ("acessorios", não "acessorios[2]") */
   campo?: CaminhoCampo;
@@ -280,16 +280,16 @@ export interface ErroLido {
   original: string;
 }
 
-const ERRO_AGZINHO = /^agzinhos\[\d+\](?: \(([^)]+)\))?\.([a-zA-Z]+(?:\.[a-zA-Z]+)?)(?:\[\d+\])?: (.*)$/;
+const ERRO_PERSONAGEM = /^personagens\[\d+\](?: \(([^)]+)\))?\.([a-zA-Z]+(?:\.[a-zA-Z]+)?)(?:\[\d+\])?: (.*)$/;
 
-/** "agzinhos[3] (dev).apelido: precisa ter..." → { key: "dev", campo: "apelido", texto: "precisa ter..." } */
+/** "personagens[3] (dev).apelido: precisa ter..." → { key: "dev", campo: "apelido", texto: "precisa ter..." } */
 export function lerErro(erro: string): ErroLido {
-  const m = ERRO_AGZINHO.exec(erro);
+  const m = ERRO_PERSONAGEM.exec(erro);
   if (!m) return { texto: erro, original: erro };
   return { key: m[1], campo: m[2], texto: m[3], original: erro };
 }
 
-/** erros de um AGzinho agrupados por campo (pra mostrar embaixo de cada campo do formulário) */
+/** erros de um Personagem agrupados por campo (pra mostrar embaixo de cada campo do formulário) */
 export function errosPorCampo(erros: readonly string[], key: string): Record<CaminhoCampo, string[]> {
   const out: Record<CaminhoCampo, string[]> = {};
   for (const e of erros.map(lerErro)) {
@@ -303,7 +303,7 @@ export function errosPorCampo(erros: readonly string[], key: string): Record<Cam
 export function mensagemDeErro(erro: string, elenco: Roster): string {
   const e = lerErro(erro);
   if (!e.campo) return e.texto;
-  const ag = e.key ? agzinhoDe(elenco, e.key) : undefined;
+  const ag = e.key ? personagemDe(elenco, e.key) : undefined;
   const quem = ag ? (ag.apelido.trim() || ag.nome.trim() || ag.key) : e.key;
   const campo = ROTULO_CAMPO[e.campo] ?? e.campo;
   return `${quem ? `${quem} · ` : ""}${campo}: ${e.texto}`;

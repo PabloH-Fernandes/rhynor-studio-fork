@@ -197,7 +197,7 @@ export const COFFEE_SPOTS: Spot[] = [
 /** atividades com lugar no mapa (espreguiçar fica na própria mesa) */
 export type RestSpotKind = "cafe" | "celular" | "maquete" | "bebedouro" | "regar" | "papo";
 
-/** Lugar de descanso: o agendador (activities.ts) reserva um por vez por AGzinho. */
+/** Lugar de descanso: o agendador (activities.ts) reserva um por vez por Personagem. */
 export interface RestSpot extends Spot {
   kind: RestSpotKind;
   face: Dir;

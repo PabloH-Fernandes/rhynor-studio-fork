@@ -9,7 +9,7 @@ export const VELOCIDADES = [10, 30, 60] as const;
 export type Velocidade = (typeof VELOCIDADES)[number];
 
 export const TEXTO_VAZIO = "Ligue o servidor durante o dia para ter replay.";
-export const AVISO_VELOCIDADE = "A 60x os AGzinhos saltam de status; andam na velocidade normal.";
+export const AVISO_VELOCIDADE = "A 60x os Personagens saltam de status; andam na velocidade normal.";
 
 /** quadro parado a cada `dt` acima disso (aba em segundo plano) não faz o replay pular de uma vez */
 export const DT_MAXIMO_MS = 250;

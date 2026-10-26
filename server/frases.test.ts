@@ -125,7 +125,7 @@ test("agrupamento: 12 leituras seguidas viram uma linha com contador", () => {
   assert.equal(fraseAgrupada("x", 1, "arquivos"), "x");
 });
 
-test("agrupamento: outro AGzinho em paralelo não quebra; mudar de assunto quebra", () => {
+test("agrupamento: outro Personagem em paralelo não quebra; mudar de assunto quebra", () => {
   const feed = [item(1, "Marina", "Read"), item(2, "Caio", "Edit"), item(3, "Marina", "Read"), item(4, "Marina", "Grep"), item(5, "Marina", "Read")];
   const linhas = agruparFeed(feed);
   assert.deepEqual(

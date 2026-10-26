@@ -2,7 +2,7 @@
 //
 // Passa as linhas por um OfficeState novo com relógio virtual, na mesma ordem em que o
 // server/index.ts processaria (fila segurando ~150 ms e ordenada por x-hook-ts), e devolve o
-// estado final e a linha do tempo de status/atividade de cada AGzinho.
+// estado final e a linha do tempo de status/atividade de cada Personagem.
 //
 // O servidor esvazia a fila com polling de 50 ms: na vida real cada evento é processado até 50 ms
 // depois do instante usado aqui (max(ts + 150, chegada)). A varredura de sessões roda a cada 60 s
@@ -263,17 +263,17 @@ export function agentes(state: OfficeState): Agent[] {
   return snap.type === "snapshot" ? snap.agents : [];
 }
 
-/** Agente pela key do AGzinho (ex.: "dev", "lider") ou pelo id no estado. */
+/** Agente pela key do Personagem (ex.: "dev", "lider") ou pelo id no estado. */
 export function agentePorKey(state: OfficeState, key: string): Agent | undefined {
-  return agentes(state).find((a) => a.agzinho === key || a.id === key);
+  return agentes(state).find((a) => a.personagem === key || a.id === key);
 }
 
-/** Agente pelo nome do AGzinho, primeiro nome ou apelido, sem diferenciar maiúsculas ("Bia", "Beatriz"). */
+/** Agente pelo nome do Personagem, primeiro nome ou apelido, sem diferenciar maiúsculas ("Bia", "Beatriz"). */
 export function agentePorNome(state: OfficeState, nome: string): Agent | undefined {
   const alvo = nome.trim().toLowerCase();
-  const roster = state.getRoster().agzinhos;
+  const roster = state.getRoster().personagens;
   return agentes(state).find((a) => {
-    const ag = roster.find((r) => r.key === a.agzinho);
+    const ag = roster.find((r) => r.key === a.personagem);
     const nomes = [a.name, a.name.split(" ")[0], ag?.apelido ?? ""].map((n) => n.toLowerCase());
     return nomes.includes(alvo);
   });
@@ -546,7 +546,7 @@ function cli(args: string[]): number {
   console.log("\nEstado final:");
   const lista = agentes(state);
   if (!lista.length) console.log("  (escritório vazio)");
-  for (const a of lista) console.log(`  ${a.name} [${a.agzinho ?? a.id}]: ${a.status} · ${a.activity}`);
+  for (const a of lista) console.log(`  ${a.name} [${a.personagem ?? a.id}]: ${a.status} · ${a.activity}`);
   const p = state.getProgress();
   if (p.fonte !== "nada") console.log(`  Quadro: ${p.titulo} (${p.concluidas}/${p.total})`);
   return 0;

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Agent, Roster } from "../../../shared/types";
 import { oQueFacoPadrao } from "../../../shared/roster";
-import { agzinhoOf, lookFor } from "../office/engine";
+import { personagemOf, lookFor } from "../office/engine";
 import { PORTRAIT_H, PORTRAIT_W, drawPortrait } from "../office/sprites";
 import { XP_POR_NIVEL, legendaXp, xpDasEntregas } from "../xp";
 import { IconeStatus } from "./IconePixel";
@@ -33,7 +33,7 @@ interface Props {
   /** tokens de hoje deste papel (null = sem dado: mostra "—") */
   gasto?: GastoValores | null;
   onClose: () => void;
-  /** abre o vestiário pra esse AGzinho (key do elenco); sem handler o botão fica desabilitado */
+  /** abre o vestiário pra esse Personagem (key do elenco); sem handler o botão fica desabilitado */
   onPersonalizar?: (key: string) => void;
   /** seleção feita no canvas: no layout empilhado a página rola até o crachá */
   revelar?: boolean;
@@ -43,11 +43,11 @@ interface Props {
 
 export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, onClose, onPersonalizar, revelar = false, onRevelado }: Props) {
   const titleId = useId();
-  const ag = agzinhoOf(agent, roster);
+  const ag = personagemOf(agent, roster);
   const visitante = !ag;
   const nome = ag?.nome ?? agent.name;
-  const cargo = ag ? `${ag.cargo} · AGzinho` : `Visitante · ${agent.name}`;
-  // "O que eu faço": o do elenco; visitante extra (sem AGzinho) usa o texto genérico do papel
+  const cargo = ag ? `${ag.cargo} · Personagem` : `Visitante · ${agent.name}`;
+  // "O que eu faço": o do elenco; visitante extra (sem Personagem) usa o texto genérico do papel
   const funcao = ag ?? oQueFacoPadrao(agent.role);
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -258,7 +258,7 @@ function Xp({ entregas, id }: { entregas: number; id: string }) {
 function Retrato({ agent, roster, nome }: { agent: Agent; roster: Roster | null; nome: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   // a aparência só muda com o elenco ou com quem é o agente (mesma função do escritório)
-  const look = useMemo(() => lookFor(agent, roster), [agent.id, agent.agzinho, agent.role, roster]);
+  const look = useMemo(() => lookFor(agent, roster), [agent.id, agent.personagem, agent.role, roster]);
   const dpr = useDevicePixelRatio();
 
   useLayoutEffect(() => {

@@ -1,10 +1,10 @@
-// Elenco fixo dos AGzinhos: quem é quem no escritório (nome, visual, jeito e falas).
-// Fica salvo no servidor em data/agzinhos.json; estes são os valores padrão.
+// Elenco fixo dos Personagens: quem é quem no escritório (nome, visual, jeito e falas).
+// Fica salvo no servidor em data/elenco.json; estes são os valores padrão.
 // Sem dependências: o mesmo arquivo roda no servidor (tsx) e no navegador (Vite).
 
 export type Genero = "feminino" | "masculino";
 
-/** polo marinho com AG branco, camisa branca com AG marinho, blazer ou terno */
+/** polo escura com marquinha branca, camisa branca com marquinha escura, blazer ou terno */
 export type Roupa = "polo" | "camisa" | "blazer" | "terno";
 
 /** detalhe especial da roupa, além do uniforme do papel */
@@ -40,12 +40,12 @@ export type Acessorio =
   | "relogio"
   | "barba";
 
-export interface AGzinho {
+export interface Personagem {
   /** identificador fixo (lider, dev, dev-2, explore...) */
   key: string;
   /** papel que ele cobre: lider, planejador, dev... ou "convidado" */
   papel: string;
-  /** key do AGzinho principal quando este é a variação para trabalho em paralelo */
+  /** key do Personagem principal quando este é a variação para trabalho em paralelo */
   variacaoDe?: string;
   /** convidados: tipos de subagente que ele atende ("*" = qualquer outro) */
   agentTypes?: string[];
@@ -63,7 +63,7 @@ export interface AGzinho {
   acessorios: Acessorio[];
   /** cor do cordão do crachá (cor do papel); nunca o laranja de "te esperando" */
   cordao: string;
-  /** matrícula fictícia AG-0000 */
+  /** matrícula fictícia RH-0000 */
   matricula: string;
   personalidade: string;
   /** 3 a 5 falas de bate-papo, até 28 caracteres, sem emoji */
@@ -78,7 +78,7 @@ export interface Roster {
   versao: 1;
   /** ISO 8601 */
   atualizadoEm: string;
-  agzinhos: AGzinho[];
+  personagens: Personagem[];
 }
 
 // ------------------------------------------------------------------ opções
@@ -141,7 +141,7 @@ export const CAMPOS_EDITAVEIS = [
   "acessorios",
   "oQueFaco",
   "responsabilidades",
-] as const satisfies readonly (keyof AGzinho)[];
+] as const satisfies readonly (keyof Personagem)[];
 export type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number];
 
 /** cargo de cada papel nos dois gêneros */
@@ -243,7 +243,7 @@ const hair = (id: string) => HAIR_COLORS.find((c) => c.id === id)!.hex;
 export const DEFAULT_ROSTER: Roster = {
   versao: 1,
   atualizadoEm: "2026-10-03T00:00:00.000Z",
-  agzinhos: [
+  personagens: [
     {
       key: "lider",
       papel: "lider",
@@ -257,7 +257,7 @@ export const DEFAULT_ROSTER: Roster = {
       destaque: "gravata-dourada",
       acessorios: ["relogio"],
       cordao: "#F2C14E",
-      matricula: "AG-0001",
+      matricula: "RH-0001",
       personalidade: "calmo, decidido, gentil",
       falas: ["Bora alinhar rapidinho?", "Bom trabalho, time!", "Quem pega essa?", "Café e foco, pessoal."],
       oQueFaco: "Converso com você, entendo o pedido e divido o trabalho entre o time.",
@@ -275,7 +275,7 @@ export const DEFAULT_ROSTER: Roster = {
       roupa: "blazer",
       acessorios: ["prancheta"],
       cordao: "#9B82FF",
-      matricula: "AG-0002",
+      matricula: "RH-0002",
       personalidade: "organizada, metódica, otimista",
       falas: ["Já anotei no quadro!", "Passo a passo, gente.", "Prazo tá folgado.", "Cada coisa no lugar."],
       oQueFaco: "Transformo um pedido grande em passos pequenos, na ordem certa.",
@@ -293,7 +293,7 @@ export const DEFAULT_ROSTER: Roster = {
       roupa: "polo",
       acessorios: ["oculos"],
       cordao: "#E2BD3C",
-      matricula: "AG-0003",
+      matricula: "RH-0003",
       personalidade: "curioso, detalhista, falante",
       falas: ["Li um artigo ótimo!", "Tem doc pra tudo, viu?", "Sabia que tem versão nova?", "Deixa eu conferir isso."],
       oQueFaco: "Procuro informação fora do projeto para o time decidir com segurança.",
@@ -311,7 +311,7 @@ export const DEFAULT_ROSTER: Roster = {
       roupa: "camisa",
       acessorios: ["headset"],
       cordao: "#3FBF86",
-      matricula: "AG-0004",
+      matricula: "RH-0004",
       personalidade: "focada, criativa, bem-humorada",
       falas: ["Compilou de primeira!", "Só mais um commit...", "Quem mexeu no meu CSS?", "Tá rodando aqui!"],
       oQueFaco: "Construo o que foi pedido, escrevendo e ajustando o programa.",
@@ -329,7 +329,7 @@ export const DEFAULT_ROSTER: Roster = {
       roupa: "polo",
       acessorios: ["relogio"],
       cordao: "#2EC4B6",
-      matricula: "AG-0005",
+      matricula: "RH-0005",
       personalidade: "cuidadoso, paciente, cético",
       falas: ["Rodei 3 vezes, passou.", "E se clicar duas vezes?", "Achei um caso de borda.", "Confia, mas testa."],
       oQueFaco: "Confiro se o que foi feito funciona antes de entregar.",
@@ -348,7 +348,7 @@ export const DEFAULT_ROSTER: Roster = {
       destaque: "blazer-cinza",
       acessorios: ["oculos"],
       cordao: "#EF5F7B",
-      matricula: "AG-0006",
+      matricula: "RH-0006",
       personalidade: "criteriosa, sincera, gentil",
       falas: ["Ficou bem legível!", "Só um detalhezinho...", "Esse nome tá ótimo.", "Aprovado com carinho."],
       oQueFaco: "Leio tudo com calma antes de ficar pronto e aponto o que dá para melhorar.",
@@ -366,7 +366,7 @@ export const DEFAULT_ROSTER: Roster = {
       roupa: "camisa",
       acessorios: ["lapis", "barba"],
       cordao: "#5AAEF0",
-      matricula: "AG-0007",
+      matricula: "RH-0007",
       personalidade: "didático, calmo, caprichoso",
       falas: ["Já tá no README!", "Um exemplo ajuda, né?", "Escrevi bem simples.", "Faltou só um print."],
       oQueFaco: "Escrevo as explicações para qualquer pessoa entender e usar.",
@@ -385,7 +385,7 @@ export const DEFAULT_ROSTER: Roster = {
       roupa: "polo",
       acessorios: ["headset"],
       cordao: "#A6D854",
-      matricula: "AG-0008",
+      matricula: "RH-0008",
       personalidade: "animada, rápida, prática",
       falas: ["Pareando com a Bia!", "Testa aí no seu PC?", "Subi a correção já.", "Bora que dá tempo!"],
       oQueFaco: "Ajudo a construir quando tem muita coisa para fazer ao mesmo tempo.",
@@ -404,7 +404,7 @@ export const DEFAULT_ROSTER: Roster = {
       roupa: "camisa",
       acessorios: ["prancheta"],
       cordao: "#D98FD3",
-      matricula: "AG-0009",
+      matricula: "RH-0009",
       personalidade: "tranquilo, observador, nerd",
       falas: ["Achei a fonte original!", "Anotei 3 referências.", "Vale ler o changelog.", "Hmm, interessante..."],
       oQueFaco: "Pesquiso junto quando aparecem muitas perguntas de uma vez.",
@@ -424,7 +424,7 @@ export const DEFAULT_ROSTER: Roster = {
       destaque: "cracha-visitante",
       acessorios: ["capacete-branco"],
       cordao: "#B7A58C",
-      matricula: "AG-0010",
+      matricula: "RH-0010",
       personalidade: "aventureira, rápida, sorridente",
       falas: ["Já vasculhei tudo!", "Achei na pasta src/", "Mapa do projeto pronto.", "Partiu explorar!"],
       oQueFaco: "Vasculho as pastas do projeto e conto onde fica cada coisa.",
@@ -444,7 +444,7 @@ export const DEFAULT_ROSTER: Roster = {
       destaque: "cracha-visitante",
       acessorios: ["colete"],
       cordao: "#A3A8B5",
-      matricula: "AG-0011",
+      matricula: "RH-0011",
       personalidade: "prestativo, versátil, tranquilo",
       falas: ["Precisa de mão aí?", "Faço o que precisar!", "Deixa comigo.", "Já já fica pronto."],
       oQueFaco: "Pego tarefas variadas que não são de ninguém em especial.",
@@ -464,7 +464,7 @@ export const DEFAULT_ROSTER: Roster = {
       destaque: "cracha-visitante",
       acessorios: ["caneca"],
       cordao: "#8A9A5B",
-      matricula: "AG-0012",
+      matricula: "RH-0012",
       personalidade: "gentil, estratégica, curiosa",
       falas: ["Posso dar uma ideia?", "Visitando o time hoje!", "Que escritório lindo!", "Gostei desse plano."],
       oQueFaco: "Venho quando o time precisa de uma ajuda diferente ou de um plano extra.",
@@ -479,7 +479,7 @@ export type RosterResult = { ok: true; roster: Roster } | { ok: false; erros: st
 
 /** limites de tamanho do elenco (o vestiário usa os mesmos nos contadores) */
 export const LIMITS = {
-  agzinhos: 40,
+  personagens: 40,
   key: 32,
   nome: 40,
   apelido: 6,
@@ -499,7 +499,7 @@ export const LIMITS = {
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const KEY = /^[a-z0-9][a-z0-9-]*$/;
-const MATRICULA = /^AG-\d{4}$/;
+const MATRICULA = /^RH-\d{4}$/;
 const EMOJI = /\p{Extended_Pictographic}/u;
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -520,7 +520,7 @@ function text(erros: string[], where: string, x: unknown, max: number, min = 1):
   return true;
 }
 
-/** cor #RRGGBB; o laranja de "te esperando" é proibido em tudo que é do AGzinho */
+/** cor #RRGGBB; o laranja de "te esperando" é proibido em tudo que é do Personagem */
 function hex(erros: string[], where: string, x: unknown): x is string {
   if (typeof x !== "string" || !HEX.test(x)) {
     erros.push(`${where}: cor inválida (use #RRGGBB)`);
@@ -533,10 +533,10 @@ function hex(erros: string[], where: string, x: unknown): x is string {
   return true;
 }
 
-/** Erros de um AGzinho sozinho (sem as regras que comparam com os outros, como key repetida). */
-export function agzinhoErrors(x: unknown, i = 0): string[] {
+/** Erros de um Personagem sozinho (sem as regras que comparam com os outros, como key repetida). */
+export function personagemErrors(x: unknown, i = 0): string[] {
   const erros: string[] = [];
-  const at = `agzinhos[${i}]`;
+  const at = `personagens[${i}]`;
   if (!isObj(x)) return [`${at}: precisa ser um objeto`];
   const who = typeof x.key === "string" && x.key ? `${at} (${x.key})` : at;
 
@@ -590,7 +590,7 @@ export function agzinhoErrors(x: unknown, i = 0): string[] {
   }
 
   hex(erros, `${who}.cordao`, x.cordao);
-  if (typeof x.matricula !== "string" || !MATRICULA.test(x.matricula)) erros.push(`${who}.matricula: use o formato AG-0000`);
+  if (typeof x.matricula !== "string" || !MATRICULA.test(x.matricula)) erros.push(`${who}.matricula: use o formato RH-0000`);
 
   if (!Array.isArray(x.falas) || x.falas.length < LIMITS.falasMin || x.falas.length > LIMITS.falasMax) {
     erros.push(`${who}.falas: precisa ter de ${LIMITS.falasMin} a ${LIMITS.falasMax} falas`);
@@ -604,7 +604,7 @@ export function agzinhoErrors(x: unknown, i = 0): string[] {
 }
 
 /** Erros só da parte "O que eu faço" do crachá (frase e responsabilidades). */
-export function oQueFacoErrors(x: Record<string, unknown>, who = "agzinho"): string[] {
+export function oQueFacoErrors(x: Record<string, unknown>, who = "personagem"): string[] {
   const erros: string[] = [];
   if (text(erros, `${who}.oQueFaco`, x.oQueFaco, LIMITS.oQueFaco) && EMOJI.test(x.oQueFaco)) erros.push(`${who}.oQueFaco: sem emoji`);
   const r = x.responsabilidades;
@@ -619,36 +619,36 @@ export function oQueFacoErrors(x: Record<string, unknown>, who = "agzinho"): str
   return erros;
 }
 
-/** texto "O que eu faço" de quem não tem padrão próprio (AGzinho extra de um elenco salvo) */
+/** texto "O que eu faço" de quem não tem padrão próprio (Personagem extra de um elenco salvo) */
 const O_QUE_FACO_GENERICO = {
   oQueFaco: "Ajudo o time no que for preciso.",
   responsabilidades: ["pegar tarefas avulsas", "dar uma mão a quem precisar"],
 };
 
-/** "O que eu faço" padrão de um papel: o do AGzinho principal do papel no elenco padrão */
-export function oQueFacoPadrao(papel: string): Pick<AGzinho, "oQueFaco" | "responsabilidades"> {
-  const def = papel === "convidado" ? undefined : DEFAULT_ROSTER.agzinhos.find((a) => a.papel === papel && !a.variacaoDe);
+/** "O que eu faço" padrão de um papel: o do Personagem principal do papel no elenco padrão */
+export function oQueFacoPadrao(papel: string): Pick<Personagem, "oQueFaco" | "responsabilidades"> {
+  const def = papel === "convidado" ? undefined : DEFAULT_ROSTER.personagens.find((a) => a.papel === papel && !a.variacaoDe);
   const fonte = def ?? O_QUE_FACO_GENERICO;
   return { oQueFaco: fonte.oQueFaco, responsabilidades: [...fonte.responsabilidades] };
 }
 
 /**
- * Cópia só com os campos conhecidos de AGzinho (o resto é descartado). Não valida:
+ * Cópia só com os campos conhecidos de Personagem (o resto é descartado). Não valida:
  * os valores vêm como estão. Campos opcionais ausentes não aparecem.
  */
-export function cleanAGzinho(x: Record<string, unknown>): AGzinho {
+export function cleanPersonagem(x: Record<string, unknown>): Personagem {
   const out: Record<string, unknown> = {};
-  for (const k of AGZINHO_FIELDS) if (x[k] !== undefined) out[k] = x[k];
+  for (const k of PERSONAGEM_FIELDS) if (x[k] !== undefined) out[k] = x[k];
   if (isObj(x.cabelo)) out.cabelo = { estilo: x.cabelo.estilo, cor: x.cabelo.cor };
   if (Array.isArray(x.agentTypes)) out.agentTypes = [...x.agentTypes];
   if (Array.isArray(x.acessorios)) out.acessorios = [...x.acessorios];
   if (Array.isArray(x.falas)) out.falas = [...x.falas];
   if (Array.isArray(x.responsabilidades)) out.responsabilidades = [...x.responsabilidades];
-  return out as unknown as AGzinho;
+  return out as unknown as Personagem;
 }
 
-/** todos os campos de AGzinho, na ordem em que aparecem no JSON salvo */
-const AGZINHO_FIELDS = [
+/** todos os campos de Personagem, na ordem em que aparecem no JSON salvo */
+const PERSONAGEM_FIELDS = [
   "key",
   "papel",
   "variacaoDe",
@@ -668,7 +668,7 @@ const AGZINHO_FIELDS = [
   "falas",
   "oQueFaco",
   "responsabilidades",
-] as const satisfies readonly (keyof AGzinho)[];
+] as const satisfies readonly (keyof Personagem)[];
 
 /**
  * Confere tudo o que pode quebrar a tela ou fugir da regra de uniforme. Não altera a entrada:
@@ -679,63 +679,63 @@ export function validateRoster(x: unknown): RosterResult {
   if (!isObj(x)) return { ok: false, erros: ["o elenco precisa ser um objeto"] };
   if (x.versao !== 1) erros.push("versao: precisa ser 1");
   if (!isDate(x.atualizadoEm)) erros.push("atualizadoEm: data inválida");
-  if (!Array.isArray(x.agzinhos) || x.agzinhos.length === 0 || x.agzinhos.length > LIMITS.agzinhos) {
-    erros.push(`agzinhos: precisa ser uma lista com 1 a ${LIMITS.agzinhos} AGzinhos`);
+  if (!Array.isArray(x.personagens) || x.personagens.length === 0 || x.personagens.length > LIMITS.personagens) {
+    erros.push(`personagens: precisa ser uma lista com 1 a ${LIMITS.personagens} Personagens`);
     return { ok: false, erros };
   }
 
-  x.agzinhos.forEach((a, i) => erros.push(...agzinhoErrors(a, i)));
+  x.personagens.forEach((a, i) => erros.push(...personagemErrors(a, i)));
 
-  const list = x.agzinhos.filter(isObj);
+  const list = x.personagens.filter(isObj);
   const keys = list.map((a) => a.key);
   const dup = <T>(arr: T[]) => [...new Set(arr.filter((v, i) => arr.indexOf(v) !== i))];
   for (const k of dup(keys)) erros.push(`key repetida: ${String(k)}`);
   for (const m of dup(list.map((a) => a.matricula))) erros.push(`matrícula repetida: ${String(m)}`);
   for (const a of list) {
-    if (a.variacaoDe !== undefined && !keys.includes(a.variacaoDe)) erros.push(`${String(a.key)}.variacaoDe: não existe AGzinho "${String(a.variacaoDe)}"`);
+    if (a.variacaoDe !== undefined && !keys.includes(a.variacaoDe)) erros.push(`${String(a.key)}.variacaoDe: não existe Personagem "${String(a.variacaoDe)}"`);
     if (a.variacaoDe !== undefined && a.variacaoDe === a.key) erros.push(`${String(a.key)}.variacaoDe: não pode apontar para ele mesmo`);
   }
 
   if (erros.length) return { ok: false, erros };
-  return { ok: true, roster: { versao: 1, atualizadoEm: x.atualizadoEm as string, agzinhos: list.map(cleanAGzinho) } };
+  return { ok: true, roster: { versao: 1, atualizadoEm: x.atualizadoEm as string, personagens: list.map(cleanPersonagem) } };
 }
 
 const isDate = (x: unknown): x is string => typeof x === "string" && !Number.isNaN(Date.parse(x));
 
 /**
- * Completa um elenco salvo (talvez antigo ou parcial) com os padrões: cada AGzinho do
- * padrão ganha os campos que faltarem; AGzinhos extras do salvo entram no fim.
+ * Completa um elenco salvo (talvez antigo ou parcial) com os padrões: cada Personagem do
+ * padrão ganha os campos que faltarem; Personagens extras do salvo entram no fim.
  * Só os campos conhecidos passam. Não valida: passe o resultado no validateRoster.
  */
 export function mergeWithDefaults(parcial: unknown): Roster {
   const base = structuredClone(DEFAULT_ROSTER);
-  if (!isObj(parcial) || !Array.isArray(parcial.agzinhos)) return base;
+  if (!isObj(parcial) || !Array.isArray(parcial.personagens)) return base;
 
-  const saved = new Map<string, AGzinho>();
-  for (const a of parcial.agzinhos) if (isObj(a) && typeof a.key === "string") saved.set(a.key, cleanAGzinho(a));
+  const saved = new Map<string, Personagem>();
+  for (const a of parcial.personagens) if (isObj(a) && typeof a.key === "string") saved.set(a.key, cleanPersonagem(a));
 
-  const agzinhos = base.agzinhos.map((def) => {
+  const personagens = base.personagens.map((def) => {
     const s = saved.get(def.key);
     if (!s) return def;
     saved.delete(def.key);
     const raw: unknown = s.cabelo;
     const cabelo = isObj(raw) ? { ...def.cabelo, ...stripUndefined(raw) } : (raw ?? def.cabelo);
-    // destaque é opcional de verdade: no AGzinho salvo, não ter destaque significa "sem destaque"
+    // destaque é opcional de verdade: no Personagem salvo, não ter destaque significa "sem destaque"
     const { destaque: _padrao, ...semDestaque } = def;
-    return { ...semDestaque, ...s, cabelo } as AGzinho;
+    return { ...semDestaque, ...s, cabelo } as Personagem;
   });
   // extras (sem padrão próprio) de um elenco antigo, sem o "O que eu faço": o do papel
   for (const extra of saved.values()) {
     const pad = oQueFacoPadrao(typeof extra.papel === "string" ? extra.papel : "");
-    agzinhos.push({ ...extra, oQueFaco: extra.oQueFaco ?? pad.oQueFaco, responsabilidades: extra.responsabilidades ?? pad.responsabilidades });
+    personagens.push({ ...extra, oQueFaco: extra.oQueFaco ?? pad.oQueFaco, responsabilidades: extra.responsabilidades ?? pad.responsabilidades });
   }
   // convidado salvo sem destaque (elenco antigo ou editado à mão): ganha o crachá de visitante
-  for (const a of agzinhos) if (a.papel === "convidado" && a.destaque === undefined) a.destaque = "cracha-visitante";
+  for (const a of personagens) if (a.papel === "convidado" && a.destaque === undefined) a.destaque = "cracha-visitante";
 
   return {
     versao: 1,
     atualizadoEm: isDate(parcial.atualizadoEm) ? parcial.atualizadoEm : base.atualizadoEm,
-    agzinhos,
+    personagens,
   };
 }
 
@@ -747,7 +747,7 @@ function stripUndefined<T extends object>(o: T): Partial<T> {
  * Parte de `atual` e copia de `de` só os CAMPOS_EDITAVEIS (o que faltar em `de` some, como o
  * destaque). O cargo acompanha o gênero. Não valida: os valores vêm como estão.
  */
-export function aplicarEditaveis(atual: AGzinho, de: Record<string, unknown> | AGzinho): AGzinho {
+export function aplicarEditaveis(atual: Personagem, de: Record<string, unknown> | Personagem): Personagem {
   const out = structuredClone(atual) as unknown as Record<string, unknown>;
   const fonte = de as Record<string, unknown>;
   for (const campo of CAMPOS_EDITAVEIS) {
@@ -755,12 +755,12 @@ export function aplicarEditaveis(atual: AGzinho, de: Record<string, unknown> | A
     if (v === undefined) delete out[campo];
     else out[campo] = structuredClone(v);
   }
-  const ag = out as unknown as AGzinho;
+  const ag = out as unknown as Personagem;
   if (oneOf(GENEROS, ag.genero)) ag.cargo = cargoDe(ag.papel, ag.genero, ag.cargo);
   return ag;
 }
 
-/** AGzinho principal de um papel (sem variação), ex.: a plaquinha da mesa do dev */
-export function agzinhoDoPapel(roster: Roster, papel: string): AGzinho | undefined {
-  return roster.agzinhos.find((a) => a.papel === papel && !a.variacaoDe);
+/** Personagem principal de um papel (sem variação), ex.: a plaquinha da mesa do dev */
+export function personagemDoPapel(roster: Roster, papel: string): Personagem | undefined {
+  return roster.personagens.find((a) => a.papel === papel && !a.variacaoDe);
 }

@@ -9,7 +9,7 @@ export const SPRITE_H = 44;
 export const SPRITE_OX = 20;
 export const SPRITE_OY = 38;
 
-/** 12 AGzinhos x 4 direções x quadros quantizados cabem com folga */
+/** 12 Personagens x 4 direções x quadros quantizados cabem com folga */
 export const SPRITE_CACHE_LIMIT = 1500;
 
 export interface SpriteCacheStats {

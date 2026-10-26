@@ -1,6 +1,6 @@
 // Roteiro da demonstração (lógica pura, sem React): 5 passos com duração fixa, que avançam sozinhos.
 // O relógio é injetado (`agora`), então dá para testar sem esperar. Pausar vale só para o roteiro:
-// a simulação de AGzinhos do servidor (POST /api/demo) continua rodando.
+// a simulação de Personagens do servidor (POST /api/demo) continua rodando.
 
 export interface PassoRoteiro {
   /** 1 a N */

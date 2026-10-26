@@ -11,13 +11,13 @@ interface Props {
 export function SpriteGallery({ roster }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const agzinhos = (roster ?? DEFAULT_ROSTER).agzinhos;
+  const personagens = (roster ?? DEFAULT_ROSTER).personagens;
 
   useEffect(() => {
     const wrap = wrapRef.current!;
     const canvas = canvasRef.current!;
     const w = GALLERY_W;
-    const h = GALLERY_H(agzinhos.length);
+    const h = GALLERY_H(personagens.length);
     const draw = () => {
       const { width, height } = wrap.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -31,17 +31,17 @@ export function SpriteGallery({ roster }: Props) {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(k, 0, 0, k, 0, 0);
-      drawGallery(ctx, agzinhos);
+      drawGallery(ctx, personagens);
     };
     const ro = new ResizeObserver(draw);
     ro.observe(wrap);
     document.fonts.ready.then(draw);
     return () => ro.disconnect();
-  }, [agzinhos]);
+  }, [personagens]);
 
   return (
     <div className="office-wrap" ref={wrapRef}>
-      <canvas ref={canvasRef} className="office-canvas sprite-gallery" aria-label="Galeria dos AGzinhos" />
+      <canvas ref={canvasRef} className="office-canvas sprite-gallery" aria-label="Galeria dos Personagens" />
     </div>
   );
 }

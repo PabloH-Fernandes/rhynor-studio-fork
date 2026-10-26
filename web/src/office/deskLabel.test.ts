@@ -37,7 +37,7 @@ describe("rotuloDaMesa", () => {
 
 describe("numeroNoPapel", () => {
   it("principal é 1; dev-2 e pesquisador-2 são 2; convidados não contam como variação", () => {
-    const ags = DEFAULT_ROSTER.agzinhos;
+    const ags = DEFAULT_ROSTER.personagens;
     assert.equal(numeroNoPapel(ags, "dev"), 1);
     assert.equal(numeroNoPapel(ags, "dev-2"), 2);
     assert.equal(numeroNoPapel(ags, "pesquisador-2"), 2);
@@ -46,7 +46,7 @@ describe("numeroNoPapel", () => {
   });
 
   it("uma terceira variação vira 3", () => {
-    const ags = [...DEFAULT_ROSTER.agzinhos, { ...DEFAULT_ROSTER.agzinhos[7], key: "dev-3" }];
+    const ags = [...DEFAULT_ROSTER.personagens, { ...DEFAULT_ROSTER.personagens[7], key: "dev-3" }];
     assert.equal(numeroNoPapel(ags, "dev-3"), 3);
   });
 });
@@ -66,25 +66,25 @@ describe("rotuloQueCabe", () => {
 });
 
 describe("rotulosDasMesas", () => {
-  const ags = DEFAULT_ROSTER.agzinhos;
-  const mesa = (papel: string, quem: { agzinho?: string; role: string } | null) => ({ papel, quem });
+  const ags = DEFAULT_ROSTER.personagens;
+  const mesa = (papel: string, quem: { personagem?: string; role: string } | null) => ({ papel, quem });
 
   it("convidados juntos: numerados pela ordem no elenco, não pela mesa", () => {
     const r = rotulosDasMesas(
       [
-        mesa("convidado", { agzinho: "curinga", role: "convidado" }),
-        mesa("convidado", { agzinho: "explore", role: "convidado" }),
-        mesa("convidado", { agzinho: "general-purpose", role: "convidado" }),
+        mesa("convidado", { personagem: "curinga", role: "convidado" }),
+        mesa("convidado", { personagem: "explore", role: "convidado" }),
+        mesa("convidado", { personagem: "general-purpose", role: "convidado" }),
       ],
       ags,
     );
     assert.deepEqual(r, ["CONVIDADO 3", "CONVIDADO", "CONVIDADO 2"]);
   });
 
-  it("convidado sozinho é só CONVIDADO; extra sem AGzinho vem depois dos do elenco", () => {
-    assert.deepEqual(rotulosDasMesas([mesa("convidado", { agzinho: "curinga", role: "convidado" }), mesa("convidado", null)], ags), ["CONVIDADO", "LIVRE"]);
+  it("convidado sozinho é só CONVIDADO; extra sem Personagem vem depois dos do elenco", () => {
+    assert.deepEqual(rotulosDasMesas([mesa("convidado", { personagem: "curinga", role: "convidado" }), mesa("convidado", null)], ags), ["CONVIDADO", "LIVRE"]);
     const r = rotulosDasMesas(
-      [mesa("convidado", { role: "statusline-setup" }), mesa("convidado", { agzinho: "general-purpose", role: "convidado" })],
+      [mesa("convidado", { role: "statusline-setup" }), mesa("convidado", { personagem: "general-purpose", role: "convidado" })],
       ags,
     );
     assert.deepEqual(r, ["CONVIDADO 2", "CONVIDADO"]);
@@ -93,9 +93,9 @@ describe("rotulosDasMesas", () => {
   it("variações mantêm o número do elenco e não contam entre os convidados", () => {
     const r = rotulosDasMesas(
       [
-        mesa("dev", { agzinho: "dev", role: "dev" }),
-        mesa("convidado", { agzinho: "dev-2", role: "dev" }),
-        mesa("convidado", { agzinho: "explore", role: "convidado" }),
+        mesa("dev", { personagem: "dev", role: "dev" }),
+        mesa("convidado", { personagem: "dev-2", role: "dev" }),
+        mesa("convidado", { personagem: "explore", role: "convidado" }),
         mesa("testador", null),
       ],
       ags,

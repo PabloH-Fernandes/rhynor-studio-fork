@@ -236,7 +236,7 @@ export function criarPrivacidade(): Privacidade {
 
 // ---------------------------------------------------------------- pontos de aplicação (um por tipo de dado)
 
-/** Agentes: projeto e atividade trocados. O nome do AGzinho é do elenco (fictício) e não muda. */
+/** Agentes: projeto e atividade trocados. O nome do Personagem é do elenco (fictício) e não muda. */
 export function mascararAgentes(p: Privacidade, agentes: readonly Agent[]): Agent[] {
   // primeiro todos os projetos: assim o nome da pasta já é "conhecido" quando aparece dentro de uma atividade
   for (const a of agentes) p.projeto(a.project);

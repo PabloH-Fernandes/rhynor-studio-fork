@@ -92,8 +92,8 @@ describe("mulberry32 e hash32", () => {
   });
 
   it("hash32 é estável e muda com o texto", () => {
-    assert.equal(hash32("ag:dev|s1"), hash32("ag:dev|s1"));
-    assert.notEqual(hash32("ag:dev|s1"), hash32("ag:dev|s2"));
+    assert.equal(hash32("p:dev|s1"), hash32("p:dev|s1"));
+    assert.notEqual(hash32("p:dev|s1"), hash32("p:dev|s2"));
   });
 });
 
@@ -154,12 +154,12 @@ describe("Reservations", () => {
 describe("RestScheduler", () => {
   it("espera 4 s de ócio antes de sair da mesa", () => {
     const s = new RestScheduler(SPOTS, { seed: 1 });
-    const w = world(["ag:dev"]);
+    const w = world(["p:dev"]);
     run(s, w, 0, IDLE_GRACE_MS - 100);
-    assert.ok(!s.isResting("ag:dev"));
+    assert.ok(!s.isResting("p:dev"));
     run(s, w, IDLE_GRACE_MS, IDLE_GRACE_MS + CHECK_MS);
-    assert.ok(s.isResting("ag:dev"));
-    assert.ok(s.restLabel("ag:dev"));
+    assert.ok(s.isResting("p:dev"));
+    assert.ok(s.restLabel("p:dev"));
   });
 
   it("trabalho recente bloqueia o descanso: não começa e, se já descansava, larga e volta pra mesa", () => {
@@ -170,21 +170,21 @@ describe("RestScheduler", () => {
 
     // ocioso há muito, mas trabalhou há 5 s: não sai da mesa até passar o cooldown
     const s = new RestScheduler(SPOTS, { seed: 1 });
-    const w = world(["ag:dev"]);
-    w.actors.get("ag:dev")!.workedAt = 5000;
+    const w = world(["p:dev"]);
+    w.actors.get("p:dev")!.workedAt = 5000;
     run(s, w, 10_000, 5000 + WORK_COOLDOWN_MS - 100);
-    assert.ok(!s.isResting("ag:dev"), "trabalhou há menos de 20 s");
+    assert.ok(!s.isResting("p:dev"), "trabalhou há menos de 20 s");
     run(s, w, 5000 + WORK_COOLDOWN_MS, 5000 + WORK_COOLDOWN_MS + CHECK_MS);
-    assert.ok(s.isResting("ag:dev"), "passou o cooldown: pode descansar");
+    assert.ok(s.isResting("p:dev"), "passou o cooldown: pode descansar");
 
     // chegou trabalho enquanto descansava (status continua ocioso no ator): cancela e vai pra mesa
     const now = 5000 + WORK_COOLDOWN_MS + 2 * CHECK_MS;
-    w.actors.get("ag:dev")!.workedAt = now;
+    w.actors.get("p:dev")!.workedAt = now;
     w.log.length = 0;
     s.update(now, w.actors.values(), w.mover);
-    assert.ok(!s.isResting("ag:dev"));
-    assert.ok(w.log.includes("ag:dev goHome"), w.log.join(" | "));
-    assert.equal(w.actors.get("ag:dev")!.idle, true, "o agendador nunca muda o status");
+    assert.ok(!s.isResting("p:dev"));
+    assert.ok(w.log.includes("p:dev goHome"), w.log.join(" | "));
+    assert.equal(w.actors.get("p:dev")!.idle, true, "o agendador nunca muda o status");
   });
 
   it("não começa andando, saindo, comemorando ou fora do ócio", () => {
@@ -201,7 +201,7 @@ describe("RestScheduler", () => {
   it("é determinístico com a mesma semente, id e sessão", () => {
     const trace = (seed: number) => {
       const s = new RestScheduler(SPOTS, { seed });
-      const w = world(["ag:dev", "ag:testador"]);
+      const w = world(["p:dev", "p:testador"]);
       run(s, w, 0, 200_000, 250);
       return w.log.join("\n");
     };

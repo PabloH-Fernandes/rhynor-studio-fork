@@ -1,4 +1,4 @@
-// Retratinho pixel art do AGzinho na lista do time (o mesmo busto do crachá, menor).
+// Retratinho pixel art do Personagem na lista do time (o mesmo busto do crachá, menor).
 
 import { useLayoutEffect, useMemo, useRef } from "react";
 import type { Agent, Roster } from "../../../shared/types";
@@ -10,7 +10,7 @@ const ESCALA = 2;
 
 export function MiniRetrato({ agent, roster }: { agent: Agent; roster: Roster | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const look = useMemo(() => lookFor(agent, roster), [agent.id, agent.agzinho, agent.role, roster]);
+  const look = useMemo(() => lookFor(agent, roster), [agent.id, agent.personagem, agent.role, roster]);
   const dpr = useDevicePixelRatio();
 
   useLayoutEffect(() => {

@@ -4,7 +4,7 @@ Guia para quem não conhece o projeto. Tempo estimado: 10 a 15 minutos (a maior 
 
 ## 1. O que é o Rhynor Studio
 
-Um escritório pixel art que mostra, em tempo real, o seu time de agentes do Claude Code trabalhando: cada agente é um **AGzinho** que senta na mesa, digita, pede ajuda e descansa. O `npm run setup` deixa o PC pronto: instala o time de agentes, os hooks, o vault do Obsidian (a memória do time), os comandos `/time`, `/memoria` e `/reuniao`, o Playwright e as skills, e monta o escritório.
+Um escritório pixel art que mostra, em tempo real, o seu time de agentes do Claude Code trabalhando: cada agente vira um **personagem** que senta na mesa, digita, pede ajuda e descansa. O `npm run setup` deixa o PC pronto: instala o time de agentes, os hooks, o vault do Obsidian (a memória do time), os comandos `/time`, `/memoria` e `/reuniao`, o Playwright e as skills, e monta o escritório.
 
 ## 2. Pré-requisitos
 
@@ -79,7 +79,7 @@ Além do catálogo abaixo, o setup também faz estas coisas:
 | Bloco do time (`team/CLAUDE-time.md`) entre `<!-- rhynor-studio:inicio -->` e `<!-- rhynor-studio:fim -->` | `~/.claude/CLAUDE.md` |
 | Bloco de memória (`team/CLAUDE-memoria.md`: o que ler no começo e no fim de missão e as regras de privacidade) entre `<!-- rhynor-studio:memoria:inicio -->` e `<!-- rhynor-studio:memoria:fim -->`. Cópias antigas sem marcadores saem só se o setup reconhecer todas as linhas (com backup) | `~/.claude/CLAUDE.md` |
 | Comandos: **todo** `commands/*.md` (hoje `/memoria`, `/reuniao` e `/time`). Arquivo diferente ganha backup antes de ser trocado | `~/.claude/commands/` |
-| Elenco inicial, copiado de `data/agzinhos.example.json` (se ainda não existir) | `data/agzinhos.json` |
+| Elenco inicial, copiado de `data/elenco.example.json` (se ainda não existir) | `data/elenco.json` |
 | Build do escritório | `web/dist/` |
 
 ### O vault: outro PC e atualizações
@@ -126,7 +126,7 @@ O `.gitignore` deixa de fora:
 
 | Caminho | O que é | Como levar para o outro PC |
 |---|---|---|
-| `data/agzinhos.json` | Seu elenco personalizado (nomes, roupas, textos) | Copie o arquivo para a pasta `data/` do novo PC. Sem ele, vale o elenco de exemplo. |
+| `data/elenco.json` | Seu elenco personalizado (nomes, roupas, textos) | Copie o arquivo para a pasta `data/` do novo PC. Sem ele, vale o elenco de exemplo. |
 | `data/escritorio.json` e `data/eventos/` | Estado do escritório e gravação de eventos (têm caminhos e prompts da sua máquina) | Não leve. Não compartilhe. |
 | `data/replay/`, `data/gasto/`, `data/transparencia/`, `data/exportacoes/` | Resumo do dia, contagem de tokens, log de acesso ao vault e cópias exportadas (têm nomes de arquivos e caminhos) | Não leve. Veja a seção 12. |
 | `data/estimativas.json` | Minutos usados na estimativa de tempo economizado (só números) | Pode copiar. Se não existir, vale o padrão. |

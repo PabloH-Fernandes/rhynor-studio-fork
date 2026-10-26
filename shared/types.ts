@@ -7,7 +7,7 @@ import type { Resultados } from "./resultados.ts";
 import type { ResumoTransparencia } from "./transparencia.ts";
 
 // só os tipos; valores (DEFAULT_ROSTER, validateRoster...) vêm direto de shared/roster
-export type { Acessorio, AGzinho, Destaque, EstiloCabelo, Genero, Roster, RosterResult, Roupa, Swatch } from "./roster.ts";
+export type { Acessorio, Personagem, Destaque, EstiloCabelo, Genero, Roster, RosterResult, Roupa, Swatch } from "./roster.ts";
 
 export type AgentStatus =
   | "chegando" // andando da porta até a mesa
@@ -18,17 +18,17 @@ export type AgentStatus =
   | "saindo"; // a sessão acabou e ele vai embora
 
 export interface Agent {
-  /** líder: s:<session_id> (após um /clear, o da conversa anterior); subagente: ag:<key do AGzinho> (ou ag:extra:<agent_id> sem AGzinho livre) */
+  /** líder: s:<session_id> (após um /clear, o da conversa anterior); subagente: p:<key do Personagem> (ou p:extra:<agent_id> sem Personagem livre) */
   id: string;
   sessionId: string;
   /** id do agente que delegou o trabalho (líder), se for subagente */
   parentId?: string;
   /** chave do papel: lider, planejador, dev, testador, revisor, documentador, pesquisador, convidado ou outro tipo */
   role: string;
-  /** nome do AGzinho ("Beatriz Lima"); o visitante extra, sem AGzinho, usa o nome do tipo */
+  /** nome do Personagem ("Beatriz Lima"); o visitante extra, sem Personagem, usa o nome do tipo */
   name: string;
-  /** key do AGzinho no elenco (lider, dev, dev-2, explore...); ausente no visitante extra */
-  agzinho?: string;
+  /** key do Personagem no elenco (lider, dev, dev-2, explore...); ausente no visitante extra */
+  personagem?: string;
   status: AgentStatus;
   /** o que está fazendo agora, em português ("Editando App.tsx") */
   activity: string;
@@ -57,7 +57,7 @@ export interface OfficeConfig {
 }
 
 /**
- * Assunto da linha do feed (server/frases.ts). Linhas seguidas do mesmo AGzinho e do mesmo assunto
+ * Assunto da linha do feed (server/frases.ts). Linhas seguidas do mesmo Personagem e do mesmo assunto
  * se juntam no front; "precisa", "etapa", "concluido" e "terminou" ganham destaque.
  */
 export type FeedCategoria =

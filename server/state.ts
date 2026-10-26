@@ -1,7 +1,7 @@
 // Estado do escritório: transforma os eventos crus dos hooks do Claude Code
 // em "agentes" com status e atividade, e avisa quem estiver ouvindo.
 //
-// Cada subagente vira um AGzinho do elenco, com id visual estável (ag:<key>): o mesmo
+// Cada subagente vira um Personagem do elenco, com id visual estável (p:<key>): o mesmo
 // papel chamado de novo volta a ser a mesma pessoa. Quem termina fica "de boa" no
 // escritório; todo mundo de uma sessão só vai embora no SessionEnd ou quando a sessão
 // passa tempo demais sem nenhum evento. Exceção: visitante (Iara, Jorge, Sofia e extras, os agentes
@@ -9,7 +9,7 @@
 
 import path from "node:path";
 import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ReuniaoAtiva, ServerMessage } from "../shared/types.ts";
-import { DEFAULT_ROSTER, agzinhoDoPapel, type AGzinho, type Roster } from "../shared/roster.ts";
+import { DEFAULT_ROSTER, personagemDoPapel, type Personagem, type Roster } from "../shared/roster.ts";
 import { MAX_VISITANTES_NA_TELA, ehVisitante } from "../shared/visitante.ts";
 import { PROGRESS_NADA, ProgressTracker, sameProgress, type TarefasSalvas } from "./progress.ts";
 import { ehComandoReuniao } from "./vault.ts";
@@ -64,7 +64,7 @@ export const REUNIAO_MAX_MS = 15 * 60_000;
 export const VISITANTE_SEM_EVENTO_MS = 3 * 60_000;
 /**
  * depois que um visitante sai, o agent_id dele fica em `retired` por esse tempo: evento tardio
- * (PreToolUse, SubagentHandback...) não recria o ag:extra:*; só um SubagentStart do mesmo id reabre
+ * (PreToolUse, SubagentHandback...) não recria o p:extra:*; só um SubagentStart do mesmo id reabre
  */
 export const VISITANTE_RETIRE_MS = 60_000;
 /** /clear: o SessionEnd (reason "clear") espera o SessionStart da conversa nova por esse tempo */
@@ -197,7 +197,7 @@ export class OfficeState {
   private trabalhoTimers = new Map<string, Timer>();
   /** alias (agent_id) → quando deu SubagentStop: evento tardio dele não revive nem cria fantasma */
   private paradoEm = new Map<string, number>();
-  /** agent_id ou "t:"+tool_use_id → id visual (ag:dev, ag:dev-2...) */
+  /** agent_id ou "t:"+tool_use_id → id visual (p:dev, p:dev-2...) */
   private aliases = new Map<string, string>();
   /** id visual → última ligação (pra achar quem acabou de chegar pelo SubagentStart) */
   private bindings = new Map<string, Binding>();
@@ -293,7 +293,7 @@ export class OfficeState {
     this.roster = roster;
     this.emit({ type: "roster", roster });
     for (const agent of this.agents.values()) {
-      const ag = agent.agzinho ? this.findAgzinho(agent.agzinho) : undefined;
+      const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
       if (ag) agent.name = ag.nome;
       this.emit({ type: "agent", agent });
     }
@@ -376,7 +376,7 @@ export class OfficeState {
         a.status = "ocioso";
         a.activity = a.parentId ? "De boa" : "Esperando seu próximo pedido";
       }
-      const ag = a.agzinho ? this.findAgzinho(a.agzinho) : undefined;
+      const ag = a.personagem ? this.findPersonagem(a.personagem) : undefined;
       if (ag) a.name = ag.nome;
       this.agents.set(a.id, a);
     }
@@ -553,7 +553,7 @@ export class OfficeState {
           break;
         }
 
-        const ag = agent.agzinho ? this.findAgzinho(agent.agzinho) : undefined;
+        const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
         const frase = fraseFerramenta(tool, toolInput, { genero: ag?.genero, papel: agent.role });
         this.update(agent, "trabalhando", describeTool(tool, toolInput), comoAtividade(frase.simples));
         // o SendMessage já virou linha de recado (handleSendMessage): não repete "Mandando mensagem"
@@ -718,7 +718,7 @@ export class OfficeState {
   }
 
   /**
-   * Encerra a sessão inteira: todo mundo que está nela agora (inclusive AGzinho emprestado
+   * Encerra a sessão inteira: todo mundo que está nela agora (inclusive Personagem emprestado
    * de outra sessão) vai até a porta. Com `retire` (SessionEnd explícito), eventos atrasados da
    * sessão e dos subagentes dela são ignorados por um tempo; no timeout não, porque a sessão
    * pode estar viva e só quieta.
@@ -1054,9 +1054,9 @@ export class OfficeState {
     if (!lead) {
       // sessão iniciada com --agent ou teammate de um agent team: usa o tipo como papel
       const type = !input.agent_id && input.agent_type ? input.agent_type : "lider";
-      // a sessão real tem prioridade: se o "lider" está com o líder de uma simulação, ela troca de AGzinho
+      // a sessão real tem prioridade: se o "lider" está com o líder de uma simulação, ela troca de Personagem
       if (!isDemo(input.session_id)) this.yieldFromDemoLeader(type);
-      // o líder de uma 2ª sessão aberta vira convidado (o AGzinho "lider" já tem dono)
+      // o líder de uma 2ª sessão aberta vira convidado (o Personagem "lider" já tem dono)
       const ag = this.candidates(type, true).find((a) => this.freeForLeader(a.key));
       const now = this.now();
       lead = {
@@ -1064,7 +1064,7 @@ export class OfficeState {
         sessionId: input.session_id,
         role: ag ? ag.papel : normalizeRole(type),
         name: ag?.nome ?? (type === "lider" ? ROLE_NAMES.lider : prettyRole(type)),
-        agzinho: ag?.key,
+        personagem: ag?.key,
         status: "chegando",
         activity: "Chegando...",
         project: projectName(input.cwd),
@@ -1080,16 +1080,16 @@ export class OfficeState {
     return lead;
   }
 
-  /** O líder de simulação que está com o AGzinho que a sessão real quer passa para o próximo convidado livre. */
+  /** O líder de simulação que está com o Personagem que a sessão real quer passa para o próximo convidado livre. */
   private yieldFromDemoLeader(type: string) {
     const want = this.candidates(type, true)[0];
     if (!want) return;
     const holder = [...this.agents.values()].find(
-      (a) => !a.parentId && a.agzinho === want.key && a.status !== "saindo" && isDemo(a.sessionId),
+      (a) => !a.parentId && a.personagem === want.key && a.status !== "saindo" && isDemo(a.sessionId),
     );
     if (!holder) return;
-    const guest = this.roster.agzinhos.find((a) => a.papel === "convidado" && this.freeForLeader(a.key));
-    holder.agzinho = guest?.key;
+    const guest = this.roster.personagens.find((a) => a.papel === "convidado" && this.freeForLeader(a.key));
+    holder.personagem = guest?.key;
     holder.role = guest ? guest.papel : "convidado";
     holder.name = guest?.nome ?? prettyRole("convidado");
     this.emit({ type: "agent", agent: holder });
@@ -1134,42 +1134,42 @@ export class OfficeState {
     return visual ? this.agents.get(visual) : undefined;
   }
 
-  private findAgzinho(key: string): AGzinho | undefined {
-    return this.roster.agzinhos.find((a) => a.key === key);
+  private findPersonagem(key: string): Personagem | undefined {
+    return this.roster.personagens.find((a) => a.key === key);
   }
 
   /**
-   * AGzinhos que podem atender um tipo, na ordem de preferência:
+   * Personagens que podem atender um tipo, na ordem de preferência:
    * - papel do time (dev, pesquisador...): o principal e as variações dele (dev-2);
    * - outro tipo: o convidado que atende o tipo (sem diferenciar maiúsculas), o curinga "*"
    *   e depois qualquer convidado.
    * O líder cai nos convidados, na ordem do elenco, quando o "lider" já tem dono (2ª sessão).
    */
-  private candidates(type: string, leader: boolean): AGzinho[] {
-    const list = this.roster.agzinhos;
+  private candidates(type: string, leader: boolean): Personagem[] {
+    const list = this.roster.personagens;
     const role = normalizeRole(type);
     const guests = list.filter((a) => a.papel === "convidado");
-    const serves = (a: AGzinho, t: string) => (a.agentTypes ?? []).some((x) => x.toLowerCase() === t);
+    const serves = (a: Personagem, t: string) => (a.agentTypes ?? []).some((x) => x.toLowerCase() === t);
     const guestOrder = [...new Set([...guests.filter((a) => serves(a, role)), ...guests.filter((a) => serves(a, "*")), ...guests])];
-    // o AGzinho do líder não é dado a subagente
-    const main = role !== "convidado" && (leader || role !== "lider") ? agzinhoDoPapel(this.roster, role) : undefined;
+    // o Personagem do líder não é dado a subagente
+    const main = role !== "convidado" && (leader || role !== "lider") ? personagemDoPapel(this.roster, role) : undefined;
     if (!main) return guestOrder;
     const own = [main, ...list.filter((a) => a.variacaoDe === main.key)];
     return leader ? [...own, ...(role === "lider" ? guests : guestOrder)] : own;
   }
 
   /**
-   * O quanto um AGzinho está livre para um subagente novo:
+   * O quanto um Personagem está livre para um subagente novo:
    * - 0: ninguém na tela com ele (ou ele ocioso sem agent_id nenhum ligado);
    * - 1: ocioso, ligado só a agent_id que já entregaram (SubagentStop): reaproveitar só sem alternativa;
-   * - null: não pode (AGzinho de líder, saindo, trabalhando ou ligado a um agent_id ativo).
+   * - null: não pode (Personagem de líder, saindo, trabalhando ou ligado a um agent_id ativo).
    * Dois agent_id ativos nunca dividem boneco. A simulação não pega emprestado quem está numa sessão real.
    */
   private freeTier(key: string, sessionId: string): 0 | 1 | null {
     let tier: 0 | 1 = 0;
     for (const a of this.agents.values()) {
-      if (a.agzinho !== key) continue;
-      if (a.id !== subagentId(key)) return null; // é o AGzinho de um líder
+      if (a.personagem !== key) continue;
+      if (a.id !== subagentId(key)) return null; // é o Personagem de um líder
       if (a.status !== "ocioso") return null; // trabalhando, chegando ou saindo
       if (isDemo(sessionId) && !isDemo(a.sessionId)) return null;
       for (const [alias, visual] of this.aliases) {
@@ -1181,18 +1181,18 @@ export class OfficeState {
     return tier;
   }
 
-  /** livre para um líder: ninguém (fora quem já está saindo) com esse AGzinho */
+  /** livre para um líder: ninguém (fora quem já está saindo) com esse Personagem */
   private freeForLeader(key: string): boolean {
-    for (const a of this.agents.values()) if (a.agzinho === key && a.status !== "saindo") return false;
+    for (const a of this.agents.values()) if (a.personagem === key && a.status !== "saindo") return false;
     return true;
   }
 
   /**
-   * Escolhe o AGzinho de um subagente e devolve o agente na tela já ligado a ele: reaproveita
+   * Escolhe o Personagem de um subagente e devolve o agente na tela já ligado a ele: reaproveita
    * quem está de boa (até de outra sessão, que passa para esta) ou cria um novo. Sem ninguém
-   * livre, entra um visitante extra (ag:extra:<id do hook>) com aparência por hash.
+   * livre, entra um visitante extra (p:extra:<id do hook>) com aparência por hash.
    */
-  private assignAgzinho(
+  private assignPersonagem(
     sessionId: string,
     agentType: string,
     hookId: string,
@@ -1204,7 +1204,7 @@ export class OfficeState {
     // coordenando, não chegando; sem isso ficava "chegando" até ter um evento próprio
     if (lead.status === "chegando") this.update(lead, "pensando", "Coordenando o time");
     // o agent_id antigo que perde o boneco reaproveitado (o rebindAlias apaga o alias dele) ganha,
-    // se voltar, outro AGzinho livre como qualquer agent_id novo
+    // se voltar, outro Personagem livre como qualquer agent_id novo
     const options = this.candidates(agentType, false).map((a) => ({ a, tier: this.freeTier(a.key, sessionId) }));
     // quem já está de boa nesta sessão só volta pra mesa; depois quem está livre de verdade; por
     // último o de boa de outra sessão (sempre na ordem de candidates(): principal, depois variações)
@@ -1214,7 +1214,7 @@ export class OfficeState {
       this.agents.get(subagentId(o.a.key))?.sessionId === sessionId &&
       this.bindings.get(subagentId(o.a.key))?.type === normalizeRole(agentType);
     const ag = (options.find(daSessao) ?? options.find((o) => o.tier === 0) ?? options.find((o) => o.tier === 1))?.a;
-    const id = ag ? subagentId(ag.key) : `ag:extra:${hookId}`;
+    const id = ag ? subagentId(ag.key) : `p:extra:${hookId}`;
     const now = this.now();
     const activity = description ? truncate(description, 60) : "Indo pra mesa...";
     const existing = this.agents.get(id);
@@ -1236,7 +1236,7 @@ export class OfficeState {
       parentId: lead.id,
       role: ag ? ag.papel : normalizeRole(agentType),
       name: ag?.nome ?? prettyRole(agentType),
-      agzinho: ag?.key,
+      personagem: ag?.key,
       status: "chegando",
       activity,
       project: lead.project,
@@ -1260,9 +1260,9 @@ export class OfficeState {
     return { agent, returning: false };
   }
 
-  /** Liga um agent_id (ou t:<tool_use_id>) a um AGzinho e conta no feed quem chegou. */
+  /** Liga um agent_id (ou t:<tool_use_id>) a um Personagem e conta no feed quem chegou. */
   private bindSubagent(sessionId: string, alias: string, type: string, description: string, cwd?: string): Agent {
-    const { agent, returning } = this.assignAgzinho(sessionId, type, alias, description, cwd);
+    const { agent, returning } = this.assignPersonagem(sessionId, type, alias, description, cwd);
     this.rebindAlias(agent, alias, type);
     const what = description ? `: ${truncate(description, 70)}` : "";
     this.pushFeed(agent, returning ? `foi chamado de novo${what}` : description ? `entrou para${what}` : "entrou no escritório", "spawn", {
@@ -1319,11 +1319,11 @@ export class OfficeState {
         // visitante (Iara, Jorge, Sofia ou extra) não fica: sai andando até a porta. "De boa" é só do
         // elenco fixo do time. O agent_id vai pra `retired`: evento tardio não o traz de volta
         this.sairVisitante(agent, "Entregou o trabalho");
-      } else if (agent.agzinho) {
+      } else if (agent.personagem) {
         this.update(agent, "ocioso", "De boa");
         this.pushFeed(agent, "entregou o trabalho", "done", { tipo: "terminouParte" });
       } else {
-        // sem AGzinho livre e com papel do time: também não fica, senão acumula no escritório
+        // sem Personagem livre e com papel do time: também não fica, senão acumula no escritório
         this.leave(agent, "Entregou o trabalho");
       }
     }
@@ -1461,8 +1461,8 @@ export class OfficeState {
     const matches = (a: Agent) => {
       if (a.id === from.id || !toName) return false;
       if (role === "lider") return !a.parentId;
-      const ag = a.agzinho ? this.findAgzinho(a.agzinho) : undefined;
-      return a.role === role || a.name.toLowerCase() === toName || a.agzinho === toName || ag?.apelido.toLowerCase() === toName;
+      const ag = a.personagem ? this.findPersonagem(a.personagem) : undefined;
+      return a.role === role || a.name.toLowerCase() === toName || a.personagem === toName || ag?.apelido.toLowerCase() === toName;
     };
     const all = [...this.agents.values()];
     // o líder retoma um subagente pelo agent_id ({to: agent_id}): é o boneco ligado a ele
@@ -1531,15 +1531,15 @@ export class OfficeState {
 
   // ---------------------------------------------------------------- feed
 
-  /** Nome curto do feed simples: o apelido do AGzinho ("Guto") ou o primeiro nome. */
+  /** Nome curto do feed simples: o apelido do Personagem ("Guto") ou o primeiro nome. */
   private nomeCurto(agent: Agent): string {
-    const ag = agent.agzinho ? this.findAgzinho(agent.agzinho) : undefined;
+    const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
     return nomeCurto(agent.name, ag?.apelido);
   }
 
   /** `text` é a versão técnica; `assunto` gera a versão simples (server/frases.ts). */
   private pushFeed(agent: Agent, text: string, kind: FeedItem["kind"], assunto: Evento | { tipo: "ferramenta"; tool: string; input: Record<string, unknown> }) {
-    const ag = agent.agzinho ? this.findAgzinho(agent.agzinho) : undefined;
+    const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
     const quem = { genero: ag?.genero, papel: agent.role };
     const frase = assunto.tipo === "ferramenta" ? fraseFerramenta(assunto.tool, assunto.input, quem) : fraseEvento(assunto, quem);
     const item: FeedItem = {
@@ -1616,7 +1616,7 @@ export class OfficeState {
   }
 }
 
-const subagentId = (key: string) => `ag:${key}`;
+const subagentId = (key: string) => `p:${key}`;
 
 const STATUS_VALIDOS = new Set<string>(["chegando", "trabalhando", "pensando", "esperando", "ocioso", "saindo"]);
 

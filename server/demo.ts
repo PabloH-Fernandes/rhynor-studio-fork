@@ -10,7 +10,7 @@
 //   27      planejador e pesquisador entregam juntos: comemoram e FICAM; ~20 s depois vão descansar
 //   29–66   dev (Bia) e um 2º dev (Yasmin, dev-2) em paralelo, o testador, envelopes e o "!" de permissão (46 → 52)
 //   46      🙋 o testador pede autorização (PermissionRequest); você libera em 52
-//   69      dev-2, testador e dev entregam no mesmo instante: 5 AGzinhos de boa ao mesmo tempo por ~30 s
+//   69      dev-2, testador e dev entregam no mesmo instante: 5 Time de boa ao mesmo tempo por ~30 s
 //           (o agendador do front espera IDLE_GRACE de 4 s e só chama pra ping-pong/papo quem já passou
 //           dele: entregar junto é o que dá chance de grupo; com 68/68,5/69 s quase sempre saía tudo solo)
 //   76      a conversa do líder é resumida (SessionStart "compact"): ninguém sai, o time continua
@@ -231,7 +231,7 @@ export function runDemo(state: OfficeState, relogio: Agenda = AGENDA_PADRAO) {
     [80, tool("Grep", { pattern: "multipart" })],
     [88, tool("Read", { file_path: "server/routes/chamados.ts" })],
     // e) ~20 s depois dos grupos formados, o líder retoma o pesquisador (SendMessage pro agent_id
-    // dele) no meio do descanso: mesmo agent_id, mesmo AGzinho, larga tudo e volta pra mesa
+    // dele) no meio do descanso: mesmo agent_id, mesmo Personagem, larga tudo e volta pra mesa
     [98.7, tool("SendMessage", { to: pesq[0], message: "Ver limite de tamanho do upload de anexos" })],
     [99, tool("WebSearch", { query: "limite de tamanho de anexos" }, pesq)],
     [106, tool("WebFetch", { url: "https://github.com/expressjs/multer" }, pesq)],

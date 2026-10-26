@@ -205,7 +205,7 @@ registrarTransparencia(app, { log: transparencia, atasDoMes: (mes) => resultados
 // Replay do dia: GET /api/replay/dias e GET /api/replay/dia?data=AAAA-MM-DD (só leitura; roda num estado virtual isolado)
 registrarReplay(app, { dir: () => REPLAY_DIR, porta: () => PORT, roster: () => state.getRoster(), limiteAtingido: (data, bytes) => resumoDia.limiteAtingido(data, bytes) });
 
-// Elenco dos AGzinhos: o atual e o padrão (para "Voltar ao padrão" no vestiário).
+// Elenco dos Personagens: o atual e o padrão (para "Voltar ao padrão" no vestiário).
 app.get("/api/roster", (_req, res) => {
   res.json({ roster: state.getRoster(), padrao: DEFAULT_ROSTER });
 });
@@ -303,7 +303,7 @@ server.listen(PORT, HOST, () => {
   console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (STUDIO_SESSION_TIMEOUT_MIN)`);
   const vaultCaminho = resolverVault(process.env, os.homedir());
   console.log(vaultCaminho ? `   Vault → ${vaultCaminho}` : "   Vault não configurado (rode npm run setup)");
-  if (restaurados) console.log(`   Estado restaurado: ${restaurados} AGzinho(s) de volta`);
+  if (restaurados) console.log(`   Estado restaurado: ${restaurados} Personagem(s) de volta`);
   console.log("");
   if (GRAVAR) {
     console.warn(

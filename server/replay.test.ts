@@ -12,7 +12,7 @@ const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixture
 const TEXTO = fs.readFileSync(FIXTURE, "utf8");
 const linhas = () => lerJsonl(TEXTO);
 
-test("líder + 2 subagentes: cada AGzinho termina no status certo", () => {
+test("líder + 2 subagentes: cada Personagem termina no status certo", () => {
   const { state, linhaDoTempo } = reproduzir(linhas());
 
   assert.equal(agentes(state).length, 3);
@@ -24,7 +24,7 @@ test("líder + 2 subagentes: cada AGzinho termina no status certo", () => {
   // ordena como o servidor e o Post do Edit é o último; PostToolUse também é trabalho (V3 etapa 2:
   // nunca vira descanso), então a Bia termina trabalhando
   const bia = agentePorNome(state, "Bia");
-  assert.equal(bia?.agzinho, "dev");
+  assert.equal(bia?.personagem, "dev");
   assert.equal(bia?.status, "trabalhando");
   assert.equal(bia?.activity, "Rodar os testes do login");
   assert.equal(state.getProgress().total, 2);
@@ -62,7 +62,7 @@ test("bug 4: servidor_iniciou com persistência mantém o time, os status e a li
   const fim = base[base.length - 1].chegada;
   const comReinicio: LinhaGravada[] = [...base, { chegada: fim + 1000, marcador: "servidor_iniciou" }];
   const antes = reproduzir(base).state;
-  const resumo = (s: OfficeState) => agentes(s).map((a) => `${a.id}:${a.agzinho}:${a.status}:${a.activity}`).sort();
+  const resumo = (s: OfficeState) => agentes(s).map((a) => `${a.id}:${a.personagem}:${a.status}:${a.activity}`).sort();
 
   const { state, linhaDoTempo } = reproduzir(comReinicio, { aoReiniciar: comPersistencia });
   // ninguém volta trabalhando/pensando depois do reinício (a ferramenta em andamento morreu com o processo)
@@ -85,7 +85,7 @@ test("bug 4: servidor_iniciou com persistência mantém o time, os status e a li
     { chegada: fim + 3000, hookTs: null, evento: { hook_event_name: "SubagentStop", session_id: "sessao-fixture", agent_id: "ag-dev", agent_type: "dev" } },
   ];
   const volta = reproduzir([...comReinicio, ...depois], { aoReiniciar: comPersistencia });
-  assert.deepEqual(agentes(volta.state).map((a) => a.agzinho).sort(), ["dev", "lider", "planejador"]);
+  assert.deepEqual(agentes(volta.state).map((a) => a.personagem).sort(), ["dev", "lider", "planejador"]);
   const bia = agentePorKey(volta.state, "dev");
   assert.equal(bia?.id, agentePorKey(antes, "dev")?.id);
   assert.equal(bia?.status, "ocioso");
@@ -129,7 +129,7 @@ test("anonimizador: nenhum caminho, cwd, prompt ou comando original sobra, e o r
 
   const original = reproduzir(linhas()).state;
   const copia = reproduzir(anon).state;
-  const resumo = (s: typeof original) => agentes(s).map((a) => `${a.agzinho}:${a.status}`).sort();
+  const resumo = (s: typeof original) => agentes(s).map((a) => `${a.personagem}:${a.status}`).sort();
   assert.deepEqual(resumo(copia), resumo(original));
   assert.equal(copia.getProgress().total, 2);
   assert.equal(copia.getProgress().etapa, original.getProgress().etapa);

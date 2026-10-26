@@ -38,17 +38,17 @@ test("simulação v3: destaques, frases sem jargão, grupo de leituras, compact,
     assert.ok(agora.length >= maxTime, `o time encolheu em ${passou} ms`);
     maxTime = agora.length;
     const ativo = (id: string) => agora.some((a) => a.id === id && a.status !== "ocioso");
-    devsJuntos ||= ativo("ag:dev") && ativo("ag:dev-2");
+    devsJuntos ||= ativo("p:dev") && ativo("p:dev-2");
   }
   assert.ok(maxTime >= 8, `líder + 7 do time (o recolher da barra faz sentido): ${maxTime}`);
   assert.ok(devsJuntos, "dev e dev-2 deviam trabalhar ao mesmo tempo");
 
   // 2 da mesma função: DESENVOLVIMENTO e DESENVOLVIMENTO 2
-  const dev2 = agentes(state).find((a) => a.id === "ag:dev-2");
-  assert.ok(dev2?.agzinho, "a dev-2 devia estar no escritório");
-  const ags = DEFAULT_ROSTER.agzinhos;
+  const dev2 = agentes(state).find((a) => a.id === "p:dev-2");
+  assert.ok(dev2?.personagem, "a dev-2 devia estar no escritório");
+  const ags = DEFAULT_ROSTER.personagens;
   assert.equal(rotuloDaMesa("dev", { papel: "dev", numero: numeroNoPapel(ags, "dev") }), "DESENVOLVIMENTO");
-  assert.equal(rotuloDaMesa("dev", { papel: "dev", numero: numeroNoPapel(ags, dev2.agzinho) }), "DESENVOLVIMENTO 2");
+  assert.equal(rotuloDaMesa("dev", { papel: "dev", numero: numeroNoPapel(ags, dev2.personagem) }), "DESENVOLVIMENTO 2");
 
   // frases simples: todas sem jargão (com o nome na frente, como o feed mostra)
   const simples = feed.filter((f) => f.simples);
@@ -66,9 +66,9 @@ test("simulação v3: destaques, frases sem jargão, grupo de leituras, compact,
   assert.ok(feed.some((f) => f.simples === "está pesquisando na internet sobre “validação de formulários”"));
   assert.ok(feed.some((f) => f.simples === "organizou as anotações da conversa para continuar"));
 
-  // a retomada: o pesquisador foi chamado de novo (SendMessage pro agent_id dele) e entregou 2 vezes, mesmo AGzinho
-  assert.equal(agentes(state).find((a) => a.id === "ag:pesquisador")?.tasksDone, 2);
-  const deNovo = feed.filter((f) => f.agentId === "ag:pesquisador" && f.simples === "foi chamado de novo para ajudar");
+  // a retomada: o pesquisador foi chamado de novo (SendMessage pro agent_id dele) e entregou 2 vezes, mesmo Personagem
+  assert.equal(agentes(state).find((a) => a.id === "p:pesquisador")?.tasksDone, 2);
+  const deNovo = feed.filter((f) => f.agentId === "p:pesquisador" && f.simples === "foi chamado de novo para ajudar");
   assert.equal(deNovo.length, 1, "uma linha só, mesmo com SendMessage + 1º evento dele");
 
   // SessionEnd: agora sim todo mundo vai até a porta

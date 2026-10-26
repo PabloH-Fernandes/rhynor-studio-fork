@@ -7,7 +7,7 @@
       "sessionId": "sessao-fixture",
       "role": "lider",
       "name": "Augusto Vilela",
-      "agzinho": "lider",
+      "personagem": "lider",
       "status": "pensando",
       "activity": "Coordenando: chamou Dev",
       "project": "projeto",
@@ -18,12 +18,12 @@
       "tasksDay": "2026-10-09"
     },
     {
-      "id": "ag:dev",
+      "id": "p:dev",
       "sessionId": "sessao-fixture",
       "parentId": "s:sessao-fixture",
       "role": "dev",
       "name": "Beatriz Lima",
-      "agzinho": "dev",
+      "personagem": "dev",
       "status": "trabalhando",
       "activity": "Rodar os testes",
       "project": "projeto",
@@ -39,12 +39,12 @@
   "aliases": [
     [
       "ag-dev",
-      "ag:dev"
+      "p:dev"
     ]
   ],
   "bindings": [
     [
-      "ag:dev",
+      "p:dev",
       {
         "type": "dev",
         "alias": "ag-dev"

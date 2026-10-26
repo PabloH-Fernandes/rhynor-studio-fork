@@ -4,7 +4,7 @@
 import type { FeedCategoria, FeedItem } from "../../shared/types";
 import { fraseAgrupada, fraseGenerica } from "../../shared/frases";
 
-/** linhas do mesmo AGzinho e assunto só se juntam se a anterior for recente */
+/** linhas do mesmo Personagem e assunto só se juntam se a anterior for recente */
 export const JANELA_AGRUPAR_MS = 10 * 60_000;
 
 export interface LinhaFeed {
@@ -17,9 +17,9 @@ export interface LinhaFeed {
 }
 
 /**
- * Junta, em ordem cronológica, as linhas seguidas do mesmo AGzinho com o mesmo assunto
- * ("Marina está estudando o projeto (12 arquivos)"). "Seguidas" é na história de cada AGzinho:
- * outro AGzinho trabalhando em paralelo não quebra o grupo. O grupo sobe pro fim (mais recente).
+ * Junta, em ordem cronológica, as linhas seguidas do mesmo Personagem com o mesmo assunto
+ * ("Marina está estudando o projeto (12 arquivos)"). "Seguidas" é na história de cada Personagem:
+ * outro Personagem trabalhando em paralelo não quebra o grupo. O grupo sobe pro fim (mais recente).
  * Só junta o que tem `contaComo` (ações repetitivas); destaques e o feed antigo nunca se juntam.
  */
 export function agruparFeed(items: readonly FeedItem[], janelaMs = JANELA_AGRUPAR_MS): LinhaFeed[] {

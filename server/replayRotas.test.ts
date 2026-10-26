@@ -121,7 +121,7 @@ test("GET /api/replay/dia: devolve início, fim, mensagens e chaves", async () =
     assert.equal(j.fim, linhas[linhas.length - 1].chegada);
     assert.ok(j.mensagens.length > 3);
     assert.ok(j.mensagens.every((m, i) => i === 0 || m.t >= j.mensagens[i - 1].t));
-    assert.ok(j.mensagens.some((m) => m.msg.type === "agent" && m.msg.agent.agzinho === "dev"));
+    assert.ok(j.mensagens.some((m) => m.msg.type === "agent" && m.msg.agent.personagem === "dev"));
     assert.ok(j.chaves.length >= 1);
     assert.equal(j.chaves[0].i, 0);
     assert.equal(j.reduzido, undefined);

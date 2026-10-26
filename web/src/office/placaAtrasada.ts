@@ -1,4 +1,4 @@
-// Plaquinha de "atrasada": com pelo menos uma pendência atrasada, UM AGzinho do time que está de boa segura uma
+// Plaquinha de "atrasada": com pelo menos uma pendência atrasada, UM Personagem do time que está de boa segura uma
 // plaquinha pequena (quadrado vermelho com "!" em pixel). Desenhada por cima do boneco e dos móveis (depois deles na ordem de desenho,
 // antes da iluminação), direto no canvas:
 // não mexe nos sprites nem no cache deles. Escolha determinística (menor id entre os elegíveis, e quem já segura

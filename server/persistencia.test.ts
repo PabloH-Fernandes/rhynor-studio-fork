@@ -45,12 +45,12 @@ const resumo = (s: OfficeState) => agentes(s).map((a) => `${a.id}:${a.sessionId}
 const aposReinicio = (linhas: string[]) => linhas.map((l) => l.replace(/:(trabalhando|pensando|chegando)$/, ":ocioso"));
 const saidas = <T extends { status: string }>(linhaDoTempo: T[]) => linhaDoTempo.filter((m) => m.status === "saindo" || m.status === "saiu");
 
-test("reinício no meio do trabalho: mesmos AGzinhos e status; o próximo evento vai pro mesmo boneco", () => {
+test("reinício no meio do trabalho: mesmos Personagens e status; o próximo evento vai pro mesmo boneco", () => {
   const antes = reproduzir(trabalhando()).state;
   const linhas = [...trabalhando(), reinicio(10), ev(12, { hook_event_name: "PreToolUse", agent_id: "ag-dev", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "/x/a.ts" } })];
   const { state, linhaDoTempo } = reproduzir(linhas, { aoReiniciar: comPersistencia });
   // o dev já voltou a trabalhar com o Read depois do reinício; o líder não: o Bash dele morreu com o processo
-  assert.deepEqual(resumo(state), aposReinicio(resumo(antes)).map((l) => (l.startsWith("ag:dev:") ? l.replace(":ocioso", ":trabalhando") : l)));
+  assert.deepEqual(resumo(state), aposReinicio(resumo(antes)).map((l) => (l.startsWith("p:dev:") ? l.replace(":ocioso", ":trabalhando") : l)));
   assert.equal(agentePorKey(state, "dev")?.activity.includes("a.ts"), true);
   assert.equal(agentePorKey(state, "lider")?.status, "ocioso");
   assert.deepEqual(saidas(linhaDoTempo), []);
@@ -80,11 +80,11 @@ test("reinício: o líder retoma quem já entregou e ele só volta pra mesa", ()
   ];
   const { state, linhaDoTempo } = reproduzir(linhas, { aoReiniciar: comPersistencia });
   const subs = agentes(state).filter((a) => a.parentId);
-  assert.equal(subs.length, 1, "o mesmo AGzinho, sem boneco novo");
-  assert.equal(subs[0].id, "ag:dev");
+  assert.equal(subs.length, 1, "o mesmo Personagem, sem boneco novo");
+  assert.equal(subs[0].id, "p:dev");
   assert.equal(subs[0].status, "trabalhando");
   assert.equal(subs[0].tasksDone, 1);
-  assert.ok(!linhaDoTempo.some((m) => m.id === "ag:dev" && m.t > T0 + 10_000 && (m.status === "chegando" || m.status === "saindo")));
+  assert.ok(!linhaDoTempo.some((m) => m.id === "p:dev" && m.t > T0 + 10_000 && (m.status === "chegando" || m.status === "saindo")));
 });
 
 test("/compact no meio do trabalho: time mantido e o líder não vira ocioso", () => {
@@ -163,7 +163,7 @@ test("/clear: o /clear sobrevive a um reinício do servidor no meio da troca", (
   assert.deepEqual(agentes(state).map((a) => a.sessionId), ["s2", "s2"]);
 });
 
-test("dev entregou, novo agent_id dev → ag:dev, sem chegando", () => {
+test("dev entregou, novo agent_id dev → p:dev, sem chegando", () => {
   const linhas = [
     ...trabalhando(),
     ev(8, { hook_event_name: "SubagentStop", agent_id: "ag-dev", agent_type: "dev" }),
@@ -173,7 +173,7 @@ test("dev entregou, novo agent_id dev → ag:dev, sem chegando", () => {
   ];
   const { state, linhaDoTempo } = reproduzir(linhas);
   const subs = agentes(state).filter((a) => a.parentId);
-  assert.deepEqual(subs.map((a) => `${a.id}:${a.status}`), ["ag:dev:trabalhando"]);
+  assert.deepEqual(subs.map((a) => `${a.id}:${a.status}`), ["p:dev:trabalhando"]);
   assert.ok(!linhaDoTempo.some((m) => m.t > T0 + 10_000 && (m.status === "chegando" || m.status === "saindo")));
 });
 
@@ -186,7 +186,7 @@ test("/clear fora de ordem: SessionStart clear antes do SessionEnd clear funde o
     ev(21, { hook_event_name: "SessionEnd", reason: "clear" }),
   ];
   const { state, linhaDoTempo } = reproduzir(linhas, { depoisDoFimMs: 60_000 });
-  assert.deepEqual(agentes(state).map((a) => `${a.id}:${a.sessionId}`).sort(), ["ag:dev:s2", "s:s1:s2"]);
+  assert.deepEqual(agentes(state).map((a) => `${a.id}:${a.sessionId}`).sort(), ["p:dev:s2", "s:s1:s2"]);
   assert.equal(agentePorKey(state, "lider")?.activity, "Começou uma conversa nova");
   // só o líder duplicado (que entrou 1 s antes) sai; o time fica
   assert.deepEqual(saidas(linhaDoTempo).map((m) => m.id), ["s:s2"]);
@@ -204,7 +204,7 @@ test("/clear com duas esperas abertas: só herda quem tem o mesmo cwd", () => {
   ];
   const { state } = reproduzir(linhas, { depoisDoFimMs: 45_000 });
   // a "outra" (/outro) não teve conversa nova: foi embora depois da espera
-  assert.deepEqual(agentes(state).map((a) => `${a.id}:${a.sessionId}`).sort(), ["ag:dev:s3", "s:s1:s3", "s:s2:s2"]);
+  assert.deepEqual(agentes(state).map((a) => `${a.id}:${a.sessionId}`).sort(), ["p:dev:s3", "s:s1:s3", "s:s2:s2"]);
 });
 
 test("SessionEnd reason clear sem a conversa nova em 30 s: o time vai embora", () => {
@@ -310,7 +310,7 @@ test("restaurar: o data/escritorio.json (cópia reduzida) volta com 'trabalhando
   assert.equal(state.restaurar(dados), 2);
   assert.deepEqual(
     agentes(state).map((a) => `${a.id}:${a.status}:${a.activity}`).sort(),
-    ["ag:dev:ocioso:De boa", "s:sessao-fixture:ocioso:Esperando seu próximo pedido"],
+    ["p:dev:ocioso:De boa", "s:sessao-fixture:ocioso:Esperando seu próximo pedido"],
   );
   // sem ferramenta em andamento: nada expira nem segura a sessão
   relogio.avancarAte(relogio.now() + 5 * MIN);

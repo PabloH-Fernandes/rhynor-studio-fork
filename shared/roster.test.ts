@@ -16,16 +16,16 @@ import {
   mergeWithDefaults,
   oQueFacoPadrao,
   validateRoster,
-  type AGzinho,
+  type Personagem,
   type Roster,
 } from "./roster.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** cópia do padrão com um AGzinho alterado */
-function withChange(key: string, change: (a: AGzinho) => void): Roster {
+/** cópia do padrão com um Personagem alterado */
+function withChange(key: string, change: (a: Personagem) => void): Roster {
   const r = structuredClone(DEFAULT_ROSTER);
-  change(r.agzinhos.find((a) => a.key === key)!);
+  change(r.personagens.find((a) => a.key === key)!);
   return r;
 }
 
@@ -40,8 +40,8 @@ test("o elenco padrão passa na validação", () => {
   assert.equal(res.ok, true, res.ok ? "" : res.erros.join("\n"));
 });
 
-test("o elenco padrão tem 12 AGzinhos com chaves e matrículas únicas, 6 F e 6 M", () => {
-  const list = DEFAULT_ROSTER.agzinhos;
+test("o elenco padrão tem 12 Personagens com chaves e matrículas únicas, 6 F e 6 M", () => {
+  const list = DEFAULT_ROSTER.personagens;
   assert.equal(list.length, 12);
   assert.equal(new Set(list.map((a) => a.key)).size, 12);
   assert.equal(new Set(list.map((a) => a.matricula)).size, 12);
@@ -118,17 +118,17 @@ test("destaque fora da regra é rejeitado", () => {
 test("validateRoster devolve um elenco limpo, sem campos desconhecidos", () => {
   const sujo = structuredClone(DEFAULT_ROSTER) as Roster & { extra?: number };
   sujo.extra = 1;
-  (sujo.agzinhos[0] as AGzinho & { senha?: string }).senha = "x";
-  (sujo.agzinhos[0].cabelo as AGzinho["cabelo"] & { brilho?: boolean }).brilho = true;
+  (sujo.personagens[0] as Personagem & { senha?: string }).senha = "x";
+  (sujo.personagens[0].cabelo as Personagem["cabelo"] & { brilho?: boolean }).brilho = true;
   const res = validateRoster(sujo);
   assert.equal(res.ok, true);
   if (res.ok) {
     assert.deepEqual(res.roster, DEFAULT_ROSTER);
-    assert.notEqual(res.roster.agzinhos[0], sujo.agzinhos[0]);
+    assert.notEqual(res.roster.personagens[0], sujo.personagens[0]);
   }
-  const merged = mergeWithDefaults({ agzinhos: [{ key: "dev", senha: "x" }, { key: "novo", senha: "y" }] });
-  assert.equal("senha" in merged.agzinhos.find((a) => a.key === "dev")!, false);
-  assert.equal("senha" in merged.agzinhos.find((a) => a.key === "novo")!, false);
+  const merged = mergeWithDefaults({ personagens: [{ key: "dev", senha: "x" }, { key: "novo", senha: "y" }] });
+  assert.equal("senha" in merged.personagens.find((a) => a.key === "dev")!, false);
+  assert.equal("senha" in merged.personagens.find((a) => a.key === "novo")!, false);
 });
 
 test("fala com mais de 28 caracteres é rejeitada", () => {
@@ -163,7 +163,7 @@ test("chave repetida, hex inválido e matrícula fora do formato são rejeitados
     /pele/,
   );
   expectError(
-    withChange("dev", (a) => (a.matricula = "AG-4")),
+    withChange("dev", (a) => (a.matricula = "RH-4")),
     /matricula/,
   );
 });
@@ -172,10 +172,10 @@ test("mergeWithDefaults completa campos faltando e mantém o que foi salvo", () 
   const merged = mergeWithDefaults({
     versao: 1,
     atualizadoEm: "2026-10-03T12:00:00.000Z",
-    agzinhos: [{ key: "dev", nome: "Bia Lima", cabelo: { cor: "#4a3021" } }],
+    personagens: [{ key: "dev", nome: "Bia Lima", cabelo: { cor: "#4a3021" } }],
   });
-  const dev = merged.agzinhos.find((a) => a.key === "dev")!;
-  assert.equal(merged.agzinhos.length, 12);
+  const dev = merged.personagens.find((a) => a.key === "dev")!;
+  assert.equal(merged.personagens.length, 12);
   assert.equal(dev.nome, "Bia Lima");
   assert.equal(dev.apelido, "BIA");
   assert.deepEqual(dev.cabelo, { estilo: "trancas", cor: "#4a3021" });
@@ -183,29 +183,29 @@ test("mergeWithDefaults completa campos faltando e mantém o que foi salvo", () 
   assert.deepEqual(mergeWithDefaults("lixo"), DEFAULT_ROSTER);
 });
 
-test("data/agzinhos.example.json é igual ao DEFAULT_ROSTER", () => {
-  const example = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "agzinhos.example.json"), "utf8"));
+test("data/elenco.example.json é igual ao DEFAULT_ROSTER", () => {
+  const example = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "elenco.example.json"), "utf8"));
   assert.deepEqual(example, DEFAULT_ROSTER);
 });
 
 test("mergeWithDefaults põe o crachá de visitante no convidado salvo sem destaque", () => {
-  const semDestaque = (key: string, extra: Partial<AGzinho> = {}) => {
-    const a: Partial<AGzinho> = { ...structuredClone(DEFAULT_ROSTER.agzinhos.find((x) => x.key === key)!), ...extra };
+  const semDestaque = (key: string, extra: Partial<Personagem> = {}) => {
+    const a: Partial<Personagem> = { ...structuredClone(DEFAULT_ROSTER.personagens.find((x) => x.key === key)!), ...extra };
     delete a.destaque;
     return a;
   };
   const merged = mergeWithDefaults({
     versao: 1,
     atualizadoEm: "2026-10-03T12:00:00.000Z",
-    agzinhos: [semDestaque("explore"), semDestaque("curinga", { key: "visita", matricula: "AG-0099", agentTypes: ["x"] })],
+    personagens: [semDestaque("explore"), semDestaque("curinga", { key: "visita", matricula: "RH-0099", agentTypes: ["x"] })],
   });
-  assert.equal(merged.agzinhos.find((a) => a.key === "explore")!.destaque, "cracha-visitante");
-  assert.equal(merged.agzinhos.find((a) => a.key === "visita")!.destaque, "cracha-visitante");
+  assert.equal(merged.personagens.find((a) => a.key === "explore")!.destaque, "cracha-visitante");
+  assert.equal(merged.personagens.find((a) => a.key === "visita")!.destaque, "cracha-visitante");
   assert.equal(validateRoster(merged).ok, true);
 });
 
 test("o cargo do padrão combina com o gênero (cargoDe)", () => {
-  for (const a of DEFAULT_ROSTER.agzinhos) assert.equal(cargoDe(a.papel, a.genero, a.cargo), a.cargo, a.key);
+  for (const a of DEFAULT_ROSTER.personagens) assert.equal(cargoDe(a.papel, a.genero, a.cargo), a.cargo, a.key);
   assert.equal(cargoDe("dev", "masculino", "Desenvolvedora"), "Desenvolvedor");
   assert.equal(cargoDe("convidado", "masculino", "Exploradora"), "Explorador");
   assert.equal(cargoDe("convidado", "feminino", "Generalista"), "Generalista");
@@ -227,13 +227,13 @@ test("no máximo 1 acessório por camada; barba (pelos) convive com óculos", ()
   assert.equal(CAMADA_DO_ACESSORIO.barba, "pelos");
 });
 
-test('todo AGzinho do padrão tem "O que eu faço": frase e 2 a 3 responsabilidades dentro dos limites', () => {
-  for (const a of DEFAULT_ROSTER.agzinhos) {
+test('todo Personagem do padrão tem "O que eu faço": frase e 2 a 3 responsabilidades dentro dos limites', () => {
+  for (const a of DEFAULT_ROSTER.personagens) {
     assert.ok(a.oQueFaco.length > 0 && a.oQueFaco.length <= LIMITS.oQueFaco, a.key);
     assert.ok(a.responsabilidades.length >= LIMITS.responsabilidadesMin && a.responsabilidades.length <= LIMITS.responsabilidadesMax, a.key);
     for (const r of a.responsabilidades) assert.ok(r.length > 0 && r.length <= LIMITS.responsabilidade, `${a.key}: ${r}`);
   }
-  assert.deepEqual(DEFAULT_ROSTER.agzinhos.find((a) => a.key === "testador")!.responsabilidades, [
+  assert.deepEqual(DEFAULT_ROSTER.personagens.find((a) => a.key === "testador")!.responsabilidades, [
     "testar cada mudança",
     "achar erros antes de você",
     "avisar o dev quando algo quebra",
@@ -247,24 +247,24 @@ test('"O que eu faço": frase longa, sem frase, com emoji e responsabilidades fo
   expectError(withChange("dev", (a) => (a.responsabilidades = ["só uma"])), /\(dev\)\.responsabilidades: precisa ter de 2 a 3/);
   expectError(withChange("dev", (a) => (a.responsabilidades = ["a", "b", "c", "d"])), /\(dev\)\.responsabilidades: precisa ter de 2 a 3/);
   expectError(withChange("dev", (a) => (a.responsabilidades = ["ok", "y".repeat(LIMITS.responsabilidade + 1)])), /\(dev\)\.responsabilidades\[1\]/);
-  expectError(withChange("dev", (a) => delete (a as Partial<AGzinho>).responsabilidades), /\(dev\)\.responsabilidades/);
+  expectError(withChange("dev", (a) => delete (a as Partial<Personagem>).responsabilidades), /\(dev\)\.responsabilidades/);
 });
 
 test('mergeWithDefaults: elenco antigo sem "O que eu faço" ganha o padrão; o salvo é mantido', () => {
-  const antigo = structuredClone(DEFAULT_ROSTER) as unknown as { agzinhos: Record<string, unknown>[] };
-  for (const a of antigo.agzinhos) {
+  const antigo = structuredClone(DEFAULT_ROSTER) as unknown as { personagens: Record<string, unknown>[] };
+  for (const a of antigo.personagens) {
     delete a.oQueFaco;
     delete a.responsabilidades;
   }
-  antigo.agzinhos.find((a) => a.key === "revisor")!.oQueFaco = "Leio e aprovo.";
+  antigo.personagens.find((a) => a.key === "revisor")!.oQueFaco = "Leio e aprovo.";
   // extra de um elenco antigo (sem padrão próprio): ganha o texto do papel
-  antigo.agzinhos.push({ ...structuredClone(DEFAULT_ROSTER.agzinhos[3]), key: "dev-3", variacaoDe: "dev", matricula: "AG-0013", oQueFaco: undefined, responsabilidades: undefined });
+  antigo.personagens.push({ ...structuredClone(DEFAULT_ROSTER.personagens[3]), key: "dev-3", variacaoDe: "dev", matricula: "RH-0013", oQueFaco: undefined, responsabilidades: undefined });
   const m = mergeWithDefaults(antigo);
   const res = validateRoster(m);
   assert.ok(res.ok, !res.ok ? res.erros.join(" | ") : "");
-  const dev = DEFAULT_ROSTER.agzinhos.find((a) => a.key === "dev")!;
-  assert.equal(m.agzinhos.find((a) => a.key === "lider")!.oQueFaco, DEFAULT_ROSTER.agzinhos[0].oQueFaco);
-  assert.equal(m.agzinhos.find((a) => a.key === "revisor")!.oQueFaco, "Leio e aprovo.");
-  assert.deepEqual(m.agzinhos.find((a) => a.key === "dev-3")!.responsabilidades, dev.responsabilidades);
+  const dev = DEFAULT_ROSTER.personagens.find((a) => a.key === "dev")!;
+  assert.equal(m.personagens.find((a) => a.key === "lider")!.oQueFaco, DEFAULT_ROSTER.personagens[0].oQueFaco);
+  assert.equal(m.personagens.find((a) => a.key === "revisor")!.oQueFaco, "Leio e aprovo.");
+  assert.deepEqual(m.personagens.find((a) => a.key === "dev-3")!.responsabilidades, dev.responsabilidades);
   assert.equal(oQueFacoPadrao("papel-inventado").responsabilidades.length, 2);
 });

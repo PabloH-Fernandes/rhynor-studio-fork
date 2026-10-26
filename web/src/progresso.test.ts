@@ -10,10 +10,10 @@ test("texto do quadro: etapa, concluído, papel e de boa", () => {
 
   const fim = textoDoProgresso({ fonte: "tarefas", etapa: 5, total: 5, concluidas: 5, titulo: "" });
   assert.equal(fim.estado, "concluido");
-  assert.equal(fim.titulo, "AGzinhos concluíram 5 de 5");
+  assert.equal(fim.titulo, "Time concluiu 5 de 5");
 
-  assert.equal(textoDoProgresso({ fonte: "papel", etapa: 0, total: 0, concluidas: 0, titulo: "Construção" }).titulo, "AGzinhos em Construção");
-  assert.equal(textoDoProgresso({ fonte: "nada", etapa: 0, total: 0, concluidas: 0, titulo: "" }).titulo, "AGzinhos de boa");
+  assert.equal(textoDoProgresso({ fonte: "papel", etapa: 0, total: 0, concluidas: 0, titulo: "Construção" }).titulo, "Personagens em Construção");
+  assert.equal(textoDoProgresso({ fonte: "nada", etapa: 0, total: 0, concluidas: 0, titulo: "" }).titulo, "Time de boa");
 });
 
 test("barra de 10 segmentos: 4 de 7 enche 6; limites", () => {
@@ -25,6 +25,6 @@ test("barra de 10 segmentos: 4 de 7 enche 6; limites", () => {
 
 test("contagem \"N de N\" separada do título (não quebra no meio)", () => {
   assert.deepEqual(separarContagem("Time na Etapa 2 de 6"), { frase: "Time na Etapa ", contagem: "2 de 6" });
-  assert.deepEqual(separarContagem("AGzinhos concluíram 12 de 12"), { frase: "AGzinhos concluíram ", contagem: "12 de 12" });
-  assert.deepEqual(separarContagem("AGzinhos de boa"), { frase: "AGzinhos de boa", contagem: "" });
+  assert.deepEqual(separarContagem("Time concluiu 12 de 12"), { frase: "Time concluiu ", contagem: "12 de 12" });
+  assert.deepEqual(separarContagem("Time de boa"), { frase: "Time de boa", contagem: "" });
 });

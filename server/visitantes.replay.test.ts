@@ -173,7 +173,7 @@ test("reinício do servidor no meio da sessão: ninguém volta trabalhando e os 
   assert.equal(lista.filter((a) => a.status === "trabalhando" || a.status === "pensando").length, 0, "a ferramenta em andamento morreu com o processo");
   assert.equal(visitantes(state).length, 0, "visitante é passageiro: não é restaurado");
   assert.ok(lista.some((a) => !a.parentId), "líder restaurado");
-  assert.ok(lista.some((a) => a.agzinho === "dev"), "dev restaurado (de boa)");
+  assert.ok(lista.some((a) => a.personagem === "dev"), "dev restaurado (de boa)");
 });
 
 test("depois do reinício, evento tardio de visitante que sumiu não deixa ninguém preso (sai em 3 min)", () => {

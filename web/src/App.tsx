@@ -14,7 +14,7 @@ import { MiniRetrato } from "./components/MiniRetrato";
 import { Missoes } from "./components/Missoes";
 import { Progresso } from "./components/Progresso";
 import { Vestiario } from "./components/Vestiario";
-import { agzinhoOf } from "./office/engine";
+import { personagemOf } from "./office/engine";
 import { ATA_JANELA_MS, QUADRO_ATA, reuniaoDeAta } from "./office/reuniaoAta";
 import { SpriteGallery } from "./SpriteGallery";
 import { GALLERY_ENABLED } from "./office/gallery";
@@ -95,7 +95,7 @@ export default function App() {
   const revelado = useCallback(() => setRevelarId(null), []);
   const restLabel = useCallback((id: string) => officeRef.current?.restLabel(id) ?? null, []);
   const closeCracha = useCallback(() => setSelectedId(null), []);
-  /** key do AGzinho aberto no vestiário (null = fechado) */
+  /** key do Personagem aberto no vestiário (null = fechado) */
   const [vestiarioPara, setVestiarioPara] = useState<string | null>(null);
   const closeVestiario = useCallback(() => setVestiarioPara(null), []);
   const selectFromCanvas = useCallback((id: string | null) => {
@@ -188,7 +188,7 @@ export default function App() {
   const [visitantesAberto, alternarVisitantes] = usePreferencia("studio.painel.visitantes", false);
   const [feedAberto, alternarFeed] = usePreferencia("studio.painel.feed", true);
   const feedVisivel = useMemo(() => feed.filter((f) => !selectedId || f.agentId === selectedId), [feed, selectedId]);
-  // modo simples: repetições seguidas do mesmo AGzinho viram uma linha só, a mais nova em cima
+  // modo simples: repetições seguidas do mesmo Personagem viram uma linha só, a mais nova em cima
   const linhasSimples = useMemo(() => agruparFeed(feedVisivel).reverse().slice(0, 80), [feedVisivel]);
   // o aviso "te esperando" olha TODOS os agentes: o filtro de projeto não esconde um pedido seu
   const espera = useMemo(() => esperandoDe(list, projeto), [list, projeto]);
@@ -348,7 +348,7 @@ export default function App() {
                 className="btn ghost btn-vestiario"
                 aria-haspopup="dialog"
                 disabled={!roster}
-                onClick={() => roster && setVestiarioPara((selected && agzinhoOf(selected, roster)?.key) || roster.agzinhos[0].key)}
+                onClick={() => roster && setVestiarioPara((selected && personagemOf(selected, roster)?.key) || roster.personagens[0].key)}
               >
                 Vestiário
               </button>
@@ -460,7 +460,7 @@ export default function App() {
 }
 
 function AgentRow({ agent, roster, selected, onClick }: { agent: Agent; roster: Roster | null; selected: boolean; onClick: () => void }) {
-  const ag = agzinhoOf(agent, roster);
+  const ag = personagemOf(agent, roster);
   const cargo = ag?.cargo ?? "Visitante";
   // o mesmo nome curto do feed ("Bia"); o nome completo fica no crachá e no leitor de tela
   const curto = nomeCurto(agent.name, ag?.apelido);

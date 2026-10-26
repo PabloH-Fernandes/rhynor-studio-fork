@@ -1,6 +1,6 @@
 // Liga o roteiro da demonstração à tela. Só funciona com `?apresentacao=1&demo=1`.
 // Tudo que a demo mostra nas seções Caixa, Pendências e Resultados é fictício e vive só aqui no navegador.
-// O único pedido ao servidor é a simulação de AGzinhos que já existia (POST /api/demo), no passo 4.
+// O único pedido ao servidor é a simulação de Personagens que já existia (POST /api/demo), no passo 4.
 // Teclas: espaço pausa/continua o roteiro, seta para a direita avança o passo. A pausa vale só para o roteiro:
 // a simulação do servidor, depois que começa, não para.
 

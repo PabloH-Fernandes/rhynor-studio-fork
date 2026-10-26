@@ -8,7 +8,7 @@ function ag(id: string, o: Partial<CandidatoLiderAta> = {}): CandidatoLiderAta {
 }
 
 test("o líder da sessão apresenta a ata", () => {
-  const lista = [ag("ag:dev", { parentId: "s:1", role: "dev", startedAt: 1 }), ag("s:1", { startedAt: 500 })];
+  const lista = [ag("p:dev", { parentId: "s:1", role: "dev", startedAt: 1 }), ag("s:1", { startedAt: 500 })];
   assert.equal(escolherLiderDeAta(lista), "s:1");
 });
 
@@ -17,20 +17,20 @@ test("com mais de um líder, o mais antigo; empate pelo id", () => {
   assert.equal(escolherLiderDeAta([ag("s:b"), ag("s:a")]), "s:a");
 });
 
-test("sem líder livre, o AGzinho do time mais antigo", () => {
+test("sem líder livre, o Personagem do time mais antigo", () => {
   const lista = [
     ag("s:1", { status: "esperando" }),
-    ag("ag:dev", { parentId: "s:1", role: "dev", startedAt: 300 }),
-    ag("ag:revisor", { parentId: "s:1", role: "revisor", startedAt: 200 }),
+    ag("p:dev", { parentId: "s:1", role: "dev", startedAt: 300 }),
+    ag("p:revisor", { parentId: "s:1", role: "revisor", startedAt: 200 }),
   ];
-  assert.equal(escolherLiderDeAta(lista), "ag:revisor");
+  assert.equal(escolherLiderDeAta(lista), "p:revisor");
 });
 
 test("quem espera uma permissão, quem está saindo e visitante não apresentam", () => {
   const lista = [
     ag("s:1", { status: "esperando" }),
     ag("s:2", { status: "saindo" }),
-    ag("ag:convidado", { parentId: "s:1", role: "convidado" }),
+    ag("p:convidado", { parentId: "s:1", role: "convidado" }),
   ];
   assert.equal(escolherLiderDeAta(lista), null);
   assert.equal(escolherLiderDeAta([]), null);

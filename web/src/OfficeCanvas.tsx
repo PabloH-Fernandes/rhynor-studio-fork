@@ -6,9 +6,9 @@ import { type Camera, type Fit, Z_MAX, Z_MIN, clampCamera, fitCamera, rubberBand
 
 export interface OfficeHandle {
   chat: (fromId: string, toId: string, text: string) => void;
-  /** o que o AGzinho está fazendo no descanso ("Tomando café"...), ou null se não está descansando */
+  /** o que o Personagem está fazendo no descanso ("Tomando café"...), ou null se não está descansando */
   restLabel: (id: string) => string | null;
-  /** algum AGzinho está sentado digitando (alimenta o som do teclado) */
+  /** algum Personagem está sentado digitando (alimenta o som do teclado) */
   alguemDigitando: () => boolean;
 }
 
@@ -21,7 +21,7 @@ interface Props {
   reuniao: ReuniaoAtiva | null;
   /** nome da missão que nasceu da reunião (vai pro quadro da parede) */
   missao: string | null;
-  /** quantas pendências estão atrasadas: com 1 ou mais, um AGzinho de boa segura a plaquinha de aviso */
+  /** quantas pendências estão atrasadas: com 1 ou mais, um Personagem de boa segura a plaquinha de aviso */
   atrasadas: number;
   /** modo apresentação: o escritório ocupa todo o palco em escala fracionada (sem os degraus de escala inteira) */
   ampliar?: boolean;

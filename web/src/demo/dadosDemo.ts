@@ -1,6 +1,6 @@
 // Dados 100% fictícios da demonstração (lógica pura, sem React). Nomes inventados: nada daqui vem do vault.
 // Vivem só no navegador e substituem, na tela, os dados do servidor nas seções Caixa, Pendências e Resultados.
-// A demo NUNCA escreve no vault: o único pedido ao servidor é a simulação de AGzinhos (POST /api/demo).
+// A demo NUNCA escreve no vault: o único pedido ao servidor é a simulação de Personagens (POST /api/demo).
 
 import type { CaixaAcao, CaixaItem, Pendencia } from "../../../shared/types";
 import type { Periodos, Resultados } from "../../../shared/resultados";

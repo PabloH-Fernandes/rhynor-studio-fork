@@ -2,11 +2,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEFAULT_ROSTER } from "../../../shared/roster";
-import type { Acessorio, AGzinho, Roster } from "../../../shared/types";
+import type { Acessorio, Personagem, Roster } from "../../../shared/types";
 import {
   acessorioDaCamada,
   acessoriosPorCamada,
-  agzinhoDe,
+  personagemDe,
   aplicarRascunhos,
   chavesSujas,
   conflitos,
@@ -16,7 +16,7 @@ import {
   errosPorCampo,
   lerErro,
   mensagemDeErro,
-  mesmoAGzinho,
+  mesmoPersonagem,
   opcoesDestaque,
   prepararEnvio,
   regraRoupa,
@@ -28,7 +28,7 @@ import {
 
 
 const elenco = (): Roster => structuredClone(DEFAULT_ROSTER);
-const ag = (r: Roster, key: string): AGzinho => structuredClone(agzinhoDe(r, key)!);
+const ag = (r: Roster, key: string): Personagem => structuredClone(personagemDe(r, key)!);
 
 describe("roupa e destaque", () => {
   it("roupa única vira texto com a regra", () => {
@@ -88,17 +88,17 @@ describe("rascunhos, sujo e envio", () => {
     const base = elenco();
     const davi = ag(base, "documentador");
     davi.acessorios = [...davi.acessorios].reverse();
-    assert.ok(mesmoAGzinho(davi, agzinhoDe(base, "documentador")));
+    assert.ok(mesmoPersonagem(davi, personagemDe(base, "documentador")));
     assert.deepEqual(chavesSujas(base, { documentador: davi }), []);
   });
 
-  it("muda só o AGzinho editado e mantém o resto", () => {
+  it("muda só o Personagem editado e mantém o resto", () => {
     const base = elenco();
     const bia = { ...ag(base, "dev"), apelido: " bea " };
     assert.deepEqual(chavesSujas(base, { dev: bia }), ["dev"]);
     const novo = aplicarRascunhos(base, { dev: bia });
-    assert.equal(agzinhoDe(novo, "dev")?.apelido, "BEA");
-    assert.equal(agzinhoDe(novo, "lider"), agzinhoDe(base, "lider"));
+    assert.equal(personagemDe(novo, "dev")?.apelido, "BEA");
+    assert.equal(personagemDe(novo, "lider"), personagemDe(base, "lider"));
   });
 
   it("prepararEnvio valida (apelido vazio) e aceita um visual novo", () => {
@@ -112,12 +112,12 @@ describe("rascunhos, sujo e envio", () => {
   it("voltar ao padrão copia só o visual e os nomes", () => {
     const base = elenco();
     const mudado = { ...ag(base, "dev"), nome: "Outra", acessorios: ["caneca" as const], falas: ["a", "b", "c"] };
-    const volta = copiarVisual(mudado, agzinhoDe(DEFAULT_ROSTER, "dev")!);
+    const volta = copiarVisual(mudado, personagemDe(DEFAULT_ROSTER, "dev")!);
     assert.equal(volta.nome, "Beatriz Lima");
     assert.deepEqual(volta.acessorios, ["headset"]);
     assert.deepEqual(volta.falas, ["a", "b", "c"]);
     // destaque ausente no padrão some do rascunho
-    const guto = copiarVisual({ ...ag(base, "dev"), destaque: "blazer-cinza" }, agzinhoDe(DEFAULT_ROSTER, "dev")!);
+    const guto = copiarVisual({ ...ag(base, "dev"), destaque: "blazer-cinza" }, personagemDe(DEFAULT_ROSTER, "dev")!);
     assert.equal("destaque" in guto, false);
   });
 
@@ -132,8 +132,8 @@ describe("rascunhos, sujo e envio", () => {
   it("conflito só onde o outro navegador mudou algo que você editou", () => {
     const base = elenco();
     const remoto = elenco();
-    agzinhoDe(remoto, "dev")!.apelido = "BI";
-    agzinhoDe(remoto, "lider")!.apelido = "GUGU";
+    personagemDe(remoto, "dev")!.apelido = "BI";
+    personagemDe(remoto, "lider")!.apelido = "GUGU";
     const rascunhos = { dev: { ...ag(base, "dev"), nome: "Bia L." }, testador: { ...ag(base, "testador"), nome: "Rafa M." } };
     assert.deepEqual(conflitos(base, remoto, rascunhos), ["dev"]);
     assert.deepEqual(conflitos(base, remoto, {}), []);
@@ -142,15 +142,15 @@ describe("rascunhos, sujo e envio", () => {
 
 describe("erros", () => {
   it("lê key, campo e texto do erro da validação", () => {
-    const e = lerErro("agzinhos[3] (dev).apelido: precisa ter de 1 a 6 caracteres");
+    const e = lerErro("personagens[3] (dev).apelido: precisa ter de 1 a 6 caracteres");
     assert.deepEqual([e.key, e.campo, e.texto], ["dev", "apelido", "precisa ter de 1 a 6 caracteres"]);
-    assert.equal(lerErro("agzinhos[0] (x).cabelo.cor: cor inválida").campo, "cabelo.cor");
-    assert.equal(lerErro("agzinhos[0] (x).acessorios[2]: acessório desconhecido").campo, "acessorios");
+    assert.equal(lerErro("personagens[0] (x).cabelo.cor: cor inválida").campo, "cabelo.cor");
+    assert.equal(lerErro("personagens[0] (x).acessorios[2]: acessório desconhecido").campo, "acessorios");
     assert.equal(lerErro("key repetida: dev").campo, undefined);
   });
 
   it("agrupa por campo e escreve a frase com o apelido", () => {
-    const erros = ["agzinhos[3] (dev).apelido: precisa ter de 1 a 6 caracteres", "agzinhos[0] (lider).nome: precisa ser texto"];
+    const erros = ["personagens[3] (dev).apelido: precisa ter de 1 a 6 caracteres", "personagens[0] (lider).nome: precisa ser texto"];
     assert.deepEqual(errosPorCampo(erros, "dev"), { apelido: ["precisa ter de 1 a 6 caracteres"] });
     assert.equal(mensagemDeErro(erros[0], elenco()), "BIA · Apelido: precisa ter de 1 a 6 caracteres");
   });
@@ -173,7 +173,7 @@ describe('"O que eu faço" do crachá', () => {
     const base = elenco();
     const bom = prepararEnvio(base, { dev: { ...ag(base, "dev"), oQueFaco: "  Faço o programa.  ", responsabilidades: [" mudar ", "", "consertar"] } });
     assert.ok(bom.ok, !bom.ok ? bom.erros.join(" | ") : "");
-    const bia = agzinhoDe(bom.roster, "dev")!;
+    const bia = personagemDe(bom.roster, "dev")!;
     assert.equal(bia.oQueFaco, "Faço o programa.");
     assert.deepEqual(bia.responsabilidades, ["mudar", "consertar"]);
     const ruim = prepararEnvio(base, { dev: { ...ag(base, "dev"), responsabilidades: ["só uma", "  "] } });
@@ -186,7 +186,7 @@ describe('"O que eu faço" do crachá', () => {
     const dev = ag(base, "dev");
     assert.deepEqual(chavesSujas(base, { dev: { ...dev, responsabilidades: [...dev.responsabilidades, ""] } }), []);
     assert.deepEqual(chavesSujas(base, { dev: { ...dev, oQueFaco: "Outra frase." } }), ["dev"]);
-    const volta = copiarVisual({ ...dev, oQueFaco: "Outra frase.", responsabilidades: ["a", "b"] }, agzinhoDe(DEFAULT_ROSTER, "dev")!);
+    const volta = copiarVisual({ ...dev, oQueFaco: "Outra frase.", responsabilidades: ["a", "b"] }, personagemDe(DEFAULT_ROSTER, "dev")!);
     assert.equal(volta.oQueFaco, dev.oQueFaco);
     assert.deepEqual(volta.responsabilidades, dev.responsabilidades);
   });

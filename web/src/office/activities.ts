@@ -84,7 +84,7 @@ export const PARTNER_WAIT_MS = 8000;
 export const PAPO_RADIUS_PX = 200;
 /** chance (a cada CHECK_MS) de um livre com parceiro livre formar ping-pong/papo, antes do sorteio normal */
 export const GROUP_ON_FREE_CHANCE = 0.3;
-/** papo: uma fala a cada 6–8 s, revezando (o motor ainda segura 12 s por AGzinho) */
+/** papo: uma fala a cada 6–8 s, revezando (o motor ainda segura 12 s por Personagem) */
 export const PAPO_LINE_MIN_MS = 6000;
 export const PAPO_LINE_MAX_MS = 8000;
 /** tile em px base (as posições dos atores vêm em px; as dos lugares, em tiles) */
@@ -193,7 +193,7 @@ export interface RestActor {
   /** posição em px base (o papo chama parceiros por perto) */
   x: number;
   y: number;
-  /** falas do AGzinho pro bate-papo (sem falas: entra no papo, mas só escuta) */
+  /** falas do Personagem pro bate-papo (sem falas: entra no papo, mas só escuta) */
   falas?: readonly string[];
 }
 

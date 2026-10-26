@@ -95,7 +95,7 @@ test("agentes, feed, caixa, pendências, missões e quadro: nenhuma substring or
   ];
   const ags = mascararAgentes(p, agentes);
   semOriginais(ags);
-  assert.equal(ags[0].name, "Beatriz Lima", "o nome do AGzinho é do elenco: não muda");
+  assert.equal(ags[0].name, "Beatriz Lima", "o nome do Personagem é do elenco: não muda");
   assert.equal(ags[0].activitySimples, "Fazendo mudanças no sistema");
   assert.equal(ags[0].project, ags[1].project, "mesmo projeto, mesmo apelido");
   assert.ok(ags[0].activity.startsWith("Editando "));

@@ -1083,15 +1083,15 @@ function passoPlugins(ctx, L, cat) {
 }
 
 function passoDados(ctx, L) {
-  L.titulo("11. Elenco (data/agzinhos.json)");
-  const alvo = path.join(ROOT, "data", "agzinhos.json");
-  const exemplo = path.join(ROOT, "data", "agzinhos.example.json");
-  if (fs.existsSync(alvo)) return L.ja("data/agzinhos.json", ", não sobrescrevo");
-  if (!fs.existsSync(exemplo)) return L.aviso("data/agzinhos.example.json não existe; nada a copiar");
-  if (ctx.flags.check) return L.aviso("data/agzinhos.json ainda não existe (o setup cria a partir do exemplo)");
-  if (ctx.flags.dryRun) return L.faria("copiar data/agzinhos.example.json para data/agzinhos.json");
+  L.titulo("11. Elenco (data/elenco.json)");
+  const alvo = path.join(ROOT, "data", "elenco.json");
+  const exemplo = path.join(ROOT, "data", "elenco.example.json");
+  if (fs.existsSync(alvo)) return L.ja("data/elenco.json", ", não sobrescrevo");
+  if (!fs.existsSync(exemplo)) return L.aviso("data/elenco.example.json não existe; nada a copiar");
+  if (ctx.flags.check) return L.aviso("data/elenco.json ainda não existe (o setup cria a partir do exemplo)");
+  if (ctx.flags.dryRun) return L.faria("copiar data/elenco.example.json para data/elenco.json");
   fs.copyFileSync(exemplo, alvo);
-  L.instalou("data/agzinhos.json");
+  L.instalou("data/elenco.json");
 }
 
 function passoBuild(ctx, L) {

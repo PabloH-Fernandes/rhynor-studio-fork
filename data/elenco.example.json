@@ -1,7 +1,7 @@
 {
   "versao": 1,
   "atualizadoEm": "2026-10-03T00:00:00.000Z",
-  "agzinhos": [
+  "personagens": [
     {
       "key": "lider",
       "papel": "lider",
@@ -20,7 +20,7 @@
         "relogio"
       ],
       "cordao": "#F2C14E",
-      "matricula": "AG-0001",
+      "matricula": "RH-0001",
       "personalidade": "calmo, decidido, gentil",
       "falas": [
         "Bora alinhar rapidinho?",
@@ -52,7 +52,7 @@
         "prancheta"
       ],
       "cordao": "#9B82FF",
-      "matricula": "AG-0002",
+      "matricula": "RH-0002",
       "personalidade": "organizada, metódica, otimista",
       "falas": [
         "Já anotei no quadro!",
@@ -84,7 +84,7 @@
         "oculos"
       ],
       "cordao": "#E2BD3C",
-      "matricula": "AG-0003",
+      "matricula": "RH-0003",
       "personalidade": "curioso, detalhista, falante",
       "falas": [
         "Li um artigo ótimo!",
@@ -116,7 +116,7 @@
         "headset"
       ],
       "cordao": "#3FBF86",
-      "matricula": "AG-0004",
+      "matricula": "RH-0004",
       "personalidade": "focada, criativa, bem-humorada",
       "falas": [
         "Compilou de primeira!",
@@ -148,7 +148,7 @@
         "relogio"
       ],
       "cordao": "#2EC4B6",
-      "matricula": "AG-0005",
+      "matricula": "RH-0005",
       "personalidade": "cuidadoso, paciente, cético",
       "falas": [
         "Rodei 3 vezes, passou.",
@@ -181,7 +181,7 @@
         "oculos"
       ],
       "cordao": "#EF5F7B",
-      "matricula": "AG-0006",
+      "matricula": "RH-0006",
       "personalidade": "criteriosa, sincera, gentil",
       "falas": [
         "Ficou bem legível!",
@@ -214,7 +214,7 @@
         "barba"
       ],
       "cordao": "#5AAEF0",
-      "matricula": "AG-0007",
+      "matricula": "RH-0007",
       "personalidade": "didático, calmo, caprichoso",
       "falas": [
         "Já tá no README!",
@@ -247,7 +247,7 @@
         "headset"
       ],
       "cordao": "#A6D854",
-      "matricula": "AG-0008",
+      "matricula": "RH-0008",
       "personalidade": "animada, rápida, prática",
       "falas": [
         "Pareando com a Bia!",
@@ -280,7 +280,7 @@
         "prancheta"
       ],
       "cordao": "#D98FD3",
-      "matricula": "AG-0009",
+      "matricula": "RH-0009",
       "personalidade": "tranquilo, observador, nerd",
       "falas": [
         "Achei a fonte original!",
@@ -316,7 +316,7 @@
         "capacete-branco"
       ],
       "cordao": "#B7A58C",
-      "matricula": "AG-0010",
+      "matricula": "RH-0010",
       "personalidade": "aventureira, rápida, sorridente",
       "falas": [
         "Já vasculhei tudo!",
@@ -352,7 +352,7 @@
         "colete"
       ],
       "cordao": "#A3A8B5",
-      "matricula": "AG-0011",
+      "matricula": "RH-0011",
       "personalidade": "prestativo, versátil, tranquilo",
       "falas": [
         "Precisa de mão aí?",
@@ -389,7 +389,7 @@
         "caneca"
       ],
       "cordao": "#8A9A5B",
-      "matricula": "AG-0012",
+      "matricula": "RH-0012",
       "personalidade": "gentil, estratégica, curiosa",
       "falas": [
         "Posso dar uma ideia?",

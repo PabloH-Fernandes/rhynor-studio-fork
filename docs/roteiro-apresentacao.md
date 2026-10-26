@@ -18,7 +18,7 @@ Demonstração automática do escritório, para quem não é de TI. Dura uns 3 m
 | `→` | Pula para o próximo passo |
 | `F` | Liga e desliga a tela cheia |
 
-A pausa vale só para o roteiro. Os AGzinhos do passo 4 são uma simulação do servidor e **não param** quando você pausa.
+A pausa vale só para o roteiro. Os personagens do passo 4 são uma simulação do servidor e **não param** quando você pausa.
 
 ## O que falar em cada passo
 
@@ -59,4 +59,4 @@ Na apresentação, o conteúdo de conversas entre agentes, descrições de taref
 
 **Numa apresentação de verdade, o ideal é usar um vault fictício** (por exemplo, um vault de teste com `npm run ata-ficticia`), e não o seu vault de trabalho.
 
-Os dados da demo (a ata "Planejamento da Loja Aurora", as tarefas, as pendências e os números) são inventados, ficam só no navegador e não são gravados no vault. O único pedido que a demo faz ao servidor é iniciar a simulação de AGzinhos.
+Os dados da demo (a ata "Planejamento da Loja Aurora", as tarefas, as pendências e os números) são inventados, ficam só no navegador e não são gravados no vault. O único pedido que a demo faz ao servidor é iniciar a simulação de personagens.

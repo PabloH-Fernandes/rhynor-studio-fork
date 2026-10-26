@@ -1,5 +1,5 @@
 // Animação de "ata nova": quando o servidor lê uma ata, o painel monta uma reunião local de poucos segundos
-// (os AGzinhos livres sentam na mesa, um deles apresenta) sem mexer no motor do escritório: é só uma
+// (os Personagens livres sentam na mesa, um deles apresenta) sem mexer no motor do escritório: é só uma
 // ReuniaoAtiva local passada ao OfficeCanvas. Função pura, sem canvas.
 
 import type { AgentStatus, ReuniaoAtiva } from "../../../shared/types";
@@ -21,7 +21,7 @@ export interface CandidatoLiderAta {
 }
 
 /**
- * Quem apresenta a ata: o líder (a sessão principal) se estiver livre para isso; senão o AGzinho do time
+ * Quem apresenta a ata: o líder (a sessão principal) se estiver livre para isso; senão o Personagem do time
  * mais antigo no escritório. Quem espera uma permissão ("te esperando"), quem está saindo e visitante
  * não apresentam. Sem ninguém elegível devolve null (não há reunião).
  */

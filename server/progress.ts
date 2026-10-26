@@ -321,7 +321,7 @@ export class ProgressTracker {
     const expira = s.todos ? [] : [...s.pendentes.values()].map((p) => p.at + PENDENTE_MS).filter((t) => t > now);
     const proxima = expira.length ? Math.min(...expira) : undefined;
     if (concluidas === total) {
-      // concluída: "AGzinhos concluíram N de N" por um tempo, depois volta pra fase ou "de boa"
+      // concluída: "Time concluiu N de N" por um tempo, depois volta pra fase ou "de boa"
       const ate = (s.doneAt ?? s.lastAt) + DONE_HOLD_MS;
       if (now >= ate) return null;
       return { progress: { fonte: "tarefas", etapa: total, total, concluidas, titulo: "", sessionId }, proximaMudanca: ate };

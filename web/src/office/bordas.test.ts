@@ -2,13 +2,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEFAULT_ROSTER, LIMITS, validateRoster } from "../../../shared/roster";
-import type { AGzinho, Roster } from "../../../shared/types";
+import type { Personagem, Roster } from "../../../shared/types";
 import { numeroNoPapel, rotuloDaMesa, rotuloQueCabe } from "./deskLabel";
 import { aplicarRascunhos, chavesSujas, copiarVisual, prepararEnvio, trocarResponsabilidade } from "../components/vestiarioLogic";
 
-const com = (key: string, fn: (a: AGzinho) => void): Roster => {
+const com = (key: string, fn: (a: Personagem) => void): Roster => {
   const r = structuredClone(DEFAULT_ROSTER);
-  fn(r.agzinhos.find((a) => a.key === key)!);
+  fn(r.personagens.find((a) => a.key === key)!);
   return r;
 };
 const ok = (r: Roster) => validateRoster(r).ok;
@@ -33,7 +33,7 @@ describe("O que eu faço: limites", () => {
 });
 
 describe("vestiário: Desfazer, Voltar ao padrão, Esc (lógica)", () => {
-  const dev = () => structuredClone(DEFAULT_ROSTER.agzinhos.find((a) => a.key === "dev")!);
+  const dev = () => structuredClone(DEFAULT_ROSTER.personagens.find((a) => a.key === "dev")!);
   it("alterar só os campos novos suja; apagar o rascunho (Desfazer/Esc) limpa", () => {
     const sujo = { ...dev(), oQueFaco: "Outra." };
     assert.deepEqual(chavesSujas(DEFAULT_ROSTER, { dev: sujo }), ["dev"]);
@@ -51,7 +51,7 @@ describe("vestiário: Desfazer, Voltar ao padrão, Esc (lógica)", () => {
     const comVazia = { ...dev(), responsabilidades: [...dev().responsabilidades.slice(0, 2), "  "] };
     const env = prepararEnvio(DEFAULT_ROSTER, { dev: comVazia });
     assert.ok(env.ok);
-    assert.equal(aplicarRascunhos(DEFAULT_ROSTER, { dev: comVazia }).agzinhos.find((a) => a.key === "dev")!.responsabilidades.length, 2);
+    assert.equal(aplicarRascunhos(DEFAULT_ROSTER, { dev: comVazia }).personagens.find((a) => a.key === "dev")!.responsabilidades.length, 2);
   });
   it("apagar a frase ou ficar com 1 item bloqueia o envio", () => {
     assert.ok(!prepararEnvio(DEFAULT_ROSTER, { dev: { ...dev(), oQueFaco: "   " } }).ok);
@@ -60,7 +60,7 @@ describe("vestiário: Desfazer, Voltar ao padrão, Esc (lógica)", () => {
 });
 
 describe("plaquinhas: 2 devs + 2 pesquisadores + visitante extra juntos", () => {
-  const ag = DEFAULT_ROSTER.agzinhos;
+  const ag = DEFAULT_ROSTER.personagens;
   const mesas = [
     rotuloDaMesa("dev", { papel: "dev", numero: numeroNoPapel(ag, "dev") }),
     rotuloDaMesa("convidado", { papel: "dev", numero: numeroNoPapel(ag, "dev-2") }),
