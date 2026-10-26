@@ -14,21 +14,19 @@ const m = (a: NomeCor, b: NomeCor, t: number) => misturar(a, b, t);
 /**
  * Paleta do canvas, toda derivada dos tokens da marca (web/src/marca/tokens.css): cada folha é lida
  * na hora do uso (e memorizada até os tokens mudarem), então nada aqui roda antes do CSS carregar.
- * Os nomes são os de sempre (o escritório lê `palette.white`, `palette.navy900`...); o comentário
+ * Os nomes seguem os tokens (`palette.noite`, `palette.superficie`, `palette.ardosia`...); o comentário
  * diz o papel de cada um.
  */
 const ESPEC = {
-  navy950: () => cor("rh-noite"), // contorno, sapatos, tinta escura
-  suit: () => m("rh-noite", "rh-ardosia", 0.45), // tom escuro de roupa
-  navy900: () => cor("rh-superficie"), // placa, lambril, painéis
-  navy850: () => cor("rh-ardosia"), // ardósia
-  navy800: () => m("rh-superficie", "rh-ardosia", 0.5), // calças, filetes, moldura dos monitores
-  navy700: () => cor("rh-ardosia"), // placas e tapete
-  navy600: () => cor("rh-borda"), // bordas
-  navy600Hover: () => m("rh-borda", "rh-aco", 0.25),
-  navy500: () => m("rh-borda", "rh-aco", 0.45), // ícones e detalhes
-  navy300: () => cor("rh-aco"), // texto secundário
-  navy100: () => cor("rh-nevoa"), // balão de chat
+  noite: () => cor("rh-noite"), // contorno, sapatos, tinta escura
+  noiteArdosia: () => m("rh-noite", "rh-ardosia", 0.45), // tom escuro de roupa
+  superficie: () => cor("rh-superficie"), // placa, lambril, painéis
+  superficieArdosia: () => m("rh-superficie", "rh-ardosia", 0.5), // calças, filetes, moldura dos monitores
+  ardosia: () => cor("rh-ardosia"), // placas e tapete
+  borda: () => cor("rh-borda"), // bordas
+  bordaAco: () => m("rh-borda", "rh-aco", 0.45), // ícones e detalhes
+  aco: () => cor("rh-aco"), // texto secundário
+  nevoa: () => cor("rh-nevoa"), // balão de chat
   line: () => cor("rh-borda"),
   feedTime: () => cor("rh-texto-suave"),
   white: () => cor("rh-nevoa"),
@@ -52,7 +50,7 @@ const ESPEC = {
     ok: () => cor("rh-ok"),
     think: () => cor("rh-aco"),
     alert: () => cor("rh-alerta"),
-    /** brilho da mesa de quem está trabalhando agora (o único laranja do escritório) */
+    /** contorno da mesa de quem está trabalhando agora (laranja da marca, como o cordão dos crachás) */
     active: () => cor("rh-laranja"),
     activeGlow: () => cor("rh-brasa"),
   },
@@ -111,13 +109,8 @@ const ESPEC = {
     cloudShade: () => m("rh-nevoa", "rh-aco", 0.45),
     /** nuvem no amanhecer/entardecer (misturada pela força do "dusk") */
     cloudDusk: () => m("rh-aco", "rh-brasa", 0.3),
-    craneLightOff: () => m("rh-alerta", "rh-noite", 0.6),
-    paintingSky: () => m("rh-aco", "rh-nevoa", 0.5),
-    paintingHaze: () => cor("rh-nevoa"),
-    blueprint: () => cor("rh-aco"),
-    /** base verde (vaso grande, detalhes) */
-    maquette: () => cor("rh-pixel-folha"),
-    maquetteShade: () => m("rh-pixel-folha", "rh-noite", 0.25),
+    antennaOff: () => m("rh-alerta", "rh-noite", 0.6),
+    posterSky: () => m("rh-aco", "rh-nevoa", 0.5),
   },
   /** piso em placas de ardósia */
   floor: {
@@ -160,7 +153,7 @@ export const palette = arvore(ESPEC);
 export type Palette = typeof palette;
 
 /** ardósia com alpha: sombras e tela de proteção */
-export const navyAlpha = (a: number) => comAlfa("rh-ardosia", a);
+export const ardosiaAlpha = (a: number) => comAlfa("rh-ardosia", a);
 
 /** noite com alpha: fundo da etiqueta de nome */
 export const inkAlpha = (a: number) => comAlfa("rh-noite", a);
@@ -227,11 +220,11 @@ const colors = derivada(
     floorB: palette.floor.tileB,
     floorLine: palette.floor.joint,
     rug: m("rh-ardosia", "rh-noite", 0.25),
-    rugBorder: palette.navy900,
+    rugBorder: palette.superficie,
     wall: palette.gray100,
     wallJoint: palette.decor.wallJoint,
-    wainscot: palette.navy900,
-    wainscotTop: palette.navy800,
+    wainscot: palette.superficie,
+    wainscotTop: palette.superficieArdosia,
     trim: cor("rh-aco"),
     wallShadow: comAlfa("rh-noite", 0.16),
     wood: palette.furniture.wood,
@@ -239,7 +232,7 @@ const colors = derivada(
     woodLight: palette.furniture.woodLight,
     sign: cor("rh-noite"),
     signText: cor("rh-nevoa"),
-    outline: palette.navy950,
+    outline: palette.noite,
   }),
 );
 
@@ -284,13 +277,13 @@ function visual(roupa: Roupa, corRoupa: string, corCalca: string, corInterna: st
     accent: cor("rh-laranja"),
     visitor,
     pants: corDoId(CORES_ROUPA, corCalca),
-    shoes: palette.navy950,
+    shoes: palette.noite,
   };
 }
 
 /** Visual de um Personagem do elenco: a roupa e as cores dele, cordão laranja, crachá de visitante se for convidado. */
-export function visualDoPersonagem(ag: Personagem): Visual {
-  return visual(ag.roupa, ag.corRoupa, ag.corCalca, ag.corInterna, ag.destaque === "cracha-visitante");
+export function visualDoPersonagem(pers: Personagem): Visual {
+  return visual(pers.roupa, pers.corRoupa, pers.corCalca, pers.corInterna, pers.destaque === "cracha-visitante");
 }
 
 /** roupa de quem não está no elenco (visitante extra ou sem elenco), sorteada de forma fixa pelo hash */

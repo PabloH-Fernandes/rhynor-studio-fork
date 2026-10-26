@@ -28,7 +28,7 @@ import {
 
 
 const elenco = (): Roster => structuredClone(DEFAULT_ROSTER);
-const ag = (r: Roster, key: string): Personagem => structuredClone(personagemDe(r, key)!);
+const pers = (r: Roster, key: string): Personagem => structuredClone(personagemDe(r, key)!);
 
 describe("roupa e destaque", () => {
   it("só camisa aberta e jaqueta mostram a camiseta de baixo", () => {
@@ -43,13 +43,13 @@ describe("roupa e destaque", () => {
   });
 
   it("trocar roupa acerta a camiseta de baixo e mantém o crachá do convidado", () => {
-    const helo = ag(elenco(), "lider"); // jaqueta com camiseta névoa
+    const helo = pers(elenco(), "lider"); // jaqueta com camiseta névoa
     const moletom = trocarRoupa(helo, "moletom");
     assert.equal(moletom.corInterna, undefined);
     assert.equal(trocarRoupa(moletom, "camisa-aberta").corInterna, "nevoa");
     assert.equal(trocarRoupa({ ...helo, corInterna: "vinho" }, "camisa-aberta").corInterna, "vinho");
-    assert.equal(trocarRoupa({ ...ag(elenco(), "dev"), destaque: "cracha-visitante" }, "sueter").destaque, undefined);
-    assert.equal(trocarRoupa(ag(elenco(), "explore"), "jaqueta").destaque, "cracha-visitante");
+    assert.equal(trocarRoupa({ ...pers(elenco(), "dev"), destaque: "cracha-visitante" }, "sueter").destaque, undefined);
+    assert.equal(trocarRoupa(pers(elenco(), "explore"), "jaqueta").destaque, "cracha-visitante");
   });
 });
 
@@ -79,17 +79,17 @@ describe("acessórios por camada", () => {
 
 describe("gênero e cargo", () => {
   it("trocar o gênero troca o cargo", () => {
-    const kaua = ag(elenco(), "dev");
+    const kaua = pers(elenco(), "dev");
     assert.equal(trocarGenero(kaua, "feminino").cargo, "Desenvolvedora");
-    assert.equal(trocarGenero(ag(elenco(), "lider"), "feminino").cargo, "Líder");
-    assert.equal(trocarGenero(ag(elenco(), "explore"), "feminino").cargo, "Exploradora");
+    assert.equal(trocarGenero(pers(elenco(), "lider"), "feminino").cargo, "Líder");
+    assert.equal(trocarGenero(pers(elenco(), "explore"), "feminino").cargo, "Exploradora");
   });
 });
 
 describe("rascunhos, sujo e envio", () => {
   it("rascunho igual ao salvo não está sujo, mesmo com acessórios em outra ordem", () => {
     const base = elenco();
-    const otto = ag(base, "planejador");
+    const otto = pers(base, "planejador");
     otto.acessorios = [...otto.acessorios].reverse();
     assert.ok(mesmoPersonagem(otto, personagemDe(base, "planejador")));
     assert.deepEqual(chavesSujas(base, { planejador: otto }), []);
@@ -97,7 +97,7 @@ describe("rascunhos, sujo e envio", () => {
 
   it("muda só o Personagem editado e mantém o resto", () => {
     const base = elenco();
-    const kaua = { ...ag(base, "dev"), apelido: " kau " };
+    const kaua = { ...pers(base, "dev"), apelido: " kau " };
     assert.deepEqual(chavesSujas(base, { dev: kaua }), ["dev"]);
     const novo = aplicarRascunhos(base, { dev: kaua });
     assert.equal(personagemDe(novo, "dev")?.apelido, "KAU");
@@ -106,21 +106,21 @@ describe("rascunhos, sujo e envio", () => {
 
   it("prepararEnvio valida (apelido vazio) e aceita um visual novo", () => {
     const base = elenco();
-    const ruim = prepararEnvio(base, { dev: { ...ag(base, "dev"), apelido: "  " } });
+    const ruim = prepararEnvio(base, { dev: { ...pers(base, "dev"), apelido: "  " } });
     assert.equal(ruim.ok, false);
-    const bom = prepararEnvio(base, { "general-purpose": { ...ag(base, "general-purpose"), acessorios: ["gorro", "cachecol"], roupa: "moletom", corInterna: undefined } });
+    const bom = prepararEnvio(base, { "general-purpose": { ...pers(base, "general-purpose"), acessorios: ["gorro", "cachecol"], roupa: "moletom", corInterna: undefined } });
     assert.ok(bom.ok);
   });
 
   it("voltar ao padrão copia só o visual e os nomes", () => {
     const base = elenco();
-    const mudado = { ...ag(base, "dev"), nome: "Outra", acessorios: ["caneca" as const], falas: ["a", "b", "c"] };
+    const mudado = { ...pers(base, "dev"), nome: "Outra", acessorios: ["caneca" as const], falas: ["a", "b", "c"] };
     const volta = copiarVisual(mudado, personagemDe(DEFAULT_ROSTER, "dev")!);
     assert.equal(volta.nome, "Kauã Moreira");
     assert.deepEqual(volta.acessorios, ["headset"]);
     assert.deepEqual(volta.falas, ["a", "b", "c"]);
     // destaque ausente no padrão some do rascunho
-    const voltou = copiarVisual({ ...ag(base, "dev"), destaque: "cracha-visitante", corInterna: "vinho" }, personagemDe(DEFAULT_ROSTER, "dev")!);
+    const voltou = copiarVisual({ ...pers(base, "dev"), destaque: "cracha-visitante", corInterna: "vinho" }, personagemDe(DEFAULT_ROSTER, "dev")!);
     assert.equal("destaque" in voltou, false);
     assert.equal("corInterna" in voltou, false);
   });
@@ -138,7 +138,7 @@ describe("rascunhos, sujo e envio", () => {
     const remoto = elenco();
     personagemDe(remoto, "dev")!.apelido = "KA";
     personagemDe(remoto, "lider")!.apelido = "HELO";
-    const rascunhos = { dev: { ...ag(base, "dev"), nome: "Kauã M." }, testador: { ...ag(base, "testador"), nome: "Érica N." } };
+    const rascunhos = { dev: { ...pers(base, "dev"), nome: "Kauã M." }, testador: { ...pers(base, "testador"), nome: "Érica N." } };
     assert.deepEqual(conflitos(base, remoto, rascunhos), ["dev"]);
     assert.deepEqual(conflitos(base, remoto, {}), []);
   });
@@ -175,19 +175,19 @@ describe('"O que eu faço" do crachá', () => {
 
   it("envio: frase e itens sem espaço nas pontas, caixa vazia some; menos de 2 itens é recusado", () => {
     const base = elenco();
-    const bom = prepararEnvio(base, { dev: { ...ag(base, "dev"), oQueFaco: "  Faço o programa.  ", responsabilidades: [" mudar ", "", "consertar"] } });
+    const bom = prepararEnvio(base, { dev: { ...pers(base, "dev"), oQueFaco: "  Faço o programa.  ", responsabilidades: [" mudar ", "", "consertar"] } });
     assert.ok(bom.ok, !bom.ok ? bom.erros.join(" | ") : "");
     const bia = personagemDe(bom.roster, "dev")!;
     assert.equal(bia.oQueFaco, "Faço o programa.");
     assert.deepEqual(bia.responsabilidades, ["mudar", "consertar"]);
-    const ruim = prepararEnvio(base, { dev: { ...ag(base, "dev"), responsabilidades: ["só uma", "  "] } });
+    const ruim = prepararEnvio(base, { dev: { ...pers(base, "dev"), responsabilidades: ["só uma", "  "] } });
     assert.equal(ruim.ok, false);
     if (!ruim.ok) assert.equal(mensagemDeErro(ruim.erros[0], base), "KAUÃ · Sou responsável por: precisa ter de 2 a 3 itens");
   });
 
   it("caixa vazia no fim não deixa sujo; mudar a frase deixa; voltar ao padrão traz o texto", () => {
     const base = elenco();
-    const dev = ag(base, "dev");
+    const dev = pers(base, "dev");
     assert.deepEqual(chavesSujas(base, { dev: { ...dev, responsabilidades: [...dev.responsabilidades, ""] } }), []);
     assert.deepEqual(chavesSujas(base, { dev: { ...dev, oQueFaco: "Outra frase." } }), ["dev"]);
     const volta = copiarVisual({ ...dev, oQueFaco: "Outra frase.", responsabilidades: ["a", "b"] }, personagemDe(DEFAULT_ROSTER, "dev")!);

@@ -51,7 +51,7 @@ export const HATS = new Set<Acessorio>(["bone", "gorro"]);
 export function cup(put: AccessoryCtx["put"], x: number, y: number) {
   // copo do escritório nas animações: claro com faixa escura
   put(x, y, 3, 3, palette.white);
-  put(x, y + 1, 3, 1, palette.navy900);
+  put(x, y + 1, 3, 1, palette.superficie);
 }
 
 /**
@@ -101,7 +101,7 @@ const DESENHOS: Record<Acessorio, AccessoryDraw> = {
   gorro: {
     draw: (c) => {
       const lã = palette.props.beanie;
-      const barra = blend(lã, palette.navy950, 0.3);
+      const barra = blend(lã, palette.noite, 0.3);
       c.head(2, -4, 8, 1, lã);
       c.head(1, -3, 10, 2, lã);
       c.head(0, -1, 12, 2, barra); // barra dobrada
@@ -159,7 +159,7 @@ const DESENHOS: Record<Acessorio, AccessoryDraw> = {
       const x = h.s > 0 ? h.x + 2 : h.x - 3;
       const y = h.y - 2;
       c.put(x, y, 3, 4, palette.white);
-      c.put(x, y + 1, 3, 1, palette.navy700);
+      c.put(x, y + 1, 3, 1, palette.ardosia);
       c.put(h.s > 0 ? x + 3 : x - 1, y + 1, 1, 2, palette.white);
     },
   },

@@ -256,7 +256,7 @@ export default function App() {
       <aside className="panel">
         <header className="panel-head">
           <div className="brand">
-            <img className="brand-mark" src="/marca/rhynor-logo-fundo-escuro.png" alt="" width={39} height={36} />
+            <img className="brand-mark" src="/marca/rhynor-logo-fundo-escuro.png" alt="" height={36} />
             <div>
               <h1>{theme.officeName}</h1>
               <p className="sub">{theme.subtitle}</p>
@@ -467,10 +467,10 @@ export default function App() {
 }
 
 function AgentRow({ agent, roster, selected, onClick }: { agent: Agent; roster: Roster | null; selected: boolean; onClick: () => void }) {
-  const ag = personagemOf(agent, roster);
-  const cargo = ag?.cargo ?? "Visitante";
+  const pers = personagemOf(agent, roster);
+  const cargo = pers?.cargo ?? "Visitante";
   // o mesmo nome curto do feed ("Kauã"); o nome completo fica no crachá e no leitor de tela
-  const curto = nomeCurto(agent.name, ag?.apelido);
+  const curto = nomeCurto(agent.name, pers?.apelido);
   return (
     <li>
       <button

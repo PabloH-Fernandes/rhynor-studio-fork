@@ -177,19 +177,19 @@ export function personagemOf(agent: Agent, roster: Roster | null): Personagem | 
 
 /** Aparência do Personagem do elenco; sem elenco ou visitante extra, a de sempre (papel + hash do id). */
 export function lookFor(agent: Agent, roster: Roster | null): CharLook {
-  const ag = personagemOf(agent, roster);
-  return ag ? lookOfPersonagem(ag) : lookByHash(agent, hashString(agent.id));
+  const pers = personagemOf(agent, roster);
+  return pers ? lookOfPersonagem(pers) : lookByHash(agent, hashString(agent.id));
 }
 
 /** aparência de um Personagem do elenco: todos os acessórios, cada um na sua camada */
-export function lookOfPersonagem(ag: Personagem): CharLook {
+export function lookOfPersonagem(pers: Personagem): CharLook {
   return {
-    visual: visualDoPersonagem(ag),
-    skin: corDoId(SKIN_TONES, ag.pele),
-    hair: corDoId(HAIR_COLORS, ag.cabelo.cor),
-    hairStyle: HAIR_STYLE_INDEX[ag.cabelo.estilo] ?? 0,
-    accessories: [...ag.acessorios],
-    feminine: ag.genero === "feminino",
+    visual: visualDoPersonagem(pers),
+    skin: corDoId(SKIN_TONES, pers.pele),
+    hair: corDoId(HAIR_COLORS, pers.cabelo.cor),
+    hairStyle: HAIR_STYLE_INDEX[pers.cabelo.estilo] ?? 0,
+    accessories: [...pers.acessorios],
+    feminine: pers.genero === "feminino",
   };
 }
 
@@ -779,8 +779,8 @@ export class OfficeEngine {
 
   /** falas do bate-papo: as do Personagem no elenco; visitante extra usa umas genéricas */
   private falasOf(agent: Agent): readonly string[] {
-    const ag = agent.personagem ? this.agzByKey.get(agent.personagem) : undefined;
-    return ag?.falas.length ? ag.falas : FALAS_VISITANTE;
+    const pers = agent.personagem ? this.agzByKey.get(agent.personagem) : undefined;
+    return pers?.falas.length ? pers.falas : FALAS_VISITANTE;
   }
 
   /** fala nova do papo: entra na fila (uma por Personagem; a nova substitui a que ainda esperava) */
@@ -824,7 +824,8 @@ export class OfficeEngine {
     for (const v of visuals) if (v.at.sitting && !v.path.length && v.deskId && v.at.id === v.home.id) seatedAt.set(v.deskId, v);
     const coffeeBusy = visuals.some((v) => v.at.id.startsWith("cafe:") && !v.path.length);
 
-    // luz do momento (hora real ou ?hora=) e o mapa de luz, refeito ~4x por segundo
+    // luz do momento (noite padrão, hora real com o ciclo ligado ou ?hora=) e o mapa de luz: refeito a
+    // cada 5 s ou na hora em que as luzes da cena mudam (inclusive ao ligar/desligar o ciclo)
     const scene: LightScene = { activeScreens: [], waitingScreens: [], coffeeBusy, activeDesks: [] };
     for (const d of DESKS) {
       const st = seatedAt.get(d.id)?.agent.status;
@@ -1108,7 +1109,7 @@ export class OfficeEngine {
     const y = v.y * TILE;
     const selected = this.selectedId === v.agent.id;
     if ((selected || this.hoverId === v.agent.id) && !seated) {
-      selectionRing(ctx, x, y, selected ? palette.navy900 : palette.navy500);
+      selectionRing(ctx, x, y, selected ? palette.superficie : palette.bordaAco);
     }
     const rest = this.restPose(v, now);
     drawCharacter(ctx, x, y, v.look, {
@@ -1157,7 +1158,7 @@ export class OfficeEngine {
     // origem fixa no mundo (não acompanha o pulo): acima da cabeça de quem está em pé
     const ox = v.x * TILE;
     const oy = v.y * TILE + HEAD_TOP_STAND - 2;
-    const colors = [palette.navy900, palette.navy500, roleColor(v.agent.role)];
+    const colors = [palette.superficie, palette.bordaAco, roleColor(v.agent.role)];
     const seed = hashString(`${v.agent.id}:${Math.round(a.start)}`);
     ctx.save();
     ctx.globalAlpha = age > CONFETTI_LIFE_MS - 200 ? (CONFETTI_LIFE_MS - age) / 200 : 1;
@@ -1423,14 +1424,14 @@ export class OfficeEngine {
     const hb = this.headPoint(b, now);
     const x = ha.x + (hb.x - ha.x) * ease;
     const y = ha.y + (hb.y - ha.y) * ease - Math.sin(ease * Math.PI) * 26;
-    // envelope branco com contorno escuro, aba em 1px e lacre navy900
+    // envelope branco com contorno escuro, aba em 1px e lacre superficie
     const ex = Math.round(x - 6);
     const ey = Math.round(y - 4);
-    fill(ctx, ex, ey, 12, 9, palette.navy900);
+    fill(ctx, ex, ey, 12, 9, palette.superficie);
     fill(ctx, ex + 1, ey + 1, 10, 7, palette.white);
-    line(ctx, ex + 1, ey + 1, ex + 5, ey + 4, palette.navy300);
-    line(ctx, ex + 10, ey + 1, ex + 6, ey + 4, palette.navy300);
-    fill(ctx, ex + 5, ey + 4, 2, 2, palette.navy900);
+    line(ctx, ex + 1, ey + 1, ex + 5, ey + 4, palette.aco);
+    line(ctx, ex + 10, ey + 1, ex + 6, ey + 4, palette.aco);
+    fill(ctx, ex + 5, ey + 4, 2, 2, palette.superficie);
   }
 
   // ------------------------------------------------------------ interação
@@ -1460,14 +1461,14 @@ export class OfficeEngine {
  * à direita e contorno só nas bordas (sem caixa em volta). (x, y) = canto de cima do corpo.
  */
 function drawCup(ctx: CanvasRenderingContext2D, x: number, y: number) {
-  const ink = palette.navy950;
+  const ink = palette.noite;
   fill(ctx, x, y - 1, 3, 1, ink); // borda de cima
   fill(ctx, x - 1, y, 1, 4, ink); // lados
   fill(ctx, x + 3, y, 1, 4, ink);
   fill(ctx, x, y + 4, 3, 1, ink); // fundo
   fill(ctx, x, y, 3, 1, palette.furniture.woodShade); // café
   fill(ctx, x, y + 1, 3, 3, palette.white);
-  fill(ctx, x, y + 2, 3, 1, palette.navy900);
+  fill(ctx, x, y + 2, 3, 1, palette.superficie);
   fill(ctx, x + 4, y + 1, 1, 2, ink); // asa
 }
 
@@ -1480,7 +1481,7 @@ function sofaShins(ctx: CanvasRenderingContext2D, x: number, y: number, pants: s
   const by = Math.round(y);
   ctx.save();
   ctx.globalAlpha = alpha;
-  fill(ctx, bx - 5, by - 4, 10, 7, palette.navy950);
+  fill(ctx, bx - 5, by - 4, 10, 7, palette.noite);
   for (const lx of [bx - 4, bx + 1]) {
     fill(ctx, lx, by - 4, 3, 5, pants);
     fill(ctx, lx, by + 1, 3, 1, shoes);

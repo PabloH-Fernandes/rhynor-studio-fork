@@ -293,8 +293,8 @@ export class OfficeState {
     this.roster = roster;
     this.emit({ type: "roster", roster });
     for (const agent of this.agents.values()) {
-      const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
-      if (ag) agent.name = ag.nome;
+      const pers = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
+      if (pers) agent.name = pers.nome;
       this.emit({ type: "agent", agent });
     }
   }
@@ -376,8 +376,8 @@ export class OfficeState {
         a.status = "ocioso";
         a.activity = a.parentId ? "De boa" : "Esperando seu próximo pedido";
       }
-      const ag = a.personagem ? this.findPersonagem(a.personagem) : undefined;
-      if (ag) a.name = ag.nome;
+      const pers = a.personagem ? this.findPersonagem(a.personagem) : undefined;
+      if (pers) a.name = pers.nome;
       this.agents.set(a.id, a);
     }
     for (const sessionId of vivas) this.lastSeen.set(sessionId, seen.get(sessionId)!);
@@ -553,8 +553,8 @@ export class OfficeState {
           break;
         }
 
-        const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
-        const frase = fraseFerramenta(tool, toolInput, { genero: ag?.genero, papel: agent.role });
+        const pers = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
+        const frase = fraseFerramenta(tool, toolInput, { genero: pers?.genero, papel: agent.role });
         this.update(agent, "trabalhando", describeTool(tool, toolInput), comoAtividade(frase.simples));
         // o SendMessage já virou linha de recado (handleSendMessage): não repete "Mandando mensagem"
         if (tool !== "SendMessage") this.pushFeed(agent, describeTool(tool, toolInput), "tool", { tipo: "ferramenta", tool, input: toolInput });
@@ -1057,14 +1057,14 @@ export class OfficeState {
       // a sessão real tem prioridade: se o "lider" está com o líder de uma simulação, ela troca de Personagem
       if (!isDemo(input.session_id)) this.yieldFromDemoLeader(type);
       // o líder de uma 2ª sessão aberta vira convidado (o Personagem "lider" já tem dono)
-      const ag = this.candidates(type, true).find((a) => this.freeForLeader(a.key));
+      const pers = this.candidates(type, true).find((a) => this.freeForLeader(a.key));
       const now = this.now();
       lead = {
         id,
         sessionId: input.session_id,
-        role: ag ? ag.papel : normalizeRole(type),
-        name: ag?.nome ?? (type === "lider" ? ROLE_NAMES.lider : prettyRole(type)),
-        personagem: ag?.key,
+        role: pers ? pers.papel : normalizeRole(type),
+        name: pers?.nome ?? (type === "lider" ? ROLE_NAMES.lider : prettyRole(type)),
+        personagem: pers?.key,
         status: "chegando",
         activity: "Chegando...",
         project: projectName(input.cwd),
@@ -1213,8 +1213,8 @@ export class OfficeState {
       o.tier === 1 &&
       this.agents.get(subagentId(o.a.key))?.sessionId === sessionId &&
       this.bindings.get(subagentId(o.a.key))?.type === normalizeRole(agentType);
-    const ag = (options.find(daSessao) ?? options.find((o) => o.tier === 0) ?? options.find((o) => o.tier === 1))?.a;
-    const id = ag ? subagentId(ag.key) : `p:extra:${hookId}`;
+    const pers = (options.find(daSessao) ?? options.find((o) => o.tier === 0) ?? options.find((o) => o.tier === 1))?.a;
+    const id = pers ? subagentId(pers.key) : `p:extra:${hookId}`;
     const now = this.now();
     const activity = description ? truncate(description, 60) : "Indo pra mesa...";
     const existing = this.agents.get(id);
@@ -1234,9 +1234,9 @@ export class OfficeState {
       id,
       sessionId,
       parentId: lead.id,
-      role: ag ? ag.papel : normalizeRole(agentType),
-      name: ag?.nome ?? prettyRole(agentType),
-      personagem: ag?.key,
+      role: pers ? pers.papel : normalizeRole(agentType),
+      name: pers?.nome ?? prettyRole(agentType),
+      personagem: pers?.key,
       status: "chegando",
       activity,
       project: lead.project,
@@ -1461,8 +1461,8 @@ export class OfficeState {
     const matches = (a: Agent) => {
       if (a.id === from.id || !toName) return false;
       if (role === "lider") return !a.parentId;
-      const ag = a.personagem ? this.findPersonagem(a.personagem) : undefined;
-      return a.role === role || a.name.toLowerCase() === toName || a.personagem === toName || ag?.apelido.toLowerCase() === toName;
+      const pers = a.personagem ? this.findPersonagem(a.personagem) : undefined;
+      return a.role === role || a.name.toLowerCase() === toName || a.personagem === toName || pers?.apelido.toLowerCase() === toName;
     };
     const all = [...this.agents.values()];
     // o líder retoma um subagente pelo agent_id ({to: agent_id}): é o boneco ligado a ele
@@ -1533,14 +1533,14 @@ export class OfficeState {
 
   /** Nome curto do feed simples: o apelido do Personagem ("Helô") ou o primeiro nome. */
   private nomeCurto(agent: Agent): string {
-    const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
-    return nomeCurto(agent.name, ag?.apelido);
+    const pers = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
+    return nomeCurto(agent.name, pers?.apelido);
   }
 
   /** `text` é a versão técnica; `assunto` gera a versão simples (server/frases.ts). */
   private pushFeed(agent: Agent, text: string, kind: FeedItem["kind"], assunto: Evento | { tipo: "ferramenta"; tool: string; input: Record<string, unknown> }) {
-    const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
-    const quem = { genero: ag?.genero, papel: agent.role };
+    const pers = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
+    const quem = { genero: pers?.genero, papel: agent.role };
     const frase = assunto.tipo === "ferramenta" ? fraseFerramenta(assunto.tool, assunto.input, quem) : fraseEvento(assunto, quem);
     const item: FeedItem = {
       id: ++this.feedSeq,
@@ -1551,7 +1551,7 @@ export class OfficeState {
       text,
       kind,
       simples: frase.simples,
-      quem: nomeCurto(agent.name, ag?.apelido),
+      quem: nomeCurto(agent.name, pers?.apelido),
       categoria: frase.categoria,
       ...(frase.contaComo ? { contaComo: frase.contaComo } : {}),
     };

@@ -204,13 +204,18 @@ const chaveTitulo = (t) => t.replace(/^﻿/, "").replace(/^#+\s*/, "").trim();
  * `##`), o próximo título que também é legado conhecido, um marcador ou o fim do arquivo. Ela só sai se TODA
  * linha não vazia for conhecida (`legados[].linhas`: textos exatos ou regex). Com uma linha que não
  * reconheço (algo escrito à mão), ou com `soAvisa: true`, a seção fica inteira e vai para `mantidas`.
- * Trechos entre marcadores nunca são tocados.
+ * Trechos entre marcadores nunca são tocados, sejam do Studio ou de QUALQUER outro projeto
+ * (toda linha `<!-- nome:inicio -->` / `<!-- nome:fim -->` conta como marcador).
  * Retorna { texto, removidas: [{ titulo, linhas }], mantidas: [{ titulo, motivo: "desconhecida" | "soAvisa" }] }.
  */
+/** marcador de bloco de qualquer projeto: `<!-- nome:inicio -->`, `<!-- nome:sub:fim -->`... */
+const MARCADOR_QUALQUER = /^<!-- [\w:-]+:(inicio|fim) -->$/;
+
 export function removeCopiasAntigas(textoAtual, legados, marcadores = [MARCA_INICIO, MARCA_FIM, MARCA_MEMORIA_INICIO, MARCA_MEMORIA_FIM]) {
   const eol = textoAtual.includes("\r\n") ? "\r\n" : "\n";
   const linhas = normalizaLf(textoAtual).split("\n");
-  const ehMarcador = (l) => marcadores.includes(l.trim());
+  // os do Studio e os de qualquer outro projeto que instale blocos do mesmo jeito
+  const ehMarcador = (l) => marcadores.includes(l.trim()) || MARCADOR_QUALQUER.test(l.trim());
   const legadoDe = (l) => legados.find((g) => l.replace(/^﻿/, "").trimEnd() === g.titulo);
   const removidas = [];
   const mantidas = [];

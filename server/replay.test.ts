@@ -38,7 +38,7 @@ test("sem evento nenhum, o subagente sai de 'chegando' pelo timer de 12 s do rel
   const ate = linhas().filter((l) => {
     if (!("evento" in l)) return true;
     const ev = l.evento as { agent_id?: string; hook_event_name?: string };
-    return ev.agent_id !== "ag-dev" || ev.hook_event_name === "SubagentStart";
+    return ev.agent_id !== "sub-dev" || ev.hook_event_name === "SubagentStart";
   });
   const { state } = reproduzir(ate);
   assert.equal(agentePorKey(state, "dev")?.status, "chegando");
@@ -80,9 +80,9 @@ test("bug 4: servidor_iniciou com persistência mantém o time, os status e a li
     {
       chegada: fim + 2000,
       hookTs: null,
-      evento: { hook_event_name: "PreToolUse", session_id: "sessao-fixture", agent_id: "ag-dev", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "/x/a.ts" } },
+      evento: { hook_event_name: "PreToolUse", session_id: "sessao-fixture", agent_id: "sub-dev", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "/x/a.ts" } },
     },
-    { chegada: fim + 3000, hookTs: null, evento: { hook_event_name: "SubagentStop", session_id: "sessao-fixture", agent_id: "ag-dev", agent_type: "dev" } },
+    { chegada: fim + 3000, hookTs: null, evento: { hook_event_name: "SubagentStop", session_id: "sessao-fixture", agent_id: "sub-dev", agent_type: "dev" } },
   ];
   const volta = reproduzir([...comReinicio, ...depois], { aoReiniciar: comPersistencia });
   assert.deepEqual(agentes(volta.state).map((a) => a.personagem).sort(), ["dev", "lider", "planejador"]);
@@ -146,7 +146,7 @@ test("lerJsonl ignora evento null (POST sem corpo)", () => {
 });
 
 test("o estado devolvido continua usável: o relógio virtual dispara os timers dele", () => {
-  const ate = linhas().filter((l) => !("evento" in l) || (l.evento as { agent_id?: string; hook_event_name?: string }).hook_event_name === "SubagentStart" || (l.evento as { agent_id?: string }).agent_id !== "ag-dev");
+  const ate = linhas().filter((l) => !("evento" in l) || (l.evento as { agent_id?: string; hook_event_name?: string }).hook_event_name === "SubagentStart" || (l.evento as { agent_id?: string }).agent_id !== "sub-dev");
   const { state, relogio } = reproduzir(ate);
   assert.equal(agentePorKey(state, "dev")?.status, "chegando");
   relogio.avancarAte(relogio.now() + 15_000);

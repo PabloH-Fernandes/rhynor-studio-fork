@@ -48,7 +48,7 @@ function cenario(): Cenario {
     projetos,
     dir: path.join(base, "gasto"),
     lider: path.join(pasta, "sessao-exemplo.jsonl"),
-    sub: path.join(pasta, "sessao-exemplo", "subagents", "agent-ag-dev.jsonl"),
+    sub: path.join(pasta, "sessao-exemplo", "subagents", "agent-sub-dev.jsonl"),
     limpar: () => {
       for (const g of gastos) g.parar();
       fs.rmSync(base, { recursive: true, force: true });
@@ -120,7 +120,7 @@ test("SubagentStop: lê agent_transcript_path com o papel do agent_type", async 
   try {
     const g = novo(c);
     await g.iniciar();
-    g.registrar({ hook_event_name: "SubagentStop", session_id: "S1", transcript_path: c.lider, agent_transcript_path: c.sub, agent_id: "ag-dev", agent_type: "dev" });
+    g.registrar({ hook_event_name: "SubagentStop", session_id: "S1", transcript_path: c.lider, agent_transcript_path: c.sub, agent_id: "sub-dev", agent_type: "dev" });
     await g.esperar();
     const h = g.getHoje();
     assert.deepEqual(h?.porPapel.dev, { tokens: 400, cacheLeitura: 500 });

@@ -776,9 +776,9 @@ export function aplicarEditaveis(atual: Personagem, de: Record<string, unknown> 
     if (v === undefined) delete out[campo];
     else out[campo] = structuredClone(v);
   }
-  const ag = out as unknown as Personagem;
-  if (oneOf(GENEROS, ag.genero)) ag.cargo = cargoDe(ag.papel, ag.genero, ag.cargo);
-  return ag;
+  const pers = out as unknown as Personagem;
+  if (oneOf(GENEROS, pers.genero)) pers.cargo = cargoDe(pers.papel, pers.genero, pers.cargo);
+  return pers;
 }
 
 /** Personagem principal de um papel (sem variação), ex.: a plaquinha da mesa do dev */

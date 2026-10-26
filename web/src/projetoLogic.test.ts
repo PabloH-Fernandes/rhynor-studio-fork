@@ -4,8 +4,8 @@ import { describe, it } from "node:test";
 import type { Agent, Progress } from "../../shared/types";
 import { TODAS, esperandoDe, filtrarPorProjeto, progressoDoFiltro, projetoEfetivo, projetosDe, textoEspera } from "./projetoLogic";
 
-const ag = (id: string, project: string, sessionId = id) => ({ id, project, sessionId });
-const todos = [ag("a", "loja"), ag("b", "api"), ag("c", "loja", "a"), ag("d", "")];
+const pers = (id: string, project: string, sessionId = id) => ({ id, project, sessionId });
+const todos = [pers("a", "loja"), pers("b", "api"), pers("c", "loja", "a"), pers("d", "")];
 
 describe("projetosDe", () => {
   it("lista os projetos sem repetir, em ordem, ignorando vazio", () => {

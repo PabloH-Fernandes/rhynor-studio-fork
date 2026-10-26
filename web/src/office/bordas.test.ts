@@ -60,12 +60,12 @@ describe("vestiário: Desfazer, Voltar ao padrão, Esc (lógica)", () => {
 });
 
 describe("plaquinhas: 2 devs + 2 pesquisadores + visitante extra juntos", () => {
-  const ag = DEFAULT_ROSTER.personagens;
+  const pers = DEFAULT_ROSTER.personagens;
   const mesas = [
-    rotuloDaMesa("dev", { papel: "dev", numero: numeroNoPapel(ag, "dev") }),
-    rotuloDaMesa("convidado", { papel: "dev", numero: numeroNoPapel(ag, "dev-2") }),
-    rotuloDaMesa("pesquisador", { papel: "pesquisador", numero: numeroNoPapel(ag, "pesquisador") }),
-    rotuloDaMesa("convidado", { papel: "pesquisador", numero: numeroNoPapel(ag, "pesquisador-2") }),
+    rotuloDaMesa("dev", { papel: "dev", numero: numeroNoPapel(pers, "dev") }),
+    rotuloDaMesa("convidado", { papel: "dev", numero: numeroNoPapel(pers, "dev-2") }),
+    rotuloDaMesa("pesquisador", { papel: "pesquisador", numero: numeroNoPapel(pers, "pesquisador") }),
+    rotuloDaMesa("convidado", { papel: "pesquisador", numero: numeroNoPapel(pers, "pesquisador-2") }),
     rotuloDaMesa("convidado", { papel: "tipo-inventado" }),
     rotuloDaMesa("convidado", null),
   ];

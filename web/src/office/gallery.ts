@@ -57,11 +57,11 @@ export function drawGallery(ctx: CanvasRenderingContext2D, personagens: readonly
   ctx.font = `7px VT323, monospace`;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
-  ctx.fillStyle = palette.navy900;
+  ctx.fillStyle = palette.superficie;
   COLUMNS.forEach((c, i) => ctx.fillText(c.label, LABEL_W + i * CELL_W + CELL_W / 2, 6));
   ctx.fillText("retrato", LABEL_W + COLUMNS.length * CELL_W + CELL_W / 2, 6);
 
-  personagens.forEach((ag, row) => {
+  personagens.forEach((pers, row) => {
     const top = HEAD_H + row * CELL_H;
     ctx.fillStyle = row % 2 ? palette.floor.tileB : palette.floor.tileA;
     ctx.fillRect(0, top, GALLERY_W, CELL_H);
@@ -69,13 +69,13 @@ export function drawGallery(ctx: CanvasRenderingContext2D, personagens: readonly
     ctx.fillRect(0, top, GALLERY_W, 1);
 
     ctx.textAlign = "left";
-    ctx.fillStyle = palette.navy900;
-    ctx.fillText(ag.apelido, 3, top + CELL_H / 2 - 4);
+    ctx.fillStyle = palette.superficie;
+    ctx.fillText(pers.apelido, 3, top + CELL_H / 2 - 4);
     ctx.fillStyle = inkAlpha(0.6);
-    ctx.fillText(ag.genero === "feminino" ? "F" : "M", 3, top + CELL_H / 2 + 4);
+    ctx.fillText(pers.genero === "feminino" ? "F" : "M", 3, top + CELL_H / 2 + 4);
     ctx.textAlign = "center";
 
-    const look = lookOfPersonagem(ag);
+    const look = lookOfPersonagem(pers);
     COLUMNS.forEach((c, i) => {
       const pose: CharPose = {
         dir: "down",

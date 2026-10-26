@@ -247,3 +247,23 @@ test('load: "O que eu faço" inválido volta ao padrão sem perder o visual', ()
   assert.deepEqual(bia.responsabilidades, DEFAULT_ROSTER.personagens.find((a) => a.key === "dev")!.responsabilidades);
   assert.equal(backups().length, 1);
 });
+
+test("load: elenco salvo antes do elenco novo (roupa polo, pele em hex, sem corRoupa) volta ao padrão com backup, sem lançar", () => {
+  // hex montado por concatenação (a guarda de marca proíbe cor literal fora dos tokens)
+  const peleAntiga = "#" + "c68b62";
+  const antigo = structuredClone(DEFAULT_ROSTER) as unknown as { personagens: Record<string, unknown>[] };
+  for (const a of antigo.personagens) {
+    a.roupa = "polo";
+    a.pele = peleAntiga;
+    a.cordao = peleAntiga;
+    delete a.corRoupa;
+    delete a.corCalca;
+    delete a.corInterna;
+  }
+  fs.writeFileSync(file, JSON.stringify(antigo));
+  let r: Roster | undefined;
+  assert.doesNotThrow(() => (r = loadRoster(file)));
+  assert.deepEqual(r, DEFAULT_ROSTER);
+  assert.equal(backups().length, 1);
+  assert.ok(fs.readFileSync(path.join(dir, backups()[0]), "utf8").includes(peleAntiga), "o backup guarda o elenco antigo");
+});

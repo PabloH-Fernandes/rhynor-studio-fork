@@ -135,7 +135,7 @@ describe("plaquinha legível", () => {
   }
 
   it("plaquinha: texto névoa sobre ardósia tem contraste de pelo menos 4,5:1 (sem cor por papel)", () => {
-    const r = contraste(palette.white, palette.navy700);
+    const r = contraste(palette.white, palette.ardosia);
     assert.ok(r >= 4.5, `${r.toFixed(2)}:1`);
   });
 });

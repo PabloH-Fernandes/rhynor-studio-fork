@@ -101,22 +101,22 @@ export function opcoesDestaque(papel: string): OpcaoDestaque[] {
  * Troca a roupa: camisa aberta e jaqueta ganham a camiseta de baixo (névoa se ainda não tinha);
  * as outras perdem. Convidado continua com o crachá de visitante.
  */
-export function trocarRoupa(ag: Personagem, roupa: Roupa): Personagem {
-  const out: Personagem = { ...ag, roupa };
-  if (temCamisetaPorBaixo(roupa)) out.corInterna = ag.corInterna ?? "nevoa";
+export function trocarRoupa(pers: Personagem, roupa: Roupa): Personagem {
+  const out: Personagem = { ...pers, roupa };
+  if (temCamisetaPorBaixo(roupa)) out.corInterna = pers.corInterna ?? "nevoa";
   else delete out.corInterna;
-  if (ag.papel === "convidado") out.destaque = "cracha-visitante";
+  if (pers.papel === "convidado") out.destaque = "cracha-visitante";
   else delete out.destaque;
   return out;
 }
 
 /** troca o gênero e o cargo junto ("Desenvolvedora" ↔ "Desenvolvedor") */
-export function trocarGenero(ag: Personagem, genero: Genero): Personagem {
-  return { ...ag, genero, cargo: cargoDe(ag.papel, genero, ag.cargo) };
+export function trocarGenero(pers: Personagem, genero: Genero): Personagem {
+  return { ...pers, genero, cargo: cargoDe(pers.papel, genero, pers.cargo) };
 }
 
-export function trocarDestaque(ag: Personagem, destaque: Destaque | undefined): Personagem {
-  const out: Personagem = { ...ag };
+export function trocarDestaque(pers: Personagem, destaque: Destaque | undefined): Personagem {
+  const out: Personagem = { ...pers };
   if (destaque === undefined) delete out.destaque;
   else out.destaque = destaque;
   return out;
@@ -164,8 +164,8 @@ export const limparResponsabilidades = (lista: readonly string[]) => lista.map((
 // ------------------------------------------------------------------ elenco, rascunhos e "sujo"
 
 /** forma canônica de um Personagem pra comparar (campos na ordem do JSON salvo, acessórios ordenados) */
-function canonico(ag: Personagem): string {
-  const c = cleanPersonagem(ag as unknown as Record<string, unknown>);
+function canonico(pers: Personagem): string {
+  const c = cleanPersonagem(pers as unknown as Record<string, unknown>);
   // caixa de responsabilidade vazia não conta como alteração (some ao salvar)
   return JSON.stringify({ ...c, acessorios: ordenarAcessorios(c.acessorios ?? []), responsabilidades: limparResponsabilidades(c.responsabilidades ?? []) });
 }
@@ -185,7 +185,7 @@ export function elencoMaisNovo(base: Roster, remoto: Roster): boolean {
 
 /** mesmo elenco, ignorando a data de atualização */
 export function mesmoElenco(a: Roster, b: Roster): boolean {
-  return a.personagens.length === b.personagens.length && a.personagens.every((ag, i) => mesmoPersonagem(ag, b.personagens[i]));
+  return a.personagens.length === b.personagens.length && a.personagens.every((pers, i) => mesmoPersonagem(pers, b.personagens[i]));
 }
 
 export const personagemDe = (r: Roster, key: string) => r.personagens.find((a) => a.key === key);
@@ -297,8 +297,8 @@ export function errosPorCampo(erros: readonly string[], key: string): Record<Cam
 export function mensagemDeErro(erro: string, elenco: Roster): string {
   const e = lerErro(erro);
   if (!e.campo) return e.texto;
-  const ag = e.key ? personagemDe(elenco, e.key) : undefined;
-  const quem = ag ? (ag.apelido.trim() || ag.nome.trim() || ag.key) : e.key;
+  const pers = e.key ? personagemDe(elenco, e.key) : undefined;
+  const quem = pers ? (pers.apelido.trim() || pers.nome.trim() || pers.key) : e.key;
   const campo = ROTULO_CAMPO[e.campo] ?? e.campo;
   return `${quem ? `${quem} · ` : ""}${campo}: ${e.texto}`;
 }

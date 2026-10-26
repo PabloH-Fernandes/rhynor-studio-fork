@@ -301,7 +301,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
                       setConfirmarPadrao(false);
                     }}
                   >
-                    <MiniRetrato ag={a} />
+                    <MiniRetrato pers={a} />
                     <span className="vest-pessoa-nome">{a.apelido.trim() || "Sem apelido"}</span>
                     {naoSalvo && (
                       <span className="vest-pessoa-sujo" title="Alteração não salva">
@@ -756,10 +756,10 @@ function escalaInteira(canvas: HTMLCanvasElement, w: number, h: number, escala: 
   return k;
 }
 
-function MiniRetrato({ ag }: { ag: Personagem }) {
+function MiniRetrato({ pers }: { pers: Personagem }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dpr = useDevicePixelRatio();
-  const look = useMemo(() => lookOfPersonagem(ag), [ag]);
+  const look = useMemo(() => lookOfPersonagem(pers), [pers]);
   useLayoutEffect(() => {
     const canvas = ref.current;
     const ctx = canvas?.getContext("2d");

@@ -38,7 +38,7 @@
   "feedSeq": 0,
   "aliases": [
     [
-      "ag-dev",
+      "sub-dev",
       "p:dev"
     ]
   ],
@@ -47,7 +47,7 @@
       "p:dev",
       {
         "type": "dev",
-        "alias": "ag-dev"
+        "alias": "sub-dev"
       }
     ]
   ],

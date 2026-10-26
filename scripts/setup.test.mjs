@@ -834,6 +834,17 @@ test("aplicaClaudeMd: criar do zero, marcadores quebrados e trechos marcados nun
   const x = removeCopiasAntigas(dentro, [{ titulo: "# Time do Studio", linhas: ["# Time do Studio", "velho"] }]);
   assert.equal(x.texto, dentro);
   assert.deepEqual(x.removidas, []);
+
+  // nem dentro do bloco de OUTRO projeto (o nome antigo é montado por concatenação por causa da guarda de marca)
+  const outro = "a" + "g" + "-pocket";
+  // (o "# Mais coisas" fecha a seção antes do fim: sem reconhecer o marcador, o trecho sairia como cópia antiga)
+  const deOutro = `antes\n<!-- ${outro}:inicio -->\n# Time do Studio\n\nvelho\n# Mais coisas\n<!-- ${outro}:fim -->\n`;
+  const y = removeCopiasAntigas(deOutro, [{ titulo: "# Time do Studio", linhas: ["# Time do Studio", "velho"] }]);
+  assert.equal(y.texto, deOutro);
+  assert.deepEqual(y.removidas, []);
+  // e o mesmo título fora de qualquer bloco continua sendo cópia antiga
+  const solto = removeCopiasAntigas("# Time do Studio\n\nvelho\n", [{ titulo: "# Time do Studio", linhas: ["# Time do Studio", "velho"] }]);
+  assert.equal(solto.removidas.length, 1);
 });
 
 /** Roda o passoClaudeMd com um home temporário e devolve o que ele imprimiu. */

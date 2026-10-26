@@ -43,12 +43,12 @@ interface Props {
 
 export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, onClose, onPersonalizar, revelar = false, onRevelado }: Props) {
   const titleId = useId();
-  const ag = personagemOf(agent, roster);
-  const visitante = !ag;
-  const nome = ag?.nome ?? agent.name;
-  const cargo = ag ? ag.cargo : `Visitante · ${agent.name}`;
+  const pers = personagemOf(agent, roster);
+  const visitante = !pers;
+  const nome = pers?.nome ?? agent.name;
+  const cargo = pers ? pers.cargo : `Visitante · ${agent.name}`;
   // "O que eu faço": o do elenco; visitante extra (sem Personagem) usa o texto genérico do papel
-  const funcao = ag ?? oQueFacoPadrao(agent.role);
+  const funcao = pers ?? oQueFacoPadrao(agent.role);
   const sectionRef = useRef<HTMLElement>(null);
 
   // descanso: pergunta ao engine a cada ~1 s (setState com o mesmo texto não re-renderiza)
@@ -116,9 +116,8 @@ export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, on
   // o descanso só aparece pra quem está ocioso: trabalhando, o crachá não pode dizer "Tomando café"
   const agora = (agent.status === "ocioso" ? rest || activity : activity) || "Na mesa, aguardando tarefa";
 
-  // cordão laranja da marca para todo o time; visitante (sem personagem ou com crachá de visitante) em aço
-  const cordaoVisitante = !ag || ag.destaque === "cracha-visitante";
-  const style = { "--cordao": cordaoVisitante ? "var(--cordao-visitante)" : "var(--rh-laranja)" } as CSSProperties;
+  // cordão laranja da marca para todo mundo, visitante inclusive (o visitante se nota pela faixa do cartão)
+  const style = { "--cordao": "var(--rh-laranja)" } as CSSProperties;
 
   return (
     <section ref={sectionRef} className={`cracha${visitante ? " cracha-visitante" : ""}`} aria-labelledby={titleId} style={style}>
@@ -149,10 +148,10 @@ export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, on
               {nome}
             </h2>
             <p className="cracha-cargo">{cargo}</p>
-            {ag ? (
+            {pers ? (
               <p className="cracha-matricula" translate="no">
                 <span className="sr-only">Matrícula </span>
-                {ag.matricula}
+                {pers.matricula}
               </p>
             ) : (
               <p className="cracha-selo">Visitante</p>
@@ -201,14 +200,14 @@ export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, on
               </ul>
             </section>
 
-            {ag && (
+            {pers && (
               <button
                 type="button"
                 className="btn cracha-personalizar"
                 aria-haspopup="dialog"
                 disabled={!onPersonalizar}
-                title={onPersonalizar ? `Trocar o visual de ${ag.apelido}` : "Em breve"}
-                onClick={() => onPersonalizar?.(ag.key)}
+                title={onPersonalizar ? `Trocar o visual de ${pers.apelido}` : "Em breve"}
+                onClick={() => onPersonalizar?.(pers.key)}
               >
                 Personalizar
               </button>

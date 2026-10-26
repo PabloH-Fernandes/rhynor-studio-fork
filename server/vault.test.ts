@@ -316,6 +316,21 @@ test("resolverVault: env, settings.json, ~, relativo e erro", () => {
   assert.equal(resolverVault({}, home, settings(JSON.stringify({ env: null }))), null);
 });
 
+test("resolverVault: sem fallback para a variável do motor upstream (nem no env nem no settings.json)", () => {
+  const home = path.resolve(os.tmpdir(), "casa-fake");
+  const abs = path.resolve(os.tmpdir(), "vault-do-upstream");
+  // nome montado por concatenação (a guarda de marca proíbe o nome antigo no código)
+  const antiga = ["A", "G", "POCKET", "_VAULT"].join("");
+  const semArquivo = () => {
+    throw new Error("ENOENT");
+  };
+  assert.equal(resolverVault({ [antiga]: abs }, home, semArquivo), null);
+  assert.equal(resolverVault({}, home, () => JSON.stringify({ env: { [antiga]: abs } })), null);
+  // com as duas, vale só a nova
+  const novo = path.resolve(os.tmpdir(), "vault-do-studio");
+  assert.equal(resolverVault({ [antiga]: abs }, home, () => JSON.stringify({ env: { [antiga]: abs, STUDIO_VAULT: novo } })), novo);
+});
+
 // ---------------------------------------------------------------- pasta de verdade
 
 function montarVault() {

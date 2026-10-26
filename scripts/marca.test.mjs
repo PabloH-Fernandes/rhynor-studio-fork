@@ -2,7 +2,7 @@
 //  (a) nenhuma cor literal (#rgb, #rrggbb, #rrggbbaa, rgb(N, rgba(N) fora de web/src/marca/tokens.css;
 //  (b) nenhuma menção à marca antiga;
 //  (c) a cópia dos tokens é igual à matriz da marca;
-//  (d) todo id de cor do elenco aponta para um token existente (coberto em shared/roster.test.ts).
+//  (d) todo id de cor do elenco aponta para um token existente.
 // Os padrões da marca antiga são montados por concatenação para este arquivo não acusar a si mesmo.
 
 import assert from "node:assert/strict";
@@ -55,7 +55,10 @@ test("(b) nenhuma menção à marca antiga", () => {
   const G = "G";
   const sigla = A + G;
   const padroes = [
-    new RegExp(`\\b${sigla}\\b`), // a sigla sozinha, em maiúsculas
+    // a sigla sozinha em maiúsculas (pega também AG_X e AG-0001, que \b deixava passar no "_")
+    new RegExp(`(?<![A-Za-z0-9])${sigla}(?![A-Za-z0-9])`),
+    // em minúsculas entre separadores (ids de teste como "sub-dev" eram assim)
+    new RegExp(`[-_.]${sigla.toLowerCase()}[-_.]`),
     new RegExp(`${sigla}zinho`, "i"),
     new RegExp(`${sigla}[ _-]?Pocket`, "i"), // nome do produto antigo, a variável e o marcador
     new RegExp(`Andr${"ade"}`),
@@ -63,9 +66,12 @@ test("(b) nenhuma menção à marca antiga", () => {
     new RegExp(`${sigla}-Cere${"bro"}`, "i"),
     new RegExp(`0517${"33"}`),
     new RegExp(`mari${"nho"}`, "i"),
+    new RegExp(`na${"vy"}`, "i"), // nomes herdados da paleta antiga
   ];
   const arquivos = textos(excecao);
-  const lista = padroes.flatMap((p) => achados(arquivos, p));
+  // o conteúdo e também o nome dos arquivos versionados (fixtures já tiveram a sigla no nome)
+  const nomes = versionados.filter((f) => !excecao(f) && padroes.some((p) => p.test(f))).map((f) => `${f}: (nome do arquivo)`);
+  const lista = [...nomes, ...padroes.flatMap((p) => achados(arquivos, p))];
   assert.deepEqual(lista, [], `menção à marca antiga:\n${lista.join("\n")}`);
 });
 
@@ -74,7 +80,16 @@ test("(c) web/src/marca/tokens.css é igual à matriz referencias/rhynor-marca/t
   assert.equal(ler("web/src/marca/tokens.css"), ler("referencias/rhynor-marca/tokens.css"));
 });
 
-test("(d) os ids de cor do elenco apontam para tokens que existem (conferido em shared/roster.test.ts)", () => {
-  const t = fs.readFileSync(path.join(ROOT, "shared", "roster.test.ts"), "utf8");
-  assert.match(t, /todo id de cor aponta para um token --rh-\* da marca/);
+test("(d) todo id de cor do elenco aponta para um token que existe no tokens.css", async () => {
+  const { CORES_ROUPA, DEFAULT_ROSTER, HAIR_COLORS, SKIN_TONES } = await import("../shared/roster.ts");
+  const tokens = fs.readFileSync(path.join(ROOT, "web", "src", "marca", "tokens.css"), "utf8");
+  const faltam = [...SKIN_TONES, ...HAIR_COLORS, ...CORES_ROUPA].filter((s) => !tokens.includes(`--${s.token}:`)).map((s) => s.token);
+  assert.deepEqual(faltam, [], "ids de cor sem token no tokens.css");
+  // e o elenco padrão só usa ids dessas listas
+  const ids = (lista) => new Set(lista.map((s) => s.id));
+  for (const p of DEFAULT_ROSTER.personagens) {
+    assert.ok(ids(SKIN_TONES).has(p.pele), `${p.key}.pele`);
+    assert.ok(ids(HAIR_COLORS).has(p.cabelo.cor), `${p.key}.cabelo.cor`);
+    for (const c of [p.corRoupa, p.corCalca, p.corInterna].filter(Boolean)) assert.ok(ids(CORES_ROUPA).has(c), `${p.key}: ${c}`);
+  }
 });

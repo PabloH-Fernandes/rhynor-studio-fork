@@ -1,7 +1,7 @@
 // Bolinha do ping-pong: onde ela está em cada momento da partida (RallyFrame, do agendador)
 // e como desenhar com a sombra no tampo ou no chão.
 
-import { navyAlpha, palette } from "../theme";
+import { ardosiaAlpha, palette } from "../theme";
 import type { RallyFrame } from "./activities";
 import { fill } from "./decor";
 import { PINGPONG, PINGPONG_SPOTS, TILE, type Point } from "./map";
@@ -39,12 +39,12 @@ export function drawBall(ctx: CanvasRenderingContext2D, f: RallyFrame) {
   const ball = (x: number, y: number) => {
     const bx = Math.round(x) - 1;
     const by = Math.round(y) - 1;
-    fill(ctx, bx - 1, by, 4, 2, palette.navy950);
-    fill(ctx, bx, by - 1, 2, 4, palette.navy950);
+    fill(ctx, bx - 1, by, 4, 2, palette.noite);
+    fill(ctx, bx, by - 1, 2, 4, palette.noite);
     fill(ctx, bx, by, 2, 2, palette.white);
   };
   const shadow = (x: number, y: number, floor: boolean) =>
-    fill(ctx, Math.round(x) - 1, Math.round(y), 2, 1, navyAlpha(floor ? 0.22 : 0.5));
+    fill(ctx, Math.round(x) - 1, Math.round(y), 2, 1, ardosiaAlpha(floor ? 0.22 : 0.5));
   if (isReducedMotion()) {
     const cx = PINGPONG.x + (PINGPONG.w >> 1) + 4;
     const cy = PINGPONG.y + (PINGPONG.h >> 1);

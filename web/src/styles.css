@@ -8,10 +8,10 @@
   --white: var(--rh-nevoa);
   --text: var(--rh-texto);
   --muted: var(--rh-texto-suave);
-  --navy-600: var(--rh-elevado);
-  --navy-600-hover: var(--rh-borda);
-  --navy-500: var(--rh-aco);
-  --navy-100: var(--rh-nevoa);
+  --botao: var(--rh-elevado);
+  --botao-hover: var(--rh-borda);
+  --aco-borda: var(--rh-aco);
+  --nevoa-clara: var(--rh-nevoa);
   --feed-time: var(--rh-texto-suave);
   --waiting: var(--rh-aviso); /* exclusivo de "te esperando" */
   --focus: var(--rh-laranja); /* anel de foco */
@@ -27,7 +27,7 @@
   --photo-bg: var(--rh-nevoa);
   --clip-metal: var(--rh-aco);
   --clip-metal-edge: var(--rh-ardosia);
-  --cordao-visitante: var(--rh-aco);
+  --visitante: var(--rh-aco);
   --pixel: var(--rh-fonte-pixel);
   --term: var(--rh-fonte-pixel-texto);
   --sans: var(--rh-fonte-texto);
@@ -167,7 +167,7 @@ html.vest-aberto body {
   font-family: var(--pixel);
   font-size: 8px;
   line-height: 1;
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   text-align: center;
   white-space: nowrap;
 }
@@ -181,7 +181,7 @@ html.vest-aberto body {
   --b: 2px;
   --mc: var(--sombra-dura);
   --bisel: 3px;
-  --luz: var(--navy-500);
+  --luz: var(--aco-borda);
   --fundo: var(--line);
   --sy: 3px;
   border: 0;
@@ -197,9 +197,8 @@ html.vest-aberto body {
   min-width: 36px;
   min-height: 32px;
   padding: 4px 10px 5px;
-  background: var(--navy-600);
+  background: var(--botao);
   color: var(--white);
-  font-family: var(--term);
   font-size: var(--fs-menor);
   line-height: 1;
   cursor: pointer;
@@ -208,7 +207,7 @@ html.vest-aberto body {
 }
 
 .zoom-controls button:hover:not(:disabled) {
-  background: var(--navy-600-hover);
+  background: var(--botao-hover);
 }
 
 .zoom-controls button:active:not(:disabled) {
@@ -269,8 +268,6 @@ html.vest-aberto body {
 }
 
 .empty .empty-title {
-  font-family: var(--pixel);
-  font-size: 11px;
   color: var(--text);
   margin-bottom: 12px;
   font-family: var(--titulo);
@@ -279,8 +276,6 @@ html.vest-aberto body {
 }
 
 code {
-  font-family: var(--term);
-  font-size: 13px;
   color: var(--text);
   background: var(--bg-3);
   padding: 0 5px;
@@ -300,9 +295,7 @@ code {
   background: var(--bg-2);
   border-left: 1px solid var(--line);
   overflow-y: auto;
-  font-family: var(--term);
   font-size: var(--fs-texto);
-  line-height: 1.15;
   font-synthesis: none;
   font-family: var(--sans);
   line-height: 1.4;
@@ -379,16 +372,15 @@ code {
 
 .brand-mark {
   flex-shrink: 0;
+  /* altura fixa e largura pela proporção da logo (sem distorcer) */
+  height: 36px;
+  width: auto;
   /* respiro mínimo da logo: 1/4 da largura */
   margin: 0 10px;
 }
 
 h1 {
   margin: 0 0 6px;
-  font-family: var(--pixel);
-  font-weight: 400;
-  font-size: 11px;
-  line-height: 1.6;
   color: var(--text);
   font-family: var(--titulo);
   font-weight: 600;
@@ -407,11 +399,7 @@ h2 {
   align-items: center;
   gap: 8px;
   margin: 0 0 12px;
-  font-family: var(--pixel);
-  font-weight: 400;
-  font-size: 10px;
-  line-height: 1.6;
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font-family: var(--titulo);
   font-weight: 600;
   font-size: 14px;
@@ -524,12 +512,12 @@ h2 {
 }
 
 .btn-tecnico:hover {
-  --mc: var(--navy-500);
+  --mc: var(--aco-borda);
   color: var(--text);
 }
 
 .btn-tecnico.ligado {
-  --mc: var(--navy-100);
+  --mc: var(--nevoa-clara);
   background: var(--bg-3);
   color: var(--text);
 }
@@ -554,7 +542,7 @@ h2 {
 }
 
 .filtro-projeto select:hover {
-  border-color: var(--navy-500);
+  border-color: var(--aco-borda);
 }
 
 .conn {
@@ -576,7 +564,6 @@ h2 {
 }
 
 .conn-online i {
-  background: var(--green);
   background: var(--rh-laranja);
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
@@ -594,8 +581,6 @@ h2 {
   gap: 8px;
   min-width: 0;
   padding: 10px 12px 12px;
-  background: var(--white);
-  color: var(--badge-ink);
   background: var(--rh-elevado);
   color: var(--rh-texto);
   --badge-ink: var(--rh-texto);
@@ -610,8 +595,6 @@ h2 {
 }
 
 .progresso-frase {
-  font-family: var(--term);
-  font-size: 16px;
   line-height: 1;
   color: var(--badge-ink);
   font-family: var(--sans);
@@ -659,8 +642,6 @@ h2 {
 
 .progresso-num {
   flex-shrink: 0;
-  font-family: var(--term);
-  font-size: 20px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--badge-ink);
@@ -674,7 +655,7 @@ h2 {
   color: var(--badge-ink-soft);
 }
 
-/* "te esperando": borda e ícone laranja, texto branco sobre o escuro */
+/* "te esperando": borda e ícone na cor de aviso (--rh-aviso), texto claro sobre o escuro */
 .alert {
   display: flex;
   flex-direction: column;
@@ -709,7 +690,7 @@ h2 {
 }
 
 .alert span {
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font-size: var(--fs-menor);
 }
 
@@ -737,22 +718,20 @@ h2 {
 
 /*
  * Botão de jogo: moldura escura de 2px, relevo (luz em cima, sombra embaixo) e sombra dura onde o
- * botão "afunda" ao ser clicado. Secundário (padrão): navy600 com texto branco.
+ * botão "afunda" ao ser clicado. Secundário (padrão): fundo de botão (--botao) com texto claro.
  */
 .btn {
   --b: 2px;
   --mc: var(--sombra-dura);
   --bisel: 3px;
-  --luz: var(--navy-500);
+  --luz: var(--aco-borda);
   --fundo: var(--line);
   --sy: 3px;
   flex: 1;
   min-height: 36px;
   padding: 5px 12px 6px;
-  background: var(--navy-600);
+  background: var(--botao);
   color: var(--white);
-  font-family: var(--term);
-  font-weight: 400;
   font-size: var(--fs-texto);
   line-height: 1;
   cursor: pointer;
@@ -762,7 +741,7 @@ h2 {
 }
 
 .btn:hover:not(:disabled, [aria-disabled="true"]) {
-  background: var(--navy-600-hover);
+  background: var(--botao-hover);
 }
 
 .btn:active:not(:disabled, [aria-disabled="true"]) {
@@ -780,10 +759,6 @@ h2 {
 }
 
 .btn.primary {
-  --luz: var(--white);
-  --fundo: var(--rh-aco); /* o pé do botão claro */
-  background: var(--white);
-  color: var(--bg-2);
   --luz: var(--rh-brasa);
   --fundo: var(--rh-ardosia);
   background: var(--rh-laranja);
@@ -791,24 +766,22 @@ h2 {
 }
 
 .btn.primary:hover:not(:disabled, [aria-disabled="true"]) {
-  --luz: var(--navy-100);
-  background: var(--navy-100);
   --luz: var(--rh-laranja);
   background: var(--rh-brasa);
 }
 
 /* discreto: só a moldura, sem relevo */
 .btn.ghost {
-  --mc: var(--navy-500);
+  --mc: var(--aco-borda);
   --luz: transparent;
   --fundo: transparent;
   flex: 0 0 auto;
   background: var(--bg-2);
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
 }
 
 .btn.ghost:hover:not(:disabled, [aria-disabled="true"]) {
-  --mc: var(--navy-100);
+  --mc: var(--nevoa-clara);
   background: var(--bg-3);
 }
 
@@ -862,11 +835,10 @@ h2 {
 }
 
 .agent-row:hover {
-  --mc: var(--navy-500);
+  --mc: var(--aco-borda);
 }
 
 .agent-row.selected {
-  --mc: var(--white);
   --mc: var(--rh-laranja);
 }
 
@@ -958,7 +930,7 @@ h2 {
   color: var(--blue);
 }
 
-/* laranja sobre o escuro, com borda para virar "selo" */
+/* cor de aviso sobre o escuro, com borda para virar "selo" */
 .pill-esperando {
   background: var(--bg-2);
   color: var(--waiting);
@@ -1071,8 +1043,6 @@ h2 {
   --mc: var(--cordao);
   --sy: 6px;
   overflow: hidden;
-  background: var(--white);
-  color: var(--badge-ink);
   background: var(--rh-superficie);
   color: var(--rh-texto);
   --badge-ink: var(--rh-texto);
@@ -1095,7 +1065,6 @@ h2 {
   gap: 8px;
   min-height: 40px;
   padding: 6px 6px 6px 12px;
-  background: var(--bg-2);
   color: var(--white);
   background: var(--rh-ardosia);
 }
@@ -1137,8 +1106,8 @@ h2 {
 }
 
 .cracha-fechar:hover {
-  background: var(--navy-600);
-  border-color: var(--navy-500);
+  background: var(--botao);
+  border-color: var(--aco-borda);
 }
 
 .cracha-corpo {
@@ -1170,10 +1139,6 @@ h2 {
   display: block;
   margin: 16px 0 6px;
   max-width: 100%;
-  font-family: var(--pixel);
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 1.5;
   color: var(--badge-ink);
   text-wrap: balance;
   overflow-wrap: anywhere;
@@ -1192,8 +1157,6 @@ h2 {
   margin: 10px 0 0;
   padding: 0 8px;
   border: 2px solid var(--badge-ink);
-  font-family: var(--term);
-  font-size: 20px;
   line-height: 1.2;
   letter-spacing: 0.04em;
   color: var(--badge-ink);
@@ -1207,8 +1170,8 @@ h2 {
   margin: 10px 0 0;
   padding: 5px 10px 4px;
   border: 2px solid var(--badge-ink);
-  background: var(--cordao-visitante);
-  color: var(--badge-ink);
+  background: var(--visitante);
+  color: var(--rh-noite); /* tinta escura sobre o aço */
   font-family: var(--pixel);
   font-size: 9px;
   line-height: 1.4;
@@ -1217,7 +1180,7 @@ h2 {
 }
 
 .cracha-visitante .cracha-faixa {
-  box-shadow: inset 0 -4px 0 var(--cordao-visitante);
+  box-shadow: inset 0 -4px 0 var(--visitante);
 }
 
 /* uma linha por dado: "Rótulo: valor" */
@@ -1351,7 +1314,7 @@ h2 {
 
 .cracha-xp-barra i {
   height: 12px;
-  background: var(--navy-600);
+  background: var(--botao);
 }
 
 .cracha-xp-barra i.cheio {
@@ -1378,10 +1341,6 @@ h2 {
 
 .cracha-funcao-titulo {
   margin: 0 0 8px;
-  font-family: var(--pixel);
-  font-weight: 400;
-  font-size: 10px;
-  line-height: 1.5;
   color: var(--badge-ink);
   font-family: var(--titulo);
   font-weight: 600;
@@ -1430,14 +1389,10 @@ h2 {
 
 .feed {
   flex: 1;
-  margin: 0;
   margin: 3px;
   padding: 10px 12px;
   list-style: none;
   background: var(--bg);
-  font-family: var(--term);
-  font-size: 13px;
-  line-height: 1.15;
   overflow-y: auto;
   font-family: var(--sans);
   font-size: 13px;
@@ -1449,7 +1404,7 @@ h2 {
   grid-template-columns: auto 12px 1fr;
   gap: 8px;
   padding: 3px 0;
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
 }
 
 .feed-item time {
@@ -1574,10 +1529,6 @@ h2 {
 
 .vest-titulo {
   margin: 0 0 6px;
-  font-family: var(--pixel);
-  font-weight: 400;
-  font-size: 13px;
-  line-height: 1.5;
   color: var(--text);
   font-family: var(--titulo);
   font-weight: 600;
@@ -1608,8 +1559,8 @@ h2 {
 }
 
 .vest-x:hover {
-  --mc: var(--navy-500);
-  background: var(--navy-600);
+  --mc: var(--aco-borda);
+  background: var(--botao);
 }
 
 .vest-corpo {
@@ -1649,7 +1600,7 @@ h2 {
   border: 1px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font: 600 13px/1.2 var(--sans);
   text-align: left;
   cursor: pointer;
@@ -1681,7 +1632,7 @@ h2 {
   white-space: nowrap;
 }
 
-/* alteração não salva: bolinha azul (o laranja é de "te esperando") */
+/* alteração não salva: bolinha de aço (o aviso é de "te esperando") */
 .vest-pessoa-sujo {
   flex-shrink: 0;
   width: 8px;
@@ -1734,7 +1685,7 @@ h2 {
 
 .vest-texto label {
   grid-column: 1 / -1;
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font-size: 13px;
   font-weight: 600;
 }
@@ -1745,7 +1696,7 @@ h2 {
   width: 100%;
   min-height: 40px;
   padding: 8px 10px;
-  border: 1px solid var(--navy-500);
+  border: 1px solid var(--aco-borda);
   border-radius: 0;
   background: var(--bg);
   color: var(--text);
@@ -1805,7 +1756,7 @@ h2 {
 .vest-legenda {
   margin: 0 0 8px;
   padding: 0;
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font-size: 13px;
   font-weight: 600;
 }
@@ -1850,18 +1801,18 @@ h2 {
   border: 1px solid var(--muted); /* 3:1 ou mais sobre o fundo do modal e do chip */
   border-radius: 0;
   background: var(--bg-3);
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font-size: 13px;
   line-height: 1.2;
 }
 
 .vest-chip:hover span {
-  border-color: var(--navy-100);
+  border-color: var(--nevoa-clara);
 }
 
 .vest-chip input:checked + span {
   border-color: var(--white);
-  background: var(--navy-600);
+  background: var(--botao);
   color: var(--white);
   font-weight: 600;
   box-shadow: inset 0 -3px 0 var(--white);
@@ -1884,14 +1835,14 @@ h2 {
   width: 36px;
   height: 36px;
   margin: 0;
-  border: 2px solid var(--navy-500);
+  border: 2px solid var(--aco-borda);
   border-radius: 0;
   background: var(--amostra);
   cursor: pointer;
 }
 
 .vest-amostra:hover {
-  border-color: var(--navy-100);
+  border-color: var(--nevoa-clara);
 }
 
 .vest-amostra:checked {
@@ -1908,9 +1859,9 @@ h2 {
 .vest-fixo {
   margin: 0;
   padding: 8px 12px;
-  border: 1px dashed var(--navy-500);
+  border: 1px dashed var(--aco-borda);
   border-radius: 0;
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font-size: 13px;
 }
 
@@ -2014,7 +1965,7 @@ h2 {
   gap: 4px 8px;
   width: 100%;
   padding: 12px 6px 0;
-  border: 2px solid var(--navy-100);
+  border: 2px solid var(--nevoa-clara);
   border-radius: 0;
   background: var(--photo-bg);
 }
@@ -2031,7 +1982,7 @@ h2 {
   flex-direction: column;
   align-items: center;
   padding: 4px 4px 2px;
-  border: 1px solid var(--navy-500);
+  border: 1px solid var(--aco-borda);
   border-radius: 0;
   background: var(--white);
   line-height: 0;
@@ -2064,7 +2015,7 @@ h2 {
 
 .provador-dir {
   min-width: 112px;
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font-size: 13px;
   text-align: center;
 }
@@ -2312,7 +2263,7 @@ h2 {
 
 /* ---------------------------------------------------------------- missões e aviso de ata nova */
 
-/* chegou ata no Inbox: azul de informação, bem diferente do laranja de "te esperando" (.alert) */
+/* chegou ata no Inbox: aço de informação, bem diferente do aviso de "te esperando" (.alert) */
 .aviso-ata {
   --mc: var(--blue);
   padding: 8px 12px;
@@ -2382,7 +2333,7 @@ h2 {
 
 /* inativa com o mouse: só a moldura, sem o fundo e a barra branca da ativa */
 .missoes-aba:hover {
-  border-color: var(--navy-500);
+  border-color: var(--aco-borda);
   border-bottom-color: transparent;
   color: var(--text);
 }
@@ -2430,7 +2381,7 @@ h2 {
 }
 
 .missao-row:hover {
-  --mc: var(--navy-500);
+  --mc: var(--aco-borda);
 }
 
 .missao-row.selected,
@@ -2625,7 +2576,7 @@ h2 {
   display: block;
   padding: 6px 8px;
   background: var(--bg);
-  color: var(--navy-100);
+  color: var(--nevoa-clara);
   font-size: var(--fs-menor);
   user-select: all;
   overflow-wrap: anywhere;
@@ -2669,9 +2620,9 @@ h2 {
   color: var(--red);
 }
 
-/* âmbar escuro em selo claro: 5:1 de contraste; o laranja vivo é só de "te esperando" */
+/* âmbar escuro em selo claro: 5:1 de contraste; a cor de aviso é só de "te esperando" */
 .pend-selo-logo {
-  background: var(--navy-100);
+  background: var(--nevoa-clara);
   color: var(--waiting-ink);
 }
 
@@ -2750,7 +2701,7 @@ h2 {
 
 .res-estimativa th[scope="row"],
 .res-estimativa td {
-  color: var(--text); /* branco sobre o navy (~16:1); o destaque é o peso, não uma cor */
+  color: var(--text); /* texto claro sobre o escuro (~16:1); o destaque é o peso, não uma cor */
   font-weight: 700;
 }
 
@@ -2799,7 +2750,7 @@ h2 {
   border: 2px solid var(--line);
   border-left-width: 8px;
   background: var(--bg-3);
-  color: var(--text); /* branco sobre o navy (~16:1): o aviso é dito pelo ícone, pelo texto e pela borda, não só pela cor */
+  color: var(--text); /* texto claro sobre o escuro (~16:1): o aviso é dito pelo ícone, pelo texto e pela borda, não só pela cor */
   font-size: var(--fs-menor);
   line-height: 1.25;
 }
@@ -2964,7 +2915,6 @@ h2 {
   background: var(--bg-2);
   border: 1px solid var(--line);
   color: var(--text);
-  font-family: var(--term);
   font-size: var(--fs-menor);
   line-height: 1.15;
   font-family: var(--sans);
@@ -3131,7 +3081,7 @@ h2 {
 
 /* a velocidade escolhida não depende só de cor: ganha um visto, fundo e moldura mais clara */
 .replay-vel[aria-pressed="true"] {
-  --mc: var(--navy-100);
+  --mc: var(--nevoa-clara);
   background: var(--bg-3);
   color: var(--text);
 }

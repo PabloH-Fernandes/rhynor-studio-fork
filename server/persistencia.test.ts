@@ -27,8 +27,8 @@ const trabalhando = (): LinhaGravada[] => [
   ev(1, { hook_event_name: "SessionStart", source: "startup" }),
   ev(2, { hook_event_name: "UserPromptSubmit", prompt: "faz o login" }),
   ev(3, { hook_event_name: "PreToolUse", tool_name: "Agent", tool_use_id: "tu-dev", tool_input: { subagent_type: "dev", description: "Fazer o login" } }),
-  ev(3.2, { hook_event_name: "SubagentStart", agent_id: "ag-dev", agent_type: "dev" }),
-  ev(5, { hook_event_name: "PreToolUse", agent_id: "ag-dev", agent_type: "dev", tool_name: "Edit", tool_input: { file_path: "/x/login.ts" } }),
+  ev(3.2, { hook_event_name: "SubagentStart", agent_id: "sub-dev", agent_type: "dev" }),
+  ev(5, { hook_event_name: "PreToolUse", agent_id: "sub-dev", agent_type: "dev", tool_name: "Edit", tool_input: { file_path: "/x/login.ts" } }),
   ev(6, { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "npm test" } }),
 ];
 
@@ -47,7 +47,7 @@ const saidas = <T extends { status: string }>(linhaDoTempo: T[]) => linhaDoTempo
 
 test("reinício no meio do trabalho: mesmos Personagens e status; o próximo evento vai pro mesmo boneco", () => {
   const antes = reproduzir(trabalhando()).state;
-  const linhas = [...trabalhando(), reinicio(10), ev(12, { hook_event_name: "PreToolUse", agent_id: "ag-dev", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "/x/a.ts" } })];
+  const linhas = [...trabalhando(), reinicio(10), ev(12, { hook_event_name: "PreToolUse", agent_id: "sub-dev", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "/x/a.ts" } })];
   const { state, linhaDoTempo } = reproduzir(linhas, { aoReiniciar: comPersistencia });
   // o dev já voltou a trabalhar com o Read depois do reinício; o líder não: o Bash dele morreu com o processo
   assert.deepEqual(resumo(state), aposReinicio(resumo(antes)).map((l) => (l.startsWith("p:dev:") ? l.replace(":ocioso", ":trabalhando") : l)));
@@ -72,11 +72,11 @@ test("reinício logo depois do SubagentStart: quem estava 'chegando' volta já s
 test("reinício: o líder retoma quem já entregou e ele só volta pra mesa", () => {
   const linhas = [
     ...trabalhando(),
-    ev(8, { hook_event_name: "SubagentStop", agent_id: "ag-dev", agent_type: "dev" }),
+    ev(8, { hook_event_name: "SubagentStop", agent_id: "sub-dev", agent_type: "dev" }),
     reinicio(10),
-    ev(20, { hook_event_name: "PreToolUse", tool_name: "SendMessage", tool_input: { to: "ag-dev", message: "Ajusta o login" } }),
-    ev(20.2, { hook_event_name: "SubagentStart", agent_id: "ag-dev", agent_type: "dev" }),
-    ev(22, { hook_event_name: "PreToolUse", agent_id: "ag-dev", agent_type: "dev", tool_name: "Edit", tool_input: { file_path: "/x/b.ts" } }),
+    ev(20, { hook_event_name: "PreToolUse", tool_name: "SendMessage", tool_input: { to: "sub-dev", message: "Ajusta o login" } }),
+    ev(20.2, { hook_event_name: "SubagentStart", agent_id: "sub-dev", agent_type: "dev" }),
+    ev(22, { hook_event_name: "PreToolUse", agent_id: "sub-dev", agent_type: "dev", tool_name: "Edit", tool_input: { file_path: "/x/b.ts" } }),
   ];
   const { state, linhaDoTempo } = reproduzir(linhas, { aoReiniciar: comPersistencia });
   const subs = agentes(state).filter((a) => a.parentId);
@@ -104,7 +104,7 @@ test("/compact com o líder ocioso: só muda o texto", () => {
 });
 
 test("resposta longa: vários Stop e eventos a cada ~10 min, ninguém sai", () => {
-  const linhas = [...trabalhando(), ev(60, { hook_event_name: "SubagentStop", agent_id: "ag-dev", agent_type: "dev" })];
+  const linhas = [...trabalhando(), ev(60, { hook_event_name: "SubagentStop", agent_id: "sub-dev", agent_type: "dev" })];
   for (let i = 1; i <= 8; i++) {
     const t = 60 + i * 10 * 60;
     linhas.push(ev(t, { hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: `/x/${i}.ts` } }));
@@ -119,7 +119,7 @@ test("resposta longa: vários Stop e eventos a cada ~10 min, ninguém sai", () =
 test("/clear: SessionEnd reason clear + SessionStart clear com session_id novo → mesmo time", () => {
   const linhas = [
     ...trabalhando(),
-    ev(8, { hook_event_name: "SubagentStop", agent_id: "ag-dev", agent_type: "dev" }),
+    ev(8, { hook_event_name: "SubagentStop", agent_id: "sub-dev", agent_type: "dev" }),
     ev(9, { hook_event_name: "Stop" }),
     ev(20, { hook_event_name: "SessionEnd", reason: "clear" }),
     ev(20.3, { hook_event_name: "SessionStart", session_id: "s2", source: "clear" }),
@@ -138,7 +138,7 @@ test("/clear: SessionEnd reason clear + SessionStart clear com session_id novo �
   const mais = [
     ...linhas,
     ev(30, { hook_event_name: "PreToolUse", session_id: "s2", tool_name: "Agent", tool_use_id: "tu-x", tool_input: { subagent_type: "dev", description: "Logout" } }),
-    ev(30.2, { hook_event_name: "SubagentStart", session_id: "s2", agent_id: "ag-dev-b", agent_type: "dev", tool_use_id: "tu-x" }),
+    ev(30.2, { hook_event_name: "SubagentStart", session_id: "s2", agent_id: "sub-dev-b", agent_type: "dev", tool_use_id: "tu-x" }),
   ];
   const depois = reproduzir(mais);
   assert.equal(agentes(depois.state).length, 2);
@@ -166,10 +166,10 @@ test("/clear: o /clear sobrevive a um reinício do servidor no meio da troca", (
 test("dev entregou, novo agent_id dev → p:dev, sem chegando", () => {
   const linhas = [
     ...trabalhando(),
-    ev(8, { hook_event_name: "SubagentStop", agent_id: "ag-dev", agent_type: "dev" }),
+    ev(8, { hook_event_name: "SubagentStop", agent_id: "sub-dev", agent_type: "dev" }),
     ev(20, { hook_event_name: "PreToolUse", tool_name: "Agent", tool_use_id: "tu-dev2", tool_input: { subagent_type: "dev", description: "Ajustar o login" } }),
-    ev(20.2, { hook_event_name: "SubagentStart", agent_id: "ag-dev-2", agent_type: "dev", tool_use_id: "tu-dev2" }),
-    ev(22, { hook_event_name: "PreToolUse", agent_id: "ag-dev-2", agent_type: "dev", tool_name: "Edit", tool_input: { file_path: "/x/b.ts" } }),
+    ev(20.2, { hook_event_name: "SubagentStart", agent_id: "sub-dev-2", agent_type: "dev", tool_use_id: "tu-dev2" }),
+    ev(22, { hook_event_name: "PreToolUse", agent_id: "sub-dev-2", agent_type: "dev", tool_name: "Edit", tool_input: { file_path: "/x/b.ts" } }),
   ];
   const { state, linhaDoTempo } = reproduzir(linhas);
   const subs = agentes(state).filter((a) => a.parentId);
@@ -180,7 +180,7 @@ test("dev entregou, novo agent_id dev → p:dev, sem chegando", () => {
 test("/clear fora de ordem: SessionStart clear antes do SessionEnd clear funde o time na hora", () => {
   const linhas = [
     ...trabalhando(),
-    ev(8, { hook_event_name: "SubagentStop", agent_id: "ag-dev", agent_type: "dev" }),
+    ev(8, { hook_event_name: "SubagentStop", agent_id: "sub-dev", agent_type: "dev" }),
     ev(9, { hook_event_name: "Stop" }),
     ev(20, { hook_event_name: "SessionStart", session_id: "s2", source: "clear" }),
     ev(21, { hook_event_name: "SessionEnd", reason: "clear" }),
@@ -233,7 +233,7 @@ test("SessionEnd normal manda o time embora; Stop não", () => {
 });
 
 test("timeout de 30 min sem eventos manda embora (ocioso); com o arquivo velho, ninguém volta", () => {
-  const linhas = [...trabalhando(), ev(8, { hook_event_name: "SubagentStop", agent_id: "ag-dev", agent_type: "dev" }), ev(9, { hook_event_name: "Stop" })];
+  const linhas = [...trabalhando(), ev(8, { hook_event_name: "SubagentStop", agent_id: "sub-dev", agent_type: "dev" }), ev(9, { hook_event_name: "Stop" })];
   const { state } = reproduzir(linhas, { depoisDoFimMs: 32 * MIN });
   assert.equal(agentes(state).length, 0);
 

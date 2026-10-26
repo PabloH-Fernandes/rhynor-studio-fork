@@ -3,14 +3,14 @@
 // mexa em DESKS, OVERFLOW_SPOTS, COFFEE_SPOTS e REST_SPOTS.
 // As colunas 32 a 36 são a ala de descanso (ping-pong, bebedouro, 3ª mesa de convidado).
 
-import { inkAlpha, navyAlpha, palette, theme, roleColor } from "../theme";
+import { inkAlpha, ardosiaAlpha, palette, theme, roleColor } from "../theme";
 import { comAlfa } from "../marca/cores";
 import { RHYNOR_LETTERS, STUDIO_LETTERS, STUDIO_PLAQUE, bitmapWidth, drawBitmap, drawPixelArt } from "./pixelMarca";
 import { RINO_32, RINO_TOKENS } from "../marca/rinoceronte";
 import { cor } from "../marca/cores";
 import {
   SOFA_GRAY,
-  SOFA_NAVY,
+  SOFA_ARDOSIA,
   disc,
   drawCoatRack,
   drawCoffeeTable,
@@ -373,7 +373,7 @@ export function drawFloor(ctx: Ctx) {
       [rx, ry + rh - 1, rw, 1],
       [rx, ry, 1, rh],
       [rx + rw - 1, ry, 1, rh],
-    ]) rect(ctx, fx, fy, fw, fh, palette.navy700);
+    ]) rect(ctx, fx, fy, fw, fh, palette.ardosia);
     for (let i = 1; i < 6; i++) rect(ctx, rx + 3, ry + i * 13, rw - 6, 1, palette.gray200);
   }
 
@@ -387,9 +387,9 @@ export function drawFloor(ctx: Ctx) {
   rect(ctx, 0, px(AISLE_Y) - 20, 5, 40, c.woodShade);
   rect(ctx, 0, px(AISLE_Y) - 18, 3, 36, palette.furniture.woodDark);
   rect(ctx, 3, px(AISLE_Y) - 18, 1, 36, c.wood);
-  rect(ctx, 5, px(AISLE_Y) - 14, 10, 28, palette.navy900);
-  rect(ctx, 6, px(AISLE_Y) - 13, 8, 26, palette.navy800);
-  for (let y = px(AISLE_Y) - 11; y < px(AISLE_Y) + 12; y += 3) rect(ctx, 7, y, 6, 1, palette.navy700);
+  rect(ctx, 5, px(AISLE_Y) - 14, 10, 28, palette.superficie);
+  rect(ctx, 6, px(AISLE_Y) - 13, 8, 26, palette.superficieArdosia);
+  for (let y = px(AISLE_Y) - 11; y < px(AISLE_Y) + 12; y += 3) rect(ctx, 7, y, 6, 1, palette.ardosia);
 }
 
 /** janelas com céu, nuvens e a cidade (prédios, antena piscando): todo quadro, por cima da parede */
@@ -454,7 +454,7 @@ function drawWall(ctx: Ctx) {
   rect(ctx, 0, TRIM_Y + 1, W, 1, c.wainscotTop);
   rect(ctx, 0, TRIM_Y + 2, W, WALL_H - TRIM_Y - 2, c.wainscot);
   for (let x = 24; x < W; x += 48) rect(ctx, x, TRIM_Y + 3, 1, WALL_H - TRIM_Y - 4, c.wainscotTop);
-  rect(ctx, 0, WALL_H - 1, W, 1, palette.navy950);
+  rect(ctx, 0, WALL_H - 1, W, 1, palette.noite);
   // sombra da parede no chão (some em 3 linhas)
   ctx.fillStyle = c.wallShadow;
   ctx.fillRect(0, WALL_H, W, 3);
@@ -482,8 +482,8 @@ function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number, light?: Wi
   ctx.restore();
 
   // sombra interna da moldura (topo e esquerda)
-  rect(ctx, glass.x, glass.y, glass.w, 1, navyAlpha(0.18));
-  rect(ctx, glass.x, glass.y + 1, 1, glass.h - 1, navyAlpha(0.18));
+  rect(ctx, glass.x, glass.y, glass.w, 1, ardosiaAlpha(0.18));
+  rect(ctx, glass.x, glass.y + 1, 1, glass.h - 1, ardosiaAlpha(0.18));
   // divisão em cruz
   const midX = glass.x + glass.w / 2 - 1;
   const midY = glass.y + glass.h / 2 - 1;
@@ -495,7 +495,7 @@ function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number, light?: Wi
   rect(ctx, x - 2, sillY, WIN_W + 4, 1, palette.white);
   rect(ctx, x - 2, sillY + 1, WIN_W + 4, 1, palette.gray50);
   rect(ctx, x - 2, sillY + 2, WIN_W + 4, 1, palette.gray300);
-  rect(ctx, x - 1, sillY + 3, WIN_W + 2, 1, navyAlpha(0.14));
+  rect(ctx, x - 1, sillY + 3, WIN_W + 2, 1, ardosiaAlpha(0.14));
 }
 
 // ------------------------------------------------------------------ placa da recepção
@@ -527,8 +527,8 @@ export function drawSign(ctx: Ctx) {
   for (const ax of SIGN_LAMP_X) {
     rect(ctx, ax - 1, 0, 3, 1, palette.gray400);
     rect(ctx, ax, 1, 1, 1, palette.gray500);
-    rect(ctx, ax - 1, 2, 3, 1, palette.navy800);
-    rect(ctx, ax - 2, 3, 5, 1, palette.navy900);
+    rect(ctx, ax - 1, 2, 3, 1, palette.superficieArdosia);
+    rect(ctx, ax - 2, 3, 5, 1, palette.superficie);
     rect(ctx, ax - 1, 4, 3, 1, palette.white);
   }
 }
@@ -563,14 +563,14 @@ export function drawClock(ctx: Ctx, now: Date) {
   const cy = 21;
   rect(ctx, cx - 8, cy + 11, 18, 1, inkAlpha(0.18)); // sombra
   disc(ctx, cx, cy, 10, theme.colors.outline);
-  disc(ctx, cx, cy, 9, palette.navy800);
+  disc(ctx, cx, cy, 9, palette.superficieArdosia);
   disc(ctx, cx, cy, 8, palette.white);
   // marcas das 12, 3, 6 e 9 + as outras horas em cinza
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2;
     const mx = cx + Math.round(Math.sin(a) * 7);
     const my = cy - Math.round(Math.cos(a) * 7);
-    rect(ctx, mx, my, 1, 1, i % 3 === 0 ? palette.navy900 : palette.gray300);
+    rect(ctx, mx, my, 1, 1, i % 3 === 0 ? palette.superficie : palette.gray300);
   }
   const hand = (angle: number, len: number, color: string) =>
     line(ctx, cx, cy, cx + Math.round(Math.sin(angle) * len), cy - Math.round(Math.cos(angle) * len), color);
@@ -578,10 +578,10 @@ export function drawClock(ctx: Ctx, now: Date) {
   const m = now.getMinutes();
   const s = now.getSeconds();
   const ha = ((h + m / 60) / 12) * Math.PI * 2;
-  hand(ha, 4, palette.navy900);
+  hand(ha, 4, palette.superficie);
   // ponteiro das horas mais grosso: segunda linha ao lado
-  line(ctx, cx + 1, cy, cx + 1 + Math.round(Math.sin(ha) * 3), cy - Math.round(Math.cos(ha) * 3), palette.navy900);
-  hand(((m + s / 60) / 60) * Math.PI * 2, 6, palette.navy900);
+  line(ctx, cx + 1, cy, cx + 1 + Math.round(Math.sin(ha) * 3), cy - Math.round(Math.cos(ha) * 3), palette.superficie);
+  hand(((m + s / 60) / 60) * Math.PI * 2, 6, palette.superficie);
   hand((s / 60) * Math.PI * 2, 6, palette.signal.alert);
   rect(ctx, cx, cy, 1, 1, theme.colors.outline);
 }
@@ -660,7 +660,7 @@ export function linhaDaMissao(
 
 /** copo do escritório (o mesmo das mesas) com vapor; (x, y) = canto de cima do corpo */
 function boardCup(ctx: Ctx, x: number, y: number) {
-  const ink = palette.navy950;
+  const ink = palette.noite;
   rect(ctx, x + 1, y - 2, 1, 1, palette.gray400); // vapor
   rect(ctx, x + 2, y - 3, 1, 1, palette.gray400);
   rect(ctx, x, y - 1, 3, 1, ink); // borda de cima
@@ -669,13 +669,13 @@ function boardCup(ctx: Ctx, x: number, y: number) {
   rect(ctx, x, y + 4, 3, 1, ink); // fundo
   rect(ctx, x, y, 3, 1, palette.furniture.woodShade); // café
   rect(ctx, x, y + 1, 3, 3, palette.white);
-  rect(ctx, x, y + 2, 3, 1, palette.navy900); // faixa do copo
+  rect(ctx, x, y + 2, 3, 1, palette.superficie); // faixa do copo
   rect(ctx, x + 4, y + 1, 1, 2, ink); // asa
 }
 
 /** prancheta em pixel (5x6): clipe no alto, folha branca e 2 linhas de texto; (x, y) = canto de cima */
 function boardClipboard(ctx: Ctx, x: number, y: number) {
-  const ink = palette.navy700;
+  const ink = palette.ardosia;
   rect(ctx, x, y + 1, 5, 5, ink); // prancheta
   rect(ctx, x + 1, y, 3, 1, palette.gray500); // clipe
   rect(ctx, x + 1, y + 2, 3, 3, palette.white); // folha
@@ -684,7 +684,7 @@ function boardClipboard(ctx: Ctx, x: number, y: number) {
 
 /** visto em pixel (6x5) */
 function boardCheck(ctx: Ctx, x: number, y: number) {
-  const c = palette.navy700;
+  const c = palette.ardosia;
   rect(ctx, x, y + 2, 1, 1, c);
   rect(ctx, x + 1, y + 3, 1, 1, c);
   rect(ctx, x + 2, y + 4, 1, 1, c);
@@ -710,7 +710,7 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
   rect(ctx, x + 2, y + 2, w - 4, 1, palette.gray50);
   // bandeja com pincéis
   rect(ctx, BOARD_TRAY.x, BOARD_TRAY.y, BOARD_TRAY.w, BOARD_TRAY.h, palette.gray500);
-  rect(ctx, x + 9, y + h - 1, 5, 1, palette.navy600);
+  rect(ctx, x + 9, y + h - 1, 5, 1, palette.borda);
   rect(ctx, x + 16, y + h - 1, 5, 1, palette.signal.alert);
 
   const left = x + 5;
@@ -722,7 +722,7 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
   ctx.font = BOARD_TITLE_FONT;
   const icon = pr.estado === "nada" || pr.estado === "concluido" ? 8 : 0;
   const title = ctx.measureText(pr.titulo).width <= maxW - icon ? pr.titulo : fitText(ctx, pr.curto, maxW - icon);
-  ctx.fillStyle = palette.navy900;
+  ctx.fillStyle = palette.superficie;
   ctx.fillText(title, left, y + 2);
   const tw = Math.round(ctx.measureText(title).width);
   if (pr.estado === "nada") boardCup(ctx, left + tw + 3, y + 6);
@@ -735,7 +735,7 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
   const detalhe =
     pr.estado === "tarefas" ? pr.detalhe : pr.estado === "papel" ? "sem lista de tarefas" : pr.estado === "concluido" ? "tudo entregue" : "ninguém trabalhando agora";
   if (detalhe && k >= 2) {
-    ctx.fillStyle = pr.estado === "tarefas" ? palette.navy600 : palette.gray500;
+    ctx.fillStyle = pr.estado === "tarefas" ? palette.borda : palette.gray500;
     ctx.fillText(fitText(ctx, detalhe, maxW), left, y + 10);
   }
 
@@ -744,9 +744,9 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
     const cheios = segmentosCheios(pr.valor, pr.max);
     for (let i = 0; i < SEGMENTOS; i++) {
       const sx = left + i * 6;
-      rect(ctx, sx, y + 18, 5, 5, i < cheios ? palette.navy700 : palette.gray200);
+      rect(ctx, sx, y + 18, 5, 5, i < cheios ? palette.ardosia : palette.gray200);
     }
-    ctx.fillStyle = palette.navy900;
+    ctx.fillStyle = palette.superficie;
     ctx.fillText(`${pr.valor}/${pr.max}`, left + SEGMENTOS * 6 + 2, y + 17);
   }
 
@@ -762,7 +762,7 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
     // direita quando sobra lugar pro nome (linhaDaMissao)
     const linha = linhaDaMissao(data.missao, data.waiting, maxW, (s) => ctx.measureText(s).width);
     boardClipboard(ctx, left, cy + 1);
-    ctx.fillStyle = palette.navy900;
+    ctx.fillStyle = palette.superficie;
     ctx.fillText(linha.nome, left + MISSAO_ICON_W, cy);
     if (linha.espera) {
       ctx.fillStyle = palette.signal.waitingInk;
@@ -805,7 +805,7 @@ function drawStudioPlaque(ctx: Ctx) {
     fill(ctx, ox, oy + 2, ow, oh - 4, color);
   };
   stepped(x, y, w, h, theme.colors.outline);
-  stepped(x + 1, y + 1, w - 2, h - 2, palette.navy700);
+  stepped(x + 1, y + 1, w - 2, h - 2, palette.ardosia);
   drawBitmap(ctx, STUDIO_PLAQUE, x + 3, y + 3, palette.white);
 }
 
@@ -814,13 +814,13 @@ export function drawMeetingTable(ctx: Ctx) {
   const c = theme.colors;
   const cx = px(16);
   const cy = px(11.2);
-  oval(ctx, cx, cy + 9, 26, 9, navyAlpha(0.2));
+  oval(ctx, cx, cy + 9, 26, 9, ardosiaAlpha(0.2));
   oval(ctx, cx, cy + 3, 25, 12, c.woodShade);
   oval(ctx, cx, cy, 25, 12, c.woodLight);
   oval(ctx, cx - 4, cy - 3, 17, 7, mix(c.woodLight, palette.white, 0.1));
   drawStoryboard(ctx, cx, cy);
   // caneca clara com café
-  rect(ctx, cx - 19, cy - 3, 4, 4, palette.navy950);
+  rect(ctx, cx - 19, cy - 3, 4, 4, palette.noite);
   rect(ctx, cx - 18, cy - 2, 2, 2, palette.white);
   rect(ctx, cx - 18, cy - 2, 2, 1, c.woodShade);
   rect(ctx, cx - 15, cy - 2, 1, 2, palette.white);
@@ -832,11 +832,11 @@ export function drawMeetingTable(ctx: Ctx) {
  */
 export function drawStool(ctx: Ctx, x: number, y: number) {
   const F = palette.furniture;
-  const ink = palette.navy950;
-  rect(ctx, x - 5, y + 2, 11, 2, navyAlpha(0.18)); // sombra
+  const ink = palette.noite;
+  rect(ctx, x - 5, y + 2, 11, 2, ardosiaAlpha(0.18)); // sombra
   for (const lx of [x - 4, x + 3]) {
     rect(ctx, lx - 1, y - 1, 3, 5, ink);
-    rect(ctx, lx, y - 1, 1, 4, palette.navy800);
+    rect(ctx, lx, y - 1, 1, 4, palette.superficieArdosia);
   }
   rect(ctx, x - 6, y - 4, 12, 5, ink); // contorno do assento
   rect(ctx, x - 5, y - 3, 10, 3, F.oak);
@@ -847,7 +847,7 @@ export function drawStool(ctx: Ctx, x: number, y: number) {
 /** storyboard: 6 quadrinhos em 2 fileiras sobre uma folha clara, com rabiscos de cena e um lápis */
 function drawStoryboard(ctx: Ctx, cx: number, cy: number) {
   // folha com contorno escuro (e a espessura embaixo)
-  rect(ctx, cx - 11, cy - 7, 22, 13, palette.navy950);
+  rect(ctx, cx - 11, cy - 7, 22, 13, palette.noite);
   rect(ctx, cx - 10, cy - 6, 20, 11, palette.white);
   rect(ctx, cx - 10, cy + 4, 20, 1, palette.gray150);
   // 6 quadros 5x3 com uma cena simples cada
@@ -857,8 +857,8 @@ function drawStoryboard(ctx: Ctx, cx: number, cy: number) {
     rect(ctx, qx, qy, 5, 4, palette.gray300);
     rect(ctx, qx + 1, qy + 1, 3, 2, palette.gray100);
     // rabisco: horizonte, personagem ou objeto
-    if (i % 3 === 0) rect(ctx, qx + 1, qy + 2, 3, 1, palette.navy600);
-    else if (i % 3 === 1) rect(ctx, qx + 2, qy + 1, 1, 2, palette.navy700);
+    if (i % 3 === 0) rect(ctx, qx + 1, qy + 2, 3, 1, palette.borda);
+    else if (i % 3 === 1) rect(ctx, qx + 2, qy + 1, 1, 2, palette.ardosia);
     else rect(ctx, qx + 1, qy + 1, 1, 1, palette.signal.alert);
   }
   // lápis deitado ao lado
@@ -872,15 +872,15 @@ export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean, still = fal
   const x = px(26.6);
   const y = px(16.1);
   const w = px(5.4);
-  rect(ctx, x - 1, y, 1, 30, palette.navy950);
-  rect(ctx, x, y, w, 30, palette.navy800);
+  rect(ctx, x - 1, y, 1, 30, palette.noite);
+  rect(ctx, x, y, w, 30, palette.superficieArdosia);
   rect(ctx, x, y, w, 6, F.oak);
   rect(ctx, x, y, w, 1, F.oakLight);
   rect(ctx, x, y + 6, w, 1, F.oakShade);
-  rect(ctx, x, y + 7, w, 1, palette.navy950);
-  for (const dx of [28, 57]) rect(ctx, x + dx, y + 10, 1, 18, palette.navy700); // portas
+  rect(ctx, x, y + 7, w, 1, palette.noite);
+  for (const dx of [28, 57]) rect(ctx, x + dx, y + 10, 1, 18, palette.ardosia); // portas
   // cafeteira
-  rect(ctx, x + 9, y - 17, 18, 20, palette.navy950);
+  rect(ctx, x + 9, y - 17, 18, 20, palette.noite);
   rect(ctx, x + 10, y - 16, 16, 18, palette.gray800);
   rect(ctx, x + 12, y - 13, 12, 5, palette.gray700);
   rect(ctx, x + 16, y - 4, 4, 4, palette.white);
@@ -897,12 +897,12 @@ export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean, still = fal
       if (j < 3) ctx.fillRect(x + 37 - wave, y - 8 - j * 2, 1, 2);
     }
   }
-  rect(ctx, x + 41, y - 3, 5, 4, palette.navy600);
+  rect(ctx, x + 41, y - 3, 5, 4, palette.borda);
   // torre de copos pra quem vem tomar café (o bebedouro foi pra ala de descanso)
-  rect(ctx, x + 65, y - 10, 6, 11, palette.navy950);
+  rect(ctx, x + 65, y - 10, 6, 11, palette.noite);
   rect(ctx, x + 66, y - 9, 4, 9, palette.white);
   for (let cy = y - 7; cy < y; cy += 2) rect(ctx, x + 66, cy, 4, 1, palette.gray200);
-  rect(ctx, x + 66, y - 9, 4, 1, palette.navy900);
+  rect(ctx, x + 66, y - 9, 4, 1, palette.superficie);
 }
 
 /** balcão da recepção (x, y da base e largura); tem arandela própria à noite */
@@ -938,13 +938,13 @@ export const PROPS: Prop[] = [
   { id: "pingpong", y: PINGPONG.y + PINGPONG.h + 8, draw: (ctx) => drawPingPongTable(ctx, PINGPONG.x, PINGPONG.y, PINGPONG.w, PINGPONG.h) },
   { y: WATER_COOLER.y, draw: (ctx) => drawWaterCooler(ctx, WATER_COOLER.x, WATER_COOLER.y) },
   // cima à esquerda: sofá escuro, mesinha de centro e luminária de piso
-  { y: 104, draw: (ctx) => drawSofa(ctx, 24, 104, 48, 2, SOFA_NAVY, { pillow: true }) },
+  { y: 104, draw: (ctx) => drawSofa(ctx, 24, 104, 48, 2, SOFA_ARDOSIA, { pillow: true }) },
   { y: 100, draw: (ctx) => drawCoffeeTable(ctx, 78, 100) },
   { y: FLOOR_LAMP.y, draw: (ctx) => drawFloorLamp(ctx, FLOOR_LAMP.x, FLOOR_LAMP.y) },
   // cima à direita: multifuncional, arara de figurino e poltrona
   { y: 100, draw: (ctx, t) => drawPrinter(ctx, 300, 100, t), live: true },
   { y: 100, draw: (ctx) => drawCoatRack(ctx, 350, 100) },
-  { y: 104, draw: (ctx) => drawSofa(ctx, 440, 104, 30, 1, SOFA_NAVY) },
+  { y: 104, draw: (ctx) => drawSofa(ctx, 440, 104, 30, 1, SOFA_ARDOSIA) },
   // corredor (fora da lane 312)
   { y: 236, draw: (ctx) => drawPlant(ctx, 296, 236) },
   // embaixo: recepção ao lado da porta, sofá de espera e plantas
@@ -970,13 +970,13 @@ export function drawDesk(
   const F = palette.furniture;
 
   // sombra
-  rect(ctx, x + 2, top + depth + front - 1, w, 4, navyAlpha(0.16));
+  rect(ctx, x + 2, top + depth + front - 1, w, 4, ardosiaAlpha(0.16));
   // tampo claro com filete de 2px na frente + painel frontal claro; quem trabalha agora ganha o
   // contorno de 1px em laranja (a luz brasa em volta vem do lightmap)
   rect(ctx, x - 1, top - 1, w + 2, depth + front + 2, opts.active ? palette.signal.active : c.outline);
   rect(ctx, x, top, w, depth, F.oak);
   rect(ctx, x, top, w, 2, F.oakLight);
-  rect(ctx, x, top + depth - 2, w, 2, palette.navy800);
+  rect(ctx, x, top + depth - 2, w, 2, palette.superficieArdosia);
   rect(ctx, x, top + depth, w, front, palette.gray50);
   rect(ctx, x, top + depth + front - 2, w, 2, palette.gray200);
 
@@ -987,8 +987,8 @@ export function drawDesk(
   // monitor (à direita, virado "pra câmera" — licença poética de escritório pixel), moldura escura
   const { x: mx, y: my } = monitorScreen(d);
   rect(ctx, mx - 2, my - 2, 17, 15, c.outline);
-  rect(ctx, mx - 1, my - 1, 15, 13, palette.navy800);
-  rect(ctx, mx, my, 13, 11, opts.active ? palette.navy950 : opts.waiting ? palette.navy900 : palette.gray800);
+  rect(ctx, mx - 1, my - 1, 15, 13, palette.superficieArdosia);
+  rect(ctx, mx, my, 13, 11, opts.active ? palette.noite : opts.waiting ? palette.superficie : palette.gray800);
   if (opts.active) {
     // linhas de código "rolando"
     const scroll = opts.reducedMotion ? 0 : Math.floor(opts.t / 180); // reduced-motion: quadro fixo
@@ -1020,7 +1020,7 @@ export function drawDesk(
   const label = rotuloQueCabe(opts.label, maxW, (s) => ctx.measureText(s).width);
   const textW = Math.min(ctx.measureText(label).width, maxW);
   const plate = deskPlateRect(d, textW);
-  rect(ctx, plate.x, plate.y, plate.w, plate.h, palette.navy700);
+  rect(ctx, plate.x, plate.y, plate.w, plate.h, palette.ardosia);
   ctx.fillStyle = palette.white;
   ctx.fillText(label, px(d.cx), plate.y + 4, maxW);
 }

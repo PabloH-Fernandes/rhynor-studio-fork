@@ -47,7 +47,7 @@ export function desenharPlaca(ctx: CanvasRenderingContext2D, rect: Retangulo, no
   const sobe = movimento && Math.sin(now / 600) > 0.6 ? -1 : 0;
   const x = Math.round(rect.x);
   const y = Math.round(rect.y) + sobe;
-  const tinta = palette.navy950;
+  const tinta = palette.noite;
   fill(ctx, x + 5, y + 9, 1, 5, palette.furniture.woodShade); // cabo
   fill(ctx, x, y, 11, 9, tinta); // contorno
   fill(ctx, x + 1, y + 1, 9, 7, palette.signal.alert); // moldura vermelha

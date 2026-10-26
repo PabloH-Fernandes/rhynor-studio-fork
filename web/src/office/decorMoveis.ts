@@ -1,7 +1,7 @@
 // Mobília do chão em pixel art: plantas, sofás, impressora, arara de figurino, balcão da recepção,
 // ping-pong e bebedouro. Tudo em coordenadas inteiras da resolução base, sem arc/ellipse/gradiente.
 
-import { navyAlpha, palette } from "../theme";
+import { ardosiaAlpha, palette } from "../theme";
 import { RHYNOR_LETTERS, bitmapWidth, drawBitmap } from "./pixelMarca";
 import { type Ctx, fill } from "./decorBase";
 
@@ -13,8 +13,8 @@ const P = palette;
 
 // lidos na hora do desenho (as cores vêm dos tokens, carregados depois dos módulos)
 const F = P.furniture;
-const out = () => P.navy950;
-const shadow = () => navyAlpha(0.16);
+const out = () => P.noite;
+const shadow = () => ardosiaAlpha(0.16);
 
 /** bitmap de folhas em 3 tons: "l" claro, "m" médio, "d" escuro, "." vazio */
 function drawLeaves(ctx: Ctx, rows: readonly string[], x: number, y: number) {
@@ -86,7 +86,7 @@ export function drawPlant(ctx: Ctx, x: number, baseY: number, big = false) {
   fill(ctx, rx + 1, rimTop, rimW - 2, 1, P.gray800); // terra
   fill(ctx, bx, rimTop + 2, bodyW, bodyH - 1, P.gray50);
   fill(ctx, bx + bodyW - 2, rimTop + 2, 2, bodyH - 1, P.gray150);
-  fill(ctx, bx, rimTop + 1 + (bodyH >> 1), bodyW, 1, P.navy900);
+  fill(ctx, bx, rimTop + 1 + (bodyH >> 1), bodyW, 1, P.superficie);
   fill(ctx, bx, baseY - 2, bodyW, 1, P.gray200);
   // as folhas de baixo caem por cima do aro
   drawLeaves(ctx, leaves.slice(-2), lx, rimTop - 1);
@@ -99,18 +99,18 @@ interface SofaColors {
   light: string;
 }
 
-export const SOFA_NAVY: SofaColors = {
+export const SOFA_ARDOSIA: SofaColors = {
   get frame() {
-    return P.navy900;
+    return P.superficie;
   },
   get body() {
-    return P.navy800;
+    return P.superficieArdosia;
   },
   get cushion() {
-    return P.navy700;
+    return P.ardosia;
   },
   get light() {
-    return P.navy600;
+    return P.borda;
   },
 };
 export const SOFA_GRAY: SofaColors = {
@@ -191,7 +191,7 @@ export function drawCoffeeTable(ctx: Ctx, x: number, baseY: number) {
   fill(ctx, x + 1, top + 4, w - 2, 1, F.oakShade);
   // revista: capa com faixa escura e foto azul
   fill(ctx, x + 4, top + 1, 7, 3, P.white);
-  fill(ctx, x + 4, top + 1, 7, 1, P.navy900);
+  fill(ctx, x + 4, top + 1, 7, 1, P.superficie);
   fill(ctx, x + 6, top + 2, 3, 2, P.signal.think);
   // xícara
   fill(ctx, x + 15, top + 1, 2, 2, P.white);
@@ -245,12 +245,12 @@ export function drawPrinter(ctx: Ctx, x: number, baseY: number, t: number) {
   const idle = t < 0;
   const ph = idle ? 12_000 : t % 12_000;
   const printing = !idle && ph < 1_500;
-  fill(ctx, x + 15, top + 6, 7, 4, P.navy900);
-  fill(ctx, x + 16, top + 7, 2, 2, P.navy600);
+  fill(ctx, x + 15, top + 6, 7, 4, P.superficie);
+  fill(ctx, x + 16, top + 7, 2, 2, P.borda);
   const green = idle ? false : printing ? Math.floor(t / 120) % 2 === 0 : true;
   const blue = idle ? false : Math.floor(t / 700) % 2 === 0;
-  fill(ctx, x + 19, top + 7, 1, 1, green ? P.signal.ok : P.navy800);
-  fill(ctx, x + 20, top + 8, 1, 1, blue ? P.signal.think : P.navy800);
+  fill(ctx, x + 19, top + 7, 1, 1, green ? P.signal.ok : P.superficieArdosia);
+  fill(ctx, x + 20, top + 8, 1, 1, blue ? P.signal.think : P.superficieArdosia);
   // saída de papel: a folha desce em 1,5 s, fica na bandeja e some (alguém pegou)
   fill(ctx, x + 3, top + 9, 12, 1, P.gray700);
   const len = printing ? 1 + Math.floor((ph / 1_500) * 4) : ph < 9_000 ? 4 : 0;
@@ -285,7 +285,7 @@ export function drawCoatRack(ctx: Ctx, x: number, baseY: number) {
     fill(ctx, px + 1, top + 8, w - 2, h - 2, body);
     fill(ctx, px + 1, top + 8, 1, h - 2, edge);
   };
-  peca(x - 12, 7, 14, P.navy700, P.navy800); // jaqueta
+  peca(x - 12, 7, 14, P.ardosia, P.superficieArdosia); // jaqueta
   peca(x + 4, 7, 12, P.gray300, P.gray400); // camisa
   peca(x - 4, 6, 10, P.gray500, P.gray600); // moletom (atrás do poste)
 }
@@ -297,10 +297,10 @@ export function drawCredenza(ctx: Ctx, x: number, baseY: number, w: number) {
   fill(ctx, x, bodyTop, w, 15, out());
   fill(ctx, x + 1, bodyTop + 1, w - 2, 2, F.oak);
   fill(ctx, x + 1, bodyTop + 1, w - 2, 1, F.oakLight);
-  fill(ctx, x + 1, bodyTop + 3, w - 2, 10, P.navy800);
-  fill(ctx, x + 1, bodyTop + 3, w - 2, 1, P.navy700);
+  fill(ctx, x + 1, bodyTop + 3, w - 2, 10, P.superficieArdosia);
+  fill(ctx, x + 1, bodyTop + 3, w - 2, 1, P.ardosia);
   const door = Math.floor((w - 2) / 3);
-  for (let i = 1; i < 3; i++) fill(ctx, x + 1 + i * door, bodyTop + 4, 1, 9, P.navy950);
+  for (let i = 1; i < 3; i++) fill(ctx, x + 1 + i * door, bodyTop + 4, 1, 9, P.noite);
   for (let i = 0; i < 3; i++) fill(ctx, x + 1 + i * door + (door >> 1) - 1, bodyTop + 7, 3, 1, P.gray300);
   fill(ctx, x + 2, baseY - 2, 2, 1, out()); // pés
   fill(ctx, x + w - 4, baseY - 2, 2, 1, out());
@@ -315,11 +315,11 @@ export function drawCredenza(ctx: Ctx, x: number, baseY: number, w: number) {
   for (let i = 0; i < 3; i++) {
     const ex = x + 28 + i * 6;
     fill(ctx, ex - 1, bodyTop - 4, 6, 4, OUT2);
-    fill(ctx, ex, bodyTop - 3, 4, 2, i % 2 ? P.gray300 : P.navy600);
+    fill(ctx, ex, bodyTop - 3, 4, 2, i % 2 ? P.gray300 : P.borda);
   }
   fill(ctx, x + 46, bodyTop - 3, 10, 3, OUT2); // pasta de roteiro
   fill(ctx, x + 47, bodyTop - 2, 8, 2, P.gray50);
-  fill(ctx, x + 47, bodyTop - 2, 8, 1, P.navy600);
+  fill(ctx, x + 47, bodyTop - 2, 8, 1, P.borda);
 }
 
 /** balcão da recepção: tampo claro, friso branco e frente escura com "RHYNOR" branco */
@@ -332,11 +332,11 @@ export function drawReception(ctx: Ctx, x: number, baseY: number, w: number) {
   fill(ctx, x + 1, top + 1, w - 2, 1, F.oakLight);
   fill(ctx, x + 1, top + 4, w - 2, 1, F.oakShade);
   fill(ctx, x + 1, top + 5, w - 2, 1, P.gray50); // friso branco
-  fill(ctx, x + 1, top + 6, w - 2, h - 7, P.navy900);
-  fill(ctx, x + 1, top + 6, w - 2, 1, P.navy800);
+  fill(ctx, x + 1, top + 6, w - 2, h - 7, P.superficie);
+  fill(ctx, x + 1, top + 6, w - 2, 1, P.superficieArdosia);
   // painéis laterais
-  fill(ctx, x + 6, top + 8, 1, h - 11, P.navy800);
-  fill(ctx, x + w - 7, top + 8, 1, h - 11, P.navy800);
+  fill(ctx, x + 6, top + 8, 1, h - 11, P.superficieArdosia);
+  fill(ctx, x + w - 7, top + 8, 1, h - 11, P.superficieArdosia);
   drawBitmap(ctx, RHYNOR_LETTERS, x + Math.floor((w - bitmapWidth(RHYNOR_LETTERS)) / 2), top + 9, P.white);
 }
 
@@ -358,8 +358,8 @@ export function drawPingPongTable(ctx: Ctx, x: number, y: number, w: number, h: 
   }
   // contorno, tampo e borda frontal (2px)
   fill(ctx, x - 1, y - 1, w + 2, h + 4, out());
-  fill(ctx, x, y, w, h, P.navy600);
-  fill(ctx, x, y + h, w, 2, P.navy900);
+  fill(ctx, x, y, w, h, P.borda);
+  fill(ctx, x, y + h, w, 2, P.superficie);
   // bordas brancas e linha do meio (no sentido do comprimento)
   fill(ctx, x, y, w, 1, P.white);
   fill(ctx, x, y + h - 1, w, 1, P.white);
@@ -369,7 +369,7 @@ export function drawPingPongTable(ctx: Ctx, x: number, y: number, w: number, h: 
   // rede: 1px clara atravessando, sombra embaixo, postes 1px pra fora de cada lado
   const ny = y + (h >> 1);
   fill(ctx, x - 2, ny, w + 4, 1, P.gray100);
-  fill(ctx, x, ny + 1, w, 1, P.navy800);
+  fill(ctx, x, ny + 1, w, 1, P.superficieArdosia);
   fill(ctx, x - 2, ny - 2, 1, 3, P.gray500);
   fill(ctx, x + w + 1, ny - 2, 1, 3, P.gray500);
   // raquetes descansando (uma de cada lado) e a bolinha; no jogo elas estão na mão
@@ -395,7 +395,7 @@ export function drawWaterCooler(ctx: Ctx, x: number, baseY: number) {
   fill(ctx, x + 2, baseY - 33, 10, 11, F.water);
   fill(ctx, x + 3, baseY - 31, 3, 7, F.waterLight);
   // torneira e bandeja
-  fill(ctx, x + 4, baseY - 18, 3, 2, P.navy600);
+  fill(ctx, x + 4, baseY - 18, 3, 2, P.borda);
   fill(ctx, x + 5, baseY - 16, 1, 1, out());
   fill(ctx, x + 3, baseY - 12, 6, 1, P.gray400);
 }

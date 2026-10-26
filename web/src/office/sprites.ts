@@ -197,7 +197,7 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   const anim = f.anim;
   const longAnim = anim && anim !== "stretch" && anim !== "cheer" && anim !== "present" ? anim : undefined;
   // crachá da marca: topo ardósia e corpo névoa (visitante: corpo aço), sempre no cordão laranja
-  const badgeTop = palette.navy700;
+  const badgeTop = palette.ardosia;
   const badgeBody = u.visitor ? palette.gray300 : palette.white;
 
   const ty = by - LEG_H - TORSO_H - f.rise;
@@ -216,7 +216,7 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
     if (side) {
       // uma perna à frente e outra atrás; a de trás um tom mais escura
       const d = f.walk === 0 ? 2 : f.walk === 2 ? -2 : 0;
-      const far = blend(u.pants, palette.navy950, 0.3);
+      const far = blend(u.pants, palette.noite, 0.3);
       for (const [lx, color] of [
         [bx - 2 - d, far],
         [bx - 1 + d, u.pants],
@@ -370,10 +370,10 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
     putO(x, y, 1, 1, blend(palette.props.paddle, palette.white, 0.45));
   };
   const wateringCan = (x: number, y: number) => {
-    putO(x, y, 4, 3, palette.navy500);
-    putO(x + 1, y - 1, 2, 1, palette.navy600);
-    putO(x + 4, y + 1, 1, 1, palette.navy500);
-    putO(x + 5, y + 2, 1, 1, palette.navy500);
+    putO(x, y, 4, 3, palette.bordaAco);
+    putO(x + 1, y - 1, 2, 1, palette.borda);
+    putO(x + 4, y + 1, 1, 1, palette.bordaAco);
+    putO(x + 5, y + 2, 1, 1, palette.bordaAco);
     // gotas de 1px caindo do bico
     const k = f.step % 3;
     FX.push([x + 5, y + 4 + k * 2, 1, 1, palette.furniture.water]);
@@ -533,8 +533,8 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
         put(ox(1), h.y + 1, 1, 1, palette.furniture.wood);
         put(ox(1) - 1, h.y + 2, 3, 3, palette.props.paddle);
       } else {
-        put(ox(4), h.y, 4, 3, palette.navy500);
-        put(ox(4) + 1, h.y - 1, 2, 1, palette.navy600);
+        put(ox(4), h.y, 4, 3, palette.bordaAco);
+        put(ox(4) + 1, h.y - 1, 2, 1, palette.borda);
       }
     }
   }

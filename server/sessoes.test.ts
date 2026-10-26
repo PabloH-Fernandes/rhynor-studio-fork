@@ -78,8 +78,8 @@ test("bug 2: evento de outro agent_id (sem agent_type) não mexe no Kauã; sem a
     });
 
   const { state } = reproduzir(linhas);
-  assert.deepEqual(time(state), time(antes), "o Grep do ag-x e o Read do líder não alteram o time");
-  // o ag-x ganhou um boneco próprio (convidado), não o de ninguém do time
+  assert.deepEqual(time(state), time(antes), "o Grep do sub-x e o Read do líder não alteram o time");
+  // o sub-x ganhou um boneco próprio (convidado), não o de ninguém do time
   const grep = describeTool("Grep", { pattern: "useForm" });
   const doX = agentes(state).filter((a) => a.activity === grep);
   assert.equal(doX.length, 1);

@@ -111,7 +111,7 @@ const SKY = derivada((): Key<{ top: string; bottom: string }>[] => palette.sky.m
 // ------------------------------------------------------------------ hora (com override)
 
 /** "22", "22.30" ou "22:30" → 22.5; inválido → null */
-function parseHourParam(raw: string | null): number | null {
+export function parseHourParam(raw: string | null): number | null {
   if (!raw) return null;
   const m = /^(\d{1,2})(?:[.:](\d{1,2}))?$/.exec(raw.trim());
   if (!m) return null;
@@ -121,17 +121,28 @@ function parseHourParam(raw: string | null): number | null {
   return h + min / 60;
 }
 
-/** lido uma vez, na carga do módulo */
-const OVERRIDE: number | null =
+/** lido uma vez, na carga do módulo (os testes trocam com setHourOverride) */
+let OVERRIDE: number | null =
   typeof window !== "undefined" ? parseHourParam(new URLSearchParams(window.location.search).get("hora")) : null;
+
+/** força a hora como o `?hora=` (null volta ao normal); usado pelos testes */
+export function setHourOverride(hora: number | null) {
+  if (hora === OVERRIDE) return;
+  OVERRIDE = hora;
+  versaoCiclo++;
+}
 
 /** hora do escritório quando o ciclo do dia está desligado: noite */
 export const NIGHT_HOUR = 22;
 
 /** ciclo do dia (hora real) ligado? O painel liga pela preferência studio.painel.ciclo. */
 let cicloReal = false;
+/** sobe quando o ciclo liga ou desliga: entra na chave do Lightmap, que refaz a luz na hora */
+let versaoCiclo = 0;
 export function setCicloReal(ligado: boolean) {
+  if (ligado === cicloReal) return;
   cicloReal = ligado;
+  versaoCiclo++;
 }
 
 /** hora fracionada (0..24): a do `?hora=`, a real (ciclo ligado) ou a noite padrão */
@@ -238,7 +249,7 @@ function addLight(g: CanvasRenderingContext2D, x: number, y: number, r: number, 
 }
 
 const sceneKey = (s: LightScene) =>
-  `${(s.activeDesks ?? []).map((r) => `${r.x},${r.y}`).join(";")}|${s.activeScreens.map((r) => `${r.x},${r.y}`).join(";")}|${s.waitingScreens.map((r) => `${r.x},${r.y}`).join(";")}|${s.coffeeBusy}`;
+  `${versaoCiclo}|${(s.activeDesks ?? []).map((r) => `${r.x},${r.y}`).join(";")}|${s.activeScreens.map((r) => `${r.x},${r.y}`).join(";")}|${s.waitingScreens.map((r) => `${r.x},${r.y}`).join(";")}|${s.coffeeBusy}`;
 
 /**
  * Mapa de luz na resolução base (W x H). Começa com a cor ambiente, abre as janelas e as telas

@@ -6,6 +6,8 @@
 
 Um escritório em pixel art que mostra, ao vivo, o seu time de agentes do Claude Code trabalhando. Cada agente vira um **personagem**: alguém com nome, roupa casual e jeito próprio. Ele senta na mesa, digita quando usa uma ferramenta, levanta um **!** quando precisa de você, manda envelopes para os colegas e, quando fica de boa, vai tomar café, jogar ping-pong ou bater papo.
 
+![Escritório do Rhynor Studio à noite, com o time trabalhando](docs/preview.png)
+
 ```
 Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──▶ tela React + canvas
 ```

@@ -273,8 +273,8 @@ export function agentePorNome(state: OfficeState, nome: string): Agent | undefin
   const alvo = nome.trim().toLowerCase();
   const roster = state.getRoster().personagens;
   return agentes(state).find((a) => {
-    const ag = roster.find((r) => r.key === a.personagem);
-    const nomes = [a.name, a.name.split(" ")[0], ag?.apelido ?? ""].map((n) => n.toLowerCase());
+    const pers = roster.find((r) => r.key === a.personagem);
+    const nomes = [a.name, a.name.split(" ")[0], pers?.apelido ?? ""].map((n) => n.toLowerCase());
     return nomes.includes(alvo);
   });
 }

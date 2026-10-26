@@ -164,8 +164,8 @@ function cityWindowLit(id: number, t: number, ratio: number): boolean {
 function drawSkyline(ctx: Ctx, r: Rect, seed: number, groundY: number, nearLayer: boolean, t: number, light: WindowLight) {
   const n = light.night;
   const haze = 1 - n * 0.6; // à noite a névoa do céu pesa menos e o prédio vira silhueta
-  const far = mixQ(mixQ(P.navy500, P.navy850, n), light.sky.bottom, (nearLayer ? 0.55 : 0.68) * haze);
-  const near = mixQ(mixQ(P.navy500, P.navy900, n), light.sky.bottom, 0.25 * haze);
+  const far = mixQ(mixQ(P.bordaAco, P.ardosia, n), light.sky.bottom, (nearLayer ? 0.55 : 0.68) * haze);
+  const near = mixQ(mixQ(P.bordaAco, P.superficie, n), light.sky.bottom, 0.25 * haze);
   const lit = mixQ(far, P.night.cityWindow, clamp01((n - 0.3) / 0.4));
   const showLit = n > 0.3;
   let x = r.x - 2;
@@ -219,8 +219,8 @@ function drawGround(ctx: Ctx, r: Rect, n: number) {
 function drawTower(ctx: Ctx, r: Rect, x: number, w: number, h: number, seed: number, t: number, n: number) {
   const base = r.y + r.h - 2;
   const top = base - h;
-  const body = shade(mixQ(P.navy700, P.gray500, 0.35), n * 0.55);
-  const edge = shade(P.navy800, n * 0.4);
+  const body = shade(mixQ(P.ardosia, P.gray500, 0.35), n * 0.55);
+  const edge = shade(P.superficieArdosia, n * 0.4);
   const lit = P.night.cityWindow;
   fill(ctx, x, top, w, h, body);
   fill(ctx, x, top, 1, h, edge);
@@ -240,7 +240,7 @@ function drawAntenna(ctx: Ctx, x: number, y: number, t: number, n: number) {
   fill(ctx, x, y, 1, 5, shade(P.gray400, n * 0.5));
   fill(ctx, x - 1, y + 3, 3, 1, shade(P.gray500, n * 0.5));
   const on = isReducedMotion() || Math.floor(t / 900) % 2 === 0;
-  fill(ctx, x, y - 1, 1, 1, on && n > 0.2 ? P.signal.alert : P.decor.craneLightOff);
+  fill(ctx, x, y - 1, 1, 1, on && n > 0.2 ? P.signal.alert : P.decor.antennaOff);
 }
 
 export type WindowView = {
@@ -281,22 +281,22 @@ function frame(ctx: Ctx, x: number, y: number, w: number, h: number): Rect {
   ctx.fillStyle = inkAlpha(0.18);
   ctx.fillRect(x + 1, y + h, w, 1);
   ctx.fillRect(x + w, y + 1, 1, h);
-  fill(ctx, x, y, w, h, P.navy950);
-  fill(ctx, x + 1, y + 1, w - 2, h - 2, P.navy800);
+  fill(ctx, x, y, w, h, P.noite);
+  fill(ctx, x + 1, y + 1, w - 2, h - 2, P.superficieArdosia);
   return { x: x + 2, y: y + 2, w: w - 4, h: h - 4 };
 }
 
 /** pôster 24x18 de uma série: lua grande sobre a cidade, título em barras e a faixa de "temporada" */
 export function drawSeriesPosterCity(ctx: Ctx, x: number, y: number) {
   const a = frame(ctx, x, y, 24, 18);
-  fill(ctx, a.x, a.y, a.w, a.h, P.navy700);
+  fill(ctx, a.x, a.y, a.w, a.h, P.ardosia);
   // lua
   fill(ctx, a.x + 12, a.y + 2, 5, 1, P.gray200);
   fill(ctx, a.x + 11, a.y + 3, 7, 3, P.gray200);
   fill(ctx, a.x + 12, a.y + 6, 5, 1, P.gray200);
   // silhueta de prédios
   const tops = [5, 3, 6, 2, 4, 6, 3, 5, 2, 4];
-  tops.forEach((dt, i) => fill(ctx, a.x + i * 2, a.y + 5 + dt, 2, a.h - 9 - dt, P.navy950));
+  tops.forEach((dt, i) => fill(ctx, a.x + i * 2, a.y + 5 + dt, 2, a.h - 9 - dt, P.noite));
   // título e subtítulo
   fill(ctx, a.x + 2, a.y + a.h - 3, 12, 1, P.white);
   fill(ctx, a.x + 2, a.y + a.h - 1, 7, 1, P.gray300);
@@ -306,17 +306,17 @@ export function drawSeriesPosterCity(ctx: Ctx, x: number, y: number) {
 /** pôster 24x18 de outra série: tira de filme com 3 quadros e o título em barras */
 export function drawSeriesPosterFilm(ctx: Ctx, x: number, y: number) {
   const a = frame(ctx, x, y, 24, 18);
-  fill(ctx, a.x, a.y, a.w, a.h, P.navy950);
+  fill(ctx, a.x, a.y, a.w, a.h, P.noite);
   // furinhos da película em cima e embaixo
   for (let i = 1; i < a.w; i += 3) {
     fill(ctx, a.x + i, a.y + 1, 1, 1, P.gray400);
     fill(ctx, a.x + i, a.y + 10, 1, 1, P.gray400);
   }
   // 3 quadros: céu, retrato, paisagem
-  const quadros = [P.decor.paintingSky, P.gray100, P.furniture.leaf];
+  const quadros = [P.decor.posterSky, P.gray100, P.furniture.leaf];
   quadros.forEach((c, i) => fill(ctx, a.x + 1 + i * 7, a.y + 3, 6, 6, c));
-  fill(ctx, a.x + 10, a.y + 4, 2, 2, P.navy700); // cabeça do retrato
-  fill(ctx, a.x + 9, a.y + 6, 4, 3, P.navy700); // ombros
+  fill(ctx, a.x + 10, a.y + 4, 2, 2, P.ardosia); // cabeça do retrato
+  fill(ctx, a.x + 9, a.y + 6, 4, 3, P.ardosia); // ombros
   // título
   fill(ctx, a.x + 2, a.y + 12, 16, 1, P.white);
   fill(ctx, a.x + 2, a.y + 14, 10, 1, P.gray300);
@@ -325,16 +325,16 @@ export function drawSeriesPosterFilm(ctx: Ctx, x: number, y: number) {
 /** estante estreita do estúdio: HDs com LED, claquete e estojos de mídia */
 export function drawStudioShelf(ctx: Ctx, x: number, y: number, w: number, h: number, t = 0) {
   // corpo
-  fill(ctx, x, y, w, h, P.navy950);
-  fill(ctx, x + 1, y + 1, w - 2, h - 2, P.navy800);
+  fill(ctx, x, y, w, h, P.noite);
+  fill(ctx, x + 1, y + 1, w - 2, h - 2, P.superficieArdosia);
   const innerX = x + 2;
   const innerW = w - 4;
   const shelfH = Math.floor((h - 4) / 3);
   const cell = (i: number) => ({ y: y + 2 + i * (shelfH + 1), h: shelfH });
   for (let i = 0; i < 3; i++) {
     const c = cell(i);
-    fill(ctx, innerX, c.y, innerW, c.h, P.navy900);
-    fill(ctx, innerX, c.y + c.h, innerW, 1, P.navy700); // prateleira
+    fill(ctx, innerX, c.y, innerW, c.h, P.superficie);
+    fill(ctx, innerX, c.y + c.h, innerW, 1, P.ardosia); // prateleira
   }
 
   // prateleira 1: HDs empilhados, cada um com o LED (um pisca lento; parado com reduced-motion)
@@ -353,25 +353,25 @@ export function drawStudioShelf(ctx: Ctx, x: number, y: number, w: number, h: nu
     const c = cell(1);
     const bx = innerX + 3;
     const by = c.y + c.h - 6;
-    fill(ctx, bx, by, 12, 6, P.navy950);
+    fill(ctx, bx, by, 12, 6, P.noite);
     fill(ctx, bx + 1, by + 2, 10, 1, P.gray300); // linhas do quadro
     fill(ctx, bx + 1, by + 4, 6, 1, P.gray300);
     // régua aberta, inclinada em degraus
     for (let i = 0; i < 12; i++) {
       const ry = by - 2 - Math.floor(i / 4);
-      fill(ctx, bx + i, ry, 1, 2, Math.floor(i / 2) % 2 ? P.white : P.navy950);
+      fill(ctx, bx + i, ry, 1, 2, Math.floor(i / 2) % 2 ? P.white : P.noite);
     }
   }
 
   // prateleira 3: estojos de mídia em pé (lombadas em tons de aço e ardósia)
   {
     const c = cell(2);
-    const cores = [P.gray300, P.navy600, P.gray400, P.navy500, P.gray200];
+    const cores = [P.gray300, P.borda, P.gray400, P.bordaAco, P.gray200];
     const tops = [2, 0, 3, 1, 2];
     cores.forEach((col, i) => {
       const rx = innerX + i * 4;
       fill(ctx, rx, c.y + tops[i], 3, c.h - tops[i], col);
-      fill(ctx, rx + 1, c.y + tops[i] + 2, 1, 2, P.navy900);
+      fill(ctx, rx + 1, c.y + tops[i] + 2, 1, 2, P.superficie);
     });
   }
 }

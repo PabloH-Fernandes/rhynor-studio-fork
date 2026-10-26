@@ -46,11 +46,11 @@ export const NAME_SHIFTS = [0, -8, 8] as const;
 /** cores de cada balão (lidas na hora: vêm dos tokens) */
 const bubbleStyle = (style: BubbleStyle): { bg: string; border: string; ink: string } =>
   style === "trabalho"
-    ? { bg: palette.white, border: palette.navy950, ink: palette.navy900 }
+    ? { bg: palette.white, border: palette.noite, ink: palette.superficie }
     : style === "chat"
-      ? { bg: palette.gray200, border: palette.navy950, ink: palette.navy900 }
+      ? { bg: palette.gray200, border: palette.noite, ink: palette.superficie }
       : // discreto: claro, borda de aço e texto ardósia (os de trabalho continuam mandando)
-        { bg: palette.gray100, border: palette.gray300, ink: palette.navy700 };
+        { bg: palette.gray100, border: palette.gray300, ink: palette.ardosia };
 
 /**
  * Balão no lugar que o layout escolheu: acima (rabinho embaixo, apontando pra cabeça) ou ao lado
@@ -131,8 +131,8 @@ export function drawWaitBadge(ctx: CanvasRenderingContext2D, head: Point, now: n
   const sx = Math.round(head.x - 5);
   const sy = Math.round(head.y - 2 - 13 + b);
   const ring = !reduced && Math.floor(now / 400) % 2 ? palette.white : palette.signal.waiting;
-  roundBox(ctx, sx, sy, 10, 12, ring, palette.navy950);
-  ctx.fillStyle = palette.navy900;
+  roundBox(ctx, sx, sy, 10, 12, ring, palette.noite);
+  ctx.fillStyle = palette.superficie;
   ctx.fillRect(sx + 2, sy + 2, 6, 8);
   ctx.fillStyle = palette.signal.waiting;
   ctx.fillRect(sx + 4, sy + 3, 2, 4);
