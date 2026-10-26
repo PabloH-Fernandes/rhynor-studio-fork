@@ -6,8 +6,6 @@ Guia para quem não conhece o projeto. Tempo estimado: 10 a 15 minutos (a maior 
 
 Um escritório pixel art que mostra, em tempo real, o seu time de agentes do Claude Code trabalhando: cada agente é um **AGzinho** que senta na mesa, digita, pede ajuda e descansa. O `npm run setup` deixa o PC pronto: instala o time de agentes, os hooks, o vault do Obsidian (a memória do time), os comandos `/time`, `/memoria` e `/reuniao`, o Playwright e as skills, e monta o escritório.
 
-![Escritório rodando a simulação](docs/preview.png)
-
 ## 2. Pré-requisitos
 
 | O que | Versão | Link |

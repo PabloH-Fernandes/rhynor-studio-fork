@@ -2,7 +2,7 @@
 // ping-pong e bebedouro. Tudo em coordenadas inteiras da resolução base, sem arc/ellipse/gradiente.
 
 import { navyAlpha, palette } from "../theme";
-import { AG_LETTERS, drawBitmap } from "./agMark";
+import { RHYNOR_LETTERS, bitmapWidth, drawBitmap } from "./agMark";
 import { type Ctx, fill } from "./decorBase";
 
 const P = palette;
@@ -312,7 +312,7 @@ export function drawCredenza(ctx: Ctx, x: number, baseY: number, w: number) {
   fill(ctx, x + 47, bodyTop - 2, 8, 1, P.navy600);
 }
 
-/** balcão da recepção: tampo claro, friso branco e frente marinho com "AG" branco */
+/** balcão da recepção: tampo claro, friso branco e frente escura com "RHYNOR" branco */
 export function drawReception(ctx: Ctx, x: number, baseY: number, w: number) {
   const h = 21;
   const top = baseY - h;
@@ -327,7 +327,7 @@ export function drawReception(ctx: Ctx, x: number, baseY: number, w: number) {
   // painéis laterais
   fill(ctx, x + 6, top + 8, 1, h - 11, P.navy800);
   fill(ctx, x + w - 7, top + 8, 1, h - 11, P.navy800);
-  drawBitmap(ctx, AG_LETTERS, x + Math.floor((w - 14) / 2), top + 9, P.white);
+  drawBitmap(ctx, RHYNOR_LETTERS, x + Math.floor((w - bitmapWidth(RHYNOR_LETTERS)) / 2), top + 9, P.white);
 }
 
 /**

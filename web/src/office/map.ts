@@ -4,7 +4,7 @@
 // As colunas 32 a 36 são a ala de descanso (ping-pong, bebedouro, 3ª mesa de convidado).
 
 import { navyAlpha, palette, theme, roleColor } from "../theme";
-import { AG_LETTERS, AG_POCKET, drawBitmap } from "./agMark";
+import { RHYNOR_LETTERS, STUDIO_PLAQUE, bitmapWidth, drawBitmap } from "./agMark";
 import {
   SOFA_GRAY,
   SOFA_NAVY,
@@ -521,7 +521,7 @@ function bakedLogo(img: HTMLImageElement, k: number): HTMLCanvasElement | null {
   return canvas;
 }
 
-/** Placa da recepção com a logo em pixels duros (ou "AG" em pixel se a imagem não carregar). */
+/** Placa da recepção com a logo em pixels duros (ou "RHYNOR" em pixel sem imagem). */
 export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
   const c = theme.colors;
   const { x, y, w, h } = SIGN;
@@ -546,7 +546,7 @@ export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
     ctx.drawImage(baked, Math.round(lx * m.a + m.e), Math.round(ly * m.d + m.f));
     ctx.restore();
   } else {
-    drawBitmap(ctx, AG_LETTERS, x + (w - 28) / 2, y + (h - 16) / 2, c.signText, 2);
+    drawBitmap(ctx, RHYNOR_LETTERS, x + (w - bitmapWidth(RHYNOR_LETTERS) * 2) / 2, y + (h - 16) / 2, c.signText, 2);
   }
   // parafusos nos cantos
   for (const [sx, sy] of [
@@ -583,7 +583,7 @@ export function drawSignGlow(ctx: Ctx, logo: HTMLImageElement | null) {
     ctx.drawImage(baked, Math.round(lx * m.a + m.e), Math.round(ly * m.d + m.f));
     ctx.restore();
   } else {
-    drawBitmap(ctx, AG_LETTERS, x + (w - 28) / 2, y + (h - 16) / 2, theme.colors.signText, 2);
+    drawBitmap(ctx, RHYNOR_LETTERS, x + (w - bitmapWidth(RHYNOR_LETTERS) * 2) / 2, y + (h - 16) / 2, theme.colors.signText, 2);
   }
 }
 
@@ -819,10 +819,10 @@ export function drawDecor(ctx: Ctx) {
   drawPocketPlaque(ctx);
 }
 
-/** plaquinha "AG POCKET" na parede da ala (px base) */
+/** plaquinha "RHYNOR STUDIO" na parede da ala (px base) */
 export const POCKET_PLAQUE = { x: 539, y: 9, w: 35, h: 18 } as const;
 
-/** Plaquinha marinho com cantos em degrau e "AG / POCKET" branco em pixel bold (bitmap do agMark). */
+/** Plaquinha marinho com cantos em degrau e "RHYNOR / STUDIO" branco em pixel bold (bitmap do agMark). */
 function drawPocketPlaque(ctx: Ctx) {
   const { x, y, w, h } = POCKET_PLAQUE;
   // sombra de 1px na parede, acompanhando o degrau de baixo
@@ -836,7 +836,7 @@ function drawPocketPlaque(ctx: Ctx) {
   };
   stepped(x, y, w, h, theme.colors.outline);
   stepped(x + 1, y + 1, w - 2, h - 2, palette.navy900);
-  drawBitmap(ctx, AG_POCKET, x + 3, y + 3, palette.white);
+  drawBitmap(ctx, STUDIO_PLAQUE, x + 3, y + 3, palette.white);
 }
 
 /** Mesa de reunião redonda com uma maquete de obra no centro (desenhada ordenada por y). */

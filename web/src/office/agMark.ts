@@ -1,16 +1,27 @@
-// Marca AG em bitmap ("#" = pixel aceso). Usada no peito dos uniformes e,
-// nas próximas etapas, no balcão da recepção e como reserva da logo da placa.
+// Marca em bitmap ("#" = pixel aceso): letreiro da placa, balcão da recepção e plaquinha da ala.
+// "RHYNOR" em pixel é provisório até o rinoceronte pixel entrar no letreiro.
 
 export type Bitmap = readonly string[];
 
-/** logo do peito: 3x2 em forma de "A" (lida melhor como AG do que "#.#"/"###", que parece um U) */
+/** marquinha do peito dos uniformes: 3x2 (sai junto com os uniformes) */
 export const AG_CHEST: Bitmap = ["###", "#.#"];
 
-const LETTER_A: Bitmap = ["..###..", ".##.##.", "##...##", "##...##", "#######", "##...##", "##...##", "##...##"];
-const LETTER_G: Bitmap = [".####.", "##..##", "##....", "##....", "##.###", "##..##", "##..##", ".#####"];
+/** letras 6x8 bold (hastes de 2px) */
+const BIG_GLYPHS: Record<string, Bitmap> = {
+  R: ["#####.", "##..##", "##..##", "#####.", "####..", "##.##.", "##..##", "##..##"],
+  H: ["##..##", "##..##", "##..##", "######", "######", "##..##", "##..##", "##..##"],
+  Y: ["##..##", "##..##", ".####.", "..##..", "..##..", "..##..", "..##..", "..##.."],
+  N: ["##..##", "###.##", "######", "##.###", "##..##", "##..##", "##..##", "##..##"],
+  O: [".####.", "##..##", "##..##", "##..##", "##..##", "##..##", "##..##", ".####."],
+};
 
-/** "AG" em 14x8 (A + 1 coluna vazia + G), o mesmo desenho do favicon */
-export const AG_LETTERS: Bitmap = LETTER_A.map((row, i) => `${row}.${LETTER_G[i]}`);
+/** "RHYNOR" em 41x8 (letras 6x8 com 1 coluna vazia entre elas) */
+export const RHYNOR_LETTERS: Bitmap = Array.from({ length: 8 }, (_, j) => [..."RHYNOR"].map((ch) => BIG_GLYPHS[ch][j]).join("."));
+
+/** largura de um bitmap em pixels (a linha mais longa) */
+export function bitmapWidth(bm: Bitmap): number {
+  return Math.max(0, ...bm.map((row) => row.length));
+}
 
 /** Retângulos (x, y, w, h) das sequências acesas de cada linha, a partir de (x, y). */
 export function bitmapRuns(bm: Bitmap, x: number, y: number, scale = 1): [number, number, number, number][] {
@@ -35,33 +46,34 @@ export function drawBitmap(ctx: CanvasRenderingContext2D, bm: Bitmap, x: number,
   for (const [rx, ry, w, h] of bitmapRuns(bm, Math.round(x), Math.round(y), scale)) ctx.fillRect(rx, ry, w, h);
 }
 
-// ------------------------------------------------------------------ plaquinha "AG POCKET"
-// Letras pixel bold 4x5 (haste de 2px à esquerda, topo em degrau), como a logo de 2 linhas
-// das referências: "AG" em cima e "POCKET" embaixo, alinhados à esquerda.
+// ------------------------------------------------------------------ plaquinha "RHYNOR / STUDIO"
+// Letras pixel bold 4x5 (haste de 2px à esquerda, topo em degrau), em 2 linhas alinhadas à esquerda.
 
-const POCKET_GLYPHS: Record<string, Bitmap> = {
-  A: [".##.", "##.#", "####", "##.#", "##.#"],
-  G: [".###", "##..", "##.#", "##.#", ".###"],
-  P: ["###.", "##.#", "###.", "##..", "##.."],
+const SMALL_GLYPHS: Record<string, Bitmap> = {
+  R: ["###.", "##.#", "###.", "##.#", "##.#"],
+  H: ["##.#", "##.#", "####", "##.#", "##.#"],
+  Y: ["##.#", "##.#", ".##.", ".##.", ".##."],
+  N: ["##.#", "####", "####", "##.#", "##.#"],
   O: [".##.", "##.#", "##.#", "##.#", ".##."],
-  C: [".###", "##..", "##..", "##..", ".###"],
-  K: ["##.#", "###.", "##..", "###.", "##.#"],
-  E: ["####", "##..", "###.", "##..", "####"],
+  S: [".###", "##..", ".##.", "..##", "###."],
   T: ["####", ".##.", ".##.", ".##.", ".##."],
+  U: ["##.#", "##.#", "##.#", "##.#", ".##."],
+  D: ["###.", "##.#", "##.#", "##.#", "###."],
+  I: ["####", ".##.", ".##.", ".##.", "####"],
 };
 
 /** uma palavra em letras 4x5 com 1 coluna vazia entre elas */
-function pocketWord(word: string): Bitmap {
-  return Array.from({ length: 5 }, (_, j) => [...word].map((ch) => POCKET_GLYPHS[ch][j]).join("."));
+function smallWord(word: string): Bitmap {
+  return Array.from({ length: 5 }, (_, j) => [...word].map((ch) => SMALL_GLYPHS[ch][j]).join("."));
 }
 
-const POCKET_GAP = 2;
-const LINE_AG = pocketWord("AG");
-const LINE_POCKET = pocketWord("POCKET");
+const LINE_GAP = 2;
+const LINE_TOP = smallWord("RHYNOR");
+const LINE_BOTTOM = smallWord("STUDIO");
 
-/** "AG" / "POCKET" em 29x12 (2 linhas de 5px e 2px entre elas) */
-export const AG_POCKET: Bitmap = [
-  ...LINE_AG.map((row) => row.padEnd(LINE_POCKET[0].length, ".")),
-  ...Array.from({ length: POCKET_GAP }, () => ".".repeat(LINE_POCKET[0].length)),
-  ...LINE_POCKET,
+/** "RHYNOR" / "STUDIO" em 29x12 (2 linhas de 5px e 2px entre elas) */
+export const STUDIO_PLAQUE: Bitmap = [
+  ...LINE_TOP.map((row) => row.padEnd(LINE_BOTTOM[0].length, ".")),
+  ...Array.from({ length: LINE_GAP }, () => ".".repeat(LINE_BOTTOM[0].length)),
+  ...LINE_BOTTOM,
 ];

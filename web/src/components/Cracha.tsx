@@ -131,9 +131,9 @@ export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, on
         <div className="cracha-cartao">
           <div className="cracha-furo" aria-hidden="true" />
           <div className="cracha-faixa">
-            <img className="cracha-simbolo" src="/favicon-agpocket.svg" alt="" width={24} height={24} />
+            <img className="cracha-simbolo" src="/marca/rhynor-logo-fundo-escuro.png" alt="" width={35} height={32} />
             <span className="cracha-marca" translate="no">
-              AG Pocket
+              Rhynor Studio
             </span>
             <button type="button" className="cracha-fechar" aria-label="Fechar crachá" title="Fechar (Esc)" onClick={close}>
               ×

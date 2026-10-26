@@ -251,8 +251,8 @@ const blazer = (shirt: string, shirtShade: string, accent: string, pants: string
 
 export const theme: Theme = {
   officeName: "Rhynor Studio",
-  subtitle: "Andrade Gutierrez · AGzinhos",
-  logoUrl: "/logo-ag-horizontal.png",
+  subtitle: "Time de agentes do Claude Code",
+  logoUrl: "",
 
   colors: {
     floorA: palette.floor.tileA,

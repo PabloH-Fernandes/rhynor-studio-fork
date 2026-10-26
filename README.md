@@ -6,8 +6,6 @@
 
 Um escritório em pixel art que mostra, ao vivo, o seu time de agentes do Claude Code trabalhando. Cada agente é um **AGzinho**: um personagem com nome, uniforme da sua função e jeito próprio. Ele senta na mesa, digita quando usa uma ferramenta, levanta um **!** quando precisa de você, manda envelopes para os colegas e, quando fica de boa, vai tomar café, jogar ping-pong ou bater papo.
 
-![Escritório rodando a simulação](docs/preview.png)
-
 ```
 Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──▶ tela React + canvas
 ```

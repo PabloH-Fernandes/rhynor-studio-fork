@@ -15,6 +15,8 @@ function trocarOrigem(req: { getHeader(n: string): unknown; setHeader(n: string,
 
 export default defineConfig({
   root: "web",
+  // assets/ (marca, fontes) é servido na raiz: /marca/..., /fontes/... (relativo à root "web")
+  publicDir: "../assets",
   plugins: [react()],
   server: {
     port: 5174,

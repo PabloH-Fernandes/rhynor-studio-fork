@@ -252,7 +252,7 @@ export default function App() {
       <aside className="panel">
         <header className="panel-head">
           <div className="brand">
-            <img className="brand-mark" src="/favicon-agpocket.svg" alt="" width={36} height={36} />
+            <img className="brand-mark" src="/marca/rhynor-logo-fundo-escuro.png" alt="" width={39} height={36} />
             <div>
               <h1>{theme.officeName}</h1>
               <p className="sub">{theme.subtitle}</p>

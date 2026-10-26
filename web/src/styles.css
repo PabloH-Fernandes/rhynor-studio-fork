@@ -379,7 +379,8 @@ code {
 
 .brand-mark {
   flex-shrink: 0;
-  box-shadow: 0 0 0 2px var(--white);
+  /* respiro mínimo da logo: 1/4 da largura */
+  margin: 0 10px;
 }
 
 h1 {
@@ -1067,8 +1068,8 @@ h2 {
 
 .cracha-simbolo {
   flex-shrink: 0;
-  image-rendering: pixelated;
-  box-shadow: 0 0 0 1px var(--white);
+  /* respiro mínimo da logo: 1/4 da largura */
+  margin: 0 9px 0 3px;
 }
 
 .cracha-marca {
