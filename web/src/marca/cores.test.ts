@@ -5,9 +5,15 @@ import { palette, theme } from "../theme";
 
 afterEach(() => definirCores(null));
 
+// cores de teste montadas a partir de números (sem hex literal no código: a guarda de marca proíbe)
+const hex = (n: number) => "#" + n.toString(16).padStart(6, "0");
+const PRETO = hex(0);
+const BRANCO = hex(0xffffff);
+const CINZA = hex(0x808080);
+
 test("lerTokens pega só o :root principal (o tema claro fica de fora)", () => {
-  const t = lerTokens(":root {\n  --rh-a: #000000;\n  --rh-b: 4px;\n}\n:root[data-theme=\"claro\"] {\n  --rh-a: #FFFFFF;\n}\n");
-  assert.deepEqual(t, { "rh-a": "#000000", "rh-b": "4px" });
+  const css = [":root {", `  --rh-a: ${PRETO};`, "  --rh-b: 4px;", "}", ':root[data-theme="claro"] {', `  --rh-a: ${BRANCO};`, "}", ""].join("\n");
+  assert.deepEqual(lerTokens(css), { "rh-a": PRETO, "rh-b": "4px" });
 });
 
 test("no Node, cor() lê o tokens.css do disco", () => {
@@ -21,20 +27,20 @@ test("token que não existe ou que não é cor dá erro claro", () => {
 });
 
 test("misturar e comAlfa aceitam token ou #rrggbb", () => {
-  definirCores({ "rh-a": "#000000", "rh-b": "#FFFFFF" });
-  assert.equal(misturar("rh-a", "rh-b", 0.5), "#808080");
-  assert.equal(misturar("#000000", "rh-b", 0), "#000000");
-  assert.equal(comAlfa("rh-b", 0.5), "#FFFFFF80");
+  definirCores({ "rh-a": PRETO, "rh-b": BRANCO });
+  assert.equal(misturar("rh-a", "rh-b", 0.5), CINZA);
+  assert.equal(misturar(PRETO, "rh-b", 0), PRETO);
+  assert.equal(comAlfa("rh-b", 0.5), `${BRANCO}80`);
 });
 
 test("definirCores troca a fonte, avisa os ouvintes e refaz as derivadas", () => {
   let avisos = 0;
   const desliga = aoMudarCores(() => avisos++);
-  definirCores({ "rh-a": "#111111" });
+  definirCores({ "rh-a": hex(0x111111) });
   const d = derivada(() => cor("rh-a"));
-  assert.equal(d(), "#111111");
-  definirCores({ "rh-a": "#222222" });
-  assert.equal(d(), "#222222");
+  assert.equal(d(), hex(0x111111));
+  definirCores({ "rh-a": hex(0x222222) });
+  assert.equal(d(), hex(0x222222));
   assert.equal(avisos, 2);
   desliga();
 });

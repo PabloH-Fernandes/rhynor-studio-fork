@@ -1,5 +1,5 @@
-// Marca em bitmap ("#" = pixel aceso): letreiro da recepção, balcão e plaquinha da ala.
-// O rinoceronte em pixel entra no letreiro depois; aqui ficam as letras.
+// Marca em pixel: letras em bitmap ("#" = pixel aceso) do letreiro, do balcão e da plaquinha da ala,
+// e drawPixelArt, que desenha uma matriz de letras coloridas (o rinoceronte de web/src/marca/rinoceronte.ts).
 
 export type Bitmap = readonly string[];
 
@@ -36,6 +36,29 @@ export function bitmapRuns(bm: Bitmap, x: number, y: number, scale = 1): [number
     }
   });
   return out;
+}
+
+/**
+ * Desenha uma matriz de letras (uma por pixel; "." transparente) com a cor de cada letra.
+ * Junta as sequências da mesma cor numa linha num só fillRect. Letra sem cor em `cores` é pulada.
+ */
+export function drawPixelArt(ctx: CanvasRenderingContext2D, matriz: readonly string[], x: number, y: number, cores: Readonly<Record<string, string>>, escala = 1) {
+  const ox = Math.round(x);
+  const oy = Math.round(y);
+  matriz.forEach((linha, j) => {
+    let i = 0;
+    while (i < linha.length) {
+      const ch = linha[i];
+      const cor = cores[ch];
+      let fim = i + 1;
+      while (fim < linha.length && linha[fim] === ch) fim++;
+      if (ch !== "." && cor) {
+        ctx.fillStyle = cor;
+        ctx.fillRect(ox + i * escala, oy + j * escala, (fim - i) * escala, escala);
+      }
+      i = fim;
+    }
+  });
 }
 
 export function drawBitmap(ctx: CanvasRenderingContext2D, bm: Bitmap, x: number, y: number, color: string, scale = 1) {

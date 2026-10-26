@@ -5,11 +5,12 @@
 
 import { inkAlpha, navyAlpha, palette, theme, roleColor } from "../theme";
 import { comAlfa } from "../marca/cores";
-import { RHYNOR_LETTERS, STUDIO_LETTERS, STUDIO_PLAQUE, bitmapWidth, drawBitmap } from "./pixelMarca";
+import { RHYNOR_LETTERS, STUDIO_LETTERS, STUDIO_PLAQUE, bitmapWidth, drawBitmap, drawPixelArt } from "./pixelMarca";
+import { RINO_32, RINO_TOKENS } from "../marca/rinoceronte";
+import { cor } from "../marca/cores";
 import {
   SOFA_GRAY,
   SOFA_NAVY,
-  bakeLogo,
   disc,
   drawCoatRack,
   drawCoffeeTable,
@@ -499,31 +500,13 @@ function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number, light?: Wi
 
 // ------------------------------------------------------------------ placa da recepção
 
-/** placa: contorno 1px (204–307 x 5–39) e a logo 100x33 dentro, 1px de folga marinho nas laterais */
+/** letreiro: contorno 1px (204–307 x 5–39), rinoceronte 32x32 à esquerda e "RHYNOR / STUDIO" à direita */
 export const SIGN = { x: 204, y: 5, w: 104, h: 35 } as const;
 /** x das duas arandelas em cima da placa (também são luzes no lightmap) */
 export const SIGN_LAMP_X = [SIGN.x + 20, SIGN.x + SIGN.w - 21] as const;
-const LOGO_W = 100;
-const LOGO_H = 33;
-/** cache do bake por imagem e k; canvas null = o bake falhou (não tenta de novo a cada quadro) */
-let logoBake: { src: HTMLImageElement; k: number; canvas: HTMLCanvasElement | null } | null = null;
 
-function bakedLogo(img: HTMLImageElement, k: number): HTMLCanvasElement | null {
-  if (logoBake && logoBake.src === img && logoBake.k === k) return logoBake.canvas;
-  let canvas: HTMLCanvasElement | null = null;
-  try {
-    // o PNG da logo tem 1px branco na primeira e na última linha: fica de fora
-    const crop = { sx: 0, sy: 1, sw: img.naturalWidth, sh: img.naturalHeight - 2 };
-    canvas = bakeLogo(img, LOGO_W, LOGO_H, k, crop);
-  } catch {
-    canvas = null;
-  }
-  logoBake = { src: img, k, canvas };
-  return canvas;
-}
-
-/** Letreiro da recepção: logo em pixels duros (se houver logoUrl) ou "RHYNOR" grande e "STUDIO" embaixo. */
-export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
+/** Letreiro da recepção: rinoceronte pixel (versão de fundo escuro) e "RHYNOR STUDIO". */
+export function drawSign(ctx: Ctx) {
   const c = theme.colors;
   const { x, y, w, h } = SIGN;
   // sombra de 1px na parede
@@ -531,24 +514,7 @@ export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
   rect(ctx, x + w, y + 1, 1, h, inkAlpha(0.25));
   rect(ctx, x, y, w, h, c.outline);
   rect(ctx, x + 1, y + 1, w - 2, h - 2, c.sign);
-
-  // escala inteira atual do canvas (o render roda com setTransform(k))
-  const m = ctx.getTransform();
-  const k = Math.max(1, Math.round(m.a));
-  const ready = logo && logo.complete && logo.naturalWidth > 0;
-  const baked = ready ? bakedLogo(logo, k) : null;
-  const lx = x + (w - LOGO_W) / 2;
-  const ly = y + 1;
-  if (baked) {
-    // desenha 1:1 em pixels de dispositivo, sem suavização
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(baked, Math.round(lx * m.a + m.e), Math.round(ly * m.d + m.f));
-    ctx.restore();
-  } else {
-    drawSignLetters(ctx, c.signText);
-  }
+  drawSignArt(ctx, c.signText);
   // parafusos nos cantos
   for (const [sx, sy] of [
     [x + 2, y + 2],
@@ -568,35 +534,27 @@ export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
 }
 
 /**
- * Brilho da placa à noite: soma a logo de novo por cima (o chamador põe "lighter" e o alpha),
- * pra ela continuar legível depois do multiply do lightmap.
+ * Brilho do letreiro à noite: soma o rinoceronte e as letras de novo por cima (o chamador põe
+ * "lighter" e o alpha), pra continuarem legíveis depois do multiply do lightmap.
  */
-export function drawSignGlow(ctx: Ctx, logo: HTMLImageElement | null) {
-  const { x, y, w, h } = SIGN;
-  const m = ctx.getTransform();
-  const k = Math.max(1, Math.round(m.a));
-  const baked = logo && logo.complete && logo.naturalWidth > 0 ? bakedLogo(logo, k) : null;
-  if (baked) {
-    const lx = x + (w - LOGO_W) / 2;
-    const ly = y + 1;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(baked, Math.round(lx * m.a + m.e), Math.round(ly * m.d + m.f));
-    ctx.restore();
-  } else {
-    drawSignLetters(ctx, theme.colors.signText);
-  }
+export function drawSignGlow(ctx: Ctx) {
+  drawSignArt(ctx, theme.colors.signText);
 }
 
-/** "RHYNOR" (letras 6x8 em escala 2) e "STUDIO" (4x5) centralizados no letreiro */
-function drawSignLetters(ctx: Ctx, color: string) {
+/** cores do rinoceronte (letra → token da marca) */
+const rinoCores = (): Record<string, string> => Object.fromEntries(Object.entries(RINO_TOKENS).map(([k, t]) => [k, cor(t)]));
+
+/** rinoceronte 32x32 à esquerda (1px do contorno em cima) e o texto centralizado no resto */
+function drawSignArt(ctx: Ctx, textColor: string) {
   const { x, y, w, h } = SIGN;
-  const bigW = bitmapWidth(RHYNOR_LETTERS) * 2;
+  drawPixelArt(ctx, RINO_32, x + 3, y + 1, rinoCores());
+  const left = x + 3 + 32 + 2;
+  const area = x + w - 3 - left;
+  const bigW = bitmapWidth(RHYNOR_LETTERS);
   const smallW = bitmapWidth(STUDIO_LETTERS);
-  const total = 16 + 3 + 5;
-  const top = y + Math.floor((h - total) / 2);
-  drawBitmap(ctx, RHYNOR_LETTERS, x + Math.floor((w - bigW) / 2), top, color, 2);
-  drawBitmap(ctx, STUDIO_LETTERS, x + Math.floor((w - smallW) / 2), top + 19, color);
+  const top = y + Math.floor((h - (8 + 4 + 5)) / 2);
+  drawBitmap(ctx, RHYNOR_LETTERS, left + Math.floor((area - bigW) / 2), top, textColor);
+  drawBitmap(ctx, STUDIO_LETTERS, left + Math.floor((area - smallW) / 2), top + 12, textColor);
 }
 
 /** Relógio de parede com a hora real (disco em pixel, ponteiros de 1px). */

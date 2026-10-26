@@ -1102,8 +1102,9 @@ h2 {
 
 .cracha-simbolo {
   flex-shrink: 0;
-  /* respiro mínimo da logo: 1/4 da largura */
-  margin: 0 9px 0 3px;
+  /* sprite 32x32 em escala inteira, sem suavização */
+  image-rendering: pixelated;
+  margin: 0 8px 0 0;
 }
 
 .cracha-marca {

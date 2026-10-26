@@ -1,5 +1,5 @@
 // Crachá do agente selecionado (no lugar do antigo "Detalhes"): cordão na cor do papel,
-// faixa escura com a logo Rhynor, retrato pixel art e o que ele está fazendo agora.
+// faixa ardósia com o rinoceronte pixel da Rhynor, retrato pixel art e o que ele está fazendo agora.
 // Montado como ficha de personagem de jogo: retrato grande, nível e barrinha de "XP" das entregas do dia.
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -133,7 +133,7 @@ export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, on
         <div className="cracha-cartao">
           <div className="cracha-furo" aria-hidden="true" />
           <div className="cracha-faixa">
-            <img className="cracha-simbolo" src="/marca/rhynor-logo-fundo-escuro.png" alt="" width={35} height={32} />
+            <img className="cracha-simbolo" src="/marca/rinoceronte-32.png" alt="" width={32} height={32} />
             <span className="cracha-marca" translate="no">
               Rhynor Studio
             </span>

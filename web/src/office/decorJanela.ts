@@ -1,9 +1,9 @@
 // Cenário em pixel art: vista das janelas (céu nublado de dia, cidade à noite com prédios e antena),
-// pôsteres de série, estante do estúdio (HDs, claquete, estojos) e a logo da placa em pixels duros.
+// pôsteres de série e estante do estúdio (HDs, claquete, estojos).
 // Tudo em coordenadas inteiras da resolução base, sem arc/ellipse/gradiente.
 
 import { inkAlpha, palette } from "../theme";
-import { type Ctx, type Rect, fill, hexToRgb, line, mix } from "./decorBase";
+import { type Ctx, type Rect, fill, mix } from "./decorBase";
 import { isReducedMotion } from "./motion";
 
 const P = palette;
@@ -374,72 +374,4 @@ export function drawStudioShelf(ctx: Ctx, x: number, y: number, w: number, h: nu
       fill(ctx, rx + 1, c.y + tops[i] + 2, 1, 2, P.navy900);
     });
   }
-}
-
-// ===================================================================== logo em pixels duros
-
-
-export interface LogoCrop {
-  sx: number;
-  sy: number;
-  sw: number;
-  sh: number;
-}
-
-/**
- * Reduz a logo para (wBase*k) x (hBase*k) pixels de dispositivo: corta pela metade em passos
- * (com suavização de alta qualidade, pra não perder traço fino) até perto do tamanho final e
- * aplica um limiar de luminância, então cada pixel vira só a cor da placa ou a do texto.
- */
-export function bakeLogo(img: HTMLImageElement, wBase: number, hBase: number, k: number, crop?: LogoCrop): HTMLCanvasElement {
-  const tw = Math.max(1, Math.round(wBase * k));
-  const th = Math.max(1, Math.round(hBase * k));
-  let src: CanvasImageSource = img;
-  let sx = crop?.sx ?? 0;
-  let sy = crop?.sy ?? 0;
-  let sw = crop?.sw ?? img.naturalWidth;
-  let sh = crop?.sh ?? img.naturalHeight;
-
-  const make = (w: number, h: number) => {
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const g = c.getContext("2d", { willReadFrequently: true });
-    if (!g) throw new Error("canvas 2d indisponível");
-    g.imageSmoothingEnabled = true;
-    g.imageSmoothingQuality = "high";
-    return { c, g };
-  };
-
-  while (sw / 2 >= tw && sh / 2 >= th) {
-    const { c, g } = make(Math.ceil(sw / 2), Math.ceil(sh / 2));
-    g.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
-    src = c;
-    sx = 0;
-    sy = 0;
-    sw = c.width;
-    sh = c.height;
-  }
-  const { c: out, g } = make(tw, th);
-  // só estes dois tons saem do bake (lidos dos tokens na hora)
-  const LOGO_DARK = hexToRgb(P.navy900);
-  const LOGO_LIGHT = hexToRgb(P.white);
-  g.drawImage(src, sx, sy, sw, sh, 0, 0, tw, th);
-
-  // em k=1 o traço fino da logo fica abaixo do meio-termo: limiar mais baixo pra não sumir
-  const threshold = k <= 1 ? 110 : 128;
-  const data = g.getImageData(0, 0, tw, th);
-  const d = data.data;
-  for (let i = 0; i < d.length; i += 4) {
-    // pixel transparente conta como fundo
-    const a = d[i + 3] / 255;
-    const lum = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) * a + 23 * (1 - a);
-    const [r, gg, b] = lum >= threshold ? LOGO_LIGHT : LOGO_DARK;
-    d[i] = r;
-    d[i + 1] = gg;
-    d[i + 2] = b;
-    d[i + 3] = 255;
-  }
-  g.putImageData(data, 0, 0);
-  return out;
 }

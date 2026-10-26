@@ -319,7 +319,6 @@ interface Envelope {
 export class OfficeEngine {
   private visuals = new Map<string, Visual>();
   private envelopes: Envelope[] = [];
-  private logo: HTMLImageElement | null = null;
   private lightmap = new Lightmap();
   private rosterData: Roster | null = null;
   /** elenco por chave (falas, apelido e nome curto sem procurar na lista a cada quadro) */
@@ -411,12 +410,7 @@ export class OfficeEngine {
       this.bakedByName.clear();
       for (const v of this.visuals.values()) v.look = lookFor(v.agent, this.rosterData);
     });
-    // (Image e import.meta.env só existem no navegador/vite: os testes do motor rodam no node)
-    if (theme.logoUrl && typeof Image !== "undefined") {
-      const img = new Image();
-      img.src = theme.logoUrl;
-      this.logo = img;
-    }
+    // (import.meta.env só existe no vite: os testes do motor rodam no node)
     // debug (só no dev server): `__studioRest()` no console lista quem está descansando, onde e em que fase
     if (import.meta.env?.DEV && typeof window !== "undefined") {
       window.__studioRest = () => this.restDebug();
@@ -944,20 +938,19 @@ export class OfficeEngine {
   /**
    * Chão, parede, quadros, placa e plaquinha não mudam: são desenhados uma vez num canvas fora da
    * tela na escala atual (k) e copiados 1:1 a cada quadro. Eram milhares de fillRect por quadro.
-   * Refaz quando k muda ou quando a logo da placa termina de carregar.
+   * Refaz quando k muda (ou quando os tokens de cor mudam).
    */
   private drawStatic(ctx: CanvasRenderingContext2D) {
     const m = ctx.getTransform();
     const k = Math.max(1, Math.round(m.a));
-    const logoReady = !!this.logo && this.logo.complete && this.logo.naturalWidth > 0;
-    const key = `${k}|${logoReady}`;
+    const key = String(k);
     if (!this.staticLayer || this.staticKey !== key) {
       const c = typeof document !== "undefined" ? document.createElement("canvas") : null;
       const g = c?.getContext("2d");
       if (!c || !g) {
         drawFloor(ctx);
         drawDecor(ctx);
-        drawSign(ctx, this.logo);
+        drawSign(ctx);
         return;
       }
       c.width = W * k;
@@ -966,7 +959,7 @@ export class OfficeEngine {
       g.imageSmoothingEnabled = false;
       drawFloor(g);
       drawDecor(g);
-      drawSign(g, this.logo);
+      drawSign(g);
       this.staticLayer = c;
       this.staticKey = key;
     }
@@ -1055,7 +1048,7 @@ export class OfficeEngine {
     if (b) drawBaked(ctx, b);
   }
 
-  /** brilho leve ("lighter") nas telas ligadas e na logo da placa, por cima do multiply */
+  /** brilho leve ("lighter") nas telas ligadas e no letreiro, por cima do multiply */
   private drawEmissive(ctx: CanvasRenderingContext2D, scene: LightScene, night: number) {
     if (night <= 0.05) return;
     ctx.save();
@@ -1064,7 +1057,7 @@ export class OfficeEngine {
     ctx.fillStyle = palette.night.monitorLight;
     for (const r of scene.activeScreens) ctx.fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
     ctx.globalAlpha = 0.3 * night;
-    drawSignGlow(ctx, this.logo);
+    drawSignGlow(ctx);
     ctx.restore();
   }
 

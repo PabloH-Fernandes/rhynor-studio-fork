@@ -549,7 +549,7 @@ O produto se chama **Rhynor Studio** (nome no cabeçalho do painel, logo da Rhyn
 - **Fontes:** Space Grotesk nos títulos, Inter no texto, JetBrains Mono em números e status, Silkscreen nos letreiros e no HUD, VT323 nos balões e nomes do escritório.
 
 **O que tem no escritório:**
-- Letreiro "RHYNOR STUDIO" na recepção, balcão e plaquinha da ala em pixel (o rinoceronte em pixel entra depois).
+- Letreiro da recepção com o rinoceronte pixel (32x32) e "RHYNOR STUDIO"; balcão e plaquinha da ala com as letras em pixel.
 - Janelas com a cidade: prédios com janelas acesas à noite e uma antena com luz piscando; de dia, céu nublado de aço e névoa.
 - Pôsteres de série, estante do estúdio (HDs, claquete e estojos), arara de figurino, sofás, impressora, credenza e plantas.
 - Storyboard na mesa de reunião.
@@ -614,8 +614,8 @@ A ideia seria descartar as sessões de `claude -p` (modo não interativo). Não 
 
 ### Trocar a logo
 1. As logos ficam em `assets/marca/` (pasta pública do Vite: `assets/marca/x.png` vira `/marca/x.png`).
-2. O cabeçalho do painel e o crachá usam `/marca/rhynor-logo-fundo-escuro.png` (`web/src/App.tsx` e `web/src/components/Cracha.tsx`). Respeite as regras de `referencias/rhynor-marca.md`: sem recolorir nem esticar, no mínimo 32 px de altura e respiro de 1/4 da largura.
-3. A placa da recepção usa `theme.logoUrl` (hoje vazio). Vazio ou imagem que falha ao carregar = "RHYNOR" em pixels de `web/src/office/agMark.ts` (`RHYNOR_LETTERS`).
+2. O cabeçalho do painel usa `/marca/rhynor-logo-fundo-escuro.png` (`web/src/App.tsx`) e a faixa do crachá usa o sprite `/marca/rinoceronte-32.png` em escala inteira (`web/src/components/Cracha.tsx`). Respeite as regras de `referencias/rhynor-marca.md`: sem recolorir nem esticar, no mínimo 32 px de altura e respiro de 1/4 da largura.
+3. O letreiro da recepção desenha o rinoceronte pixel (`web/src/marca/rinoceronte.ts`, com `drawPixelArt` de `web/src/office/pixelMarca.ts`) e "RHYNOR STUDIO" em bitmap. Os PNGs `assets/marca/rinoceronte-*.png` saem das mesmas matrizes com `npm run sprite`; o crachá usa o `rinoceronte-32.png`.
 4. O favicon é `/marca/favicon-64.png`, referenciado em `web/index.html`.
 
 ### Trocar cores

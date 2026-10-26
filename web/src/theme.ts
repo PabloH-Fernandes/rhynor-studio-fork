@@ -190,11 +190,6 @@ export interface Uniform {
 export interface Theme {
   officeName: string;
   subtitle: string;
-  /**
-   * caminho de uma imagem em assets/ (ex.: "/marca/logo.png"), reduzida para pixels duros
-   * (duas cores) na placa da recepção. Vazio ou falha ao carregar = "RHYNOR" em pixel.
-   */
-  logoUrl: string;
   colors: {
     floorA: string;
     floorB: string;
@@ -316,7 +311,6 @@ const roleColorsMemo = derivada(roleColors);
 export const theme: Theme = {
   officeName: "Rhynor Studio",
   subtitle: "Time de agentes do Claude Code",
-  logoUrl: "",
   get colors() {
     return colors();
   },

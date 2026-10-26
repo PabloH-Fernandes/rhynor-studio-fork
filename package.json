@@ -17,6 +17,7 @@
     "replay": "tsx server/replay.ts",
     "ata-ficticia": "tsx server/ataFicticia.ts",
     "diagnostico": "node scripts/diagnostico-eventos.mjs",
+    "sprite": "tsx scripts/sprite-rinoceronte.mjs",
     "test": "tsx --test \"server/**/*.test.ts\" \"shared/**/*.test.ts\" \"web/src/**/*.test.ts\" \"scripts/**/*.test.mjs\""
   },
   "dependencies": {
