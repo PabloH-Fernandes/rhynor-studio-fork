@@ -75,7 +75,7 @@ test("cores são ids das listas (sem hex): pele, cabelo, roupa e calça desconhe
     /cabelo\.cor/,
   );
   expectError(
-    withChange("dev", (a) => (a.corRoupa = "marinho")),
+    withChange("dev", (a) => (a.corRoupa = "rosa")),
     /corRoupa/,
   );
   expectError(

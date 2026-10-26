@@ -63,7 +63,7 @@ const LEAVES_BIG = [
 ] as const;
 
 /**
- * Planta em vaso branco com faixa marinho e folhas em 3 tons, pixel a pixel.
+ * Planta em vaso branco com faixa escura e folhas em 3 tons, pixel a pixel.
  * Pequena: 19 px de altura acima da base. Grande: 27 px.
  */
 export function drawPlant(ctx: Ctx, x: number, baseY: number, big = false) {
@@ -189,7 +189,7 @@ export function drawCoffeeTable(ctx: Ctx, x: number, baseY: number) {
   fill(ctx, x + 1, top + 1, w - 2, 3, F.oak);
   fill(ctx, x + 1, top + 1, w - 2, 1, F.oakLight);
   fill(ctx, x + 1, top + 4, w - 2, 1, F.oakShade);
-  // revista: capa com faixa marinho e foto azul
+  // revista: capa com faixa escura e foto azul
   fill(ctx, x + 4, top + 1, 7, 3, P.white);
   fill(ctx, x + 4, top + 1, 7, 1, P.navy900);
   fill(ctx, x + 6, top + 2, 3, 2, P.signal.think);
@@ -342,7 +342,7 @@ export function drawReception(ctx: Ctx, x: number, baseY: number, w: number) {
 
 /**
  * Mesa de ping-pong vista de cima em 3/4, no sentido do comprimento (jogadores em cima e embaixo):
- * tampo marinho baixo e largo com bordas e linha do meio brancas, rede clara atravessando na
+ * tampo escuro baixo e largo com bordas e linha do meio brancas, rede clara atravessando na
  * horizontal, borda frontal fina, pernas finas só embaixo e sombra no chão.
  * (x, y) = canto de cima do tampo; a base fica em y + h + 8. `gear` = raquetes e bolinha no tampo.
  */

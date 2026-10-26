@@ -62,7 +62,7 @@ test("Personagem extra inválido é removido; extra válido fica", () => {
   const extra = { ...structuredClone(DEFAULT_ROSTER.personagens[1]), key: "planejador-2", variacaoDe: "planejador", matricula: "RH-0013" };
   const salvo = withChange((r) => {
     r.personagens.push(extra);
-    r.personagens.push({ ...extra, key: "ruim", matricula: "RH-0014", corRoupa: "marinho" });
+    r.personagens.push({ ...extra, key: "ruim", matricula: "RH-0014", corRoupa: "rosa" });
   });
   fs.writeFileSync(file, JSON.stringify(salvo));
   const keys = loadRoster(file).personagens.map((a) => a.key);

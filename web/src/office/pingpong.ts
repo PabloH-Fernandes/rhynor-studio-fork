@@ -35,7 +35,7 @@ function onTable(x: number, y: number): boolean {
  * fora da mesa). Errou: cai fora, quica no chão e o saque recomeça. Reduced-motion: parada no meio.
  */
 export function drawBall(ctx: CanvasRenderingContext2D, f: RallyFrame) {
-  // 2x2 branca com contorno marinho em cruz (não some na camisa branca nem no piso claro)
+  // 2x2 branca com contorno escuro em cruz (não some na camisa branca nem no piso claro)
   const ball = (x: number, y: number) => {
     const bx = Math.round(x) - 1;
     const by = Math.round(y) - 1;

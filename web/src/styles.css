@@ -674,7 +674,7 @@ h2 {
   color: var(--badge-ink-soft);
 }
 
-/* "te esperando": borda e ícone laranja, texto branco sobre marinho */
+/* "te esperando": borda e ícone laranja, texto branco sobre o escuro */
 .alert {
   display: flex;
   flex-direction: column;
@@ -958,7 +958,7 @@ h2 {
   color: var(--blue);
 }
 
-/* laranja sobre marinho, com borda para virar "selo" */
+/* laranja sobre o escuro, com borda para virar "selo" */
 .pill-esperando {
   background: var(--bg-2);
   color: var(--waiting);
@@ -1081,7 +1081,7 @@ h2 {
   --photo-bg: var(--rh-elevado);
 }
 
-/* furo do cordão: o marinho do painel aparecendo através do cartão */
+/* furo do cordão: o escuro do painel aparecendo através do cartão */
 .cracha-furo {
   width: 34px;
   height: 6px;
@@ -1131,7 +1131,7 @@ h2 {
   touch-action: manipulation;
 }
 
-/* × sobre a faixa marinho: o anel fica dentro do botão */
+/* × sobre a faixa escura: o anel fica dentro do botão */
 .cracha-fechar:focus-visible {
   outline-offset: -3px;
 }
@@ -1149,7 +1149,7 @@ h2 {
   text-align: center;
 }
 
-/* foto 3x4: o "slot" do retrato, fundo claro de estúdio, moldura marinho, busto encostado embaixo */
+/* foto 3x4: o "slot" do retrato, fundo claro de estúdio, moldura escura, busto encostado embaixo */
 .cracha-foto {
   --mc: var(--bg-2);
   --sy: 0px;
@@ -1254,7 +1254,7 @@ h2 {
   margin-bottom: 2px;
 }
 
-/* no cartão branco o selo do status fica sobre marinho, igual ao da lista do time */
+/* no cartão branco o selo do status fica sobre o escuro, igual ao da lista do time */
 .cracha .pill {
   background: var(--bg-2);
 }
@@ -1301,7 +1301,7 @@ h2 {
   font-family: var(--mono);
 }
 
-/* barrinha de XP: bandeja marinho, segmentos de pixel na cor do cordão (10 por nível) */
+/* barrinha de XP: bandeja escura, segmentos de pixel na cor do cordão (10 por nível) */
 .cracha-xp {
   width: 100%;
   margin: 16px 0 0;

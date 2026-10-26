@@ -1423,7 +1423,7 @@ export class OfficeEngine {
     const hb = this.headPoint(b, now);
     const x = ha.x + (hb.x - ha.x) * ease;
     const y = ha.y + (hb.y - ha.y) * ease - Math.sin(ease * Math.PI) * 26;
-    // envelope branco com contorno marinho, aba em 1px e lacre navy900
+    // envelope branco com contorno escuro, aba em 1px e lacre navy900
     const ex = Math.round(x - 6);
     const ey = Math.round(y - 4);
     fill(ctx, ex, ey, 12, 9, palette.navy900);
@@ -1456,7 +1456,7 @@ export class OfficeEngine {
 // ------------------------------------------------------------------ helpers de desenho
 
 /**
- * Copo do escritório largado em cima de uma mesa: boca com café, corpo branco com faixa marinho, asa de 1px
+ * Copo do escritório largado em cima de uma mesa: boca com café, corpo branco com faixa escura, asa de 1px
  * à direita e contorno só nas bordas (sem caixa em volta). (x, y) = canto de cima do corpo.
  */
 function drawCup(ctx: CanvasRenderingContext2D, x: number, y: number) {

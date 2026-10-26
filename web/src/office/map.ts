@@ -245,7 +245,7 @@ export const WATER_COOLER: Point = { x: 553, y: 286 };
  */
 export const REST_SPOTS: RestSpot[] = [
   ...COFFEE_SPOTS.map((s): RestSpot => ({ ...s, kind: "cafe", face: "down" })),
-  // sofá marinho de cima (2 lugares) e poltrona: sobem pela lane da mesa mais perto
+  // sofá escuro de cima (2 lugares) e poltrona: sobem pela lane da mesa mais perto
   sofaSeat("sofa:0", 39, 104, { laneX: 2.5, y: 7 }),
   sofaSeat("sofa:1", 57, 104, { laneX: 2.5, y: 7 }),
   sofaSeat("poltrona", 455, 104, { laneX: 25.5, y: 7 }),
@@ -383,7 +383,7 @@ export function drawFloor(ctx: Ctx) {
 
   drawWall(ctx);
 
-  // porta (entrada à esquerda, madeira quente) + capacho marinho
+  // porta (entrada à esquerda, madeira quente) + capacho escuro
   rect(ctx, 0, px(AISLE_Y) - 20, 5, 40, c.woodShade);
   rect(ctx, 0, px(AISLE_Y) - 18, 3, 36, palette.furniture.woodDark);
   rect(ctx, 3, px(AISLE_Y) - 18, 1, 36, c.wood);
@@ -866,7 +866,7 @@ function drawStoryboard(ctx: Ctx, cx: number, cy: number) {
   rect(ctx, cx + 12, cy + 6, 1, 1, palette.props.pencilTip);
 }
 
-/** Cantinho do café (embaixo, antes da ala de descanso): balcão marinho com tampo claro. */
+/** Cantinho do café (embaixo, antes da ala de descanso): balcão escuro com tampo claro. */
 export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean, still = false) {
   const F = palette.furniture;
   const x = px(26.6);
@@ -937,7 +937,7 @@ export const PROPS: Prop[] = [
   // ala de descanso: ping-pong (base 8 px abaixo do tampo) e bebedouro embaixo do corredor
   { id: "pingpong", y: PINGPONG.y + PINGPONG.h + 8, draw: (ctx) => drawPingPongTable(ctx, PINGPONG.x, PINGPONG.y, PINGPONG.w, PINGPONG.h) },
   { y: WATER_COOLER.y, draw: (ctx) => drawWaterCooler(ctx, WATER_COOLER.x, WATER_COOLER.y) },
-  // cima à esquerda: sofá marinho, mesinha de centro e luminária de piso
+  // cima à esquerda: sofá escuro, mesinha de centro e luminária de piso
   { y: 104, draw: (ctx) => drawSofa(ctx, 24, 104, 48, 2, SOFA_NAVY, { pillow: true }) },
   { y: 100, draw: (ctx) => drawCoffeeTable(ctx, 78, 100) },
   { y: FLOOR_LAMP.y, draw: (ctx) => drawFloorLamp(ctx, FLOOR_LAMP.x, FLOOR_LAMP.y) },
@@ -984,7 +984,7 @@ export function drawDesk(
   rect(ctx, px(d.cx) - 7, top + depth - 7, 14, 4, palette.gray700);
   rect(ctx, px(d.cx) - 6, top + depth - 6, 12, 2, palette.gray500);
 
-  // monitor (à direita, virado "pra câmera" — licença poética de escritório pixel), moldura marinho
+  // monitor (à direita, virado "pra câmera" — licença poética de escritório pixel), moldura escura
   const { x: mx, y: my } = monitorScreen(d);
   rect(ctx, mx - 2, my - 2, 17, 15, c.outline);
   rect(ctx, mx - 1, my - 1, 15, 13, palette.navy800);
