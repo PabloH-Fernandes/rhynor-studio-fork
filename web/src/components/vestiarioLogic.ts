@@ -9,7 +9,7 @@ import {
   aplicarEditaveis,
   DESTAQUES_PERMITIDOS,
   LIMITS,
-  ROUPAS_PERMITIDAS,
+  ROUPAS_ABERTAS,
   cargoDe,
   cleanPersonagem,
   validateRoster,
@@ -31,10 +31,10 @@ export const NOME_CAMADA: Record<Camada, string> = {
 
 export const NOME_ACESSORIO: Record<Acessorio, string> = {
   headset: "Headset",
-  "capacete-branco": "Capacete branco",
-  "capacete-amarelo": "Capacete amarelo",
+  bone: "Boné",
+  gorro: "Gorro",
   oculos: "Óculos",
-  colete: "Colete refletivo",
+  cachecol: "Cachecol",
   prancheta: "Prancheta",
   caneca: "Caneca",
   lapis: "Lápis na orelha",
@@ -55,15 +55,14 @@ export const NOME_ESTILO: Record<EstiloCabelo, string> = {
 };
 
 export const NOME_ROUPA: Record<Roupa, string> = {
-  polo: "Polo marinho",
-  camisa: "Camisa branca",
-  blazer: "Blazer",
-  terno: "Terno",
+  camiseta: "Camiseta",
+  moletom: "Moletom com capuz",
+  "camisa-aberta": "Camisa aberta",
+  jaqueta: "Jaqueta",
+  sueter: "Suéter",
 };
 
 export const NOME_DESTAQUE: Record<Destaque, string> = {
-  "gravata-dourada": "Gravata dourada",
-  "blazer-cinza": "Blazer cinza",
   "cracha-visitante": "Crachá de visitante",
 };
 
@@ -81,15 +80,8 @@ export const contarCaracteres = (s: string) => [...s.normalize("NFC")].length;
 
 // ------------------------------------------------------------------ roupa e destaque
 
-/** Roupa fixa do papel explicada em uma linha ("Terno: exclusivo do líder"), ou null se dá pra escolher. */
-export function regraRoupa(papel: string): string | null {
-  const roupas = ROUPAS_PERMITIDAS(papel);
-  if (roupas.length !== 1) return null;
-  const r = roupas[0];
-  if (papel === "lider") return `${NOME_ROUPA[r]}: exclusivo do líder`;
-  if (r === "blazer") return `${NOME_ROUPA[r]}: uniforme do planejamento e da revisão`;
-  return `${NOME_ROUPA[r]}: única roupa deste papel`;
-}
+/** a roupa mostra a camiseta de baixo (e o vestiário oferece a cor dela) */
+export const temCamisetaPorBaixo = (roupa: Roupa) => ROUPAS_ABERTAS.includes(roupa);
 
 export interface OpcaoDestaque {
   /** undefined = sem destaque */
@@ -98,23 +90,23 @@ export interface OpcaoDestaque {
 }
 
 /**
- * Escolhas de destaque pro papel e a roupa. Lista vazia: não há o que escolher; uma só: fixo
- * (o crachá de visitante do convidado). O "sem destaque" ganha o nome do que fica no lugar.
+ * Escolhas de destaque pro papel. Lista vazia: não há o que escolher (o time); uma só: fixo
+ * (o crachá de visitante do convidado).
  */
-export function opcoesDestaque(papel: string, roupa: Roupa): OpcaoDestaque[] {
-  const permitidos = DESTAQUES_PERMITIDOS(papel, roupa);
-  if (papel === "convidado") return permitidos.map((d) => ({ valor: d, nome: NOME_DESTAQUE[d] }));
-  if (permitidos.length === 0) return [];
-  const semNome = roupa === "terno" ? "Gravata marinho" : roupa === "blazer" ? "Blazer marinho" : "Sem destaque";
-  return [{ valor: undefined, nome: semNome }, ...permitidos.map((d) => ({ valor: d, nome: NOME_DESTAQUE[d] }))];
+export function opcoesDestaque(papel: string): OpcaoDestaque[] {
+  return DESTAQUES_PERMITIDOS(papel).map((d) => ({ valor: d, nome: NOME_DESTAQUE[d] }));
 }
 
-/** troca a roupa e acerta o destaque (o que não combina sai; convidado continua com o crachá de visitante) */
+/**
+ * Troca a roupa: camisa aberta e jaqueta ganham a camiseta de baixo (névoa se ainda não tinha);
+ * as outras perdem. Convidado continua com o crachá de visitante.
+ */
 export function trocarRoupa(ag: Personagem, roupa: Roupa): Personagem {
   const out: Personagem = { ...ag, roupa };
-  const permitidos = DESTAQUES_PERMITIDOS(ag.papel, roupa);
+  if (temCamisetaPorBaixo(roupa)) out.corInterna = ag.corInterna ?? "nevoa";
+  else delete out.corInterna;
   if (ag.papel === "convidado") out.destaque = "cracha-visitante";
-  else if (out.destaque !== undefined && !permitidos.includes(out.destaque)) delete out.destaque;
+  else delete out.destaque;
   return out;
 }
 
@@ -258,9 +250,11 @@ const ROTULO_CAMPO: Record<string, string> = {
   "cabelo.cor": "Cor do cabelo",
   cabelo: "Cabelo",
   roupa: "Roupa",
+  corRoupa: "Cor da roupa",
+  corInterna: "Camiseta por baixo",
+  corCalca: "Cor da calça",
   destaque: "Destaque",
   acessorios: "Acessórios",
-  cordao: "Cordão",
   matricula: "Matrícula",
   cargo: "Cargo",
   oQueFaco: "O que eu faço",
@@ -299,7 +293,7 @@ export function errosPorCampo(erros: readonly string[], key: string): Record<Cam
   return out;
 }
 
-/** frase pra lista de erros: "BIA · Apelido: precisa ter de 1 a 6 caracteres" */
+/** frase pra lista de erros: "KAUÃ · Apelido: precisa ter de 1 a 6 caracteres" */
 export function mensagemDeErro(erro: string, elenco: Roster): string {
   const e = lerErro(erro);
   if (!e.campo) return e.texto;

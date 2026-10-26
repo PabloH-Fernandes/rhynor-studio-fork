@@ -3,7 +3,7 @@
 // todos os navegadores recebem pelo WS. As regras puras ficam em vestiarioLogic.ts.
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type SyntheticEvent } from "react";
-import { DEFAULT_ROSTER, ESTILOS_CABELO, GENEROS, HAIR_COLORS, ROUPAS_PERMITIDAS, SKIN_TONES } from "../../../shared/roster";
+import { CORES_ROUPA, DEFAULT_ROSTER, ESTILOS_CABELO, GENEROS, HAIR_COLORS, ROUPAS, SKIN_TONES } from "../../../shared/roster";
 import type { Acessorio, Personagem, Roster } from "../../../shared/types";
 import { lookOfPersonagem } from "../office/engine";
 import { PORTRAIT_H, PORTRAIT_W, drawCharacter, drawPortrait, type CharLook, type Dir } from "../office/sprites";
@@ -35,7 +35,7 @@ import {
   mesmoElenco,
   opcoesDestaque,
   prepararEnvio,
-  regraRoupa,
+  temCamisetaPorBaixo,
   trocarAcessorio,
   trocarDestaque,
   trocarGenero,
@@ -49,7 +49,7 @@ import {
 const DIRS: readonly Dir[] = ["down", "right", "up", "left"];
 const NOME_DIR: Record<Dir, string> = { down: "De frente", right: "Perfil direito", up: "De costas", left: "Perfil esquerdo" };
 const GIRO_MS = 900;
-/** recorte do quadro com o boneco inteiro (capacete, headset, prancheta e sombra cabem) */
+/** recorte do quadro com o boneco inteiro (boné, headset, prancheta e sombra cabem) */
 const CORTE = { x: SPRITE_OX - 12, y: SPRITE_OY - 28, w: 24, h: 31 } as const;
 const ESCALA_BONECO = 7;
 const ESCALA_RETRATO = 4;
@@ -61,7 +61,8 @@ const ESCALA_MINI = 2;
 
 const FOCAVEIS = "button, input, select, textarea, a[href], [tabindex]:not([tabindex=\"-1\"])";
 const GRUPOS = acessoriosPorCamada();
-const mesmaCor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+/** amostra pinta com o token da marca (o CSS resolve a cor) */
+const corDoToken = (token: string) => `var(--${token})`;
 
 interface Props {
   /** elenco atual (atualiza sozinho pelo WS) */
@@ -264,9 +265,7 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
   }, [sujas.length]);
 
   const look = useMemo(() => lookOfPersonagem(ed), [ed]);
-  const roupas = ROUPAS_PERMITIDAS(ed.papel);
-  const regra = regraRoupa(ed.papel);
-  const destaques = opcoesDestaque(ed.papel, ed.roupa);
+  const destaques = opcoesDestaque(ed.papel);
   const apelidoDe = (k: string) => personagemDe(elencoMostrado, k)?.apelido.trim() || personagemDe(elencoMostrado, k)?.nome || k;
   const campoErro = (campo: string) => porCampo[campo]?.join(" · ");
 
@@ -380,10 +379,10 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
                 <Amostra
                   key={t.id}
                   name={`${id}-pele`}
-                  cor={t.hex}
+                  cor={corDoToken(t.token)}
                   rotulo={`Pele ${t.nome.toLocaleLowerCase("pt-BR")}`}
-                  checked={mesmaCor(ed.pele, t.hex)}
-                  onChange={() => editar((a) => ({ ...a, pele: t.hex }))}
+                  checked={ed.pele === t.id}
+                  onChange={() => editar((a) => ({ ...a, pele: t.id }))}
                 />
               ))}
             </div>
@@ -412,10 +411,10 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
                 <Amostra
                   key={c.id}
                   name={`${id}-cabelo`}
-                  cor={c.hex}
+                  cor={corDoToken(c.token)}
                   rotulo={`Cabelo ${c.nome.toLocaleLowerCase("pt-BR")}`}
-                  checked={mesmaCor(ed.cabelo.cor, c.hex)}
-                  onChange={() => editar((a) => ({ ...a, cabelo: { ...a.cabelo, cor: c.hex } }))}
+                  checked={ed.cabelo.cor === c.id}
+                  onChange={() => editar((a) => ({ ...a, cabelo: { ...a.cabelo, cor: c.id } }))}
                 />
               ))}
             </div>
@@ -424,17 +423,40 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
 
           <fieldset className="vest-grupo" aria-describedby={campoErro("roupa") ? `${id}-erro-roupa` : undefined}>
             <legend>Roupa</legend>
-            {regra ? (
-              <p className="vest-fixo">{regra}</p>
-            ) : (
-              <div className="vest-chips">
-                {roupas.map((r) => (
-                  <Chip key={r} name={`${id}-roupa`} rotulo={NOME_ROUPA[r]} checked={ed.roupa === r} onChange={() => editar((a) => trocarRoupa(a, r))} />
-                ))}
-              </div>
-            )}
+            <div className="vest-chips">
+              {ROUPAS.map((r) => (
+                <Chip key={r} name={`${id}-roupa`} rotulo={NOME_ROUPA[r]} checked={ed.roupa === r} onChange={() => editar((a) => trocarRoupa(a, r))} />
+              ))}
+            </div>
             <ErroCampo id={`${id}-erro-roupa`} texto={campoErro("roupa")} />
           </fieldset>
+
+          {(
+            [
+              ["corRoupa", "Cor da roupa", true],
+              ["corInterna", "Camiseta por baixo", temCamisetaPorBaixo(ed.roupa)],
+              ["corCalca", "Cor da calça", true],
+            ] as const
+          )
+            .filter(([, , mostra]) => mostra)
+            .map(([campo, rotulo]) => (
+              <fieldset key={campo} className="vest-grupo" aria-describedby={campoErro(campo) ? `${id}-erro-${campo}` : undefined}>
+                <legend>{rotulo}</legend>
+                <div className="vest-amostras">
+                  {CORES_ROUPA.map((c) => (
+                    <Amostra
+                      key={c.id}
+                      name={`${id}-${campo}`}
+                      cor={corDoToken(c.token)}
+                      rotulo={`${rotulo}: ${c.nome.toLocaleLowerCase("pt-BR")}`}
+                      checked={ed[campo] === c.id}
+                      onChange={() => editar((a) => ({ ...a, [campo]: c.id }))}
+                    />
+                  ))}
+                </div>
+                <ErroCampo id={`${id}-erro-${campo}`} texto={campoErro(campo)} />
+              </fieldset>
+            ))}
 
           {destaques.length > 0 && (
             <fieldset className="vest-grupo" aria-describedby={campoErro("destaque") ? `${id}-erro-destaque` : undefined}>
@@ -509,16 +531,9 @@ export function Vestiario({ roster, inicial, onClose }: Props) {
 
           <section className="vest-grupo" aria-labelledby={`${id}-fixos`}>
             <h4 id={`${id}-fixos`} className="vest-legenda">
-              Vem do papel (o cargo acompanha o gênero)
+              Vem do papel (o cargo acompanha o gênero; o cordão é sempre o laranja da marca)
             </h4>
             <dl className="vest-fixos">
-              <div>
-                <dt>Cordão</dt>
-                <dd>
-                  <span className="vest-cordao" style={{ "--cordao": ed.cordao } as CSSProperties} aria-hidden="true" />
-                  Cor do papel
-                </dd>
-              </div>
               <div>
                 <dt>Matrícula</dt>
                 <dd translate="no">{ed.matricula}</dd>

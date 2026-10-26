@@ -25,7 +25,7 @@ export interface Agent {
   parentId?: string;
   /** chave do papel: lider, planejador, dev, testador, revisor, documentador, pesquisador, convidado ou outro tipo */
   role: string;
-  /** nome do Personagem ("Beatriz Lima"); o visitante extra, sem Personagem, usa o nome do tipo */
+  /** nome do Personagem ("Kauã Moreira"); o visitante extra, sem Personagem, usa o nome do tipo */
   name: string;
   /** key do Personagem no elenco (lider, dev, dev-2, explore...); ausente no visitante extra */
   personagem?: string;
@@ -91,7 +91,7 @@ export interface FeedItem {
   kind: "info" | "tool" | "spawn" | "done" | "alert" | "message";
   /** versão simples, sem jargão e sem o nome ("está fazendo mudanças no sistema"); feed salvo antigo não tem */
   simples?: string;
-  /** nome curto da versão simples ("Guto", "Marina") */
+  /** nome curto da versão simples ("Helô", "Otto") */
   quem?: string;
   categoria?: FeedCategoria;
   /** o que contar quando linhas iguais se juntam ("arquivos" → "(12 arquivos)"); sem ele não junta */

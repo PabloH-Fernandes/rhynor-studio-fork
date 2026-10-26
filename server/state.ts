@@ -4,7 +4,7 @@
 // Cada subagente vira um Personagem do elenco, com id visual estável (p:<key>): o mesmo
 // papel chamado de novo volta a ser a mesma pessoa. Quem termina fica "de boa" no
 // escritório; todo mundo de uma sessão só vai embora no SessionEnd ou quando a sessão
-// passa tempo demais sem nenhum evento. Exceção: visitante (Iara, Jorge, Sofia e extras, os agentes
+// passa tempo demais sem nenhum evento. Exceção: visitante (Diego, Cida, Ícaro e extras, os agentes
 // de fora do time) não fica de boa: sai andando ao entregar ou após 3 min sem evento, e só 3 cabem na tela.
 
 import path from "node:path";
@@ -1316,7 +1316,7 @@ export class OfficeState {
       }
       agent.tasksDone += 1;
       if (ehVisitante(agent)) {
-        // visitante (Iara, Jorge, Sofia ou extra) não fica: sai andando até a porta. "De boa" é só do
+        // visitante (Diego, Cida, Ícaro ou extra) não fica: sai andando até a porta. "De boa" é só do
         // elenco fixo do time. O agent_id vai pra `retired`: evento tardio não o traz de volta
         this.sairVisitante(agent, "Entregou o trabalho");
       } else if (agent.personagem) {
@@ -1531,7 +1531,7 @@ export class OfficeState {
 
   // ---------------------------------------------------------------- feed
 
-  /** Nome curto do feed simples: o apelido do Personagem ("Guto") ou o primeiro nome. */
+  /** Nome curto do feed simples: o apelido do Personagem ("Helô") ou o primeiro nome. */
   private nomeCurto(agent: Agent): string {
     const ag = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
     return nomeCurto(agent.name, ag?.apelido);

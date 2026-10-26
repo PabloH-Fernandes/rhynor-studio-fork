@@ -5,7 +5,7 @@
 //  é referencias/rhynor-marca.md.
 // =====================================================================
 
-import { HAIR_COLORS, SKIN_TONES, type Personagem } from "../../shared/roster";
+import { CORES_ROUPA, HAIR_COLORS, ROUPAS_ABERTAS, SKIN_TONES, tokenDe, type Personagem, type Roupa, type Swatch } from "../../shared/roster";
 import { comAlfa, cor, derivada, misturar, type NomeCor } from "./marca/cores";
 
 /** mistura de dois tokens (t = 0 é o primeiro) */
@@ -19,11 +19,11 @@ const m = (a: NomeCor, b: NomeCor, t: number) => misturar(a, b, t);
  */
 const ESPEC = {
   navy950: () => cor("rh-noite"), // contorno, sapatos, tinta escura
-  suit: () => m("rh-noite", "rh-ardosia", 0.45), // terno
+  suit: () => m("rh-noite", "rh-ardosia", 0.45), // tom escuro de roupa
   navy900: () => cor("rh-superficie"), // placa, lambril, painéis
-  navy850: () => cor("rh-ardosia"), // polo escura
+  navy850: () => cor("rh-ardosia"), // ardósia
   navy800: () => m("rh-superficie", "rh-ardosia", 0.5), // calças, filetes, moldura dos monitores
-  navy700: () => cor("rh-ardosia"), // blazer, tapete
+  navy700: () => cor("rh-ardosia"), // placas e tapete
   navy600: () => cor("rh-borda"), // bordas
   navy600Hover: () => m("rh-borda", "rh-aco", 0.25),
   navy500: () => m("rh-borda", "rh-aco", 0.45), // ícones e detalhes
@@ -93,9 +93,14 @@ const ESPEC = {
     shadow: () => comAlfa("rh-noite", 0.28),
     /** bochecha: misturada com a pele por quem desenha */
     blush: () => cor("rh-alerta"),
-    helmetYellow: () => cor("rh-aviso"),
-    vest: () => m("rh-aviso", "rh-ok", 0.5),
-    vestStripe: () => cor("rh-nevoa"),
+    /** boné: copa ardósia e aba noite */
+    cap: () => cor("rh-ardosia"),
+    capBrim: () => cor("rh-noite"),
+    /** gorro petróleo com a barra dobrada mais escura */
+    beanie: () => cor("rh-pixel-roupa-petroleo"),
+    /** cachecol ocre com listra creme */
+    scarf: () => cor("rh-pixel-roupa-ocre"),
+    scarfStripe: () => cor("rh-pixel-roupa-creme"),
     /** raquete de ping-pong */
     paddle: () => cor("rh-alerta"),
   },
@@ -160,28 +165,21 @@ export const navyAlpha = (a: number) => comAlfa("rh-ardosia", a);
 /** noite com alpha: fundo da etiqueta de nome */
 export const inkAlpha = (a: number) => comAlfa("rh-noite", a);
 
-/** polo e camisa levam a marquinha no peito; blazer e terno abrem em V mostrando a camisa (inner) */
-export type UniformKind = "polo" | "camisa" | "blazer" | "terno";
-
-export interface Uniform {
-  kind: UniformKind;
-  /** cor principal da peça de cima (polo, camisa ou paletó) */
+/**
+ * Visual de um boneco: a roupa casual e as cores já resolvidas dos tokens. Sem uniforme e sem
+ * logo no peito: a marca aparece no crachá (topo ardósia, corpo névoa) e no cordão laranja.
+ */
+export interface Visual {
+  roupa: Roupa;
+  /** cor da peça de cima */
   shirt: string;
-  /** sombra da peça de cima (parte de baixo / mangas) */
+  /** sombra da peça de cima (mangas, barra, capuz) */
   shirtShade: string;
-  /** cor do papel: cordão do crachá, faixa nas costas, gola/manga/lenço */
-  accent: string;
-  /** onde o accent aparece além do cordão: gola, faixa na manga ou lenço de bolso */
-  trim?: "gola" | "manga" | "lenco";
-  /** camisa por baixo do blazer/terno (o V e o punho) */
+  /** camisa aberta e jaqueta: a camiseta de baixo, à mostra na frente */
   inner?: string;
-  /** gravata 1x4 (só o terno) */
-  tie?: string;
-  /** cor da marquinha 3x2 no peito (polo/camisa) */
-  logo: string;
-  /** sem cordão: crachá preso na lapela (líder) */
-  lapelBadge?: boolean;
-  /** crachá de visitante: todo na cor do accent (cinza do convidado) */
+  /** cordão do crachá: sempre o laranja da marca */
+  accent: string;
+  /** crachá de visitante: corpo em aço em vez de névoa */
   visitor?: boolean;
   pants: string;
   shoes: string;
@@ -199,12 +197,12 @@ export interface Theme {
     wall: string;
     /** juntas sutis das placas da parede */
     wallJoint: string;
-    /** lambril marinho (faixa de baixo da parede) e a borda de cima dele */
+    /** lambril (faixa de baixo da parede) e a borda de cima dele */
     wainscot: string;
     wainscotTop: string;
     /** friso de 1px entre a parede e o lambril */
     trim: string;
-    /** sombra da parede no chão (azulada, com alpha) */
+    /** sombra da parede no chão (com alpha) */
     wallShadow: string;
     wood: string;
     woodShade: string;
@@ -213,9 +211,7 @@ export interface Theme {
     signText: string;
     outline: string;
   };
-  /** uniforme por papel; papéis sem entrada usam "convidado" */
-  uniforms: Record<string, Uniform>;
-  /** cor de destaque de cada papel (plaquinha da mesa, painel lateral) */
+  /** cor de cada papel (painel lateral); sem cor por papel, é aço para todos */
   roleColors: Record<string, string>;
   /** função de cada papel na plaquinha da mesa (office/deskLabel.ts) */
   deskLabels: Record<string, string>;
@@ -224,41 +220,6 @@ export interface Theme {
 /** papéis conhecidos (o painel e as plaquinhas não usam mais cor por papel: tudo em aço) */
 const PAPEIS = ["lider", "planejador", "dev", "testador", "revisor", "documentador", "pesquisador", "convidado"] as const;
 const roleColors = (): Record<string, string> => Object.fromEntries(PAPEIS.map((p) => [p, cor("rh-aco")]));
-/** cordão do crachá no sprite: laranja da marca */
-const CORDAO = () => cor("rh-laranja");
-
-const P = palette;
-const polo = (accent: string, trim?: Uniform["trim"]): Uniform => ({
-  kind: "polo",
-  shirt: P.navy850,
-  shirtShade: P.navy900,
-  accent,
-  trim,
-  logo: P.white,
-  pants: P.gray700,
-  shoes: P.navy950,
-});
-const camisa = (accent: string, trim: Uniform["trim"]): Uniform => ({
-  kind: "camisa",
-  shirt: P.gray50,
-  shirtShade: P.gray150,
-  accent,
-  trim,
-  logo: P.navy900,
-  pants: P.navy800,
-  shoes: P.navy950,
-});
-const blazer = (shirt: string, shirtShade: string, accent: string, pants: string): Uniform => ({
-  kind: "blazer",
-  shirt,
-  shirtShade,
-  accent,
-  trim: "lenco",
-  inner: P.white,
-  logo: P.white,
-  pants,
-  shoes: P.navy950,
-});
 
 const colors = derivada(
   (): Theme["colors"] => ({
@@ -282,30 +243,6 @@ const colors = derivada(
   }),
 );
 
-const uniforms = derivada(
-  (): Record<string, Uniform> => ({
-    lider: {
-      kind: "terno",
-      shirt: P.suit,
-      shirtShade: P.navy900,
-      accent: CORDAO(),
-      inner: P.white,
-      tie: cor("rh-aco"),
-      logo: P.white,
-      lapelBadge: true,
-      pants: P.suit,
-      shoes: P.navy950,
-    },
-    planejador: blazer(P.navy700, P.navy800, CORDAO(), P.gray700),
-    revisor: blazer(P.gray600, P.gray700, CORDAO(), P.navy800),
-    pesquisador: polo(CORDAO(), "gola"),
-    testador: polo(CORDAO(), "manga"),
-    dev: camisa(CORDAO(), "gola"),
-    documentador: camisa(CORDAO(), "manga"),
-    convidado: { ...polo(cor("rh-aco")), visitor: true },
-  }),
-);
-
 const roleColorsMemo = derivada(roleColors);
 
 export const theme: Theme = {
@@ -313,9 +250,6 @@ export const theme: Theme = {
   subtitle: "Time de agentes do Claude Code",
   get colors() {
     return colors();
-  },
-  get uniforms() {
-    return uniforms();
   },
   get roleColors() {
     return roleColorsMemo();
@@ -332,35 +266,48 @@ export const theme: Theme = {
   },
 };
 
-export const uniformFor = (role: string) => theme.uniforms[role] ?? theme.uniforms.convidado;
 export const roleColor = (role: string) => theme.roleColors[role] ?? theme.roleColors.convidado;
 
-/**
- * Uniforme de um Personagem do elenco: a roupa dele com o cordão na cor dele. Gola, faixa e
- * lenço seguem o uniforme do papel quando a peça é a mesma; o destaque troca o detalhe
- * (gravata dourada, blazer cinza, crachá de visitante).
- */
-export function uniformForPersonagem(ag: Personagem): Uniform {
-  const base = theme.uniforms[ag.papel];
-  const trim = base?.kind === ag.roupa ? base.trim : undefined;
-  const accent = ag.destaque === "cracha-visitante" ? cor("rh-aco") : CORDAO();
-  let u: Uniform;
-  switch (ag.roupa) {
-    case "terno":
-      u = { ...theme.uniforms.lider, accent, tie: ag.destaque === "gravata-dourada" ? cor("rh-aviso") : P.navy900 };
-      break;
-    case "blazer":
-      u = ag.destaque === "blazer-cinza" ? blazer(P.gray600, P.gray700, accent, P.navy800) : blazer(P.navy700, P.navy800, accent, P.gray700);
-      break;
-    case "camisa":
-      u = camisa(accent, trim ?? "gola");
-      break;
-    default:
-      u = polo(accent, trim ?? (ag.papel === "convidado" ? undefined : "gola"));
-  }
-  return ag.destaque === "cracha-visitante" ? { ...u, visitor: true } : u;
+/** cor de um id da lista (pele, cabelo ou roupa); id desconhecido cai no primeiro da lista */
+export function corDoId(lista: readonly Swatch[], id: string | undefined): string {
+  return cor((tokenDe(lista, id ?? "") ?? lista[0].token) as NomeCor);
 }
 
-/** tons de pele e cabelo, sorteados de forma fixa pelo id do agente (a lista mora em shared/roster.ts) */
-export const SKINS: readonly string[] = SKIN_TONES.map((t) => t.hex);
-export const HAIRS: readonly string[] = HAIR_COLORS.map((c) => c.hex);
+/** monta o visual a partir dos ids de cor */
+function visual(roupa: Roupa, corRoupa: string, corCalca: string, corInterna: string | undefined, visitor: boolean): Visual {
+  const shirt = corDoId(CORES_ROUPA, corRoupa);
+  return {
+    roupa,
+    shirt,
+    shirtShade: misturar(shirt, "rh-noite", 0.28),
+    inner: ROUPAS_ABERTAS.includes(roupa) ? corDoId(CORES_ROUPA, corInterna ?? "nevoa") : undefined,
+    accent: cor("rh-laranja"),
+    visitor,
+    pants: corDoId(CORES_ROUPA, corCalca),
+    shoes: palette.navy950,
+  };
+}
+
+/** Visual de um Personagem do elenco: a roupa e as cores dele, cordão laranja, crachá de visitante se for convidado. */
+export function visualDoPersonagem(ag: Personagem): Visual {
+  return visual(ag.roupa, ag.corRoupa, ag.corCalca, ag.corInterna, ag.destaque === "cracha-visitante");
+}
+
+/** roupa de quem não está no elenco (visitante extra ou sem elenco), sorteada de forma fixa pelo hash */
+const ROUPAS_SORTEIO: readonly [Roupa, string, string][] = [
+  ["camiseta", "grafite", "jeans"],
+  ["moletom", "petroleo", "grafite"],
+  ["sueter", "oliva", "jeans"],
+  ["camiseta", "ocre", "grafite"],
+  ["sueter", "creme", "ardosia"],
+];
+
+/** Visual padrão por papel e hash (convidado sem elenco ganha o crachá de visitante). */
+export function visualPadrao(role: string, h: number): Visual {
+  const [roupa, corRoupa, corCalca] = ROUPAS_SORTEIO[h % ROUPAS_SORTEIO.length];
+  return visual(roupa, corRoupa, corCalca, undefined, role === "convidado" || !Object.hasOwn(theme.deskLabels, role));
+}
+
+/** tons de pele e cabelo de quem não está no elenco, sorteados pelo hash do id (as listas moram em shared/roster.ts) */
+export const skinPorHash = (h: number) => corDoId(SKIN_TONES, SKIN_TONES[h % SKIN_TONES.length].id);
+export const hairPorHash = (h: number) => corDoId(HAIR_COLORS, HAIR_COLORS[h % HAIR_COLORS.length].id);

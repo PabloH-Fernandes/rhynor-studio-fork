@@ -4,7 +4,7 @@
 
 > Instalando em outro PC? Veja o [SETUP.md](SETUP.md).
 
-Um escritório em pixel art que mostra, ao vivo, o seu time de agentes do Claude Code trabalhando. Cada agente vira um **personagem**: alguém com nome, uniforme da sua função e jeito próprio. Ele senta na mesa, digita quando usa uma ferramenta, levanta um **!** quando precisa de você, manda envelopes para os colegas e, quando fica de boa, vai tomar café, jogar ping-pong ou bater papo.
+Um escritório em pixel art que mostra, ao vivo, o seu time de agentes do Claude Code trabalhando. Cada agente vira um **personagem**: alguém com nome, roupa casual e jeito próprio. Ele senta na mesa, digita quando usa uma ferramenta, levanta um **!** quando precisa de você, manda envelopes para os colegas e, quando fica de boa, vai tomar café, jogar ping-pong ou bater papo.
 
 ```
 Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──▶ tela React + canvas
@@ -32,7 +32,7 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 | `server/` | Recebe os eventos, traduz em "quem está fazendo o quê", guarda o elenco, lê o vault e transmite tudo para a tela |
 | `shared/roster.ts` | Elenco padrão dos personagens e as regras de validação (roda no servidor e no navegador) |
 | `web/` | O escritório em si (React + canvas, tudo desenhado por código) |
-| `web/src/theme.ts` | **Onde você personaliza** nome, logo, cores e uniformes |
+| `web/src/theme.ts` | **Onde você personaliza** nome, paleta do escritório e roupas (as cores vêm dos tokens da marca) |
 | `web/src/office/map.ts` | Planta do escritório (posição das mesas e móveis) |
 | `data/elenco.example.json` | Elenco de exemplo, versionado. O `data/elenco.json` real fica fora do git |
 | `data/estimativas.example.json` | Modelo dos minutos usados na estimativa de tempo economizado |
@@ -396,25 +396,25 @@ Cada agente do Claude Code vira um personagem do **elenco fixo**. O elenco padr�
 
 | Nome | Apelido | Papel | Roupa | Acessório |
 |---|---|---|---|---|
-| Augusto Vilela | GUTO | Líder | terno + gravata dourada | relógio |
-| Marina Toledo | MARINA | Planejadora | blazer marinho | prancheta |
-| Caio Nogueira | CAIO | Pesquisador | polo marinho | óculos |
-| Beatriz Lima | BIA | Desenvolvedora | camisa branca | headset |
-| Rafael Mendes | RAFA | Testador | polo marinho | relógio |
-| Lúcia Ferraz | LÚCIA | Revisora | blazer cinza | óculos |
-| Davi Sampaio | DAVI | Documentador | camisa branca | lápis e barba |
-| Yasmin Okada | YASMIN | Desenvolvedora (Dev 2) | polo marinho | headset |
-| Tomás Ribeiro | TOMÁS | Pesquisador (Pesquisa 2) | camisa branca | prancheta |
-| Iara Campos | IARA | Exploradora (convidada) | polo marinho + crachá de visitante | capacete branco |
-| Jorge Batista | JORGE | Generalista (convidado) | camisa branca + crachá de visitante | colete |
-| Sofia Arruda | SOFIA | Consultora (convidada) | polo marinho + crachá de visitante | caneca |
+| Heloísa Campelo | HELÔ | Líder | jaqueta jeans aberta sobre camiseta névoa, calça grafite | relógio |
+| Otto Siqueira | OTTO | Planejador | suéter oliva, calça jeans | prancheta e barba |
+| Luana Tavares | LUANA | Pesquisadora | moletom petróleo, calça grafite | óculos |
+| Kauã Moreira | KAUÃ | Desenvolvedor | moletom grafite com capuz, calça jeans | headset |
+| Érica Nakamura | ÉRICA | Testadora | camiseta vinho, calça ardósia | relógio |
+| Benedito Araújo | BENÊ | Revisor | camisa aberta aço sobre camiseta noite, calça oliva | óculos |
+| Thaís Gouveia | THAÍS | Documentadora | suéter creme, calça jeans | lápis na orelha |
+| Vinícius Rocha | VINI | Desenvolvedor (Dev 2) | camiseta ocre, calça grafite | gorro |
+| Aline Bezerra | ALINE | Pesquisadora (Pesquisa 2) | jaqueta ardósia sobre camiseta aço, calça creme | caneca |
+| Diego Amaral | DIEGO | Explorador (convidado) | camiseta jeans, calça grafite + crachá de visitante | boné |
+| Cida Monteiro | CIDA | Generalista (convidada) | camisa aberta vinho sobre camiseta creme, calça ardósia + crachá de visitante | cachecol |
+| Ícaro Lins | ÍCARO | Consultor (convidado) | suéter petróleo, calça jeans + crachá de visitante | óculos |
 
 Como a escalação funciona:
-- **O mesmo papel volta como a mesma pessoa.** Toda vez que o `dev` aparece, é a Bia; o `revisor` é sempre a Lúcia. O mesmo agente chamado de novo volta **à mesma mesa**.
+- **O mesmo papel volta como a mesma pessoa.** Toda vez que o `dev` aparece, é o Kauã; o `revisor` é sempre o Benê. O mesmo agente chamado de novo volta **à mesma mesa**.
 - **Cada evento mexe só no personagem do próprio `agent_id`.** Um subagente nunca "puxa" o estado de outro.
-- **Trabalho em paralelo ganha variação.** Se dois devs (ou dois pesquisadores) trabalham ao mesmo tempo, o segundo é a Yasmin (Dev 2) ou o Tomás (Pesquisa 2), com visual próprio.
-- **Convidados por tipo de agente.** `Explore` é a Iara, `general-purpose` é o Jorge e qualquer outro tipo (como `Plan`) é a Sofia.
-- **Visitantes são temporários.** Visitante é todo subagente de fora do time (Iara, Jorge, Sofia e os extras `p:extra:<id>`). Ele usa uma mesa de visita e, no `SubagentStop`, **sai andando até a porta** (nunca fica "de boa": isso é só do time). Sem `SubagentStop`, sai sozinho depois de **3 min sem eventos** (`VISITANTE_SEM_EVENTO_MS`), a não ser que esteja esperando você. Depois de sair, o `agent_id` fica "aposentado" por ~60 s: evento atrasado dele não o traz de volta; só um `SubagentStart` do mesmo id reabre.
+- **Trabalho em paralelo ganha variação.** Se dois devs (ou dois pesquisadores) trabalham ao mesmo tempo, o segundo é o Vini (Dev 2) ou a Aline (Pesquisa 2), com visual próprio.
+- **Convidados por tipo de agente.** `Explore` é o Diego, `general-purpose` é a Cida e qualquer outro tipo (como `Plan`) é o Ícaro.
+- **Visitantes são temporários.** Visitante é todo subagente de fora do time (Diego, Cida, Ícaro e os extras `p:extra:<id>`). Ele usa uma mesa de visita e, no `SubagentStop`, **sai andando até a porta** (nunca fica "de boa": isso é só do time). Sem `SubagentStop`, sai sozinho depois de **3 min sem eventos** (`VISITANTE_SEM_EVENTO_MS`), a não ser que esteja esperando você. Depois de sair, o `agent_id` fica "aposentado" por ~60 s: evento atrasado dele não o traz de volta; só um `SubagentStart` do mesmo id reabre.
 - **No máximo 3 visitantes na tela.** Os que passam disso continuam no estado, mas não aparecem no mapa (o painel mostra "+N visitantes"); o 4º entra quando um dos 3 sai, por ordem de chegada.
 - **Visitante não conta no TIME.** O quadro da parede mostra `TIME 7 · VISITANTES 2 · FAZENDO 3`. `TIME` só tem o time (o trecho `VISITANTES` some quando não há nenhum), e `FAZENDO` é quem está trabalhando no mapa. Visitante também não conta na fase do quadro de etapas e não é gravado em `data/escritorio.json`.
 
@@ -437,7 +437,7 @@ Como a escalação funciona:
   STUDIO_SESSION_TIMEOUT_MIN=60 npm start
   ```
   Valor vazio usa o padrão; valor inválido (zero, negativo, texto) avisa no console e também usa o padrão.
-- **Sessão real vence a simulação.** O Guto da simulação não disputa com o Guto de uma sessão real: se uma sessão de verdade está rodando, ela fica com o papel de líder.
+- **Sessão real vence a simulação.** A Helô da simulação não disputa com a Helô de uma sessão real: se uma sessão de verdade está rodando, ela fica com o papel de líder.
 - **"Limpar" cancela a simulação** em andamento, esvazia o escritório e apaga também o `data/escritorio.json`.
 
 ## Vida no escritório
@@ -459,15 +459,15 @@ O **trabalho sempre ganha do descanso**: quando chega tarefa, quem está descans
 
 - **Mesas com a função:** cada mesa mostra a função de quem a usa (LÍDER, PLANEJAMENTO, PESQUISA, DESENVOLVIMENTO, TESTES, REVISÃO, DOCUMENTAÇÃO, CONVIDADO ou LIVRE). Quando não cabe, abrevia ("DESENVOLV. 2"). O apelido não aparece na mesa.
 - **Crachá:** clique num personagem no escritório ou na lista "Time" do painel. Abre uma ficha com nome, cargo, matrícula, personalidade, o estado atual, **"O que eu faço"**, **"Sou responsável por"** e a barra de entregas do dia (10 por nível; "Nível N" só aparece a partir da 10ª entrega).
-- **Vestiário:** botão **Vestiário** no painel, ou **Personalizar** no crachá. Dá para mudar nome, apelido, gênero, tom de pele, cabelo (estilo e cor), roupa, destaque, acessórios e os textos "O que eu faço" e "Sou responsável por", com a pré-visualização ao lado.
+- **Vestiário:** botão **Vestiário** no painel, ou **Personalizar** no crachá. Dá para mudar nome, apelido, gênero, tom de pele, cabelo (estilo e cor), roupa e as cores dela (peça, camiseta de baixo e calça), acessórios e os textos "O que eu faço" e "Sou responsável por", com a pré-visualização ao lado.
 
-Regras de uniforme (o vestiário só oferece o que é permitido, e o servidor confere de novo):
-- **Terno só no líder.**
-- **Blazer no planejador e no revisor.**
-- **Polo marinho ou camisa branca** nos outros papéis.
+Regras do elenco (o vestiário só oferece o que é permitido, e o servidor confere de novo):
+- **Roupa casual, sem uniforme:** camiseta, moletom com capuz, camisa aberta, jaqueta ou suéter, para qualquer papel. Camisa aberta e jaqueta mostram a camiseta de baixo.
+- **Cores só da marca:** pele, cabelo, roupa e calça são ids de cor (`pele-1` a `pele-6`, `preto`, `jeans`, `ardosia`...), cada um ligado a um token `--rh-pixel-*` ou da logo em `web/src/marca/tokens.css`. Nada de hex no elenco.
+- **Crachá da marca:** topo ardósia, corpo névoa (visitante em aço) e cordão laranja para todo mundo.
 - **Um acessório por região do corpo**: cabeça, pelos, rosto, tronco, mão e pulso. Por isso barba e óculos convivem, mas dois acessórios de cabeça não.
 - **O cargo acompanha o gênero**: Desenvolvedora ou Desenvolvedor, Revisora ou Revisor.
-- **Campos fixos**, que o vestiário não muda: papel, cordão do crachá, matrícula e falas.
+- **Campos fixos**, que o vestiário não muda: papel, matrícula e falas.
 
 **Onde fica salvo:** `data/elenco.json`, escrito pelo servidor e **fora do git**. O `data/elenco.example.json` é o modelo. Sem o arquivo, vale o elenco padrão.
 
@@ -526,15 +526,15 @@ Atenção: o arquivo guarda o prompt cru, **inclusive a ata colada com `/reuniao
 
 O botão **Rodar simulação** conta uma sessão inteira, com as mesmas situações de uma sessão real:
 
-- o líder (Guto) recebe o pedido, monta uma lista de 6 tarefas e chama a Marina e o Caio; o quadro sai de "Planejamento" para "Etapa 1 de 6";
+- o líder (Helô) recebe o pedido, monta uma lista de 6 tarefas e chama o Otto e a Luana; o quadro sai de "Planejamento" para "Etapa 1 de 6";
 - os dois entregam, comemoram e **ficam** no escritório, indo descansar;
-- **dois devs trabalham em paralelo** (Bia e Yasmin) junto com o Rafa, que pede permissão (o **!** laranja) e troca envelopes com eles;
+- **dois devs trabalham em paralelo** (Kauã e Vini) junto com a Érica, que pede permissão (o **!** laranja) e troca envelopes com eles;
 - quando os três entregam, fica todo mundo de boa ao mesmo tempo: aparecem **ping-pong, papo e café**;
-- no meio do descanso o **Caio é chamado de novo**, larga o que estava fazendo, volta para a mesa e entrega pela segunda vez;
-- a Lúcia revisa, o Davi documenta e o quadro chega em "concluíram 6 de 6";
+- no meio do descanso a **Luana é chamada de novo**, larga o que estava fazendo, volta para a mesa e entrega pela segunda vez;
+- o Benê revisa, a Thaís documenta e o quadro chega em "concluíram 6 de 6";
 - o líder termina ("Terminou, esperando você") e, no fim da sessão, todos saem pela porta.
 
-Dá para ver tudo sem ligar o Claude. Ela vive em `server/demo.ts`; **Limpar** interrompe. Se uma sessão real estiver aberta, ela fica com o Guto e a simulação usa convidados no lugar dos personagens ocupados.
+Dá para ver tudo sem ligar o Claude. Ela vive em `server/demo.ts`; **Limpar** interrompe. Se uma sessão real estiver aberta, ela fica com a Helô e a simulação usa convidados no lugar dos personagens ocupados.
 
 ## Identidade
 
@@ -554,18 +554,7 @@ O produto se chama **Rhynor Studio** (nome no cabeçalho do painel, logo da Rhyn
 - Pôsteres de série, estante do estúdio (HDs, claquete e estojos), arara de figurino, sofás, impressora, credenza e plantas.
 - Storyboard na mesa de reunião.
 
-**Uniformes por papel** (cada um tem a cor do papel no cordão do crachá, na gola, na manga ou no lenço):
-
-| Papel | Uniforme | Detalhe na cor do papel |
-|---|---|---|
-| Líder | terno escuro + gravata dourada, crachá na lapela | gravata |
-| Planejador | blazer escuro | lenço de bolso |
-| Revisor | blazer cinza | lenço de bolso |
-| Pesquisador | polo escura, marquinha branca no peito | gola |
-| Testador | polo escura, marquinha branca no peito | manga |
-| Dev | camisa branca, marquinha escura no peito | gola |
-| Documentador | camisa branca, marquinha escura no peito | manga |
-| Convidado | polo ou camisa + crachá cinza "visitante" | só o crachá |
+**Roupas casuais, sem uniforme.** Cada personagem escolhe a roupa (camiseta, moletom com capuz, camisa aberta, jaqueta ou suéter), a cor dela, a camiseta de baixo (camisa aberta e jaqueta) e a calça, tudo com as cores de pixel art da marca. A identidade fica no crachá: topo ardósia, corpo névoa (visitante em aço) e cordão laranja. Veja o elenco acima.
 
 Os acessórios (óculos, headset etc.) são do personagem, não do papel: veja o elenco acima.
 
@@ -623,15 +612,12 @@ A ideia seria descartar as sessões de `claude -p` (modo não interativo). Não 
 2. O painel usa `var(--rh-*)` em `web/src/styles.css`; o canvas usa `palette` (`web/src/theme.ts`), que deriva cada cor dos tokens (com `misturar` para os tons intermediários).
 3. `theme.colors` liga a paleta ao cenário. `palette.sky` define o céu por hora; a luz ambiente fica em `web/src/office/daylight.ts`.
 
-### Trocar uniformes
-- Em `theme.uniforms` cada papel é montado com uma destas funções: `polo(accent, trim)`, `camisa(accent, trim)`, `blazer(shirt, shirtShade, accent, pants)`; o líder é um objeto `terno` escrito à mão. Exemplo, o dev de polo com manga colorida:
-  ```ts
-  dev: polo(CORDAO(), "manga"),
-  ```
-- `trim` é `"gola"`, `"manga"` ou `"lenco"`. Papéis sem entrada usam `uniforms.convidado`.
+### Trocar roupas e cores
+- A roupa de cada personagem é `roupa` + `corRoupa` (+ `corInterna` em camisa aberta e jaqueta) + `corCalca`, em `shared/roster.ts`. As cores são ids das listas `SKIN_TONES`, `HAIR_COLORS` e `CORES_ROUPA`; cada id aponta para um token. Para uma cor nova, crie o token `--rh-pixel-*` em `web/src/marca/tokens.css` (e na matriz) e some o id na lista.
+- `visualDoPersonagem` (`web/src/theme.ts`) resolve as cores; cada roupa é desenhada em `web/src/office/sprites.ts`.
 - Não há cor por papel: `theme.roleColors` é aço para todos e o cordão é sempre o laranja da marca. `theme.deskLabels` define o texto da plaquinha.
-- Tons de pele e cabelo: `SKIN_TONES` e `HAIR_COLORS` em `shared/roster.ts`. Estilos de cabelo: `EstiloCabelo`, desenhados em `web/src/office/sprites.ts`.
-- Regras de uniforme (quem pode usar terno, blazer etc.): `ROUPAS_PERMITIDAS` e `DESTAQUES_PERMITIDOS`.
+- Estilos de cabelo: `EstiloCabelo`, desenhados em `web/src/office/hair.ts`.
+- Destaque: só o crachá de visitante, obrigatório para convidado (`DESTAQUES_PERMITIDOS`).
 
 ### Layout e sprites
 Para mudar o layout, mexa em `DESKS` no `web/src/office/map.ts`. Os móveis ficam em `map.ts` e nos módulos `decorMoveis.ts` e `decorJanela.ts`, com os helpers de desenho em `decorBase.ts` (`decor.ts` só reexporta os três). Os personagens são desenhados com retângulos em `web/src/office/sprites.ts` (e nos módulos de corpo, cabelo e acessórios), então dá para mudar cabelo ou adicionar um acessório sem mexer com imagens. Os sprites ficam em cache (`spriteCache.ts`). A luz do dia está em `web/src/office/daylight.ts`.
@@ -686,7 +672,7 @@ Os testes ficam ao lado do código que cobrem:
 - `server/frases.test.ts`, `server/frases.extra.test.ts`: frases simples sem jargão;
 - `server/progress.test.ts`: quadro de etapas (TodoWrite, TaskCreate/TaskUpdate, reserva por papel);
 - `server/roster.test.ts`: persistência do elenco e o `PUT /api/roster`;
-- `shared/roster.test.ts`: validação e regras de uniforme;
+- `shared/roster.test.ts`: validação e regras do elenco (cores só por id de token);
 - `server/ingestao.test.ts`, `server/vault.test.ts`: leitura automática e observação do vault;
 - `server/pendencias.test.ts`, `server/estimativas.test.ts`, `server/transparencia.test.ts`: Pendências, minutos da estimativa e Transparência;
 - `server/busca.test.ts`, `server/gastoTokens.test.ts`, `server/resumoDia.test.ts`: busca, gasto de tokens e replay do dia;

@@ -6,7 +6,7 @@ test("ehVisitante: só subagente de papel fora do time; time, variações e líd
   for (const role of PAPEIS_DO_TIME) assert.equal(ehVisitante({ parentId: "s:x", role }), false, role);
   // dev-2 e pesquisador-2 têm o papel do principal
   assert.equal(ehVisitante({ parentId: "s:x", role: "dev" }), false);
-  // Iara, Jorge, Sofia (convidado) e extras (tipo desconhecido)
+  // Diego, Cida, Ícaro (convidado) e extras (tipo desconhecido)
   assert.equal(ehVisitante({ parentId: "s:x", role: "convidado" }), true);
   assert.equal(ehVisitante({ parentId: "s:x", role: "code-reviewer" }), true);
   // sem parentId é líder (ou convidado que lidera uma 2ª sessão)

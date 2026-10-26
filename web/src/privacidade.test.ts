@@ -48,7 +48,7 @@ const agente = (id: string, over: Partial<Agent> = {}): Agent => ({
   id,
   sessionId: "s1",
   role: "dev",
-  name: "Beatriz Lima",
+  name: "Kauã Moreira",
   status: "trabalhando",
   activity: "Editando contratos-acme.docx",
   activitySimples: "Fazendo mudanças no sistema",
@@ -95,14 +95,14 @@ test("agentes, feed, caixa, pendências, missões e quadro: nenhuma substring or
   ];
   const ags = mascararAgentes(p, agentes);
   semOriginais(ags);
-  assert.equal(ags[0].name, "Beatriz Lima", "o nome do Personagem é do elenco: não muda");
+  assert.equal(ags[0].name, "Kauã Moreira", "o nome do Personagem é do elenco: não muda");
   assert.equal(ags[0].activitySimples, "Fazendo mudanças no sistema");
   assert.equal(ags[0].project, ags[1].project, "mesmo projeto, mesmo apelido");
   assert.ok(ags[0].activity.startsWith("Editando "));
 
   const feed: FeedItem[] = [
-    { id: 1, at: AGORA, agentId: "a", agentName: "Beatriz Lima", role: "dev", text: "Editando orcamento-2026.xlsx em C:/Users/fulano/clienteX", kind: "tool", simples: "está mexendo em contratos-acme.docx" },
-    { id: 2, at: AGORA, agentId: "a", agentName: "Beatriz Lima", role: "dev", text: "Rodando: cd clienteX && npm test", kind: "tool" },
+    { id: 1, at: AGORA, agentId: "a", agentName: "Kauã Moreira", role: "dev", text: "Editando orcamento-2026.xlsx em C:/Users/fulano/clienteX", kind: "tool", simples: "está mexendo em contratos-acme.docx" },
+    { id: 2, at: AGORA, agentId: "a", agentName: "Kauã Moreira", role: "dev", text: "Rodando: cd clienteX && npm test", kind: "tool" },
   ];
   semOriginais(mascararFeed(p, feed));
 
@@ -228,7 +228,7 @@ test("feed: texto livre depois de 'entrou para:', 'avisou:', '→' e 'recebeu:' 
   const out = mascararFeed(p, [
     mk("entrou para: Ajustar contrato-acme para fulano", "spawn"),
     mk("avisou: ligar para fulano sobre a acme", "info"),
-    mk("→ Guto: mande o contrato da acme", "message"),
+    mk("→ Helô: mande o contrato da acme", "message"),
     mk("pediu permissão → Bash: rm contrato-acme", "alert"),
     mk("Mandar contrato da acme para fulano", "tool"),
   ]);

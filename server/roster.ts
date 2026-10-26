@@ -142,7 +142,7 @@ export function sanitize(parsed: unknown): { roster: Roster; notas: string[] } {
 
 /**
  * Corpo do PUT /api/roster sobre o elenco atual do servidor. Cada Personagem do corpo parte do atual
- * com a mesma key e só traz os CAMPOS_EDITAVEIS (inclusive o "O que eu faço" do crachá); papel, cargo (que segue o gênero), cordão,
+ * com a mesma key e só traz os CAMPOS_EDITAVEIS (inclusive o "O que eu faço" do crachá); papel, cargo (que segue o gênero),
  * matrícula, key e falas ficam como estão. O corpo tem de trazer exatamente as keys do elenco
  * atual: key desconhecida, faltando ou repetida é recusada (lista vazia também).
  */

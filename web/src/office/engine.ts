@@ -4,10 +4,10 @@
 
 import type { Personagem, Acessorio, Agent, Progress, ReuniaoAtiva, Roster } from "../../../shared/types";
 import { textoDoProgresso, type TextoProgresso } from "../progresso";
-import { HAIR_STYLE_INDEX } from "../../../shared/roster";
+import { HAIR_COLORS, HAIR_STYLE_INDEX, SKIN_TONES } from "../../../shared/roster";
 import { ehVisitante } from "../../../shared/visitante";
 import { rotulosDasMesas } from "./deskLabel";
-import { HAIRS, SKINS, palette, roleColor, theme, uniformFor, uniformForPersonagem } from "../theme";
+import { corDoId, hairPorHash, palette, roleColor, skinPorHash, theme, visualDoPersonagem, visualPadrao } from "../theme";
 import { AreaLayer, bakeCount, bakeDrawing, drawBaked, type Baked } from "./bake";
 import { RestScheduler, type RallyFrame, type RestActor, type RestMover, type RestPose } from "./activities";
 import { mostraBalaoDeTrabalho, placeBubbles, type BubbleReq, type FloatReq, type Placement } from "./bubbles";
@@ -153,7 +153,7 @@ const ARRIVED_AFTER_MS = 15_000;
 /** sobrancelha: sobe esperando, inclina pensando */
 const MOOD: Partial<Record<Agent["status"], Mood>> = { esperando: "esperando", pensando: "pensando" };
 
-/** aparência fixa de cada papel (tabela de uniformes); o que não está aqui sai do hash do id */
+/** aparência fixa de cada papel (cabelo e acessórios); o que não está aqui sai do hash do id */
 const ROLE_LOOK: Record<string, { hairStyle: number; accessories?: Acessorio[] }> = {
   lider: { hairStyle: 6, accessories: ["relogio"] },
   planejador: { hairStyle: 3, accessories: [] },
@@ -184,9 +184,9 @@ export function lookFor(agent: Agent, roster: Roster | null): CharLook {
 /** aparência de um Personagem do elenco: todos os acessórios, cada um na sua camada */
 export function lookOfPersonagem(ag: Personagem): CharLook {
   return {
-    uniform: uniformForPersonagem(ag),
-    skin: ag.pele,
-    hair: ag.cabelo.cor,
+    visual: visualDoPersonagem(ag),
+    skin: corDoId(SKIN_TONES, ag.pele),
+    hair: corDoId(HAIR_COLORS, ag.cabelo.cor),
     hairStyle: HAIR_STYLE_INDEX[ag.cabelo.estilo] ?? 0,
     accessories: [...ag.acessorios],
     feminine: ag.genero === "feminino",
@@ -199,9 +199,9 @@ function lookByHash(agent: Agent, h: number): CharLook {
     fixed?.accessories ??
     (agent.role === "pesquisador" ? ((h >>> 13) % 2 ? ["oculos"] : []) : GUEST_ACCESSORIES[(h >>> 13) % GUEST_ACCESSORIES.length]);
   return {
-    uniform: uniformFor(agent.role),
-    skin: SKINS[h % SKINS.length],
-    hair: HAIRS[(h >>> 4) % HAIRS.length],
+    visual: visualPadrao(agent.role, h >>> 2),
+    skin: skinPorHash(h),
+    hair: hairPorHash(h >>> 4),
     hairStyle: fixed?.hairStyle ?? (h >>> 9) % HAIR_STYLE_COUNT,
     accessories,
     feminine: false,
@@ -506,7 +506,7 @@ export class OfficeEngine {
       this.rest.interrupt(agent.id, this.mover, now);
     }
     if (agent.role !== v.agent.role && !v.leaving) {
-      // trocou de papel (ex.: líder da simulação cede o Guto à sessão real): muda de mesa
+      // trocou de papel (ex.: líder da simulação cede a Helô à sessão real): muda de mesa
       this.rest.reservations.release(v.home.id, agent.id);
       const { spot, deskId } = this.claimHome(agent);
       v.home = spot;
@@ -1126,8 +1126,8 @@ export class OfficeEngine {
       holding: rest?.holding ?? (v.cupInHand ? "copo" : undefined),
       reducedMotion: isReducedMotion(),
     });
-    if (seated && v.at.depth !== undefined && rest?.sofa && v.dir === "down") sofaShins(ctx, x, y, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
-    if (seated && v.at.stool) stoolShins(ctx, x, y, v.dir, v.look.uniform.pants, v.look.uniform.shoes, v.fade);
+    if (seated && v.at.depth !== undefined && rest?.sofa && v.dir === "down") sofaShins(ctx, x, y, v.look.visual.pants, v.look.visual.shoes, v.fade);
+    if (seated && v.at.stool) stoolShins(ctx, x, y, v.dir, v.look.visual.pants, v.look.visual.shoes, v.fade);
   }
 
   /** quem segura a plaquinha de atrasada neste quadro: do time (não líder, não visitante), de boa, parado e sem atividade de descanso em curso */
@@ -1343,13 +1343,13 @@ export class OfficeEngine {
     for (const it of items) this.drawConfetti(ctx, it.v, now);
   }
 
-  /** nome inteiro e, sem lugar pra ele, só o primeiro nome ("Tomás", "Bia") */
+  /** nome inteiro e, sem lugar pra ele, só o primeiro nome ("Aline", "Kauã") */
   private nameTexts(agent: Agent): readonly string[] {
     const lider = !agent.parentId;
     const key = lider ? `${agent.name}|${agent.project}` : agent.name;
     let texts = this.nameCache.get(key);
     if (!texts) {
-      // a VT323 junta "fi" numa ligadura ("Sofia" virava "Sona"): textosDoNome quebra antes de medir
+      // a VT323 junta "fi" numa ligadura ("Sofia" virava "Soña"): textosDoNome quebra antes de medir
       texts = textosDoNome(agent.name, agent.project, lider);
       if (this.nameCache.size > 200) this.nameCache.clear();
       this.nameCache.set(key, texts);

@@ -13,7 +13,7 @@ describe("noLigatures", () => {
 
   it("sem f seguido de letra, fica igual", () => {
     assert.equal(noLigatures("café"), "café");
-    assert.equal(noLigatures("Bia"), "Bia");
+    assert.equal(noLigatures("Kauã"), "Kauã");
     assert.equal(noLigatures("chef!"), "chef!");
   });
 
@@ -27,10 +27,10 @@ describe("textosDoNome", () => {
     assert.deepEqual(textosDoNome("Claude (lider)", "loja", true), ["Claude (lider) · loja", "Claude (lider)", "Claude"]);
   });
   it("subagente herda o projeto mas a etiqueta nao repete", () => {
-    assert.deepEqual(textosDoNome("Bia Souza", "loja", false), ["Bia Souza", "Bia"]);
+    assert.deepEqual(textosDoNome("Kauã Souza", "loja", false), ["Kauã Souza", "Kauã"]);
   });
   it("sem projeto, igual a antes; projeto longo e abreviado", () => {
-    assert.deepEqual(textosDoNome("Bia", undefined, true), ["Bia"]);
-    assert.equal(textosDoNome("Bia", "um-projeto-muito-comprido", true)[0], "Bia · um-projeto-m..");
+    assert.deepEqual(textosDoNome("Kauã", undefined, true), ["Kauã"]);
+    assert.equal(textosDoNome("Kauã", "um-projeto-muito-comprido", true)[0], "Kauã · um-projeto-m..");
   });
 });

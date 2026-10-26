@@ -268,7 +268,7 @@ export function agentePorKey(state: OfficeState, key: string): Agent | undefined
   return agentes(state).find((a) => a.personagem === key || a.id === key);
 }
 
-/** Agente pelo nome do Personagem, primeiro nome ou apelido, sem diferenciar maiúsculas ("Bia", "Beatriz"). */
+/** Agente pelo nome do Personagem, primeiro nome ou apelido, sem diferenciar maiúsculas ("Kauã", "Kauã Moreira"). */
 export function agentePorNome(state: OfficeState, nome: string): Agent | undefined {
   const alvo = nome.trim().toLowerCase();
   const roster = state.getRoster().personagens;

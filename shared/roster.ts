@@ -1,17 +1,16 @@
 // Elenco fixo dos Personagens: quem é quem no escritório (nome, visual, jeito e falas).
 // Fica salvo no servidor em data/elenco.json; estes são os valores padrão.
 // Sem dependências: o mesmo arquivo roda no servidor (tsx) e no navegador (Vite).
+// Pele, cabelo e roupa são ids de cor; cada id aponta para um token da marca (--rh-pixel-* ou as
+// cores da logo), resolvido só na tela (web/src/marca/cores.ts). Nenhum hex mora aqui.
 
 export type Genero = "feminino" | "masculino";
 
-/** polo escura com marquinha branca, camisa branca com marquinha escura, blazer ou terno */
-export type Roupa = "polo" | "camisa" | "blazer" | "terno";
+/** roupas casuais desenhadas em web/src/office/sprites.ts */
+export type Roupa = "camiseta" | "moletom" | "camisa-aberta" | "jaqueta" | "sueter";
 
-/** detalhe especial da roupa, além do uniforme do papel */
-export type Destaque =
-  | "gravata-dourada" // terno do líder
-  | "blazer-cinza" // blazer cinza em vez do marinho
-  | "cracha-visitante"; // convidados
+/** detalhe especial: só o crachá de visitante dos convidados */
+export type Destaque = "cracha-visitante";
 
 /**
  * Estilos de cabelo desenhados em web/src/office/sprites.ts
@@ -30,10 +29,10 @@ export type EstiloCabelo =
 
 export type Acessorio =
   | "headset"
-  | "capacete-branco"
-  | "capacete-amarelo"
+  | "bone"
+  | "gorro"
   | "oculos"
-  | "colete"
+  | "cachecol"
   | "prancheta"
   | "caneca"
   | "lapis"
@@ -55,14 +54,19 @@ export interface Personagem {
   /** cargo com gênero ("Desenvolvedora", "Pesquisador") */
   cargo: string;
   genero: Genero;
-  /** tom de pele (hex) */
+  /** tom de pele: id de SKIN_TONES ("pele-1" ... "pele-6") */
   pele: string;
+  /** estilo e cor (id de HAIR_COLORS) */
   cabelo: { estilo: EstiloCabelo; cor: string };
   roupa: Roupa;
+  /** cor da peça de cima: id de CORES_ROUPA */
+  corRoupa: string;
+  /** camisa aberta e jaqueta: a camiseta por baixo (id de CORES_ROUPA) */
+  corInterna?: string;
+  /** calça: id de CORES_ROUPA */
+  corCalca: string;
   destaque?: Destaque;
   acessorios: Acessorio[];
-  /** cor do cordão do crachá (cor do papel); nunca o laranja de "te esperando" */
-  cordao: string;
   /** matrícula fictícia RH-0000 */
   matricula: string;
   personalidade: string;
@@ -84,8 +88,10 @@ export interface Roster {
 // ------------------------------------------------------------------ opções
 
 export const GENEROS: readonly Genero[] = ["feminino", "masculino"];
-export const ROUPAS: readonly Roupa[] = ["polo", "camisa", "blazer", "terno"];
-export const DESTAQUES: readonly Destaque[] = ["gravata-dourada", "blazer-cinza", "cracha-visitante"];
+export const ROUPAS: readonly Roupa[] = ["camiseta", "moletom", "camisa-aberta", "jaqueta", "sueter"];
+/** roupas abertas na frente: mostram a camiseta de baixo (corInterna) */
+export const ROUPAS_ABERTAS: readonly Roupa[] = ["camisa-aberta", "jaqueta"];
+export const DESTAQUES: readonly Destaque[] = ["cracha-visitante"];
 export const ESTILOS_CABELO: readonly EstiloCabelo[] = [
   "curto",
   "comprido",
@@ -99,10 +105,10 @@ export const ESTILOS_CABELO: readonly EstiloCabelo[] = [
 ];
 export const ACESSORIOS: readonly Acessorio[] = [
   "headset",
-  "capacete-branco",
-  "capacete-amarelo",
+  "bone",
+  "gorro",
   "oculos",
-  "colete",
+  "cachecol",
   "prancheta",
   "caneca",
   "lapis",
@@ -118,18 +124,18 @@ export type Camada = "cabeca" | "pelos" | "rosto" | "tronco" | "mao" | "pulso";
 export const CAMADAS: readonly Camada[] = ["cabeca", "pelos", "rosto", "tronco", "mao", "pulso"];
 export const CAMADA_DO_ACESSORIO: Record<Acessorio, Camada> = {
   headset: "cabeca",
-  "capacete-branco": "cabeca",
-  "capacete-amarelo": "cabeca",
+  bone: "cabeca",
+  gorro: "cabeca",
   lapis: "cabeca",
   barba: "pelos",
   oculos: "rosto",
-  colete: "tronco",
+  cachecol: "tronco",
   prancheta: "mao",
   caneca: "mao",
   relogio: "pulso",
 };
 
-/** campos que o vestiário (e o PUT /api/roster) pode mudar; papel, cargo, cordão, matrícula, key e falas não */
+/** campos que o vestiário (e o PUT /api/roster) pode mudar; papel, cargo, matrícula, key e falas não */
 export const CAMPOS_EDITAVEIS = [
   "nome",
   "apelido",
@@ -137,6 +143,9 @@ export const CAMPOS_EDITAVEIS = [
   "pele",
   "cabelo",
   "roupa",
+  "corRoupa",
+  "corInterna",
+  "corCalca",
   "destaque",
   "acessorios",
   "oQueFaco",
@@ -183,154 +192,161 @@ export const HAIR_STYLE_INDEX: Record<EstiloCabelo, number> = {
   trancas: 8,
 };
 
+/** uma cor que dá pra escolher: id salvo no elenco, nome no vestiário e o token da marca */
 export interface Swatch {
   id: string;
   nome: string;
-  hex: string;
+  /** nome do token sem os traços ("rh-pixel-pele-1"); a tela resolve a cor */
+  token: string;
 }
 
-/** tons de pele, do mais claro ao mais escuro (web/src/theme.ts reexporta como SKINS) */
+/** tons de pele, do mais claro ao mais escuro (pixel art aprovada em 2026-10-25) */
 export const SKIN_TONES: readonly Swatch[] = [
-  { id: "clara", nome: "Clara", hex: "#f1c9a5" },
-  { id: "clara-media", nome: "Clara-média", hex: "#e0ac84" },
-  { id: "media", nome: "Média", hex: "#c68b62" },
-  { id: "morena", nome: "Morena", hex: "#a86f4c" },
-  { id: "negra", nome: "Negra", hex: "#7d5038" },
-  { id: "negra-retinta", nome: "Negra retinta", hex: "#5c3a28" },
+  { id: "pele-1", nome: "Clara", token: "rh-pixel-pele-1" },
+  { id: "pele-2", nome: "Clara-média", token: "rh-pixel-pele-2" },
+  { id: "pele-3", nome: "Média", token: "rh-pixel-pele-3" },
+  { id: "pele-4", nome: "Morena", token: "rh-pixel-pele-4" },
+  { id: "pele-5", nome: "Negra", token: "rh-pixel-pele-5" },
+  { id: "pele-6", nome: "Negra retinta", token: "rh-pixel-pele-6" },
 ];
 
-/** cores de cabelo (web/src/theme.ts reexporta como HAIRS; a ordem importa para o sorteio por hash) */
+/** cores de cabelo (a ordem importa para o sorteio por hash de quem não está no elenco); grisalho é o aço da marca */
 export const HAIR_COLORS: readonly Swatch[] = [
-  { id: "castanho-escuro", nome: "Castanho-escuro", hex: "#2a1d17" },
-  { id: "castanho", nome: "Castanho", hex: "#4a3021" },
-  { id: "castanho-claro", nome: "Castanho-claro", hex: "#7a4b2a" },
-  { id: "mel", nome: "Mel", hex: "#c58a4a" },
-  { id: "loiro-claro", nome: "Loiro-claro", hex: "#e2c27a" },
-  { id: "preto", nome: "Preto", hex: "#1c1c1c" },
-  { id: "cinza", nome: "Cinza", hex: "#8c8c8c" },
-  { id: "acaju", nome: "Acaju", hex: "#6b2f2f" },
-  { id: "grisalho", nome: "Grisalho", hex: "#B8BCC4" },
-  { id: "ruivo", nome: "Ruivo", hex: "#8A3B1F" },
-  { id: "loiro", nome: "Loiro", hex: "#D9B46A" },
+  { id: "preto", nome: "Preto", token: "rh-pixel-cabelo-preto" },
+  { id: "castanho-escuro", nome: "Castanho-escuro", token: "rh-pixel-cabelo-castanho-escuro" },
+  { id: "castanho", nome: "Castanho", token: "rh-pixel-cabelo-castanho" },
+  { id: "castanho-claro", nome: "Castanho-claro", token: "rh-pixel-cabelo-castanho-claro" },
+  { id: "ruivo", nome: "Ruivo", token: "rh-pixel-cabelo-ruivo" },
+  { id: "loiro", nome: "Loiro", token: "rh-pixel-cabelo-loiro" },
+  { id: "grisalho", nome: "Grisalho", token: "rh-aco" },
 ];
 
-/** laranja exclusivo de "te esperando": nenhum cordão pode usar */
-export const WAITING_ORANGE = "#FF8A00";
+/** cores de roupa e calça: as de pixel art e as da logo/interface que combinam com roupa */
+export const CORES_ROUPA: readonly Swatch[] = [
+  { id: "jeans", nome: "Jeans", token: "rh-pixel-roupa-jeans" },
+  { id: "petroleo", nome: "Petróleo", token: "rh-pixel-roupa-petroleo" },
+  { id: "oliva", nome: "Oliva", token: "rh-pixel-roupa-oliva" },
+  { id: "vinho", nome: "Vinho", token: "rh-pixel-roupa-vinho" },
+  { id: "ocre", nome: "Ocre", token: "rh-pixel-roupa-ocre" },
+  { id: "creme", nome: "Creme", token: "rh-pixel-roupa-creme" },
+  { id: "grafite", nome: "Grafite", token: "rh-pixel-roupa-grafite" },
+  { id: "ardosia", nome: "Ardósia", token: "rh-ardosia" },
+  { id: "aco", nome: "Aço", token: "rh-aco" },
+  { id: "nevoa", nome: "Névoa", token: "rh-nevoa" },
+  { id: "noite", nome: "Noite", token: "rh-noite" },
+];
 
-/** regra de uniforme: terno só o líder; blazer planejador e revisor; o resto polo ou camisa */
-export function ROUPAS_PERMITIDAS(papel: string): Roupa[] {
-  if (papel === "lider") return ["terno"];
-  if (papel === "planejador" || papel === "revisor") return ["blazer"];
-  return ["polo", "camisa"];
+/** token de um id de cor (pele, cabelo ou roupa), ou undefined se o id não existe na lista */
+export function tokenDe(lista: readonly Swatch[], id: string): string | undefined {
+  return lista.find((s) => s.id === id)?.token;
 }
 
 /**
- * Destaques que combinam com o papel e a roupa: gravata dourada só com terno, blazer cinza
- * só com blazer, e o crachá de visitante é de convidado (e obrigatório para ele).
+ * Destaques que combinam com o papel: o crachá de visitante é de convidado (e obrigatório para ele);
+ * o time não tem destaque.
  */
-export function DESTAQUES_PERMITIDOS(papel: string, roupa: Roupa): Destaque[] {
-  if (papel === "convidado") return ["cracha-visitante"];
-  if (roupa === "terno") return ["gravata-dourada"];
-  if (roupa === "blazer") return ["blazer-cinza"];
-  return [];
+export function DESTAQUES_PERMITIDOS(papel: string): Destaque[] {
+  return papel === "convidado" ? ["cracha-visitante"] : [];
 }
 
 // ------------------------------------------------------------------ elenco padrão
 
-const skin = (id: string) => SKIN_TONES.find((t) => t.id === id)!.hex;
-const hair = (id: string) => HAIR_COLORS.find((c) => c.id === id)!.hex;
-
 export const DEFAULT_ROSTER: Roster = {
   versao: 1,
-  atualizadoEm: "2026-10-03T00:00:00.000Z",
+  atualizadoEm: "2026-10-25T00:00:00.000Z",
   personagens: [
     {
       key: "lider",
       papel: "lider",
-      nome: "Augusto Vilela",
-      apelido: "GUTO",
+      nome: "Heloísa Campelo",
+      apelido: "HELÔ",
       cargo: "Líder",
-      genero: "masculino",
-      pele: skin("media"),
-      cabelo: { estilo: "franja-lateral", cor: hair("grisalho") },
-      roupa: "terno",
-      destaque: "gravata-dourada",
+      genero: "feminino",
+      pele: "pele-5",
+      cabelo: { estilo: "cacheado", cor: "preto" },
+      roupa: "jaqueta",
+      corRoupa: "jeans",
+      corInterna: "nevoa",
+      corCalca: "grafite",
       acessorios: ["relogio"],
-      cordao: "#F2C14E",
       matricula: "RH-0001",
-      personalidade: "calmo, decidido, gentil",
-      falas: ["Bora alinhar rapidinho?", "Bom trabalho, time!", "Quem pega essa?", "Café e foco, pessoal."],
+      personalidade: "calma, direta, de bom humor",
+      falas: ["Bora alinhar rapidinho?", "Boa, time!", "Quem pega essa?", "Café e foco, gente."],
       oQueFaco: "Converso com você, entendo o pedido e divido o trabalho entre o time.",
       responsabilidades: ["entender o que você precisa", "chamar a pessoa certa para cada parte", "entregar o resultado final para você"],
     },
     {
       key: "planejador",
       papel: "planejador",
-      nome: "Marina Toledo",
-      apelido: "MARINA",
-      cargo: "Planejadora",
-      genero: "feminino",
-      pele: skin("clara"),
-      cabelo: { estilo: "coque", cor: hair("castanho") },
-      roupa: "blazer",
-      acessorios: ["prancheta"],
-      cordao: "#9B82FF",
+      nome: "Otto Siqueira",
+      apelido: "OTTO",
+      cargo: "Planejador",
+      genero: "masculino",
+      pele: "pele-1",
+      cabelo: { estilo: "curto", cor: "castanho-claro" },
+      roupa: "sueter",
+      corRoupa: "oliva",
+      corCalca: "jeans",
+      acessorios: ["prancheta", "barba"],
       matricula: "RH-0002",
-      personalidade: "organizada, metódica, otimista",
-      falas: ["Já anotei no quadro!", "Passo a passo, gente.", "Prazo tá folgado.", "Cada coisa no lugar."],
+      personalidade: "organizado, tranquilo, otimista",
+      falas: ["Já tá no quadro.", "Passo a passo, pessoal.", "Prazo tá de boa.", "Primeiro o mais simples."],
       oQueFaco: "Transformo um pedido grande em passos pequenos, na ordem certa.",
       responsabilidades: ["dividir o trabalho em etapas", "avisar o que pode dar errado", "dizer quem faz o quê"],
     },
     {
       key: "pesquisador",
       papel: "pesquisador",
-      nome: "Caio Nogueira",
-      apelido: "CAIO",
-      cargo: "Pesquisador",
-      genero: "masculino",
-      pele: skin("morena"),
-      cabelo: { estilo: "cacheado", cor: hair("preto") },
-      roupa: "polo",
+      nome: "Luana Tavares",
+      apelido: "LUANA",
+      cargo: "Pesquisadora",
+      genero: "feminino",
+      pele: "pele-4",
+      cabelo: { estilo: "rabo-de-cavalo", cor: "castanho-escuro" },
+      roupa: "moletom",
+      corRoupa: "petroleo",
+      corCalca: "grafite",
       acessorios: ["oculos"],
-      cordao: "#E2BD3C",
       matricula: "RH-0003",
-      personalidade: "curioso, detalhista, falante",
-      falas: ["Li um artigo ótimo!", "Tem doc pra tudo, viu?", "Sabia que tem versão nova?", "Deixa eu conferir isso."],
+      personalidade: "curiosa, detalhista, falante",
+      falas: ["Achei um artigo ótimo!", "Tem doc pra tudo, viu?", "Saiu versão nova!", "Deixa eu conferir."],
       oQueFaco: "Procuro informação fora do projeto para o time decidir com segurança.",
       responsabilidades: ["ler manuais e guias oficiais", "comparar opções antes da escolha", "explicar erros que ninguém conhece"],
     },
     {
       key: "dev",
       papel: "dev",
-      nome: "Beatriz Lima",
-      apelido: "BIA",
-      cargo: "Desenvolvedora",
-      genero: "feminino",
-      pele: skin("negra"),
-      cabelo: { estilo: "trancas", cor: hair("preto") },
-      roupa: "camisa",
+      nome: "Kauã Moreira",
+      apelido: "KAUÃ",
+      cargo: "Desenvolvedor",
+      genero: "masculino",
+      pele: "pele-6",
+      cabelo: { estilo: "raspado", cor: "preto" },
+      roupa: "moletom",
+      corRoupa: "grafite",
+      corCalca: "jeans",
       acessorios: ["headset"],
-      cordao: "#3FBF86",
       matricula: "RH-0004",
-      personalidade: "focada, criativa, bem-humorada",
-      falas: ["Compilou de primeira!", "Só mais um commit...", "Quem mexeu no meu CSS?", "Tá rodando aqui!"],
+      personalidade: "focado, criativo, brincalhão",
+      falas: ["Compilou de primeira!", "Só mais um commit...", "Quem mexeu no CSS?", "Tá rodando aqui!"],
       oQueFaco: "Construo o que foi pedido, escrevendo e ajustando o programa.",
       responsabilidades: ["fazer as mudanças no projeto", "consertar o que estiver quebrado", "deixar tudo rodando direitinho"],
     },
     {
       key: "testador",
       papel: "testador",
-      nome: "Rafael Mendes",
-      apelido: "RAFA",
-      cargo: "Testador",
-      genero: "masculino",
-      pele: skin("clara-media"),
-      cabelo: { estilo: "curto", cor: hair("castanho-claro") },
-      roupa: "polo",
+      nome: "Érica Nakamura",
+      apelido: "ÉRICA",
+      cargo: "Testadora",
+      genero: "feminino",
+      pele: "pele-1",
+      cabelo: { estilo: "chanel", cor: "preto" },
+      roupa: "camiseta",
+      corRoupa: "vinho",
+      corCalca: "ardosia",
       acessorios: ["relogio"],
-      cordao: "#2EC4B6",
       matricula: "RH-0005",
-      personalidade: "cuidadoso, paciente, cético",
+      personalidade: "cuidadosa, paciente, cética",
       falas: ["Rodei 3 vezes, passou.", "E se clicar duas vezes?", "Achei um caso de borda.", "Confia, mas testa."],
       oQueFaco: "Confiro se o que foi feito funciona antes de entregar.",
       responsabilidades: ["testar cada mudança", "achar erros antes de você", "avisar o dev quando algo quebra"],
@@ -338,36 +354,38 @@ export const DEFAULT_ROSTER: Roster = {
     {
       key: "revisor",
       papel: "revisor",
-      nome: "Lúcia Ferraz",
-      apelido: "LÚCIA",
-      cargo: "Revisora",
-      genero: "feminino",
-      pele: skin("negra-retinta"),
-      cabelo: { estilo: "chanel", cor: hair("castanho-escuro") },
-      roupa: "blazer",
-      destaque: "blazer-cinza",
+      nome: "Benedito Araújo",
+      apelido: "BENÊ",
+      cargo: "Revisor",
+      genero: "masculino",
+      pele: "pele-3",
+      cabelo: { estilo: "franja-lateral", cor: "grisalho" },
+      roupa: "camisa-aberta",
+      corRoupa: "aco",
+      corInterna: "noite",
+      corCalca: "oliva",
       acessorios: ["oculos"],
-      cordao: "#EF5F7B",
       matricula: "RH-0006",
-      personalidade: "criteriosa, sincera, gentil",
-      falas: ["Ficou bem legível!", "Só um detalhezinho...", "Esse nome tá ótimo.", "Aprovado com carinho."],
+      personalidade: "criterioso, sincero, gentil",
+      falas: ["Ficou bem legível.", "Só um detalhezinho...", "Esse nome tá ótimo.", "Aprovado, pode ir."],
       oQueFaco: "Leio tudo com calma antes de ficar pronto e aponto o que dá para melhorar.",
       responsabilidades: ["achar falhas e riscos escondidos", "ver se está claro e organizado", "dar o sinal verde para entregar"],
     },
     {
       key: "documentador",
       papel: "documentador",
-      nome: "Davi Sampaio",
-      apelido: "DAVI",
-      cargo: "Documentador",
-      genero: "masculino",
-      pele: skin("clara"),
-      cabelo: { estilo: "raspado", cor: hair("castanho") },
-      roupa: "camisa",
-      acessorios: ["lapis", "barba"],
-      cordao: "#5AAEF0",
+      nome: "Thaís Gouveia",
+      apelido: "THAÍS",
+      cargo: "Documentadora",
+      genero: "feminino",
+      pele: "pele-2",
+      cabelo: { estilo: "comprido", cor: "ruivo" },
+      roupa: "sueter",
+      corRoupa: "creme",
+      corCalca: "jeans",
+      acessorios: ["lapis"],
       matricula: "RH-0007",
-      personalidade: "didático, calmo, caprichoso",
+      personalidade: "didática, calma, caprichosa",
       falas: ["Já tá no README!", "Um exemplo ajuda, né?", "Escrevi bem simples.", "Faltou só um print."],
       oQueFaco: "Escrevo as explicações para qualquer pessoa entender e usar.",
       responsabilidades: ["atualizar o guia do projeto", "anotar o que mudou e por quê", "dar exemplos simples de uso"],
@@ -376,76 +394,82 @@ export const DEFAULT_ROSTER: Roster = {
       key: "dev-2",
       papel: "dev",
       variacaoDe: "dev",
-      nome: "Yasmin Okada",
-      apelido: "YASMIN",
-      cargo: "Desenvolvedora",
-      genero: "feminino",
-      pele: skin("clara"),
-      cabelo: { estilo: "comprido", cor: hair("preto") },
-      roupa: "polo",
-      acessorios: ["headset"],
-      cordao: "#A6D854",
+      nome: "Vinícius Rocha",
+      apelido: "VINI",
+      cargo: "Desenvolvedor",
+      genero: "masculino",
+      pele: "pele-4",
+      cabelo: { estilo: "cacheado", cor: "castanho" },
+      roupa: "camiseta",
+      corRoupa: "ocre",
+      corCalca: "grafite",
+      acessorios: ["gorro"],
       matricula: "RH-0008",
-      personalidade: "animada, rápida, prática",
-      falas: ["Pareando com a Bia!", "Testa aí no seu PC?", "Subi a correção já.", "Bora que dá tempo!"],
+      personalidade: "animado, rápido, prático",
+      falas: ["Pareando com o Kauã!", "Testa aí no seu PC?", "Subi a correção já.", "Bora que dá tempo!"],
       oQueFaco: "Ajudo a construir quando tem muita coisa para fazer ao mesmo tempo.",
-      responsabilidades: ["pegar uma parte do trabalho", "trabalhar junto sem atrapalhar ninguém", "consertar o que estiver quebrado"],
+      responsabilidades: ["pegar uma parte do trabalho", "trabalhar junto sem atrapalhar", "consertar o que estiver quebrado"],
     },
     {
       key: "pesquisador-2",
       papel: "pesquisador",
       variacaoDe: "pesquisador",
-      nome: "Tomás Ribeiro",
-      apelido: "TOMÁS",
-      cargo: "Pesquisador",
-      genero: "masculino",
-      pele: skin("negra-retinta"),
-      cabelo: { estilo: "curto", cor: hair("preto") },
-      roupa: "camisa",
-      acessorios: ["prancheta"],
-      cordao: "#D98FD3",
+      nome: "Aline Bezerra",
+      apelido: "ALINE",
+      cargo: "Pesquisadora",
+      genero: "feminino",
+      pele: "pele-5",
+      cabelo: { estilo: "trancas", cor: "preto" },
+      roupa: "jaqueta",
+      corRoupa: "ardosia",
+      corInterna: "aco",
+      corCalca: "creme",
+      acessorios: ["caneca"],
       matricula: "RH-0009",
-      personalidade: "tranquilo, observador, nerd",
+      personalidade: "tranquila, observadora, nerd",
       falas: ["Achei a fonte original!", "Anotei 3 referências.", "Vale ler o changelog.", "Hmm, interessante..."],
       oQueFaco: "Pesquiso junto quando aparecem muitas perguntas de uma vez.",
-      responsabilidades: ["achar a fonte original de cada coisa", "anotar referências confiáveis", "resumir o que encontrei"],
+      responsabilidades: ["achar a fonte original", "anotar referências confiáveis", "resumir o que encontrei"],
     },
     {
       key: "explore",
       papel: "convidado",
       agentTypes: ["explore"],
-      nome: "Iara Campos",
-      apelido: "IARA",
-      cargo: "Exploradora",
-      genero: "feminino",
-      pele: skin("morena"),
-      cabelo: { estilo: "rabo-de-cavalo", cor: hair("acaju") },
-      roupa: "polo",
+      nome: "Diego Amaral",
+      apelido: "DIEGO",
+      cargo: "Explorador",
+      genero: "masculino",
+      pele: "pele-1",
+      cabelo: { estilo: "curto", cor: "loiro" },
+      roupa: "camiseta",
+      corRoupa: "jeans",
+      corCalca: "grafite",
       destaque: "cracha-visitante",
-      acessorios: ["capacete-branco"],
-      cordao: "#B7A58C",
+      acessorios: ["bone"],
       matricula: "RH-0010",
-      personalidade: "aventureira, rápida, sorridente",
+      personalidade: "aventureiro, rápido, sorridente",
       falas: ["Já vasculhei tudo!", "Achei na pasta src/", "Mapa do projeto pronto.", "Partiu explorar!"],
       oQueFaco: "Vasculho as pastas do projeto e conto onde fica cada coisa.",
-      responsabilidades: ["achar arquivos rapidinho", "montar um mapa do projeto", "responder onde algo está guardado"],
+      responsabilidades: ["achar arquivos rapidinho", "montar um mapa do projeto", "dizer onde algo está guardado"],
     },
     {
       key: "general-purpose",
       papel: "convidado",
       agentTypes: ["general-purpose"],
-      nome: "Jorge Batista",
-      apelido: "JORGE",
+      nome: "Cida Monteiro",
+      apelido: "CIDA",
       cargo: "Generalista",
-      genero: "masculino",
-      pele: skin("media"),
-      cabelo: { estilo: "raspado", cor: hair("grisalho") },
-      roupa: "camisa",
+      genero: "feminino",
+      pele: "pele-6",
+      cabelo: { estilo: "coque", cor: "grisalho" },
+      roupa: "camisa-aberta",
+      corRoupa: "vinho",
+      corInterna: "creme",
+      corCalca: "ardosia",
       destaque: "cracha-visitante",
-      acessorios: ["colete"],
-      cordao: "#A3A8B5",
+      acessorios: ["cachecol"],
       matricula: "RH-0011",
-      personalidade: "prestativo, versátil, tranquilo",
+      personalidade: "prestativa, versátil, tranquila",
       falas: ["Precisa de mão aí?", "Faço o que precisar!", "Deixa comigo.", "Já já fica pronto."],
       oQueFaco: "Pego tarefas variadas que não são de ninguém em especial.",
       responsabilidades: ["resolver um pouco de tudo", "fazer tarefas com vários passos", "dar uma mão a quem precisar"],
@@ -454,19 +478,20 @@ export const DEFAULT_ROSTER: Roster = {
       key: "curinga",
       papel: "convidado",
       agentTypes: ["plan", "*"],
-      nome: "Sofia Arruda",
-      apelido: "SOFIA",
-      cargo: "Consultora",
-      genero: "feminino",
-      pele: skin("clara-media"),
-      cabelo: { estilo: "comprido", cor: hair("mel") },
-      roupa: "polo",
+      nome: "Ícaro Lins",
+      apelido: "ÍCARO",
+      cargo: "Consultor",
+      genero: "masculino",
+      pele: "pele-3",
+      cabelo: { estilo: "comprido", cor: "preto" },
+      roupa: "sueter",
+      corRoupa: "petroleo",
+      corCalca: "jeans",
       destaque: "cracha-visitante",
-      acessorios: ["caneca"],
-      cordao: "#8A9A5B",
+      acessorios: ["oculos"],
       matricula: "RH-0012",
-      personalidade: "gentil, estratégica, curiosa",
-      falas: ["Posso dar uma ideia?", "Visitando o time hoje!", "Que escritório lindo!", "Gostei desse plano."],
+      personalidade: "gentil, estratégico, curioso",
+      falas: ["Posso dar uma ideia?", "Visitando o time hoje!", "Que estúdio massa!", "Gostei desse plano."],
       oQueFaco: "Venho quando o time precisa de uma ajuda diferente ou de um plano extra.",
       responsabilidades: ["planejar quando pedirem", "cobrir funções que o time não tem", "dar uma segunda opinião"],
     },
@@ -497,7 +522,6 @@ export const LIMITS = {
   responsabilidadesMax: 3,
 } as const;
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
 const KEY = /^[a-z0-9][a-z0-9-]*$/;
 const MATRICULA = /^RH-\d{4}$/;
 const EMOJI = /\p{Extended_Pictographic}/u;
@@ -520,14 +544,10 @@ function text(erros: string[], where: string, x: unknown, max: number, min = 1):
   return true;
 }
 
-/** cor #RRGGBB; o laranja de "te esperando" é proibido em tudo que é do Personagem */
-function hex(erros: string[], where: string, x: unknown): x is string {
-  if (typeof x !== "string" || !HEX.test(x)) {
-    erros.push(`${where}: cor inválida (use #RRGGBB)`);
-    return false;
-  }
-  if (x.toUpperCase() === WAITING_ORANGE) {
-    erros.push(`${where}: o laranja ${WAITING_ORANGE} é exclusivo de "te esperando"`);
+/** id de cor de uma das listas (pele, cabelo ou roupa) */
+function corDa(erros: string[], where: string, x: unknown, lista: readonly Swatch[]): x is string {
+  if (typeof x !== "string" || !lista.some((s) => s.id === x)) {
+    erros.push(`${where}: cor desconhecida (use ${lista.map((s) => s.id).join(", ")})`);
     return false;
   }
   return true;
@@ -555,28 +575,27 @@ export function personagemErrors(x: unknown, i = 0): string[] {
   text(erros, `${who}.cargo`, x.cargo, LIMITS.cargo);
   text(erros, `${who}.personalidade`, x.personalidade, LIMITS.personalidade);
   if (!oneOf(GENEROS, x.genero)) erros.push(`${who}.genero: use ${GENEROS.join(" ou ")}`);
-  hex(erros, `${who}.pele`, x.pele);
+  corDa(erros, `${who}.pele`, x.pele, SKIN_TONES);
 
   if (!isObj(x.cabelo)) {
     erros.push(`${who}.cabelo: precisa ter estilo e cor`);
   } else {
     if (!oneOf(ESTILOS_CABELO, x.cabelo.estilo)) erros.push(`${who}.cabelo.estilo: estilo desconhecido`);
-    hex(erros, `${who}.cabelo.cor`, x.cabelo.cor);
+    corDa(erros, `${who}.cabelo.cor`, x.cabelo.cor, HAIR_COLORS);
   }
 
   const papel = typeof x.papel === "string" ? x.papel : "";
   if (!oneOf(ROUPAS, x.roupa)) {
     erros.push(`${who}.roupa: use ${ROUPAS.join(", ")}`);
-  } else {
-    if (!ROUPAS_PERMITIDAS(papel).includes(x.roupa)) {
-      erros.push(`${who}.roupa: "${x.roupa}" não é permitida para o papel ${papel} (use ${ROUPAS_PERMITIDAS(papel).join(" ou ")})`);
-    }
-    const permitidos = DESTAQUES_PERMITIDOS(papel, x.roupa);
-    if (x.destaque !== undefined && !oneOf(permitidos, x.destaque)) {
-      erros.push(`${who}.destaque: "${String(x.destaque)}" não combina com ${papel} de ${x.roupa}`);
-    }
-    if (papel === "convidado" && x.destaque !== "cracha-visitante") erros.push(`${who}.destaque: convidado usa "cracha-visitante"`);
+  } else if (x.corInterna !== undefined) {
+    if (!ROUPAS_ABERTAS.includes(x.roupa)) erros.push(`${who}.corInterna: só vale para ${ROUPAS_ABERTAS.join(" e ")}`);
+    else corDa(erros, `${who}.corInterna`, x.corInterna, CORES_ROUPA);
   }
+  corDa(erros, `${who}.corRoupa`, x.corRoupa, CORES_ROUPA);
+  corDa(erros, `${who}.corCalca`, x.corCalca, CORES_ROUPA);
+  const permitidos = DESTAQUES_PERMITIDOS(papel);
+  if (x.destaque !== undefined && !oneOf(permitidos, x.destaque)) erros.push(`${who}.destaque: "${String(x.destaque)}" é só de convidado`);
+  if (papel === "convidado" && x.destaque !== "cracha-visitante") erros.push(`${who}.destaque: convidado usa "cracha-visitante"`);
 
   if (!Array.isArray(x.acessorios) || x.acessorios.length > LIMITS.acessorios) {
     erros.push(`${who}.acessorios: precisa ser uma lista com até ${LIMITS.acessorios} itens`);
@@ -589,7 +608,6 @@ export function personagemErrors(x: unknown, i = 0): string[] {
     for (const c of new Set(camadas.filter((c, j) => camadas.indexOf(c) !== j))) erros.push(`${who}.acessorios: no máximo 1 acessório na camada ${c}`);
   }
 
-  hex(erros, `${who}.cordao`, x.cordao);
   if (typeof x.matricula !== "string" || !MATRICULA.test(x.matricula)) erros.push(`${who}.matricula: use o formato RH-0000`);
 
   if (!Array.isArray(x.falas) || x.falas.length < LIMITS.falasMin || x.falas.length > LIMITS.falasMax) {
@@ -660,9 +678,11 @@ const PERSONAGEM_FIELDS = [
   "pele",
   "cabelo",
   "roupa",
+  "corRoupa",
+  "corInterna",
+  "corCalca",
   "destaque",
   "acessorios",
-  "cordao",
   "matricula",
   "personalidade",
   "falas",
@@ -671,7 +691,7 @@ const PERSONAGEM_FIELDS = [
 ] as const satisfies readonly (keyof Personagem)[];
 
 /**
- * Confere tudo o que pode quebrar a tela ou fugir da regra de uniforme. Não altera a entrada:
+ * Confere tudo o que pode quebrar a tela ou fugir das regras do elenco. Não altera a entrada:
  * em caso de sucesso devolve um elenco novo, limpo, só com os campos conhecidos.
  */
 export function validateRoster(x: unknown): RosterResult {
@@ -721,7 +741,8 @@ export function mergeWithDefaults(parcial: unknown): Roster {
     const raw: unknown = s.cabelo;
     const cabelo = isObj(raw) ? { ...def.cabelo, ...stripUndefined(raw) } : (raw ?? def.cabelo);
     // destaque é opcional de verdade: no Personagem salvo, não ter destaque significa "sem destaque"
-    const { destaque: _padrao, ...semDestaque } = def;
+    // corInterna também: só existe com camisa aberta ou jaqueta, então o salvo manda
+    const { destaque: _padrao, corInterna: _interna, ...semDestaque } = def;
     return { ...semDestaque, ...s, cabelo } as Personagem;
   });
   // extras (sem padrão próprio) de um elenco antigo, sem o "O que eu faço": o do papel

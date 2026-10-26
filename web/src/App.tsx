@@ -469,7 +469,7 @@ export default function App() {
 function AgentRow({ agent, roster, selected, onClick }: { agent: Agent; roster: Roster | null; selected: boolean; onClick: () => void }) {
   const ag = personagemOf(agent, roster);
   const cargo = ag?.cargo ?? "Visitante";
-  // o mesmo nome curto do feed ("Bia"); o nome completo fica no crachá e no leitor de tela
+  // o mesmo nome curto do feed ("Kauã"); o nome completo fica no crachá e no leitor de tela
   const curto = nomeCurto(agent.name, ag?.apelido);
   return (
     <li>

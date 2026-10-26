@@ -1,5 +1,5 @@
 // Personagens pixel art desenhados por código (sem imagens), então dá pra trocar
-// uniforme, pele e cabelo só mudando cores. Coordenadas em pixels da resolução base;
+// roupa, pele e cabelo só mudando cores. Coordenadas em pixels da resolução base;
 // (x, y) é o ponto entre os pés.
 //
 // Proporção chibi: cabeça 12x10, tronco 7 e pernas 4 (uns 24 px com o cabelo).
@@ -9,9 +9,9 @@
 // piscar e frameOf), hair.ts (cabelos) e accessories.ts (acessórios).
 
 import type { Acessorio } from "../../../shared/roster";
-import type { Uniform } from "../theme";
+import type { Visual } from "../theme";
 import { palette, theme } from "../theme";
-import { ACCESSORIES, HELMETS, cup, type AccessoryCtx, type AccessoryLayer, type Slot } from "./accessories";
+import { ACCESSORIES, HATS, cup, type AccessoryCtx, type AccessoryLayer, type Slot } from "./accessories";
 import { HEAD_H, HEAD_TOP_STAND, HEAD_W, LEG_H, SIT_DROP, TORSO_H, blend, type Part } from "./body";
 import { ANIM_STEPS, animLift, frameKey, frameOf, type ArmPose, type SpriteFrame } from "./frame";
 import { pushHair } from "./hair";
@@ -25,13 +25,13 @@ export { HAIR_STYLE_COUNT } from "./hair";
 export type Dir = "down" | "up" | "left" | "right";
 
 export interface CharLook {
-  uniform: Uniform;
+  visual: Visual;
   skin: string;
   hair: string;
   hairStyle: number;
   /** todos os acessórios; cada um é desenhado na sua camada (ACCESSORIES) */
   accessories: readonly Acessorio[];
-  /** cílio de 1px e cintura 1px mais fina; o uniforme é o mesmo */
+  /** cílio de 1px e cintura 1px mais fina; a roupa é a mesma */
   feminine: boolean;
 }
 
@@ -179,25 +179,26 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   /** gotas e polegar: 1px, sem contorno */
   const FX: Part[] = [];
 
-  const u = look.uniform;
+  const u = look.visual;
   const skin = look.skin;
   const dir = f.dir;
   const side = dir === "left" || dir === "right";
   const back = dir === "up";
   const view: AccessoryCtx["view"] = side ? "side" : back ? "back" : "front";
-  const tailored = u.kind === "blazer" || u.kind === "terno";
-  const polo = u.kind === "polo";
+  /** camisa aberta e jaqueta mostram a camiseta de baixo na frente */
+  const open = u.roupa === "camisa-aberta" || u.roupa === "jaqueta";
+  /** camiseta e camisa aberta: manga curta, antebraço de fora */
+  const shortSleeve = u.roupa === "camiseta" || u.roupa === "camisa-aberta";
   const inner = u.inner ?? palette.white;
-  const forearm = polo ? skin : u.shirtShade;
+  const forearm = shortSleeve ? skin : u.shirtShade;
   const hasWatch = look.accessories.includes("relogio");
-  const hasHelmet = look.accessories.some((a) => HELMETS.has(a));
+  const hasHat = look.accessories.some((a) => HATS.has(a));
   const st = f.step / ANIM_STEPS;
   const anim = f.anim;
   const longAnim = anim && anim !== "stretch" && anim !== "cheer" && anim !== "present" ? anim : undefined;
-  // crachá: branco com topo marinho; na camisa branca inverte; visitante todo na cor do cordão
-  // crachá: branco com topo marinho; na camisa branca inverte; visitante: topo marinho e corpo na cor do cordão
-  const badgeTop = u.visitor ? palette.navy900 : u.kind === "camisa" ? u.accent : palette.navy900;
-  const badgeBody = u.visitor ? u.accent : u.kind === "camisa" ? palette.navy900 : palette.white;
+  // crachá da marca: topo ardósia e corpo névoa (visitante: corpo aço), sempre no cordão laranja
+  const badgeTop = palette.navy700;
+  const badgeBody = u.visitor ? palette.gray300 : palette.white;
 
   const ty = by - LEG_H - TORSO_H - f.rise;
   const tw = side ? 6 : 8;
@@ -247,30 +248,34 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   }
 
   if (dir === "down") {
-    if (tailored) {
-      // paletó nas laterais, camisa no centro em V
-      L.push([bx - 2, ty, 4, 1, inner]);
-      L.push([bx - 1, ty + 1, 2, 2, inner]);
-      L.push([bx - 3, ty, 1, 3, u.shirtShade]);
-      L.push([bx + 2, ty, 1, 3, u.shirtShade]);
-      if (u.tie) L.push([bx - 1, ty + 1, 2, 4, u.tie]);
-      if (u.trim === "lenco") L.push([bx + 2, ty + 3, 2, 1, u.accent]);
+    if (open) {
+      // aberta na frente: a camiseta de baixo no meio e as bordas da peça um tom mais escuras
+      L.push([bx - 1, ty, 2, TORSO_H, inner]);
+      L.push([bx - 2, ty, 1, TORSO_H - 1, u.shirtShade]);
+      L.push([bx + 1, ty, 1, TORSO_H - 1, u.shirtShade]);
+      // camisa aberta: gola virada; jaqueta: gola alta
+      if (u.roupa === "camisa-aberta") {
+        L.push([bx - 3, ty, 1, 2, u.shirtShade]);
+        L.push([bx + 2, ty, 1, 2, u.shirtShade]);
+      } else L.push([bx - 3, ty, 6, 1, u.shirtShade]);
+    } else if (u.roupa === "moletom") {
+      // capuz caído atrás da gola, as duas cordinhas e o bolso canguru
+      L.push([bx - 3, ty, 6, 1, u.shirtShade]);
+      L.push([bx - 2, ty + 1, 1, 2, palette.white]);
+      L.push([bx + 1, ty + 1, 1, 2, palette.white]);
+      L.push([bx - 2, ty + 4, 4, 1, u.shirtShade]);
     } else {
-      const collar = u.trim === "gola" ? u.accent : u.shirtShade;
-      L.push([bx - 3, ty, 2, 1, collar]);
-      L.push([bx + 1, ty, 2, 1, collar]);
-      if (u.kind === "camisa") {
-        L.push([bx - 2, ty + 1, 1, 1, collar]);
-        L.push([bx + 1, ty + 1, 1, 1, collar]);
-      }
+      // gola redonda (camiseta) ou gola canelada (suéter, com a barra também canelada)
+      L.push([bx - 2, ty, 4, 1, u.shirtShade]);
+      if (u.roupa === "sueter") L.push([bx - 2, ty + 1, 4, 1, u.shirtShade]);
     }
   } else if (back) {
-    L.push([bx - 2, ty, 4, 1, tailored ? inner : u.trim === "gola" ? u.accent : u.shirtShade]); // gola
-    L.push([tx + 1, ty + 2, tw - 2, 2, u.accent]); // faixa nas costas
+    L.push([bx - 2, ty, 4, 1, u.shirtShade]); // gola
+    if (u.roupa === "moletom") L.push([bx - 3, ty, 6, 3, u.shirtShade]); // capuz
   } else {
     const front = tx + tw - 1;
-    if (tailored) L.push([front, ty, 1, 3, inner]);
-    if (u.tie) L.push([front, ty + 1, 1, 3, u.tie]);
+    if (open) L.push([front, ty, 1, TORSO_H - 1, inner]);
+    if (u.roupa === "moletom") L.push([tx, ty, 2, 2, u.shirtShade]); // capuz de perfil
   }
 
   const accCtx = (into: Part[], slot?: Slot): AccessoryCtx => {
@@ -298,22 +303,16 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   const hx = bx - HEAD_W / 2;
   const hy = ty - HEAD_H + headDy;
 
-  // colete por cima da camisa; cordão e crachá por cima dele
+  // cachecol por cima da roupa; cordão e crachá por cima dele
   for (const a of layer("tronco")) ACCESSORIES[a].draw(accCtx(L));
 
   if (dir === "down") {
-    if (u.lapelBadge) {
-      // crachá preso na lapela
-      L.push([bx + 2, ty + 3, 2, 2, palette.white]);
-      L.push([bx + 2, ty + 3, 2, 1, palette.navy900]);
-    } else {
-      // cordão até o crachá 2x3 (sentado ele fica acima do tampo da mesa)
-      L.push([bx - 4, ty, 1, 2, u.accent]);
-      L.push([bx - 1, ty, 1, 2, u.accent]);
-      L.push([bx - 3, ty + 2, 2, 1, badgeTop]);
-      L.push([bx - 3, ty + 3, 2, 2, badgeBody]);
-    }
-  } else if (side && !u.lapelBadge) {
+    // cordão até o crachá 2x3 (sentado ele fica acima do tampo da mesa)
+    L.push([bx - 4, ty, 1, 2, u.accent]);
+    L.push([bx - 1, ty, 1, 2, u.accent]);
+    L.push([bx - 3, ty + 2, 2, 1, badgeTop]);
+    L.push([bx - 3, ty + 3, 2, 2, badgeBody]);
+  } else if (side) {
     L.push([bx, ty, 1, 2, u.accent]);
     L.push([bx, ty + 2, 1, 1, badgeTop]);
     L.push([bx, ty + 3, 2, 2, badgeBody]);
@@ -323,11 +322,9 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   const hands: Slot[] = [];
   const wrists: Slot[] = [];
   const armDown = (into: Part[], ax: number, ay: number, len: number, s: -1 | 1): Slot => {
-    const sleeve = polo ? 2 : len;
+    const sleeve = shortSleeve ? 2 : len;
     into.push([ax, ay, 2, sleeve, u.shirtShade]);
     if (sleeve < len) into.push([ax, ay + sleeve, 2, len - sleeve, skin]);
-    if (tailored) into.push([ax, ay + len - 1, 2, 1, inner]); // punho da camisa
-    if (u.trim === "manga") into.push([ax, ay + (polo ? 1 : 2), 2, 1, u.accent]);
     into.push([ax, ay + len, 2, 2, skin]);
     if (s > 0) wrists.push({ x: ax, y: ay + len - 1, s, into });
     return { x: ax, y: ay + len, s, into };
@@ -346,7 +343,7 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
       return;
     }
     const seg = (dx: number, dy: number, h: number, color: string) => O.push([bx + (s < 0 ? dx : -dx - 2), ty + dy, 2, h, color]);
-    const cuff = tailored ? inner : s > 0 && hasWatch ? palette.props.watch : forearm;
+    const cuff = s > 0 && hasWatch ? palette.props.watch : forearm;
     seg(-6, 0, 2, u.shirtShade); // ombro
     if (p === "diag") {
       seg(-7, -3, 3, forearm);
@@ -500,9 +497,8 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
       [bx - 6, -1],
       [bx + 4, 1],
     ] as const) {
-      L.push([ax, ty + 1, 2, polo ? 2 : 3, u.shirtShade]);
-      if (polo) L.push([ax, ty + 3, 2, 1, skin]);
-      if (u.trim === "manga") L.push([ax, ty + (polo ? 1 : 2), 2, 1, u.accent]);
+      L.push([ax, ty + 1, 2, shortSleeve ? 2 : 3, u.shirtShade]);
+      if (shortSleeve) L.push([ax, ty + 3, 2, 1, skin]);
       if (s > 0) wrists.push({ x: ax, y: ty + 3, s, into: L });
     }
     L.push([bx - 5, ty + 3 - (k === 0 ? 1 : 0), 2, 2, skin]);
@@ -555,9 +551,9 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   const hair: Part[] = [];
   pushHair(hair, look, view, hx, hy);
   for (const p of hair) {
-    if (!hasHelmet) L.push(p);
+    if (!hasHat) L.push(p);
     else {
-      // o capacete esconde o topo do cabelo (e o coque): corta o que fica acima da aba
+      // boné e gorro escondem o topo do cabelo (e o coque): corta o que fica acima da aba
       const cut = hy + 2;
       const bottom = p[1] + p[3];
       if (bottom > cut) L.push([p[0], Math.max(p[1], cut), p[2], bottom - Math.max(p[1], cut), p[4]]);

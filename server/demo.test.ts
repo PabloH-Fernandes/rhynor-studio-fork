@@ -62,13 +62,13 @@ test("simulação v3: destaques, frases sem jargão, grupo de leituras, compact,
 
   // grupo de leituras, pesquisa com tema e o compact sem ninguém sair
   const linhas = agruparFeed(feed).map((l) => (l.item.quem ? comNome(l.item.quem, fraseDaLinha(l) ?? "") : ""));
-  assert.ok(linhas.includes("Marina está estudando o projeto (5 arquivos)"), linhas.join("\n"));
+  assert.ok(linhas.includes("Otto está estudando o projeto (5 arquivos)"), linhas.join("\n"));
   assert.ok(feed.some((f) => f.simples === "está pesquisando na internet sobre “validação de formulários”"));
   assert.ok(feed.some((f) => f.simples === "organizou as anotações da conversa para continuar"));
 
   // a retomada: o pesquisador foi chamado de novo (SendMessage pro agent_id dele) e entregou 2 vezes, mesmo Personagem
   assert.equal(agentes(state).find((a) => a.id === "p:pesquisador")?.tasksDone, 2);
-  const deNovo = feed.filter((f) => f.agentId === "p:pesquisador" && f.simples === "foi chamado de novo para ajudar");
+  const deNovo = feed.filter((f) => f.agentId === "p:pesquisador" && f.simples === "foi chamada de novo para ajudar");
   assert.equal(deNovo.length, 1, "uma linha só, mesmo com SendMessage + 1º evento dele");
 
   // SessionEnd: agora sim todo mundo vai até a porta

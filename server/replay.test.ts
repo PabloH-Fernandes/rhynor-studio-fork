@@ -19,11 +19,11 @@ test("líder + 2 subagentes: cada Personagem termina no status certo", () => {
   assert.equal(agentePorKey(state, "lider")?.status, "pensando");
   assert.equal(agentePorKey(state, "lider")?.activity, "Coordenando: chamou Dev");
   // o planejador entregou (SubagentStop): fica de boa no escritório
-  assert.equal(agentePorNome(state, "Marina")?.status, "ocioso");
+  assert.equal(agentePorNome(state, "Otto")?.status, "ocioso");
   // o Pre do Bash chegou depois do Post do Edit, mas começou antes (x-hook-ts menor): a fila
   // ordena como o servidor e o Post do Edit é o último; PostToolUse também é trabalho (V3 etapa 2:
-  // nunca vira descanso), então a Bia termina trabalhando
-  const bia = agentePorNome(state, "Bia");
+  // nunca vira descanso), então o Kauã termina trabalhando
+  const bia = agentePorNome(state, "Kauã");
   assert.equal(bia?.personagem, "dev");
   assert.equal(bia?.status, "trabalhando");
   assert.equal(bia?.activity, "Rodar os testes do login");
@@ -34,7 +34,7 @@ test("líder + 2 subagentes: cada Personagem termina no status certo", () => {
 });
 
 test("sem evento nenhum, o subagente sai de 'chegando' pelo timer de 12 s do relógio virtual", () => {
-  // só o SubagentStart da Bia fica: nenhuma ferramenta dela chega
+  // só o SubagentStart do Kauã fica: nenhuma ferramenta dela chega
   const ate = linhas().filter((l) => {
     if (!("evento" in l)) return true;
     const ev = l.evento as { agent_id?: string; hook_event_name?: string };
@@ -169,7 +169,7 @@ test("aoReiniciar troca o estado do servidor novo (gancho da persistência da et
 
 test("rótulo do papel: dev com atividade técnica sem frase pronta aparece como 'Programando'; papel desconhecido fica genérico", () => {
   const { state } = reproduzir(linhas());
-  const bia = agentePorNome(state, "Bia");
+  const bia = agentePorNome(state, "Kauã");
   assert.ok(bia);
   assert.equal(bia.role, "dev");
   // atividade técnica que o servidor não traduziu (sem frase pronta para ela): cai no rótulo do papel
@@ -177,7 +177,7 @@ test("rótulo do papel: dev com atividade técnica sem frase pronta aparece como
   const doDev = agentes(state).find((a) => a.id === bia.id);
   assert.equal(doDev?.activitySimples, "Programando");
 
-  const marina = agentePorNome(state, "Marina");
+  const marina = agentePorNome(state, "Otto");
   assert.ok(marina);
   marina.status = "trabalhando";
   marina.activity = "Rodando: npm test";

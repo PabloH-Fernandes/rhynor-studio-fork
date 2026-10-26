@@ -1,32 +1,33 @@
 {
   "versao": 1,
-  "atualizadoEm": "2026-10-03T00:00:00.000Z",
+  "atualizadoEm": "2026-10-25T00:00:00.000Z",
   "personagens": [
     {
       "key": "lider",
       "papel": "lider",
-      "nome": "Augusto Vilela",
-      "apelido": "GUTO",
+      "nome": "Heloísa Campelo",
+      "apelido": "HELÔ",
       "cargo": "Líder",
-      "genero": "masculino",
-      "pele": "#c68b62",
+      "genero": "feminino",
+      "pele": "pele-5",
       "cabelo": {
-        "estilo": "franja-lateral",
-        "cor": "#B8BCC4"
+        "estilo": "cacheado",
+        "cor": "preto"
       },
-      "roupa": "terno",
-      "destaque": "gravata-dourada",
+      "roupa": "jaqueta",
+      "corRoupa": "jeans",
+      "corInterna": "nevoa",
+      "corCalca": "grafite",
       "acessorios": [
         "relogio"
       ],
-      "cordao": "#F2C14E",
       "matricula": "RH-0001",
-      "personalidade": "calmo, decidido, gentil",
+      "personalidade": "calma, direta, de bom humor",
       "falas": [
         "Bora alinhar rapidinho?",
-        "Bom trabalho, time!",
+        "Boa, time!",
         "Quem pega essa?",
-        "Café e foco, pessoal."
+        "Café e foco, gente."
       ],
       "oQueFaco": "Converso com você, entendo o pedido e divido o trabalho entre o time.",
       "responsabilidades": [
@@ -38,27 +39,29 @@
     {
       "key": "planejador",
       "papel": "planejador",
-      "nome": "Marina Toledo",
-      "apelido": "MARINA",
-      "cargo": "Planejadora",
-      "genero": "feminino",
-      "pele": "#f1c9a5",
+      "nome": "Otto Siqueira",
+      "apelido": "OTTO",
+      "cargo": "Planejador",
+      "genero": "masculino",
+      "pele": "pele-1",
       "cabelo": {
-        "estilo": "coque",
-        "cor": "#4a3021"
+        "estilo": "curto",
+        "cor": "castanho-claro"
       },
-      "roupa": "blazer",
+      "roupa": "sueter",
+      "corRoupa": "oliva",
+      "corCalca": "jeans",
       "acessorios": [
-        "prancheta"
+        "prancheta",
+        "barba"
       ],
-      "cordao": "#9B82FF",
       "matricula": "RH-0002",
-      "personalidade": "organizada, metódica, otimista",
+      "personalidade": "organizado, tranquilo, otimista",
       "falas": [
-        "Já anotei no quadro!",
-        "Passo a passo, gente.",
-        "Prazo tá folgado.",
-        "Cada coisa no lugar."
+        "Já tá no quadro.",
+        "Passo a passo, pessoal.",
+        "Prazo tá de boa.",
+        "Primeiro o mais simples."
       ],
       "oQueFaco": "Transformo um pedido grande em passos pequenos, na ordem certa.",
       "responsabilidades": [
@@ -70,27 +73,28 @@
     {
       "key": "pesquisador",
       "papel": "pesquisador",
-      "nome": "Caio Nogueira",
-      "apelido": "CAIO",
-      "cargo": "Pesquisador",
-      "genero": "masculino",
-      "pele": "#a86f4c",
+      "nome": "Luana Tavares",
+      "apelido": "LUANA",
+      "cargo": "Pesquisadora",
+      "genero": "feminino",
+      "pele": "pele-4",
       "cabelo": {
-        "estilo": "cacheado",
-        "cor": "#1c1c1c"
+        "estilo": "rabo-de-cavalo",
+        "cor": "castanho-escuro"
       },
-      "roupa": "polo",
+      "roupa": "moletom",
+      "corRoupa": "petroleo",
+      "corCalca": "grafite",
       "acessorios": [
         "oculos"
       ],
-      "cordao": "#E2BD3C",
       "matricula": "RH-0003",
-      "personalidade": "curioso, detalhista, falante",
+      "personalidade": "curiosa, detalhista, falante",
       "falas": [
-        "Li um artigo ótimo!",
+        "Achei um artigo ótimo!",
         "Tem doc pra tudo, viu?",
-        "Sabia que tem versão nova?",
-        "Deixa eu conferir isso."
+        "Saiu versão nova!",
+        "Deixa eu conferir."
       ],
       "oQueFaco": "Procuro informação fora do projeto para o time decidir com segurança.",
       "responsabilidades": [
@@ -102,26 +106,27 @@
     {
       "key": "dev",
       "papel": "dev",
-      "nome": "Beatriz Lima",
-      "apelido": "BIA",
-      "cargo": "Desenvolvedora",
-      "genero": "feminino",
-      "pele": "#7d5038",
+      "nome": "Kauã Moreira",
+      "apelido": "KAUÃ",
+      "cargo": "Desenvolvedor",
+      "genero": "masculino",
+      "pele": "pele-6",
       "cabelo": {
-        "estilo": "trancas",
-        "cor": "#1c1c1c"
+        "estilo": "raspado",
+        "cor": "preto"
       },
-      "roupa": "camisa",
+      "roupa": "moletom",
+      "corRoupa": "grafite",
+      "corCalca": "jeans",
       "acessorios": [
         "headset"
       ],
-      "cordao": "#3FBF86",
       "matricula": "RH-0004",
-      "personalidade": "focada, criativa, bem-humorada",
+      "personalidade": "focado, criativo, brincalhão",
       "falas": [
         "Compilou de primeira!",
         "Só mais um commit...",
-        "Quem mexeu no meu CSS?",
+        "Quem mexeu no CSS?",
         "Tá rodando aqui!"
       ],
       "oQueFaco": "Construo o que foi pedido, escrevendo e ajustando o programa.",
@@ -134,22 +139,23 @@
     {
       "key": "testador",
       "papel": "testador",
-      "nome": "Rafael Mendes",
-      "apelido": "RAFA",
-      "cargo": "Testador",
-      "genero": "masculino",
-      "pele": "#e0ac84",
+      "nome": "Érica Nakamura",
+      "apelido": "ÉRICA",
+      "cargo": "Testadora",
+      "genero": "feminino",
+      "pele": "pele-1",
       "cabelo": {
-        "estilo": "curto",
-        "cor": "#7a4b2a"
+        "estilo": "chanel",
+        "cor": "preto"
       },
-      "roupa": "polo",
+      "roupa": "camiseta",
+      "corRoupa": "vinho",
+      "corCalca": "ardosia",
       "acessorios": [
         "relogio"
       ],
-      "cordao": "#2EC4B6",
       "matricula": "RH-0005",
-      "personalidade": "cuidadoso, paciente, cético",
+      "personalidade": "cuidadosa, paciente, cética",
       "falas": [
         "Rodei 3 vezes, passou.",
         "E se clicar duas vezes?",
@@ -166,28 +172,29 @@
     {
       "key": "revisor",
       "papel": "revisor",
-      "nome": "Lúcia Ferraz",
-      "apelido": "LÚCIA",
-      "cargo": "Revisora",
-      "genero": "feminino",
-      "pele": "#5c3a28",
+      "nome": "Benedito Araújo",
+      "apelido": "BENÊ",
+      "cargo": "Revisor",
+      "genero": "masculino",
+      "pele": "pele-3",
       "cabelo": {
-        "estilo": "chanel",
-        "cor": "#2a1d17"
+        "estilo": "franja-lateral",
+        "cor": "grisalho"
       },
-      "roupa": "blazer",
-      "destaque": "blazer-cinza",
+      "roupa": "camisa-aberta",
+      "corRoupa": "aco",
+      "corInterna": "noite",
+      "corCalca": "oliva",
       "acessorios": [
         "oculos"
       ],
-      "cordao": "#EF5F7B",
       "matricula": "RH-0006",
-      "personalidade": "criteriosa, sincera, gentil",
+      "personalidade": "criterioso, sincero, gentil",
       "falas": [
-        "Ficou bem legível!",
+        "Ficou bem legível.",
         "Só um detalhezinho...",
         "Esse nome tá ótimo.",
-        "Aprovado com carinho."
+        "Aprovado, pode ir."
       ],
       "oQueFaco": "Leio tudo com calma antes de ficar pronto e aponto o que dá para melhorar.",
       "responsabilidades": [
@@ -199,23 +206,23 @@
     {
       "key": "documentador",
       "papel": "documentador",
-      "nome": "Davi Sampaio",
-      "apelido": "DAVI",
-      "cargo": "Documentador",
-      "genero": "masculino",
-      "pele": "#f1c9a5",
+      "nome": "Thaís Gouveia",
+      "apelido": "THAÍS",
+      "cargo": "Documentadora",
+      "genero": "feminino",
+      "pele": "pele-2",
       "cabelo": {
-        "estilo": "raspado",
-        "cor": "#4a3021"
+        "estilo": "comprido",
+        "cor": "ruivo"
       },
-      "roupa": "camisa",
+      "roupa": "sueter",
+      "corRoupa": "creme",
+      "corCalca": "jeans",
       "acessorios": [
-        "lapis",
-        "barba"
+        "lapis"
       ],
-      "cordao": "#5AAEF0",
       "matricula": "RH-0007",
-      "personalidade": "didático, calmo, caprichoso",
+      "personalidade": "didática, calma, caprichosa",
       "falas": [
         "Já tá no README!",
         "Um exemplo ajuda, né?",
@@ -233,24 +240,25 @@
       "key": "dev-2",
       "papel": "dev",
       "variacaoDe": "dev",
-      "nome": "Yasmin Okada",
-      "apelido": "YASMIN",
-      "cargo": "Desenvolvedora",
-      "genero": "feminino",
-      "pele": "#f1c9a5",
+      "nome": "Vinícius Rocha",
+      "apelido": "VINI",
+      "cargo": "Desenvolvedor",
+      "genero": "masculino",
+      "pele": "pele-4",
       "cabelo": {
-        "estilo": "comprido",
-        "cor": "#1c1c1c"
+        "estilo": "cacheado",
+        "cor": "castanho"
       },
-      "roupa": "polo",
+      "roupa": "camiseta",
+      "corRoupa": "ocre",
+      "corCalca": "grafite",
       "acessorios": [
-        "headset"
+        "gorro"
       ],
-      "cordao": "#A6D854",
       "matricula": "RH-0008",
-      "personalidade": "animada, rápida, prática",
+      "personalidade": "animado, rápido, prático",
       "falas": [
-        "Pareando com a Bia!",
+        "Pareando com o Kauã!",
         "Testa aí no seu PC?",
         "Subi a correção já.",
         "Bora que dá tempo!"
@@ -258,7 +266,7 @@
       "oQueFaco": "Ajudo a construir quando tem muita coisa para fazer ao mesmo tempo.",
       "responsabilidades": [
         "pegar uma parte do trabalho",
-        "trabalhar junto sem atrapalhar ninguém",
+        "trabalhar junto sem atrapalhar",
         "consertar o que estiver quebrado"
       ]
     },
@@ -266,22 +274,24 @@
       "key": "pesquisador-2",
       "papel": "pesquisador",
       "variacaoDe": "pesquisador",
-      "nome": "Tomás Ribeiro",
-      "apelido": "TOMÁS",
-      "cargo": "Pesquisador",
-      "genero": "masculino",
-      "pele": "#5c3a28",
+      "nome": "Aline Bezerra",
+      "apelido": "ALINE",
+      "cargo": "Pesquisadora",
+      "genero": "feminino",
+      "pele": "pele-5",
       "cabelo": {
-        "estilo": "curto",
-        "cor": "#1c1c1c"
+        "estilo": "trancas",
+        "cor": "preto"
       },
-      "roupa": "camisa",
+      "roupa": "jaqueta",
+      "corRoupa": "ardosia",
+      "corInterna": "aco",
+      "corCalca": "creme",
       "acessorios": [
-        "prancheta"
+        "caneca"
       ],
-      "cordao": "#D98FD3",
       "matricula": "RH-0009",
-      "personalidade": "tranquilo, observador, nerd",
+      "personalidade": "tranquila, observadora, nerd",
       "falas": [
         "Achei a fonte original!",
         "Anotei 3 referências.",
@@ -290,7 +300,7 @@
       ],
       "oQueFaco": "Pesquiso junto quando aparecem muitas perguntas de uma vez.",
       "responsabilidades": [
-        "achar a fonte original de cada coisa",
+        "achar a fonte original",
         "anotar referências confiáveis",
         "resumir o que encontrei"
       ]
@@ -301,23 +311,24 @@
       "agentTypes": [
         "explore"
       ],
-      "nome": "Iara Campos",
-      "apelido": "IARA",
-      "cargo": "Exploradora",
-      "genero": "feminino",
-      "pele": "#a86f4c",
+      "nome": "Diego Amaral",
+      "apelido": "DIEGO",
+      "cargo": "Explorador",
+      "genero": "masculino",
+      "pele": "pele-1",
       "cabelo": {
-        "estilo": "rabo-de-cavalo",
-        "cor": "#6b2f2f"
+        "estilo": "curto",
+        "cor": "loiro"
       },
-      "roupa": "polo",
+      "roupa": "camiseta",
+      "corRoupa": "jeans",
+      "corCalca": "grafite",
       "destaque": "cracha-visitante",
       "acessorios": [
-        "capacete-branco"
+        "bone"
       ],
-      "cordao": "#B7A58C",
       "matricula": "RH-0010",
-      "personalidade": "aventureira, rápida, sorridente",
+      "personalidade": "aventureiro, rápido, sorridente",
       "falas": [
         "Já vasculhei tudo!",
         "Achei na pasta src/",
@@ -328,7 +339,7 @@
       "responsabilidades": [
         "achar arquivos rapidinho",
         "montar um mapa do projeto",
-        "responder onde algo está guardado"
+        "dizer onde algo está guardado"
       ]
     },
     {
@@ -337,23 +348,25 @@
       "agentTypes": [
         "general-purpose"
       ],
-      "nome": "Jorge Batista",
-      "apelido": "JORGE",
+      "nome": "Cida Monteiro",
+      "apelido": "CIDA",
       "cargo": "Generalista",
-      "genero": "masculino",
-      "pele": "#c68b62",
+      "genero": "feminino",
+      "pele": "pele-6",
       "cabelo": {
-        "estilo": "raspado",
-        "cor": "#B8BCC4"
+        "estilo": "coque",
+        "cor": "grisalho"
       },
-      "roupa": "camisa",
+      "roupa": "camisa-aberta",
+      "corRoupa": "vinho",
+      "corInterna": "creme",
+      "corCalca": "ardosia",
       "destaque": "cracha-visitante",
       "acessorios": [
-        "colete"
+        "cachecol"
       ],
-      "cordao": "#A3A8B5",
       "matricula": "RH-0011",
-      "personalidade": "prestativo, versátil, tranquilo",
+      "personalidade": "prestativa, versátil, tranquila",
       "falas": [
         "Precisa de mão aí?",
         "Faço o que precisar!",
@@ -374,27 +387,28 @@
         "plan",
         "*"
       ],
-      "nome": "Sofia Arruda",
-      "apelido": "SOFIA",
-      "cargo": "Consultora",
-      "genero": "feminino",
-      "pele": "#e0ac84",
+      "nome": "Ícaro Lins",
+      "apelido": "ÍCARO",
+      "cargo": "Consultor",
+      "genero": "masculino",
+      "pele": "pele-3",
       "cabelo": {
         "estilo": "comprido",
-        "cor": "#c58a4a"
+        "cor": "preto"
       },
-      "roupa": "polo",
+      "roupa": "sueter",
+      "corRoupa": "petroleo",
+      "corCalca": "jeans",
       "destaque": "cracha-visitante",
       "acessorios": [
-        "caneca"
+        "oculos"
       ],
-      "cordao": "#8A9A5B",
       "matricula": "RH-0012",
-      "personalidade": "gentil, estratégica, curiosa",
+      "personalidade": "gentil, estratégico, curioso",
       "falas": [
         "Posso dar uma ideia?",
         "Visitando o time hoje!",
-        "Que escritório lindo!",
+        "Que estúdio massa!",
         "Gostei desse plano."
       ],
       "oQueFaco": "Venho quando o time precisa de uma ajuda diferente ou de um plano extra.",

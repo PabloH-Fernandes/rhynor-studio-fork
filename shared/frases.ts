@@ -4,7 +4,7 @@
 // A versão técnica (ferramenta, arquivo, comando) continua em FeedItem.text.
 //
 // A frase não leva o nome: o feed escreve "<nome> <frase>" (comNome); a mesma frase serve pro
-// agrupamento ("Marina está estudando o projeto (12 arquivos)").
+// agrupamento ("Otto está estudando o projeto (12 arquivos)").
 
 import type { FeedCategoria, Genero } from "./types.ts";
 
@@ -52,7 +52,7 @@ export function comNome(nome: string, simples: string): string {
   return `${nome} ${simples}`;
 }
 
-/** Nome curto do feed: o apelido da plaquinha ("GUTO" → "Guto") ou o primeiro nome. */
+/** Nome curto do feed: o apelido da plaquinha ("HELÔ" → "Helô") ou o primeiro nome. */
 export function nomeCurto(nome: string, apelido?: string): string {
   const base = apelido?.trim() || nome.trim().split(/\s+/)[0] || nome;
   return base.charAt(0).toLocaleUpperCase("pt-BR") + base.slice(1).toLocaleLowerCase("pt-BR");

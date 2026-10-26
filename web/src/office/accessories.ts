@@ -1,4 +1,4 @@
-// Acessórios dos bonecos (DESENHOS) e os helpers de desenho deles (capacete, copo).
+// Acessórios dos bonecos (DESENHOS) e os helpers de desenho deles (copo).
 
 import { CAMADA_DO_ACESSORIO, type Acessorio, type Camada } from "../../../shared/roster";
 import { palette } from "../theme";
@@ -45,23 +45,8 @@ export interface AccessoryDef extends AccessoryDraw {
   camada: AccessoryLayer;
 }
 
-export const HELMETS = new Set<Acessorio>(["capacete-branco", "capacete-amarelo"]);
-
-function helmet(colorOf: () => string, shadeOf: () => string): AccessoryDraw {
-  return {
-    draw: (c) => {
-      const color = colorOf();
-      const shade = shadeOf();
-      // casco por cima do topo do cabelo (o cabelo de cima já foi cortado) e aba de 1px
-      c.head(1, -3, 10, 1, color);
-      c.head(0, -2, 12, 3, color);
-      c.head(5, -3, 2, 1, shade); // friso do casco
-      c.head(3, -2, 1, 1, blend(color, palette.white, 0.6));
-      if (c.view === "side") c.head(1, 1, 12, 1, shade);
-      else c.head(-1, 1, 14, 1, shade);
-    },
-  };
-}
+/** chapéus: escondem o topo do cabelo (sprites.ts corta o que fica acima da aba) */
+export const HATS = new Set<Acessorio>(["bone", "gorro"]);
 
 export function cup(put: AccessoryCtx["put"], x: number, y: number) {
   // copo do escritório nas animações: claro com faixa escura
@@ -88,7 +73,7 @@ const DESENHOS: Record<Acessorio, AccessoryDraw> = {
         c.head(5, -2, 1, 5, band);
         c.head(4, 3, 3, 3, cupC);
         c.head(6, 8, 3, 1, band);
-        c.head(9, 8, 1, 1, c.look.uniform.accent);
+        c.head(9, 8, 1, 1, c.look.visual.accent);
         return;
       }
       c.head(-1, -2, 1, 6, band);
@@ -97,18 +82,32 @@ const DESENHOS: Record<Acessorio, AccessoryDraw> = {
       c.head(12, 4, 2, 3, cupC);
       if (c.view === "front") {
         c.head(0, 8, 3, 1, band);
-        c.head(3, 8, 1, 1, c.look.uniform.accent);
+        c.head(3, 8, 1, 1, c.look.visual.accent);
       }
     },
   },
-  "capacete-branco": helmet(
-    () => palette.white,
-    () => palette.gray200,
-  ),
-  "capacete-amarelo": helmet(
-    () => palette.props.helmetYellow,
-    () => blend(palette.props.helmetYellow, palette.navy950, 0.25),
-  ),
+  bone: {
+    draw: (c) => {
+      const copa = palette.props.cap;
+      const aba = palette.props.capBrim;
+      c.head(1, -3, 10, 1, copa);
+      c.head(0, -2, 12, 3, copa);
+      c.head(5, -3, 2, 1, blend(copa, palette.white, 0.25)); // botão do topo
+      if (c.view === "side") c.head(8, 0, 6, 1, aba); // aba pra frente
+      else if (c.view === "front") c.head(1, 1, 10, 1, aba);
+      else c.head(4, 0, 4, 1, aba); // regulagem atrás
+    },
+  },
+  gorro: {
+    draw: (c) => {
+      const lã = palette.props.beanie;
+      const barra = blend(lã, palette.navy950, 0.3);
+      c.head(2, -4, 8, 1, lã);
+      c.head(1, -3, 10, 2, lã);
+      c.head(0, -1, 12, 2, barra); // barra dobrada
+      for (const rx of [2, 5, 8]) c.head(rx, -3, 1, 2, blend(lã, palette.white, 0.15)); // canelado
+    },
+  },
   oculos: {
     draw: (c) => {
       // cinza médio: contrasta com pele clara e escura
@@ -126,24 +125,17 @@ const DESENHOS: Record<Acessorio, AccessoryDraw> = {
       for (const rx of [1, 4, 7, 10]) c.head(rx, 5, 1, 2, frame);
     },
   },
-  colete: {
+  cachecol: {
     draw: (c) => {
-      const vest = palette.props.vest;
-      const stripe = palette.props.vestStripe;
+      const lã = palette.props.scarf;
+      const listra = palette.props.scarfStripe;
+      // volta no pescoço (linha de cima do tronco) e, de frente, a ponta caindo com uma listra
+      const [x, w] = c.torsoRow(0);
+      c.put(x, c.ty - 1, w, 2, lã);
       if (c.view === "front") {
-        // duas abas laterais (a camisa e a logo continuam no meio) com faixa prata
-        for (let r = 0; r < TORSO_H; r++) {
-          const [x, w] = c.torsoRow(r);
-          const color = r === 4 ? stripe : vest;
-          c.put(x, c.ty + r, 2, 1, color);
-          c.put(x + w - 2, c.ty + r, 2, 1, color);
-        }
-        return;
-      }
-      for (let r = 0; r < TORSO_H; r++) {
-        const [x, w] = c.torsoRow(r);
-        c.put(x, c.ty + r, w, 1, r === 4 || (c.view === "back" && r === 2) ? stripe : vest);
-      }
+        c.put(x + w - 3, c.ty + 1, 2, 4, lã);
+        c.put(x + w - 3, c.ty + 3, 2, 1, listra);
+      } else if (c.view === "side") c.put(x + w - 2, c.ty + 1, 2, 3, lã);
     },
   },
   prancheta: {
@@ -163,11 +155,11 @@ const DESENHOS: Record<Acessorio, AccessoryDraw> = {
     draw: (c) => {
       const h = c.slot;
       if (!h) return;
-      // caneca: corpo branco 3x4 com faixa marinho e alça de 1px pra fora
+      // caneca: corpo névoa 3x4 com faixa ardósia e alça de 1px pra fora
       const x = h.s > 0 ? h.x + 2 : h.x - 3;
       const y = h.y - 2;
       c.put(x, y, 3, 4, palette.white);
-      c.put(x, y + 1, 3, 1, palette.navy900);
+      c.put(x, y + 1, 3, 1, palette.navy700);
       c.put(h.s > 0 ? x + 3 : x - 1, y + 1, 1, 2, palette.white);
     },
   },

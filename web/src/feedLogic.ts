@@ -18,7 +18,7 @@ export interface LinhaFeed {
 
 /**
  * Junta, em ordem cronológica, as linhas seguidas do mesmo Personagem com o mesmo assunto
- * ("Marina está estudando o projeto (12 arquivos)"). "Seguidas" é na história de cada Personagem:
+ * ("Otto está estudando o projeto (12 arquivos)"). "Seguidas" é na história de cada Personagem:
  * outro Personagem trabalhando em paralelo não quebra o grupo. O grupo sobe pro fim (mais recente).
  * Só junta o que tem `contaComo` (ações repetitivas); destaques e o feed antigo nunca se juntam.
  */

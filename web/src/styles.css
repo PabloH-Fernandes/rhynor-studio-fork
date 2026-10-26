@@ -1967,15 +1967,6 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.vest-cordao {
-  flex-shrink: 0;
-  width: 10px;
-  height: 18px;
-  border-radius: 0;
-  background: var(--cordao);
-  box-shadow: 0 0 0 1px var(--white);
-}
-
 .vest-conflito {
   padding: 10px 12px;
   border: 1px solid var(--blue);

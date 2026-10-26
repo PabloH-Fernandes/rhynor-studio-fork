@@ -56,7 +56,7 @@ test("Start → Stop → Start do mesmo agent_id volta o mesmo Personagem; agent
   start("a1", "dev");
   const first = byId("p:dev");
   assert.ok(first, "devia criar p:dev");
-  assert.equal(first.name, "Beatriz Lima");
+  assert.equal(first.name, "Kauã Moreira");
 
   stop("a1", "dev");
   const idle = byId("p:dev")!;
@@ -73,21 +73,21 @@ test("Start → Stop → Start do mesmo agent_id volta o mesmo Personagem; agent
   stop("a1", "dev");
   assert.equal(byId("p:dev")!.tasksDone, 2);
 
-  // agent_id novo do mesmo papel na mesma sessão: a Bia de boa só volta pra mesa (V3 etapa 3)
+  // agent_id novo do mesmo papel na mesma sessão: o Kauã de boa só volta pra mesa (V3 etapa 3)
   start("a2", "dev");
   assert.equal(byId("p:dev")!.status, "pensando");
   assert.equal(byId("p:dev-2"), undefined, "ninguém novo entra pela porta");
   hook("PreToolUse", { agent_id: "a2", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/a.ts" } });
   assert.equal(byId("p:dev")!.status, "trabalhando");
 
-  // com a Bia ocupada pelo a2, o 3º vai pra variação
+  // com o Kauã ocupada pelo a2, o 3º vai pra variação
   start("a3", "dev");
-  assert.equal(byId("p:dev-2")?.name, "Yasmin Okada");
+  assert.equal(byId("p:dev-2")?.name, "Vinícius Rocha");
   assert.equal(subs().length, 2);
-  // e o a1 perdeu o boneco: se voltar, não divide a Bia com o a2 (vai para um visitante extra)
+  // e o a1 perdeu o boneco: se voltar, não divide o Kauã com o a2 (vai para um visitante extra)
   const biaAntes = { ...byId("p:dev")! };
   hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/b.ts" } });
-  assert.deepEqual(byId("p:dev"), biaAntes, "evento do a1 não mexe na Bia do a2");
+  assert.deepEqual(byId("p:dev"), biaAntes, "evento do a1 não mexe no Kauã do a2");
   assert.equal(byId("p:extra:a1"), undefined, "evento do a1 já parado não cria fantasma (só um SubagentStart reabre)");
 });
 
@@ -97,35 +97,35 @@ test("dois devs ao mesmo tempo viram p:dev e p:dev-2", () => {
   assert.deepEqual(
     subs().map((a) => [a.id, a.name, a.role]),
     [
-      ["p:dev", "Beatriz Lima", "dev"],
-      ["p:dev-2", "Yasmin Okada", "dev"],
+      ["p:dev", "Kauã Moreira", "dev"],
+      ["p:dev-2", "Vinícius Rocha", "dev"],
     ],
   );
 });
 
-test("convidados: Explore → Iara, Plan e tipo desconhecido → Sofia, general-purpose → Jorge", () => {
+test("convidados: Explore → Diego, Plan e tipo desconhecido → Ícaro, general-purpose → Cida", () => {
   start("e1", "Explore");
-  assert.equal(byId("p:explore")?.name, "Iara Campos");
+  assert.equal(byId("p:explore")?.name, "Diego Amaral");
   assert.equal(byId("p:explore")?.role, "convidado");
 
   start("p1", "Plan");
-  assert.equal(byId("p:curinga")?.name, "Sofia Arruda");
-  // visitante não fica de boa: a Sofia sai andando e some depois da animação
+  assert.equal(byId("p:curinga")?.name, "Ícaro Lins");
+  // visitante não fica de boa: o Ícaro sai andando e some depois da animação
   stop("p1", "Plan");
   assert.equal(byId("p:curinga")?.status, "saindo");
   advance(7000);
   assert.equal(byId("p:curinga"), undefined);
 
   start("g1", "general-purpose");
-  assert.equal(byId("p:general-purpose")?.name, "Jorge Batista");
+  assert.equal(byId("p:general-purpose")?.name, "Cida Monteiro");
 
-  // Iara e Jorge com agent_id ativo; a Sofia já saiu e está livre de novo
+  // Diego e Cida com agent_id ativo; o Ícaro já saiu e está livre de novo
   start("x1", "superpowers:code-reviewer");
-  assert.equal(byId("p:curinga")?.status, "chegando", "o tipo desconhecido usa a Sofia livre");
+  assert.equal(byId("p:curinga")?.status, "chegando", "o tipo desconhecido usa o Ícaro livre");
   assert.equal(subs().length, 3);
 });
 
-test("visitante (Iara, Jorge, Sofia) sai andando ao SubagentStop; nunca fica de boa", () => {
+test("visitante (Diego, Cida, Ícaro) sai andando ao SubagentStop; nunca fica de boa", () => {
   start("e1", "Explore");
   start("g1", "general-purpose");
   stop("e1", "Explore");
@@ -218,11 +218,11 @@ test("no máximo 3 visitantes na tela: o 4º fica como excedente e entra quando 
   );
   assert.equal(avisos.find((a) => a.id === "p:extra:x1")?.excedente, true, "já nasce marcado nos avisos às telas");
   stop("e1", "Explore");
-  // a Iara ainda anda até a porta e ocupa o lugar
+  // o Diego ainda anda até a porta e ocupa o lugar
   assert.equal(byId("p:extra:x1")?.excedente, true);
   advance(7000);
   assert.equal(byId("p:explore"), undefined);
-  assert.equal(byId("p:extra:x1")?.excedente, undefined, "o 4º entra na tela quando a Iara sai");
+  assert.equal(byId("p:extra:x1")?.excedente, undefined, "o 4º entra na tela quando o Diego sai");
   assert.equal(subs().filter((a) => !a.excedente).length, 3);
 });
 
@@ -267,17 +267,17 @@ test("restaurar ignora visitante mesmo que o arquivo tenha um", () => {
   assert.ok(snap.type === "snapshot" && !snap.agents.some((a) => a.id === "p:explore"));
 });
 
-test("bug 2: agent_id que já entregou, sem agent_type e 3 min depois, é a Bia (não a Sofia); outro dev da sessão também volta pra Bia", () => {
+test("bug 2: agent_id que já entregou, sem agent_type e 3 min depois, é o Kauã (não o Ícaro); outro dev da sessão também volta pra Kauã", () => {
   start("a1", "dev");
   hook("PreToolUse", { agent_id: "a1", agent_type: "dev", tool_name: "Read", tool_input: { file_path: "src/a.ts" } });
   stop("a1", "dev");
   advance(3 * MIN);
   hook("PreToolUse", { agent_id: "a1", tool_name: "Read", tool_input: { file_path: "src/b.ts" } });
   assert.equal(byId("p:dev")!.status, "trabalhando");
-  assert.equal(byId("p:curinga"), undefined, "o curinga não pega o trabalho da Bia");
+  assert.equal(byId("p:curinga"), undefined, "o curinga não pega o trabalho do Kauã");
   stop("a1", "dev");
 
-  // outro agent_id sem tipo não leva a Bia de boa (não é dev); um dev novo da sessão só a leva de volta pra mesa
+  // outro agent_id sem tipo não leva o Kauã de boa (não é dev); um dev novo da sessão só a leva de volta pra mesa
   const bia = { ...byId("p:dev")! };
   hook("PreToolUse", { agent_id: "x1", tool_name: "Grep", tool_input: { pattern: "y" } });
   assert.deepEqual(byId("p:dev"), bia);
@@ -390,12 +390,12 @@ test("o líder de uma 2ª sessão vira convidado", () => {
   hook("SessionStart", {}, S2);
   const l1 = byId(`s:${S1}`)!;
   const l2 = byId(`s:${S2}`)!;
-  assert.equal(l1.name, "Augusto Vilela");
+  assert.equal(l1.name, "Heloísa Campelo");
   assert.equal(l1.personagem, "lider");
   assert.equal(l2.role, "convidado");
   assert.equal(l2.personagem, "explore");
-  assert.equal(l2.name, "Iara Campos");
-  // a Iara está ocupada como líder: o Explore da sessão 1 vai para o próximo convidado
+  assert.equal(l2.name, "Diego Amaral");
+  // o Diego está ocupada como líder: o Explore da sessão 1 vai para o próximo convidado
   start("e1", "Explore");
   assert.equal(subs()[0].id, "p:curinga");
 });
@@ -461,7 +461,7 @@ test("simulação completa: ficam depois de entregar, 2ª chamada, 2 devs, '!', 
     if (titulo && titulos.at(-1) !== titulo) titulos.push(titulo);
   }
   assert.ok(laranja, "o PermissionRequest do testador devia acender o laranja");
-  assert.ok(devsJuntos, "dev (Bia) e dev-2 (Yasmin) deviam trabalhar ao mesmo tempo");
+  assert.ok(devsJuntos, "dev (Kauã) e dev-2 (Vini) deviam trabalhar ao mesmo tempo");
   assert.ok(chamadoNoDescanso, "o pesquisador de boa devia ser chamado de novo (mesmo id visual)");
   // o quadro passa por Planejamento, pelas etapas da lista e chega a "concluíram"
   assert.ok(titulos.includes("Planejamento"), titulos.join(" → "));
@@ -515,11 +515,11 @@ test("visitante extra sai ao entregar: rodadas de 3 devs não acumulam extras", 
   }
 });
 
-test("sessão real que chega depois toma o Guto da simulação (sem dois Gutos)", () => {
+test("sessão real que chega depois toma a Helô da simulação (sem dois Gutos)", () => {
   hook("SessionStart", {}, "demo-abc");
   assert.equal(byId("s:demo-abc")!.personagem, "lider");
   hook("SessionStart");
-  assert.equal(byId(`s:${S1}`)!.name, "Augusto Vilela");
+  assert.equal(byId(`s:${S1}`)!.name, "Heloísa Campelo");
   const demo = byId("s:demo-abc")!;
   assert.equal(demo.role, "convidado");
   assert.equal(demo.personagem, "explore");
@@ -529,12 +529,12 @@ test("sessão real que chega depois toma o Guto da simulação (sem dois Gutos)"
 test("simulação que começa com sessão real na tela usa convidado e não pega Personagem real de boa", () => {
   hook("SessionStart");
   start("a1", "dev");
-  stop("a1", "dev"); // Bia de boa na sessão real
+  stop("a1", "dev"); // Kauã de boa na sessão real
   hook("SessionStart", {}, "demo-xyz");
   assert.equal(byId("s:demo-xyz")!.role, "convidado");
   assert.equal(byId(`s:${S1}`)!.personagem, "lider");
   start("d1", "dev", "demo-xyz");
-  assert.equal(byId("p:dev")!.sessionId, S1, "a Bia continua na sessão real");
+  assert.equal(byId("p:dev")!.sessionId, S1, "o Kauã continua na sessão real");
   assert.equal(byId("p:dev-2")!.sessionId, "demo-xyz");
   // entre sessões reais o empréstimo continua valendo
   start("b1", "dev", S2);
@@ -654,11 +654,11 @@ test("setRoster renomeia quem está na tela", () => {
   hook("SessionStart");
   start("a1", "dev");
   const roster = structuredClone(DEFAULT_ROSTER);
-  roster.personagens.find((a) => a.key === "dev")!.nome = "Bia Nova";
-  roster.personagens.find((a) => a.key === "lider")!.nome = "Guto Novo";
+  roster.personagens.find((a) => a.key === "dev")!.nome = "Kauã Nova";
+  roster.personagens.find((a) => a.key === "lider")!.nome = "Helô Novo";
   state.setRoster(roster);
-  assert.equal(byId("p:dev")!.name, "Bia Nova");
-  assert.equal(byId(`s:${S1}`)!.name, "Guto Novo");
+  assert.equal(byId("p:dev")!.name, "Kauã Nova");
+  assert.equal(byId(`s:${S1}`)!.name, "Helô Novo");
 });
 
 test("sessão encerrada por timeout não é aposentada: um evento novo traz o líder de volta", () => {
@@ -949,7 +949,7 @@ test("visitante visível que reatualiza o boundAt não vira excedente: a ordem �
   advance(5000);
   iara.boundAt = t;
   hook("PreToolUse", { agent_id: "e1", agent_type: "Explore", tool_name: "Read", tool_input: { file_path: "a.ts" } });
-  assert.equal(byId("p:explore")?.excedente, undefined, "a Iara continua entre os 3 primeiros");
+  assert.equal(byId("p:explore")?.excedente, undefined, "o Diego continua entre os 3 primeiros");
   assert.equal(byId("p:extra:x1")?.excedente, true, "o 4º segue de fora");
   assert.equal(subs().filter((a) => !a.excedente).length, 3);
 });

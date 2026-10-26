@@ -57,7 +57,7 @@ const EVENTOS: Evento[] = [
   { tipo: "terminouVez" },
   { tipo: "etapa", etapa: 3, total: 7 },
   { tipo: "tudoConcluido", total: 7 },
-  { tipo: "recado", para: "Caio" },
+  { tipo: "recado", para: "Luana" },
   { tipo: "recado" },
   { tipo: "saiu", motivo: "embora" },
   { tipo: "saiu", motivo: "entregou" },
@@ -86,13 +86,13 @@ test("todo evento vira frase sem jargão", () => {
 
 test("exemplos do pedido", () => {
   const caio = { genero: "masculino" as const, papel: "dev" };
-  assert.equal(comNome("Yasmin", fraseFerramenta("Bash", { command: "node intr.cjs" }, { papel: "testador" }).simples), "Yasmin está testando se tudo funciona");
-  assert.equal(comNome("Caio", fraseFerramenta("Edit", { file_path: "server/state.ts" }, caio).simples), "Caio está fazendo mudanças no sistema");
-  assert.equal(comNome("Lúcia", fraseFerramenta("WebSearch", { query: "upload 10MB" }).simples), "Lúcia está pesquisando na internet sobre “upload 10MB”");
+  assert.equal(comNome("Vini", fraseFerramenta("Bash", { command: "node intr.cjs" }, { papel: "testador" }).simples), "Vini está testando se tudo funciona");
+  assert.equal(comNome("Luana", fraseFerramenta("Edit", { file_path: "server/state.ts" }, caio).simples), "Luana está fazendo mudanças no sistema");
+  assert.equal(comNome("Benê", fraseFerramenta("WebSearch", { query: "upload 10MB" }).simples), "Benê está pesquisando na internet sobre “upload 10MB”");
   assert.equal(fraseFerramenta("WebSearch", { query: "express.json() limit" }).simples, "está pesquisando na internet");
-  assert.equal(comNome("Marina", fraseFerramenta("Read", { file_path: "a.ts" }).simples), "Marina está estudando o projeto");
-  assert.equal(comNome("Guto", fraseEvento({ tipo: "autorizacao" }).simples), "Guto precisa da sua autorização: volte ao terminal");
-  assert.equal(comNome("Caio", fraseEvento({ tipo: "terminouParte" }, caio).simples), "Caio terminou a parte dele");
+  assert.equal(comNome("Otto", fraseFerramenta("Read", { file_path: "a.ts" }).simples), "Otto está estudando o projeto");
+  assert.equal(comNome("Helô", fraseEvento({ tipo: "autorizacao" }).simples), "Helô precisa da sua autorização: volte ao terminal");
+  assert.equal(comNome("Luana", fraseEvento({ tipo: "terminouParte" }, caio).simples), "Luana terminou a parte dele");
   assert.equal(fraseEvento({ tipo: "terminouParte" }, { genero: "feminino" }).simples, "terminou a parte dela");
 });
 
@@ -104,10 +104,10 @@ test("testes são detectados pelo comando mesmo fora do testador", () => {
 });
 
 test("nome curto: apelido da plaquinha ou primeiro nome", () => {
-  assert.equal(nomeCurto("Augusto Vilela", "GUTO"), "Guto");
-  assert.equal(nomeCurto("Lúcia Ferraz", "LÚCIA"), "Lúcia");
+  assert.equal(nomeCurto("Heloísa Campelo", "HELÔ"), "Helô");
+  assert.equal(nomeCurto("Benedito Araújo", "BENÊ"), "Benê");
   assert.equal(nomeCurto("Explorador"), "Explorador");
-  assert.equal(nomeCurto("Marina Toledo"), "Marina");
+  assert.equal(nomeCurto("Otto Siqueira"), "Otto");
 });
 
 const item = (id: number, agentId: string, tool: string, at = id * 1000): FeedItem => {
@@ -116,7 +116,7 @@ const item = (id: number, agentId: string, tool: string, at = id * 1000): FeedIt
 };
 
 test("agrupamento: 12 leituras seguidas viram uma linha com contador", () => {
-  const feed = Array.from({ length: 12 }, (_, i) => item(i + 1, "Marina", "Read"));
+  const feed = Array.from({ length: 12 }, (_, i) => item(i + 1, "Otto", "Read"));
   const linhas = agruparFeed(feed);
   assert.equal(linhas.length, 1);
   assert.equal(linhas[0].n, 12);
@@ -126,15 +126,15 @@ test("agrupamento: 12 leituras seguidas viram uma linha com contador", () => {
 });
 
 test("agrupamento: outro Personagem em paralelo não quebra; mudar de assunto quebra", () => {
-  const feed = [item(1, "Marina", "Read"), item(2, "Caio", "Edit"), item(3, "Marina", "Read"), item(4, "Marina", "Grep"), item(5, "Marina", "Read")];
+  const feed = [item(1, "Otto", "Read"), item(2, "Luana", "Edit"), item(3, "Otto", "Read"), item(4, "Otto", "Grep"), item(5, "Otto", "Read")];
   const linhas = agruparFeed(feed);
   assert.deepEqual(
     linhas.map((l) => [l.item.agentId, l.item.categoria, l.n]),
     [
-      ["Caio", "mudanca", 1],
-      ["Marina", "estudo", 2],
-      ["Marina", "busca", 1],
-      ["Marina", "estudo", 1],
+      ["Luana", "mudanca", 1],
+      ["Otto", "estudo", 2],
+      ["Otto", "busca", 1],
+      ["Otto", "estudo", 1],
     ],
   );
 });
@@ -164,7 +164,7 @@ test("estado: o feed ganha a versão simples com o nome curto, e a etapa conclu�
   const snap = s.snapshot();
   const feed = snap.type === "snapshot" ? snap.feed : [];
   const autorizacao = feed.find((f) => f.categoria === "precisa");
-  assert.equal(autorizacao && comNome(autorizacao.quem ?? "", autorizacao.simples ?? ""), "Guto precisa da sua autorização: volte ao terminal");
+  assert.equal(autorizacao && comNome(autorizacao.quem ?? "", autorizacao.simples ?? ""), "Helô precisa da sua autorização: volte ao terminal");
   assert.match(autorizacao?.text ?? "", /rm -rf build/, "o técnico continua com o comando");
   assert.deepEqual(
     feed.filter((f) => f.categoria === "etapa" || f.categoria === "concluido").map((f) => f.simples),

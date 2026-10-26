@@ -7,6 +7,9 @@ import {
   ACESSORIOS,
   CAMADA_DO_ACESSORIO,
   CARGOS,
+  CORES_ROUPA,
+  HAIR_COLORS,
+  SKIN_TONES,
   DEFAULT_ROSTER,
   cargoDe,
   DESTAQUES_PERMITIDOS,
@@ -54,54 +57,58 @@ test("cada estilo de cabelo tem um desenho próprio (índices 0..8 sem repetir)"
   assert.deepEqual([...idx].sort((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
-test("terno fora do líder é rejeitado", () => {
+test("roupa fora da lista é rejeitada; qualquer roupa casual vale para qualquer papel", () => {
   expectError(
-    withChange("dev", (a) => (a.roupa = "terno")),
+    withChange("dev", (a) => ((a as { roupa: string }).roupa = "terno")),
     /dev.*roupa/,
   );
+  assert.equal(validateRoster(withChange("lider", (a) => (a.roupa = "moletom", delete a.corInterna))).ok, true);
 });
 
-test("blazer fora de planejador e revisor é rejeitado", () => {
+test("cores são ids das listas (sem hex): pele, cabelo, roupa e calça desconhecidos são rejeitados", () => {
   expectError(
-    withChange("testador", (a) => (a.roupa = "blazer")),
-    /testador.*roupa/,
-  );
-});
-
-test("cordão laranja #FF8A00 é rejeitado (em qualquer caixa)", () => {
-  expectError(
-    withChange("dev", (a) => (a.cordao = "#ff8a00")),
-    /cordao/,
-  );
-});
-
-test("laranja #FF8A00 também é rejeitado na pele e no cabelo", () => {
-  expectError(
-    withChange("dev", (a) => (a.pele = "#FF8A00")),
-    /pele/,
+    withChange("dev", (a) => (a.pele = "pele-7")),
+    /\(dev\)\.pele: cor desconhecida/,
   );
   expectError(
-    withChange("dev", (a) => (a.cabelo.cor = "#ff8a00")),
+    withChange("dev", (a) => (a.cabelo.cor = "azul")),
     /cabelo\.cor/,
   );
+  expectError(
+    withChange("dev", (a) => (a.corRoupa = "marinho")),
+    /corRoupa/,
+  );
+  expectError(
+    withChange("dev", (a) => delete (a as Partial<Personagem>).corCalca),
+    /corCalca/,
+  );
 });
 
-test("DESTAQUES_PERMITIDOS segue papel e roupa", () => {
-  assert.deepEqual(DESTAQUES_PERMITIDOS("lider", "terno"), ["gravata-dourada"]);
-  assert.deepEqual(DESTAQUES_PERMITIDOS("revisor", "blazer"), ["blazer-cinza"]);
-  assert.deepEqual(DESTAQUES_PERMITIDOS("dev", "polo"), []);
-  assert.deepEqual(DESTAQUES_PERMITIDOS("convidado", "camisa"), ["cracha-visitante"]);
+test("camiseta por baixo só vale para camisa aberta e jaqueta", () => {
+  expectError(
+    withChange("dev", (a) => (a.corInterna = "nevoa")),
+    /\(dev\)\.corInterna: só vale/,
+  );
+  expectError(
+    withChange("lider", (a) => (a.corInterna = "rosa")),
+    /lider.*corInterna/,
+  );
+  // jaqueta sem a cor de baixo continua valendo (a tela usa névoa)
+  assert.equal(validateRoster(withChange("lider", (a) => delete a.corInterna)).ok, true);
+});
+
+test("todo id de cor aponta para um token --rh-* da marca", () => {
+  const tokens = fs.readFileSync(path.join(ROOT, "web", "src", "marca", "tokens.css"), "utf8");
+  for (const s of [...SKIN_TONES, ...HAIR_COLORS, ...CORES_ROUPA]) assert.ok(tokens.includes(`--${s.token}:`), s.token);
+});
+
+test("DESTAQUES_PERMITIDOS: só o convidado tem (o crachá de visitante)", () => {
+  assert.deepEqual(DESTAQUES_PERMITIDOS("lider"), []);
+  assert.deepEqual(DESTAQUES_PERMITIDOS("dev"), []);
+  assert.deepEqual(DESTAQUES_PERMITIDOS("convidado"), ["cracha-visitante"]);
 });
 
 test("destaque fora da regra é rejeitado", () => {
-  expectError(
-    withChange("dev", (a) => (a.destaque = "gravata-dourada")),
-    /dev.*destaque/,
-  );
-  expectError(
-    withChange("lider", (a) => (a.destaque = "blazer-cinza")),
-    /lider.*destaque/,
-  );
   expectError(
     withChange("dev", (a) => (a.destaque = "cracha-visitante")),
     /dev.*destaque/,
@@ -146,14 +153,14 @@ test("fala com emoji é rejeitada", () => {
 });
 
 test("apelido acentuado de 6 letras passa; de 7 não", () => {
-  assert.equal(validateRoster(withChange("revisor", (a) => (a.apelido = "LÚCIAS"))).ok, true);
+  assert.equal(validateRoster(withChange("revisor", (a) => (a.apelido = "BENÊZÃ"))).ok, true);
   expectError(
-    withChange("revisor", (a) => (a.apelido = "LUCIANA")),
+    withChange("revisor", (a) => (a.apelido = "BENEDIT")),
     /apelido/,
   );
 });
 
-test("chave repetida, hex inválido e matrícula fora do formato são rejeitados", () => {
+test("chave repetida, cor inválida e matrícula fora do formato são rejeitados", () => {
   expectError(
     withChange("dev-2", (a) => (a.key = "dev")),
     /key repetida/,
@@ -172,13 +179,13 @@ test("mergeWithDefaults completa campos faltando e mantém o que foi salvo", () 
   const merged = mergeWithDefaults({
     versao: 1,
     atualizadoEm: "2026-10-03T12:00:00.000Z",
-    personagens: [{ key: "dev", nome: "Bia Lima", cabelo: { cor: "#4a3021" } }],
+    personagens: [{ key: "dev", nome: "Kauã M.", cabelo: { cor: "castanho" } }],
   });
   const dev = merged.personagens.find((a) => a.key === "dev")!;
   assert.equal(merged.personagens.length, 12);
-  assert.equal(dev.nome, "Bia Lima");
-  assert.equal(dev.apelido, "BIA");
-  assert.deepEqual(dev.cabelo, { estilo: "trancas", cor: "#4a3021" });
+  assert.equal(dev.nome, "Kauã M.");
+  assert.equal(dev.apelido, "KAUÃ");
+  assert.deepEqual(dev.cabelo, { estilo: "raspado", cor: "castanho" });
   assert.equal(validateRoster(merged).ok, true);
   assert.deepEqual(mergeWithDefaults("lixo"), DEFAULT_ROSTER);
 });
@@ -215,12 +222,12 @@ test("o cargo do padrão combina com o gênero (cargoDe)", () => {
 });
 
 test("emoji no nome ou no apelido é rejeitado", () => {
-  expectError(withChange("dev", (a) => (a.nome = "Bia 🚀")), /\(dev\)\.nome: sem emoji/);
-  expectError(withChange("dev", (a) => (a.apelido = "BIA🙂")), /\(dev\)\.apelido: sem emoji/);
+  expectError(withChange("dev", (a) => (a.nome = "Kauã 🚀")), /\(dev\)\.nome: sem emoji/);
+  expectError(withChange("dev", (a) => (a.apelido = "KAUÃ🙂")), /\(dev\)\.apelido: sem emoji/);
 });
 
 test("no máximo 1 acessório por camada; barba (pelos) convive com óculos", () => {
-  expectError(withChange("dev", (a) => (a.acessorios = ["headset", "capacete-amarelo"])), /no máximo 1 acessório na camada cabeca/);
+  expectError(withChange("dev", (a) => (a.acessorios = ["headset", "bone"])), /no máximo 1 acessório na camada cabeca/);
   expectError(withChange("planejador", (a) => (a.acessorios = ["prancheta", "caneca"])), /camada mao/);
   assert.ok(validateRoster(withChange("documentador", (a) => (a.acessorios = ["lapis", "barba", "oculos"]))).ok);
   for (const a of ACESSORIOS) assert.ok(CAMADA_DO_ACESSORIO[a], a);

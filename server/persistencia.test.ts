@@ -134,7 +134,7 @@ test("/clear: SessionEnd reason clear + SessionStart clear com session_id novo �
   assert.equal(agentePorKey(state, "dev")?.sessionId, "s2");
   assert.equal(agentes(state).length, 2);
 
-  // a sessão nova chama um dev: a Bia (de boa, herdada pela sessão nova) só volta pra mesa
+  // a sessão nova chama um dev: o Kauã (de boa, herdada pela sessão nova) só volta pra mesa
   const mais = [
     ...linhas,
     ev(30, { hook_event_name: "PreToolUse", session_id: "s2", tool_name: "Agent", tool_use_id: "tu-x", tool_input: { subagent_type: "dev", description: "Logout" } }),

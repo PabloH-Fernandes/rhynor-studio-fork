@@ -4,11 +4,11 @@
 //
 // Roteiro (~2 min 46 s), em segundos desde o "Rodar simulação":
 //   0–12    o líder recebe o pedido e chama pesquisador e planejador em paralelo (quadro: Ação → Planejamento);
-//           a Marina (planejadora) lê 5 arquivos seguidos, que viram 1 linha no feed ("está estudando o
+//           o Otto (planejadora) lê 5 arquivos seguidos, que viram 1 linha no feed ("está estudando o
 //           projeto (5 arquivos)"), e o pesquisador pesquisa na internet um tema curto ("validação de formulários")
 //   13–15   o líder monta a lista de 6 tarefas (quadro: Etapa 1 de 6)
 //   27      planejador e pesquisador entregam juntos: comemoram e FICAM; ~20 s depois vão descansar
-//   29–66   dev (Bia) e um 2º dev (Yasmin, dev-2) em paralelo, o testador, envelopes e o "!" de permissão (46 → 52)
+//   29–66   dev (Kauã) e um 2º dev (Vini, dev-2) em paralelo, o testador, envelopes e o "!" de permissão (46 → 52)
 //   46      🙋 o testador pede autorização (PermissionRequest); você libera em 52
 //   69      dev-2, testador e dev entregam no mesmo instante: 5 Time de boa ao mesmo tempo por ~30 s
 //           (o agendador do front espera IDLE_GRACE de 4 s e só chama pra ping-pong/papo quem já passou
@@ -154,7 +154,7 @@ export function runDemo(state: OfficeState, relogio: Agenda = AGENDA_PADRAO) {
   const plan: Who = [`${session_id}-plan`, "planejador"];
   const pesq: Who = [`${session_id}-pesq`, "pesquisador"];
   const dev: Who = [`${session_id}-dev`, "dev"];
-  const dev2: Who = [`${session_id}-dev2`, "dev"]; // com a Bia ocupada, vira a Yasmin (dev-2)
+  const dev2: Who = [`${session_id}-dev2`, "dev"]; // com o Kauã ocupada, vira o Vini (dev-2)
   const test: Who = [`${session_id}-test`, "testador"];
   const rev: Who = [`${session_id}-rev`, "revisor"];
   const doc: Who = [`${session_id}-doc`, "documentador"];
@@ -169,7 +169,7 @@ export function runDemo(state: OfficeState, relogio: Agenda = AGENDA_PADRAO) {
     [6.3, start(pesq)],
     [6.9, spawn("planejador", "Quebrar a feature em tarefas")],
     [7.2, start(plan)],
-    // a Marina lê 5 arquivos seguidos: no feed vira "Marina está estudando o projeto (5 arquivos)"
+    // o Otto lê 5 arquivos seguidos: no feed vira "Otto está estudando o projeto (5 arquivos)"
     [8, tool("Read", { file_path: "docs/requisitos.md" }, plan)],
     [9, tool("Read", { file_path: "src/pages/Chamados.tsx" }, plan)],
     // tema curto e sem nada técnico: "está pesquisando na internet sobre “validação de formulários”"

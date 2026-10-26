@@ -45,7 +45,7 @@ test("JSON quebrado cai no padrão e gera backup com o conteúdo original", () =
 
 test("Personagem inválido volta ao padrão, os outros ficam, e há backup", () => {
   const salvo = withChange((r) => {
-    r.personagens.find((a) => a.key === "dev")!.roupa = "terno"; // inválido
+    (r.personagens.find((a) => a.key === "dev")! as { roupa: string }).roupa = "terno"; // inválido
     r.personagens.find((a) => a.key === "testador")!.falas[0] = "Testei tudo, chefe."; // válido
   });
   fs.writeFileSync(file, JSON.stringify(salvo));
@@ -62,7 +62,7 @@ test("Personagem extra inválido é removido; extra válido fica", () => {
   const extra = { ...structuredClone(DEFAULT_ROSTER.personagens[1]), key: "planejador-2", variacaoDe: "planejador", matricula: "RH-0013" };
   const salvo = withChange((r) => {
     r.personagens.push(extra);
-    r.personagens.push({ ...extra, key: "ruim", matricula: "RH-0014", cordao: "#FF8A00" });
+    r.personagens.push({ ...extra, key: "ruim", matricula: "RH-0014", corRoupa: "marinho" });
   });
   fs.writeFileSync(file, JSON.stringify(salvo));
   const keys = loadRoster(file).personagens.map((a) => a.key);
@@ -102,7 +102,7 @@ test(".tmp antigo de outro processo é limpo no load", () => {
 });
 
 test("depois de sanear, o arquivo é regravado e o próximo load não cria outro backup", async () => {
-  fs.writeFileSync(file, JSON.stringify(withChange((r) => (r.personagens.find((a) => a.key === "dev")!.roupa = "terno"))));
+  fs.writeFileSync(file, JSON.stringify(withChange((r) => ((r.personagens.find((a) => a.key === "dev")! as { roupa: string }).roupa = "terno"))));
   const r = loadRoster(file);
   await flushRosterSaves();
   assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), r);
@@ -123,8 +123,8 @@ test("matrícula repetida entre Personagens do padrão: os dois voltam ao padrã
   const salvo = withChange((r) => {
     const dev = r.personagens.find((a) => a.key === "dev")!;
     dev.matricula = "RH-0005"; // a do testador
-    dev.nome = "Bia Editada";
-    r.personagens.find((a) => a.key === "testador")!.nome = "Rafa Editado";
+    dev.nome = "Kauã Editado";
+    r.personagens.find((a) => a.key === "testador")!.nome = "Érica Editada";
     r.personagens.push(extra);
   });
   fs.writeFileSync(file, JSON.stringify(salvo));
@@ -139,32 +139,35 @@ test("matrícula repetida entre Personagens do padrão: os dois voltam ao padrã
 
 const corpo = (change: (r: Roster) => void = () => {}) => withChange(change);
 
-test("PUT: aplica só os campos editáveis e mantém papel, cordão, matrícula e falas", () => {
+test("PUT: aplica só os campos editáveis (roupa e cores inclusive) e mantém papel, matrícula e falas", () => {
   const r = aplicarPut(
     DEFAULT_ROSTER,
     corpo((c) => {
-      const bia = c.personagens.find((a) => a.key === "dev")!;
-      bia.apelido = "BEA";
-      bia.acessorios = ["capacete-branco"];
-      bia.papel = "lider";
-      bia.cordao = "#123456";
-      bia.matricula = "RH-9999";
-      bia.cargo = "Chefona";
-      bia.falas = ["x", "y", "z"];
+      const kaua = c.personagens.find((a) => a.key === "dev")!;
+      kaua.apelido = "KAU";
+      kaua.acessorios = ["bone"];
+      kaua.roupa = "jaqueta";
+      kaua.corRoupa = "vinho";
+      kaua.corInterna = "creme";
+      kaua.papel = "lider";
+      kaua.matricula = "RH-9999";
+      kaua.cargo = "Chefão";
+      kaua.falas = ["x", "y", "z"];
     }),
   );
   assert.ok(r.ok, !r.ok ? r.erros.join(" | ") : "");
-  const bia = r.roster.personagens.find((a) => a.key === "dev")!;
+  const kaua = r.roster.personagens.find((a) => a.key === "dev")!;
   const padrao = DEFAULT_ROSTER.personagens.find((a) => a.key === "dev")!;
-  assert.equal(bia.apelido, "BEA");
-  assert.deepEqual(bia.acessorios, ["capacete-branco"]);
-  assert.deepEqual([bia.papel, bia.cordao, bia.matricula, bia.cargo, bia.falas], [padrao.papel, padrao.cordao, padrao.matricula, padrao.cargo, padrao.falas]);
+  assert.equal(kaua.apelido, "KAU");
+  assert.deepEqual(kaua.acessorios, ["bone"]);
+  assert.deepEqual([kaua.roupa, kaua.corRoupa, kaua.corInterna], ["jaqueta", "vinho", "creme"]);
+  assert.deepEqual([kaua.papel, kaua.matricula, kaua.cargo, kaua.falas], [padrao.papel, padrao.matricula, padrao.cargo, padrao.falas]);
 });
 
 test("PUT: o cargo acompanha o gênero", () => {
-  const r = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.personagens.find((a) => a.key === "dev")!.genero = "masculino")));
+  const r = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.personagens.find((a) => a.key === "dev")!.genero = "feminino")));
   assert.ok(r.ok);
-  assert.equal(r.roster.personagens.find((a) => a.key === "dev")!.cargo, "Desenvolvedor");
+  assert.equal(r.roster.personagens.find((a) => a.key === "dev")!.cargo, "Desenvolvedora");
 });
 
 test("PUT: lista vazia, key desconhecida, faltando ou repetida dão erro", () => {
@@ -180,9 +183,9 @@ test("PUT: lista vazia, key desconhecida, faltando ou repetida dão erro", () =>
 });
 
 test("PUT: valores inválidos nos campos editáveis são recusados", () => {
-  const r = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.personagens[0].roupa = "polo")));
+  const r = aplicarPut(DEFAULT_ROSTER, corpo((c) => ((c.personagens[0] as { roupa: string }).roupa = "polo")));
   assert.equal(r.ok, false);
-  const r2 = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.personagens[3].acessorios = ["headset", "capacete-amarelo"])));
+  const r2 = aplicarPut(DEFAULT_ROSTER, corpo((c) => (c.personagens[3].acessorios = ["headset", "gorro"])));
   assert.ok(!r2.ok && r2.erros.some((e) => /no máximo 1 acessório na camada cabeca/.test(e)));
 });
 
@@ -194,10 +197,10 @@ test("PUT: atualizadoEm sempre avança, mesmo com relógio igual", () => {
 });
 
 test("load: elenco antigo com 2 acessórios na mesma camada fica com o primeiro", () => {
-  fs.writeFileSync(file, JSON.stringify(withChange((r) => (r.personagens[3].acessorios = ["headset", "capacete-branco", "relogio"]))));
+  fs.writeFileSync(file, JSON.stringify(withChange((r) => (r.personagens[3].acessorios = ["headset", "bone", "relogio"]))));
   const r = loadRoster(file);
   assert.deepEqual(r.personagens[3].acessorios, ["headset", "relogio"]);
-  assert.equal(r.personagens[3].apelido, "BIA");
+  assert.equal(r.personagens[3].apelido, "KAUÃ");
 });
 
 test('PUT: aceita a frase e as responsabilidades do crachá ("O que eu faço")', () => {

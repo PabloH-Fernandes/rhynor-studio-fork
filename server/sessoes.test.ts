@@ -23,11 +23,11 @@ test("bug 1: subagente retomado por SendMessage em menos de 2 min volta trabalha
 
   // entregou: de boa na mesa
   const entregou = reproduzir(ate(linhas, 15)).state;
-  assert.equal(agentePorNome(entregou, "Bia")?.status, "ocioso");
+  assert.equal(agentePorNome(entregou, "Kauã")?.status, "ocioso");
 
   // 30 s depois do Stop, o Edit do mesmo agent_id chega: nada é descartado
   const { state } = reproduzir(ate(linhas, 40));
-  const bia = agentePorNome(state, "Bia")!;
+  const bia = agentePorNome(state, "Kauã")!;
   assert.equal(bia.id, "p:dev");
   assert.equal(bia.status, "trabalhando");
   assert.equal(bia.activity, describeTool("Edit", { file_path: "/home/usuario/projeto-exemplo/src/login.ts" }));
@@ -43,20 +43,20 @@ test("bug 1: eventos 2+ min depois do SubagentStop ainda vão para o mesmo bonec
   assert.equal(bia.activity, "Rodando os testes");
   assert.equal(bia.tasksDone, 2);
   assert.equal(subs(linhas).length, 1);
-  // ninguém mais recebeu o trabalho dela (nem a Sofia, o curinga)
+  // ninguém mais recebeu o trabalho dela (nem o Ícaro, o curinga)
   assert.ok(!linhaDoTempo.some((m) => m.id !== bia.id && m.atividade === "Rodando os testes"));
-  // o boneco da Bia passou por ocioso (2 entregas) e voltou a trabalhar nas duas retomadas
+  // o boneco do Kauã passou por ocioso (2 entregas) e voltou a trabalhar nas duas retomadas
   const daBia = linhaDoTempo.filter((m) => m.id === bia.id).map((m) => m.status);
   assert.equal(daBia.at(-1), "trabalhando");
   assert.equal(daBia.filter((s) => s === "ocioso").length, 2);
 });
 
-test("3 subagentes em paralelo (dev, dev, testador) → Bia, Yasmin e Rafa, cada um com a própria atividade", () => {
+test("3 subagentes em paralelo (dev, dev, testador) → Kauã, Vini e Érica, cada um com a própria atividade", () => {
   const linhas = carregar("tres-em-paralelo.jsonl");
   const { state } = reproduzir(ate(linhas, 6));
-  const bia = agentePorNome(state, "Bia");
-  const yasmin = agentePorNome(state, "Yasmin");
-  const rafa = agentePorNome(state, "Rafa");
+  const bia = agentePorNome(state, "Kauã");
+  const yasmin = agentePorNome(state, "Vini");
+  const rafa = agentePorNome(state, "Érica");
   assert.deepEqual(
     [bia?.personagem, yasmin?.personagem, rafa?.personagem],
     ["dev", "dev-2", "testador"],
@@ -68,11 +68,11 @@ test("3 subagentes em paralelo (dev, dev, testador) → Bia, Yasmin e Rafa, cada
   for (const a of [bia, yasmin, rafa]) assert.equal(a?.status, "trabalhando");
 });
 
-test("bug 2: evento de outro agent_id (sem agent_type) não mexe na Bia; sem agent_id só no líder", () => {
+test("bug 2: evento de outro agent_id (sem agent_type) não mexe no Kauã; sem agent_id só no líder", () => {
   const linhas = carregar("tres-em-paralelo.jsonl");
   const antes = reproduzir(ate(linhas, 6)).state;
   const time = (s: typeof antes) =>
-    ["Bia", "Yasmin", "Rafa"].map((n) => {
+    ["Kauã", "Vini", "Érica"].map((n) => {
       const a = agentePorNome(s, n)!;
       return { id: a.id, status: a.status, activity: a.activity, updatedAt: a.updatedAt };
     });
@@ -96,12 +96,12 @@ test("retomada por SendMessage: 1 linha \"foi chamada de novo\" por retomada (Se
   const snap = state.snapshot();
   if (snap.type !== "snapshot") throw new Error("devia ser snapshot");
   const deNovo = snap.feed.filter((f) => f.agentId === "p:dev" && f.categoria === "chegada" && /de novo/.test(f.simples ?? ""));
-  // a fixture tem 2 retomadas da Bia, cada uma com SendMessage do líder e depois eventos dela
+  // a fixture tem 2 retomadas do Kauã, cada uma com SendMessage do líder e depois eventos dela
   assert.deepEqual(
     deNovo.map((f) => [f.quem, f.simples, f.text]),
     [
-      ["Bia", "foi chamada de novo para ajudar", "foi chamado de novo"],
-      ["Bia", "foi chamada de novo para ajudar", "foi chamado de novo"],
+      ["Kauã", "foi chamado de novo para ajudar", "foi chamado de novo"],
+      ["Kauã", "foi chamado de novo para ajudar", "foi chamado de novo"],
     ],
   );
 });

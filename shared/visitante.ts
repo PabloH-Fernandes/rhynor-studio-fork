@@ -1,5 +1,5 @@
 // Quem é visitante: subagente (tem parentId) cujo papel NÃO é um dos 6 do time. Inclui os
-// convidados do elenco (Iara, Jorge, Sofia) e os extras sem Personagem (p:extra:<id>). As variações
+// convidados do elenco (Diego, Cida, Ícaro) e os extras sem Personagem (p:extra:<id>). As variações
 // do time (dev-2, pesquisador-2) têm o mesmo papel do principal, então continuam sendo do time.
 // Um módulo só, usado pelo servidor e pelo front, para a lista de papéis não ser duplicada.
 
