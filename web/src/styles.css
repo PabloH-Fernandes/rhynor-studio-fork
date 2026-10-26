@@ -28,9 +28,9 @@
   --clip-metal: var(--rh-aco);
   --clip-metal-edge: var(--rh-ardosia);
   --cordao-visitante: var(--rh-aco);
-  --pixel: "Press Start 2P", monospace;
-  --term: "VT323", monospace;
-  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --pixel: var(--rh-fonte-pixel);
+  --term: var(--rh-fonte-pixel-texto);
+  --sans: var(--rh-fonte-texto);
   --sombra-dura: var(--rh-noite); /* sombra de jogo: dura, sem blur */
   /* texto corrido do painel em pixel legível: a VT323 a 20px equivale a ~14px de sans */
   --fs-texto: 20px;

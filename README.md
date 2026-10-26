@@ -310,7 +310,7 @@ Toca de novo o que o time fez num dia, num segundo escritório dentro do painel.
 - **Som** (no topo, ao lado do indicador de conexão): sons sintetizados no navegador, em volume baixo. Um **bip duplo** quando alguém passa a te esperar (o **!**), um **ding** quando um personagem entrega uma tarefa e cliques leves de teclado enquanto alguém trabalha (no máximo ~4 por segundo). Vem **ligado**; o botão desliga e o navegador lembra. Navegadores só liberam áudio depois de um clique ou tecla na página. Ao abrir ou reconectar o painel, nada toca.
 - Visual de jogo em pixel: molduras em degrau, letras pixeladas e botões que afundam ao clicar.
 
-As frases ficam em `shared/frases.ts` (reexportadas por `server/frases.ts`). As fontes são Press Start 2P (títulos) e VT323 (texto).
+As frases ficam em `shared/frases.ts` (reexportadas por `server/frases.ts`). As fontes são locais, em `assets/fontes/` (licenças em `assets/fontes/LICENCAS.md`): Space Grotesk, Inter, JetBrains Mono, Silkscreen e VT323.
 
 ## Modelos por função e gasto de tokens
 
