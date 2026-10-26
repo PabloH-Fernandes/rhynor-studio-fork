@@ -3,14 +3,14 @@
 // mexa em DESKS, OVERFLOW_SPOTS, COFFEE_SPOTS e REST_SPOTS.
 // As colunas 32 a 36 são a ala de descanso (ping-pong, bebedouro, 3ª mesa de convidado).
 
-import { navyAlpha, palette, theme, roleColor } from "../theme";
-import { RHYNOR_LETTERS, STUDIO_PLAQUE, bitmapWidth, drawBitmap } from "./agMark";
+import { inkAlpha, navyAlpha, palette, theme, roleColor } from "../theme";
+import { comAlfa } from "../marca/cores";
+import { RHYNOR_LETTERS, STUDIO_LETTERS, STUDIO_PLAQUE, bitmapWidth, drawBitmap } from "./pixelMarca";
 import {
   SOFA_GRAY,
   SOFA_NAVY,
   bakeLogo,
   disc,
-  drawBridgePainting,
   drawCoatRack,
   drawCoffeeTable,
   drawCredenza,
@@ -20,8 +20,9 @@ import {
   drawPrinter,
   drawReception,
   drawSofa,
-  drawTowerPainting,
-  drawRollShelf,
+  drawSeriesPosterCity,
+  drawSeriesPosterFilm,
+  drawStudioShelf,
   drawWaterCooler,
   drawWindowView,
   fill,
@@ -390,28 +391,28 @@ export function drawFloor(ctx: Ctx) {
   for (let y = px(AISLE_Y) - 11; y < px(AISLE_Y) + 12; y += 3) rect(ctx, 7, y, 6, 1, palette.navy700);
 }
 
-/** janelas com céu, nuvens e obra (guindaste girando, prédio subindo): todo quadro, por cima da parede */
+/** janelas com céu, nuvens e a cidade (prédios, antena piscando): todo quadro, por cima da parede */
 export function drawWindows(ctx: Ctx, t: number, light?: WindowLight) {
   for (const win of WINDOWS) drawWindow(ctx, win.x, win.view, t, light);
 }
 
 // ------------------------------------------------------------------ parede
 // Layout da parede (px base, da esquerda pra direita, sem sobreposição):
-//   janela 4–48 · janela 54–98 · quadro da ponte 106–130 · estante de rolos 136–160 ·
+//   janela 4–48 · janela 54–98 · pôster da cidade 106–130 · estante do estúdio 136–160 ·
 //   relógio ~166–186 · placa da recepção 204–308 · quadro de etapas 318–404 (bandeja até y 39,
-//   acima do friso) · quadro da torre 410–434 · janela 440–484 ·
+//   acima do friso) · pôster do filme 410–434 · janela 440–484 ·
 //   janela 490–534 · plaquinha "RHYNOR STUDIO" 539–574 (em cima da ala de descanso)
 
 const WALL_H = WALL_ROWS * TILE; // 48
-/** friso branco (1px) e lambril marinho embaixo dele, até o chão */
+/** friso (1px) e lambril escuro embaixo dele, até o chão */
 const TRIM_Y = 39;
 
 /** janelas: x da moldura externa (44 px de largura) e o que se vê pelo vidro */
 const WINDOWS: { x: number; view: WindowView }[] = [
-  { x: 4, view: { kind: "crane", mast: 10, phase: 0 } },
-  { x: 54, view: { kind: "construction", variant: 0 } },
-  { x: 440, view: { kind: "construction", variant: 1 } },
-  { x: 490, view: { kind: "crane", mast: 27, phase: 2.4, moon: { x: 4, y: 3 } } },
+  { x: 4, view: { kind: "cidade", seed: 3, antena: 12 } },
+  { x: 54, view: { kind: "cidade", seed: 11 } },
+  { x: 440, view: { kind: "cidade", seed: 23 } },
+  { x: 490, view: { kind: "cidade", seed: 37, antena: 22, moon: { x: 4, y: 3 } } },
 ];
 const WIN_W = 44;
 const WIN_Y = 4;
@@ -447,13 +448,13 @@ function drawWall(ctx: Ctx) {
     for (let x = off; x < W; x += 64) rect(ctx, x, rowTop, 1, 12, c.wallJoint);
   }
   for (let x = 16; x < W; x += 64) rect(ctx, x, 26, 1, TRIM_Y - 26, c.wallJoint);
-  // friso + lambril marinho
+  // friso + lambril escuro
   rect(ctx, 0, TRIM_Y, W, 1, c.trim);
   rect(ctx, 0, TRIM_Y + 1, W, 1, c.wainscotTop);
   rect(ctx, 0, TRIM_Y + 2, W, WALL_H - TRIM_Y - 2, c.wainscot);
   for (let x = 24; x < W; x += 48) rect(ctx, x, TRIM_Y + 3, 1, WALL_H - TRIM_Y - 4, c.wainscotTop);
   rect(ctx, 0, WALL_H - 1, W, 1, palette.navy950);
-  // sombra da parede no chão (azulada, some em 3 linhas)
+  // sombra da parede no chão (some em 3 linhas)
   ctx.fillStyle = c.wallShadow;
   ctx.fillRect(0, WALL_H, W, 3);
   ctx.fillRect(0, WALL_H, W, 2);
@@ -462,7 +463,7 @@ function drawWall(ctx: Ctx) {
 
 function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number, light?: WindowLight) {
   const glass = { x: x + 2, y: WIN_Y + 2, w: WIN_W - 4, h: WIN_H - 4 };
-  // moldura branca com contorno cinza (destaca da parede clara)
+  // moldura clara com contorno de aço (destaca da parede)
   rect(ctx, x - 1, WIN_Y - 1, WIN_W + 2, WIN_H + 2, palette.gray300);
   rect(ctx, x, WIN_Y, WIN_W, WIN_H, palette.white);
 
@@ -473,7 +474,7 @@ function drawWindow(ctx: Ctx, x: number, view: WindowView, t: number, light?: Wi
   drawWindowView(ctx, glass, view, t, light);
   // reflexos diagonais de 1px, bem fracos
   // (à noite mais fracos, pra não riscarem o céu escuro)
-  const glint = `rgba(255,255,255,${(0.22 * (1 - 0.6 * (light?.night ?? 0))).toFixed(2)})`;
+  const glint = comAlfa("rh-nevoa", 0.22 * (1 - 0.6 * (light?.night ?? 0)));
   line(ctx, glass.x + 3, glass.y + 9, glass.x + 11, glass.y + 1, glint);
   line(ctx, glass.x + 6, glass.y + 9, glass.x + 14, glass.y + 1, glint);
   line(ctx, glass.x + 24, glass.y + 23, glass.x + 33, glass.y + 14, glint);
@@ -521,13 +522,13 @@ function bakedLogo(img: HTMLImageElement, k: number): HTMLCanvasElement | null {
   return canvas;
 }
 
-/** Placa da recepção com a logo em pixels duros (ou "RHYNOR" em pixel sem imagem). */
+/** Letreiro da recepção: logo em pixels duros (se houver logoUrl) ou "RHYNOR" grande e "STUDIO" embaixo. */
 export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
   const c = theme.colors;
   const { x, y, w, h } = SIGN;
   // sombra de 1px na parede
-  rect(ctx, x + 1, y + h, w, 1, "rgba(2,11,28,0.25)");
-  rect(ctx, x + w, y + 1, 1, h, "rgba(2,11,28,0.25)");
+  rect(ctx, x + 1, y + h, w, 1, inkAlpha(0.25));
+  rect(ctx, x + w, y + 1, 1, h, inkAlpha(0.25));
   rect(ctx, x, y, w, h, c.outline);
   rect(ctx, x + 1, y + 1, w - 2, h - 2, c.sign);
 
@@ -546,7 +547,7 @@ export function drawSign(ctx: Ctx, logo: HTMLImageElement | null) {
     ctx.drawImage(baked, Math.round(lx * m.a + m.e), Math.round(ly * m.d + m.f));
     ctx.restore();
   } else {
-    drawBitmap(ctx, RHYNOR_LETTERS, x + (w - bitmapWidth(RHYNOR_LETTERS) * 2) / 2, y + (h - 16) / 2, c.signText, 2);
+    drawSignLetters(ctx, c.signText);
   }
   // parafusos nos cantos
   for (const [sx, sy] of [
@@ -583,15 +584,26 @@ export function drawSignGlow(ctx: Ctx, logo: HTMLImageElement | null) {
     ctx.drawImage(baked, Math.round(lx * m.a + m.e), Math.round(ly * m.d + m.f));
     ctx.restore();
   } else {
-    drawBitmap(ctx, RHYNOR_LETTERS, x + (w - bitmapWidth(RHYNOR_LETTERS) * 2) / 2, y + (h - 16) / 2, theme.colors.signText, 2);
+    drawSignLetters(ctx, theme.colors.signText);
   }
+}
+
+/** "RHYNOR" (letras 6x8 em escala 2) e "STUDIO" (4x5) centralizados no letreiro */
+function drawSignLetters(ctx: Ctx, color: string) {
+  const { x, y, w, h } = SIGN;
+  const bigW = bitmapWidth(RHYNOR_LETTERS) * 2;
+  const smallW = bitmapWidth(STUDIO_LETTERS);
+  const total = 16 + 3 + 5;
+  const top = y + Math.floor((h - total) / 2);
+  drawBitmap(ctx, RHYNOR_LETTERS, x + Math.floor((w - bigW) / 2), top, color, 2);
+  drawBitmap(ctx, STUDIO_LETTERS, x + Math.floor((w - smallW) / 2), top + 19, color);
 }
 
 /** Relógio de parede com a hora real (disco em pixel, ponteiros de 1px). */
 export function drawClock(ctx: Ctx, now: Date) {
   const cx = 176;
   const cy = 21;
-  rect(ctx, cx - 8, cy + 11, 18, 1, "rgba(2,11,28,0.18)"); // sombra
+  rect(ctx, cx - 8, cy + 11, 18, 1, inkAlpha(0.18)); // sombra
   disc(ctx, cx, cy, 10, theme.colors.outline);
   disc(ctx, cx, cy, 9, palette.navy800);
   disc(ctx, cx, cy, 8, palette.white);
@@ -732,8 +744,8 @@ function boardCheck(ctx: Ctx, x: number, y: number) {
 export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
   const { x, y, w, h } = BOARD;
   const pr = data.progresso;
-  rect(ctx, x + 1, y + h, w, 1, "rgba(2,11,28,0.18)");
-  rect(ctx, x + w, y + 1, 1, h, "rgba(2,11,28,0.18)");
+  rect(ctx, x + 1, y + h, w, 1, inkAlpha(0.18));
+  rect(ctx, x + w, y + 1, 1, h, inkAlpha(0.18));
   rect(ctx, x, y, w, h, palette.gray400); // moldura de alumínio
   rect(ctx, x, y, w, 1, palette.gray300);
   rect(ctx, x + 2, y + 2, w - 4, h - 4, palette.white);
@@ -813,21 +825,21 @@ export function drawBoard(ctx: Ctx, data: BoardData, k = 2) {
 
 /** Quadros e estante da parede (estáticos). */
 export function drawDecor(ctx: Ctx) {
-  drawBridgePainting(ctx, 106, 9);
-  drawRollShelf(ctx, 136, 9, 24, 39);
-  drawTowerPainting(ctx, 410, 9);
-  drawPocketPlaque(ctx);
+  drawSeriesPosterCity(ctx, 106, 9);
+  drawStudioShelf(ctx, 136, 9, 24, 39);
+  drawSeriesPosterFilm(ctx, 410, 9);
+  drawStudioPlaque(ctx);
 }
 
 /** plaquinha "RHYNOR STUDIO" na parede da ala (px base) */
-export const POCKET_PLAQUE = { x: 539, y: 9, w: 35, h: 18 } as const;
+export const STUDIO_PLAQUE_RECT = { x: 539, y: 9, w: 35, h: 18 } as const;
 
-/** Plaquinha marinho com cantos em degrau e "RHYNOR / STUDIO" branco em pixel bold (bitmap do agMark). */
-function drawPocketPlaque(ctx: Ctx) {
-  const { x, y, w, h } = POCKET_PLAQUE;
+/** Plaquinha ardósia com cantos em degrau e "RHYNOR / STUDIO" em névoa, pixel bold (bitmap de pixelMarca). */
+function drawStudioPlaque(ctx: Ctx) {
+  const { x, y, w, h } = STUDIO_PLAQUE_RECT;
   // sombra de 1px na parede, acompanhando o degrau de baixo
-  rect(ctx, x + 2, y + h, w - 3, 1, "rgba(2,11,28,0.25)");
-  rect(ctx, x + w, y + 2, 1, h - 3, "rgba(2,11,28,0.25)");
+  rect(ctx, x + 2, y + h, w - 3, 1, inkAlpha(0.25));
+  rect(ctx, x + w, y + 2, 1, h - 3, inkAlpha(0.25));
   // contorno e fundo com 2 degraus em cada canto
   const stepped = (ox: number, oy: number, ow: number, oh: number, color: string) => {
     fill(ctx, ox + 2, oy, ow - 4, oh, color);
@@ -835,11 +847,11 @@ function drawPocketPlaque(ctx: Ctx) {
     fill(ctx, ox, oy + 2, ow, oh - 4, color);
   };
   stepped(x, y, w, h, theme.colors.outline);
-  stepped(x + 1, y + 1, w - 2, h - 2, palette.navy900);
+  stepped(x + 1, y + 1, w - 2, h - 2, palette.navy700);
   drawBitmap(ctx, STUDIO_PLAQUE, x + 3, y + 3, palette.white);
 }
 
-/** Mesa de reunião redonda com uma maquete de obra no centro (desenhada ordenada por y). */
+/** Mesa de reunião redonda com um storyboard no centro (desenhada ordenada por y). */
 export function drawMeetingTable(ctx: Ctx) {
   const c = theme.colors;
   const cx = px(16);
@@ -848,8 +860,8 @@ export function drawMeetingTable(ctx: Ctx) {
   oval(ctx, cx, cy + 3, 25, 12, c.woodShade);
   oval(ctx, cx, cy, 25, 12, c.woodLight);
   oval(ctx, cx - 4, cy - 3, 17, 7, mix(c.woodLight, palette.white, 0.1));
-  drawMaquette(ctx, cx, cy);
-  // caneca branca com café
+  drawStoryboard(ctx, cx, cy);
+  // caneca clara com café
   rect(ctx, cx - 19, cy - 3, 4, 4, palette.navy950);
   rect(ctx, cx - 18, cy - 2, 2, 2, palette.white);
   rect(ctx, cx - 18, cy - 2, 2, 1, c.woodShade);
@@ -874,44 +886,26 @@ export function drawStool(ctx: Ctx, x: number, y: number) {
   rect(ctx, x - 5, y - 1, 10, 1, F.oakShade);
 }
 
-/** maquete: base verde, 3 prédios brancos/cinza com janelas de 1px e um mini guindaste marinho */
-function drawMaquette(ctx: Ctx, cx: number, cy: number) {
-  const D = palette.decor;
-  // base 18x8 (com a espessura embaixo), rua clara na frente e arvorezinhas
-  rect(ctx, cx - 10, cy - 5, 20, 11, palette.navy950);
-  rect(ctx, cx - 9, cy - 4, 18, 8, D.maquette);
-  rect(ctx, cx - 9, cy + 4, 18, 1, D.maquetteShade);
-  rect(ctx, cx - 9, cy + 2, 18, 1, palette.gray200);
-  for (const tx of [cx - 8, cx + 1, cx + 6]) rect(ctx, tx, cy + 3, 1, 1, palette.furniture.leafDark);
-  const ground = cy; // pé dos prédios
-  const block = (x: number, w: number, h: number, body: string, topColor: string, shade: string) => {
-    const y = ground - h;
-    rect(ctx, x - 1, y - 1, w + 2, h + 1, palette.navy950);
-    rect(ctx, x, y, w, h, body);
-    rect(ctx, x + w - 1, y, 1, h, shade);
-    rect(ctx, x, y, w, 1, topColor);
-    for (let wy = y + 2; wy < ground - 1; wy += 2) {
-      for (let wx = x + 1; wx < x + w - 1; wx += 2) rect(ctx, wx, wy, 1, 1, palette.navy500);
-    }
-  };
-  block(cx - 7, 4, 7, palette.gray50, palette.white, palette.gray150);
-  block(cx - 2, 5, 11, palette.gray200, palette.gray50, palette.gray300);
-  block(cx + 4, 3, 5, palette.gray150, palette.gray50, palette.gray300);
-  // mini guindaste: torre, lança sobre os prédios, contrapeso e carga no cabo
-  const steel = palette.navy800;
-  const mast = cx + 8;
-  const jibY = cy - 12;
-  rect(ctx, mast, jibY, 1, ground - jibY + 1, steel);
-  rect(ctx, mast + 1, jibY, 1, ground - jibY + 1, palette.navy600);
-  rect(ctx, mast, jibY - 2, 1, 2, steel);
-  rect(ctx, cx - 1, jibY, mast - (cx - 1), 1, steel);
-  for (let tx = cx + 3; tx < mast; tx += 2) rect(ctx, tx, jibY + 1, 1, 1, palette.navy600); // treliça
-  rect(ctx, mast + 2, jibY, 3, 1, steel);
-  rect(ctx, mast + 3, jibY + 1, 2, 1, palette.gray600);
-  line(ctx, mast, jibY - 2, cx + 2, jibY - 1, steel);
-  rect(ctx, cx + 1, jibY + 1, 1, 2, palette.gray600);
-  rect(ctx, cx, jibY + 3, 3, 1, palette.gray400);
-  rect(ctx, mast, jibY - 3, 1, 1, palette.signal.craneLight);
+/** storyboard: 6 quadrinhos em 2 fileiras sobre uma folha clara, com rabiscos de cena e um lápis */
+function drawStoryboard(ctx: Ctx, cx: number, cy: number) {
+  // folha com contorno escuro (e a espessura embaixo)
+  rect(ctx, cx - 11, cy - 7, 22, 13, palette.navy950);
+  rect(ctx, cx - 10, cy - 6, 20, 11, palette.white);
+  rect(ctx, cx - 10, cy + 4, 20, 1, palette.gray150);
+  // 6 quadros 5x3 com uma cena simples cada
+  for (let i = 0; i < 6; i++) {
+    const qx = cx - 9 + (i % 3) * 6;
+    const qy = cy - 5 + Math.floor(i / 3) * 5;
+    rect(ctx, qx, qy, 5, 4, palette.gray300);
+    rect(ctx, qx + 1, qy + 1, 3, 2, palette.gray100);
+    // rabisco: horizonte, personagem ou objeto
+    if (i % 3 === 0) rect(ctx, qx + 1, qy + 2, 3, 1, palette.navy600);
+    else if (i % 3 === 1) rect(ctx, qx + 2, qy + 1, 1, 2, palette.navy700);
+    else rect(ctx, qx + 1, qy + 1, 1, 1, palette.signal.alert);
+  }
+  // lápis deitado ao lado
+  rect(ctx, cx + 6, cy + 6, 6, 1, palette.props.pencil);
+  rect(ctx, cx + 12, cy + 6, 1, 1, palette.props.pencilTip);
 }
 
 /** Cantinho do café (embaixo, antes da ala de descanso): balcão marinho com tampo claro. */
@@ -938,7 +932,7 @@ export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean, still = fal
   // vapor saindo da xícara branca (à direita de quem está no café), ondulando 1px
   if (busy && !still) {
     const k = Math.floor(t / 250) % 4;
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillStyle = comAlfa("rh-nevoa", 0.8);
     for (let j = 0; j < 4; j++) {
       const wave = (j + k) % 2;
       ctx.fillRect(x + 35 + wave, y - 7 - j * 2, 1, 2);
@@ -989,7 +983,7 @@ export const PROPS: Prop[] = [
   { y: 104, draw: (ctx) => drawSofa(ctx, 24, 104, 48, 2, SOFA_NAVY, { pillow: true }) },
   { y: 100, draw: (ctx) => drawCoffeeTable(ctx, 78, 100) },
   { y: FLOOR_LAMP.y, draw: (ctx) => drawFloorLamp(ctx, FLOOR_LAMP.x, FLOOR_LAMP.y) },
-  // cima à direita: multifuncional, cabideiro com capacetes e poltrona
+  // cima à direita: multifuncional, arara de figurino e poltrona
   { y: 100, draw: (ctx, t) => drawPrinter(ctx, 300, 100, t), live: true },
   { y: 100, draw: (ctx) => drawCoatRack(ctx, 350, 100) },
   { y: 104, draw: (ctx) => drawSofa(ctx, 440, 104, 30, 1, SOFA_NAVY) },
@@ -1001,7 +995,7 @@ export const PROPS: Prop[] = [
   { y: 286, draw: (ctx) => drawPlant(ctx, 98, 286) },
   { y: 285, draw: (ctx) => drawSofa(ctx, 110, 285, 56, 2, SOFA_GRAY, { tall: false }) },
   { y: 286, draw: (ctx) => drawPlant(ctx, 262, 286) },
-  // credenza marinho com rolos de projeto (termina em x 395, fora da lane 408)
+  // credenza com HDs e estojos (termina em x 395, fora da lane 408)
   { y: 285, draw: (ctx) => drawCredenza(ctx, 330, 285, 66) },
 ];
 
@@ -1019,8 +1013,9 @@ export function drawDesk(
 
   // sombra
   rect(ctx, x + 2, top + depth + front - 1, w, 4, navyAlpha(0.16));
-  // tampo claro com filete marinho de 2px na frente + painel frontal branco
-  rect(ctx, x - 1, top - 1, w + 2, depth + front + 2, c.outline);
+  // tampo claro com filete de 2px na frente + painel frontal claro; quem trabalha agora ganha o
+  // contorno de 1px em laranja (a luz brasa em volta vem do lightmap)
+  rect(ctx, x - 1, top - 1, w + 2, depth + front + 2, opts.active ? palette.signal.active : c.outline);
   rect(ctx, x, top, w, depth, F.oak);
   rect(ctx, x, top, w, 2, F.oakLight);
   rect(ctx, x, top + depth - 2, w, 2, palette.navy800);
@@ -1053,14 +1048,13 @@ export function drawDesk(
   rect(ctx, mx + 2, my + 13, 9, 2, palette.gray700);
 
   // caneca e papéis à esquerda
-  rect(ctx, x + 4, top + 2, 4, 4, d.role === "lider" ? roleColor("lider") : palette.white);
+  rect(ctx, x + 4, top + 2, 4, 4, palette.white);
   rect(ctx, x + 10, top + 3, 8, 5, palette.white);
   rect(ctx, x + 11, top + 5, 5, 1, palette.gray300);
 
-  // plaquinha: a função de quem está na mesa (office/deskLabel.ts), na cor do setor da mesa.
+  // plaquinha: a função de quem está na mesa (office/deskLabel.ts), ardósia com texto névoa.
   // VT323 a 7px: estreita (2,8 px por letra) e com Ç, Ã e Í de verdade. Rótulo que só cabe muito
   // espremido vira a forma curta ("DESENVOLV. 2").
-  const color = roleColor(d.role === "convidado" ? "convidado" : d.role);
   ctx.font = PLATE_FONT;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -1068,8 +1062,8 @@ export function drawDesk(
   const label = rotuloQueCabe(opts.label, maxW, (s) => ctx.measureText(s).width);
   const textW = Math.min(ctx.measureText(label).width, maxW);
   const plate = deskPlateRect(d, textW);
-  rect(ctx, plate.x, plate.y, plate.w, plate.h, color);
-  ctx.fillStyle = palette.navy950;
+  rect(ctx, plate.x, plate.y, plate.w, plate.h, palette.navy700);
+  ctx.fillStyle = palette.white;
   ctx.fillText(label, px(d.cx), plate.y + 4, maxW);
 }
 
@@ -1091,6 +1085,12 @@ export function deskPlateRect(d: Desk, textW = Infinity): Rect {
   const { w, top, depth } = deskGeom(d);
   const tw = Math.min(textW + 6, w - 4);
   return { x: Math.round(px(d.cx) - tw / 2), y: top + depth + 1, w: Math.round(tw), h: 7 };
+}
+
+/** tampo de uma mesa (px base): o lightmap acende a luz brasa em volta de quem trabalha */
+export function deskTopRect(d: Desk): Rect {
+  const { w, x, top, depth } = deskGeom(d);
+  return { x, y: top, w, h: depth + 9 };
 }
 
 /** tela do monitor de uma mesa (px base); o lightmap usa pra luz e brilho */

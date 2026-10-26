@@ -1,12 +1,14 @@
-// Iluminação pela hora real: céu, cor ambiente e quanto "é noite".
+// Iluminação do escritório: céu, cor ambiente e quanto "é noite". O padrão é a noite (22h); com o
+// "ciclo do dia" ligado no painel (studio.painel.ciclo), segue a hora real.
 // O Lightmap (fim do arquivo) escurece a cena com a cor ambiente e soma as luzes do escritório.
 // Tudo sai de chaves por hora interpoladas linearmente (0..24, a última repete a primeira).
-// `?hora=HH` (ou HH.MM / HH:MM) na URL força a hora — útil pra testes e prints.
+// `?hora=HH` (ou HH.MM / HH:MM) na URL força a hora — útil pra testes e prints. Cores dos tokens da marca.
 // Atenção: o formato é HH.MM (hora.minuto), não decimal: `?hora=7.5` é 7:05 e `?hora=7.30` é 7:30.
 
 import { palette } from "../theme";
+import { cor, derivada, misturar } from "../marca/cores";
 import { disc, hexToRgb, mix, type Rect, type WindowLight } from "./decor";
-import { AISLE_Y, BOARD, BOARD_TRAY, COFFEE_MACHINE, DESKS, FLOOR_LAMP, H, PINGPONG, POCKET_PLAQUE, RECEPTION, WATER_COOLER, SIGN_LAMP_X, TILE, W, WINDOW_PANES } from "./map";
+import { AISLE_Y, BOARD, BOARD_TRAY, COFFEE_MACHINE, DESKS, FLOOR_LAMP, H, PINGPONG, STUDIO_PLAQUE_RECT, RECEPTION, WATER_COOLER, SIGN_LAMP_X, TILE, W, WINDOW_PANES } from "./map";
 
 export type RGB = [number, number, number];
 
@@ -51,22 +53,32 @@ const lerpRgb = (a: RGB, b: RGB, t: number): RGB => [
   Math.round(lerpNum(a[2], b[2], t)),
 ];
 
-/** piso da noite: os personagens continuam visíveis mesmo sem luz nenhuma */
-const NIGHT_AMBIENT: RGB = [62, 72, 118];
-const DAY_AMBIENT: RGB = [255, 255, 255];
+/** multiplicar por branco não muda nada: é o "sem efeito" do lightmap (não é uma cor da marca) */
+const NEUTRO: RGB = [255, 255, 255];
+const rgbDe = (hex: string): RGB => hexToRgb(hex);
+/** RGB → "#rrggbb" (o lightmap monta as cores na hora) */
+const hexDe = (c: readonly number[]) => `#${c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("")}`;
 
-const AMBIENT: Key<RGB>[] = [
-  { hour: 0, v: NIGHT_AMBIENT },
-  { hour: 5, v: NIGHT_AMBIENT },
-  { hour: 6, v: [150, 120, 140] }, // amanhecer: rosado e ainda escuro
-  { hour: 7, v: [235, 210, 195] },
-  { hour: 8.5, v: DAY_AMBIENT },
-  { hour: 16.5, v: DAY_AMBIENT },
-  { hour: 18, v: [232, 212, 212] }, // entardecer: levemente rosado (não compete com o laranja de espera)
-  { hour: 19, v: [110, 105, 150] },
-  { hour: 20, v: NIGHT_AMBIENT },
-  { hour: 24, v: NIGHT_AMBIENT },
-];
+/** cor ambiente por hora, derivada dos tokens: noite em ardósia, dia nublado quase neutro */
+const AMBIENT = derivada((): Key<RGB>[] => {
+  // piso da noite: os personagens continuam visíveis mesmo sem luz nenhuma
+  const noite = rgbDe(misturar("rh-ardosia", "rh-aco", 0.3));
+  const virada = rgbDe(misturar(misturar("rh-ardosia", "rh-aco", 0.6), "rh-brasa", 0.1));
+  const quaseDia = rgbDe(misturar("rh-aco", "rh-nevoa", 0.75));
+  const nublado = rgbDe(misturar("rh-nevoa", "rh-aco", 0.1));
+  return [
+    { hour: 0, v: noite },
+    { hour: 5, v: noite },
+    { hour: 6, v: virada }, // amanhecer: ainda escuro
+    { hour: 7, v: quaseDia },
+    { hour: 8.5, v: nublado },
+    { hour: 16.5, v: nublado },
+    { hour: 18, v: quaseDia },
+    { hour: 19, v: virada },
+    { hour: 20, v: noite },
+    { hour: 24, v: noite },
+  ];
+});
 
 const NIGHT: Key<number>[] = [
   { hour: 0, v: 1 },
@@ -94,7 +106,7 @@ const DUSK: Key<number>[] = [
   { hour: 24, v: 0 },
 ];
 
-const SKY: Key<{ top: string; bottom: string }>[] = palette.sky.map((s) => ({ hour: s.hour, v: { top: s.top, bottom: s.bottom } }));
+const SKY = derivada((): Key<{ top: string; bottom: string }>[] => palette.sky.map((s) => ({ hour: s.hour, v: { top: s.top, bottom: s.bottom } })));
 
 // ------------------------------------------------------------------ hora (com override)
 
@@ -113,16 +125,30 @@ function parseHourParam(raw: string | null): number | null {
 const OVERRIDE: number | null =
   typeof window !== "undefined" ? parseHourParam(new URLSearchParams(window.location.search).get("hora")) : null;
 
-/** hora fracionada (0..24) agora, ou a do `?hora=` */
+/** hora do escritório quando o ciclo do dia está desligado: noite */
+export const NIGHT_HOUR = 22;
+
+/** ciclo do dia (hora real) ligado? O painel liga pela preferência studio.painel.ciclo. */
+let cicloReal = false;
+export function setCicloReal(ligado: boolean) {
+  cicloReal = ligado;
+}
+
+/** hora fracionada (0..24): a do `?hora=`, a real (ciclo ligado) ou a noite padrão */
 export function hourNow(date: Date = new Date()): number {
   if (OVERRIDE !== null) return OVERRIDE;
+  if (!cicloReal) return NIGHT_HOUR;
   return date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
 }
 
-/** data pro relógio de parede: com override, hora e minuto forçados (os segundos seguem o real) */
+/** data pro relógio de parede: com override, hora e minuto forçados; sem ciclo, a hora da noite (os segundos seguem o real) */
 export function clockDate(date: Date = new Date()): Date {
-  if (OVERRIDE === null) return date;
+  if (OVERRIDE === null && cicloReal) return date;
   const d = new Date(date);
+  if (OVERRIDE === null) {
+    d.setHours(NIGHT_HOUR);
+    return d;
+  }
   const h = Math.floor(OVERRIDE);
   d.setHours(h, Math.round((OVERRIDE - h) * 60));
   return d;
@@ -132,13 +158,13 @@ export function clockDate(date: Date = new Date()): Date {
 
 export function getDaylight(hour: number): Daylight {
   const h = ((hour % 24) + 24) % 24;
-  const sky = sample(SKY, h, (a, b, t) => ({ top: mix(a.top, b.top, t), bottom: mix(a.bottom, b.bottom, t) }));
+  const sky = sample(SKY(), h, (a, b, t) => ({ top: mix(a.top, b.top, t), bottom: mix(a.bottom, b.bottom, t) }));
   const night = sample(NIGHT, h, lerpNum);
   return {
     hour: h,
     skyTop: sky.top,
     skyBottom: sky.bottom,
-    ambient: sample(AMBIENT, h, lerpRgb),
+    ambient: sample(AMBIENT(), h, lerpRgb),
     night,
     dusk: sample(DUSK, h, lerpNum),
     lightsOn: night > 0.35,
@@ -148,7 +174,7 @@ export function getDaylight(hour: number): Daylight {
 
 /** dia pleno: o lightmap não muda nada e pode ser pulado */
 export function isFullDay(d: Daylight): boolean {
-  return d.night <= 0 && d.ambient[0] >= 255 && d.ambient[1] >= 255 && d.ambient[2] >= 255;
+  return d.night <= 0 && d.ambient.every((v, i) => v >= NEUTRO[i]);
 }
 
 /** o que a janela precisa saber da luz do momento */
@@ -165,6 +191,8 @@ export interface LightScene {
   /** telas com o "!" de esperando: não escurecem, mas não iluminam em volta */
   waitingScreens: Rect[];
   coffeeBusy: boolean;
+  /** tampos das mesas de quem está trabalhando (brilho laranja de 1px + luz brasa) */
+  activeDesks?: Rect[];
 }
 
 /**
@@ -174,7 +202,9 @@ export interface LightScene {
  */
 const REBUILD_MS = 5000;
 /** raio (px base), cor e força de cada luz; a força ainda é multiplicada por "night" */
-const LIGHT = {
+const LIGHT = derivada(() => ({
+  /** brilho da mesa de quem trabalha: luz brasa */
+  active: { r: 12, color: hexToRgb(palette.signal.activeGlow), power: 0.55 },
   monitor: { r: 14, color: hexToRgb(palette.night.monitorLight), power: 0.75 },
   lamp: { r: 30, color: hexToRgb(palette.night.warmLight), power: 0.9 },
   sconce: { r: 30, color: hexToRgb(palette.night.warmLight), power: 1 },
@@ -188,7 +218,7 @@ const LIGHT = {
   ala: { r: 38, color: hexToRgb(palette.night.ceilingLight), power: 0.45 },
   /** luz fraca sobre o bebedouro (sem ela ele some na ala escura) */
   cooler: { r: 20, color: hexToRgb(palette.night.ceilingLight), power: 0.4 },
-} as const;
+}));
 
 /** centros das luzes do corredor: 4 faixas iguais da porta até a ala */
 const AISLE_LIGHTS_X = [0, 1, 2, 3].map((i) => Math.round(((i + 0.5) * W) / 4));
@@ -203,12 +233,12 @@ function addLight(g: CanvasRenderingContext2D, x: number, y: number, r: number, 
   const total = (bands * (bands + 1)) / 2;
   for (let b = 0; b < bands; b++) {
     const q = (power * (b + 1)) / total;
-    disc(g, x, y, Math.max(1, Math.round((r * (bands - b)) / bands)), `rgb(${Math.round(color[0] * q)}, ${Math.round(color[1] * q)}, ${Math.round(color[2] * q)})`);
+    disc(g, x, y, Math.max(1, Math.round((r * (bands - b)) / bands)), hexDe(color.map((v) => v * q)));
   }
 }
 
 const sceneKey = (s: LightScene) =>
-  `${s.activeScreens.map((r) => `${r.x},${r.y}`).join(";")}|${s.waitingScreens.map((r) => `${r.x},${r.y}`).join(";")}|${s.coffeeBusy}`;
+  `${(s.activeDesks ?? []).map((r) => `${r.x},${r.y}`).join(";")}|${s.activeScreens.map((r) => `${r.x},${r.y}`).join(";")}|${s.waitingScreens.map((r) => `${r.x},${r.y}`).join(";")}|${s.coffeeBusy}`;
 
 /**
  * Mapa de luz na resolução base (W x H). Começa com a cor ambiente, abre as janelas e as telas
@@ -241,40 +271,44 @@ export class Lightmap {
     if (!g) return;
     const d = this.daylight;
     const n = d.night;
+    const L = LIGHT();
     g.globalCompositeOperation = "source-over";
-    g.fillStyle = `rgb(${d.ambient[0]}, ${d.ambient[1]}, ${d.ambient[2]})`;
+    g.fillStyle = hexDe(d.ambient);
     g.fillRect(0, 0, W, H);
     // o céu já está com a cor da hora; as telas acesas emitem a própria luz
-    g.fillStyle = "#FFFFFF";
+    g.fillStyle = hexDe(NEUTRO);
     for (const r of WINDOW_PANES) g.fillRect(r.x, r.y, r.w, r.h);
     for (const r of [...scene.activeScreens, ...scene.waitingScreens]) g.fillRect(r.x, r.y, r.w, r.h);
     // quadro de etapas (e a bandeja): piso de luz alto, pra o texto pequeno passar de 4,5:1 à noite
-    const [br, bg, bb] = [225, 230, 240].map((v, i) => Math.max(v, d.ambient[i]));
-    g.fillStyle = `rgb(${br}, ${bg}, ${bb})`;
+    g.fillStyle = hexDe(rgbDe(cor("rh-nevoa")).map((v, i) => Math.max(v, d.ambient[i])));
     g.fillRect(BOARD.x, BOARD.y, BOARD.w, BOARD.h);
     g.fillRect(BOARD_TRAY.x, BOARD_TRAY.y, BOARD_TRAY.w, BOARD_TRAY.h);
-    // plaquinha RHYNOR STUDIO: o piso de antes (marinho com letra branca não precisa de mais)
-    g.fillStyle = `rgb(${[200, 208, 228].map((v, i) => Math.max(v, d.ambient[i])).join(", ")})`;
-    g.fillRect(POCKET_PLAQUE.x, POCKET_PLAQUE.y, POCKET_PLAQUE.w, POCKET_PLAQUE.h);
+    // plaquinha RHYNOR STUDIO: piso de luz médio (escura com letra clara não precisa de mais)
+    g.fillStyle = hexDe(rgbDe(misturar("rh-aco", "rh-nevoa", 0.5)).map((v, i) => Math.max(v, d.ambient[i])));
+    g.fillRect(STUDIO_PLAQUE_RECT.x, STUDIO_PLAQUE_RECT.y, STUDIO_PLAQUE_RECT.w, STUDIO_PLAQUE_RECT.h);
 
     g.globalCompositeOperation = "lighter";
     if (d.lightsOn) {
       for (const desk of DESKS) {
-        addLight(g, desk.cx * TILE, (desk.cy + 0.3) * TILE, LIGHT.ceiling.r, LIGHT.ceiling.color, LIGHT.ceiling.power * n, 3);
+        addLight(g, desk.cx * TILE, (desk.cy + 0.3) * TILE, L.ceiling.r, L.ceiling.color, L.ceiling.power * n, 3);
       }
-      addLight(g, 16 * TILE, 11.2 * TILE, LIGHT.meeting.r, LIGHT.meeting.color, LIGHT.meeting.power * n, 3);
-      addLight(g, PINGPONG.x + (PINGPONG.w >> 1), PINGPONG.y + (PINGPONG.h >> 1), LIGHT.ala.r, LIGHT.ala.color, LIGHT.ala.power * n, 3);
-      addLight(g, WATER_COOLER.x + 7, WATER_COOLER.y - 18, LIGHT.cooler.r, LIGHT.cooler.color, LIGHT.cooler.power * n, 3);
-      for (const ax of AISLE_LIGHTS_X) addLight(g, ax, AISLE_Y * TILE, LIGHT.aisle.r, LIGHT.aisle.color, LIGHT.aisle.power * n, 3);
+      addLight(g, 16 * TILE, 11.2 * TILE, L.meeting.r, L.meeting.color, L.meeting.power * n, 3);
+      addLight(g, PINGPONG.x + (PINGPONG.w >> 1), PINGPONG.y + (PINGPONG.h >> 1), L.ala.r, L.ala.color, L.ala.power * n, 3);
+      addLight(g, WATER_COOLER.x + 7, WATER_COOLER.y - 18, L.cooler.r, L.cooler.color, L.cooler.power * n, 3);
+      for (const ax of AISLE_LIGHTS_X) addLight(g, ax, AISLE_Y * TILE, L.aisle.r, L.aisle.color, L.aisle.power * n, 3);
     }
     for (const r of scene.activeScreens) {
-      addLight(g, r.x + (r.w >> 1), r.y + (r.h >> 1), LIGHT.monitor.r, LIGHT.monitor.color, LIGHT.monitor.power * n);
+      addLight(g, r.x + (r.w >> 1), r.y + (r.h >> 1), L.monitor.r, L.monitor.color, L.monitor.power * n);
     }
-    addLight(g, FLOOR_LAMP.x, FLOOR_LAMP.y - 34, LIGHT.lamp.r, LIGHT.lamp.color, LIGHT.lamp.power * n);
-    for (const ax of SIGN_LAMP_X) addLight(g, ax, 12, LIGHT.sconce.r, LIGHT.sconce.color, LIGHT.sconce.power * n);
-    if (scene.coffeeBusy) addLight(g, COFFEE_MACHINE.x, COFFEE_MACHINE.y, LIGHT.coffee.r, LIGHT.coffee.color, LIGHT.coffee.power * n);
+    // brilho brasa em volta da mesa de quem está trabalhando agora
+    for (const r of scene.activeDesks ?? []) {
+      addLight(g, r.x + (r.w >> 1), r.y + (r.h >> 1), L.active.r, L.active.color, L.active.power * Math.max(n, 0.35));
+    }
+    addLight(g, FLOOR_LAMP.x, FLOOR_LAMP.y - 34, L.lamp.r, L.lamp.color, L.lamp.power * n);
+    for (const ax of SIGN_LAMP_X) addLight(g, ax, 12, L.sconce.r, L.sconce.color, L.sconce.power * n);
+    if (scene.coffeeBusy) addLight(g, COFFEE_MACHINE.x, COFFEE_MACHINE.y, L.coffee.r, L.coffee.color, L.coffee.power * n);
     // arandela sobre o balcão da recepção
-    addLight(g, RECEPTION.x + (RECEPTION.w >> 1), RECEPTION.y - 24, LIGHT.reception.r, LIGHT.reception.color, LIGHT.reception.power * n);
+    addLight(g, RECEPTION.x + (RECEPTION.w >> 1), RECEPTION.y - 24, L.reception.r, L.reception.color, L.reception.power * n);
   }
 
   /** multiplica a cena pelo mapa (pulado no dia pleno). Chamar com a transformação de escala k ativa. */

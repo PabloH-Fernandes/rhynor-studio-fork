@@ -1,10 +1,7 @@
-// Marca em bitmap ("#" = pixel aceso): letreiro da placa, balcão da recepção e plaquinha da ala.
-// "RHYNOR" em pixel é provisório até o rinoceronte pixel entrar no letreiro.
+// Marca em bitmap ("#" = pixel aceso): letreiro da recepção, balcão e plaquinha da ala.
+// O rinoceronte em pixel entra no letreiro depois; aqui ficam as letras.
 
 export type Bitmap = readonly string[];
-
-/** marquinha do peito dos uniformes: 3x2 (sai junto com os uniformes) */
-export const AG_CHEST: Bitmap = ["###", "#.#"];
 
 /** letras 6x8 bold (hastes de 2px) */
 const BIG_GLYPHS: Record<string, Bitmap> = {
@@ -70,6 +67,9 @@ function smallWord(word: string): Bitmap {
 const LINE_GAP = 2;
 const LINE_TOP = smallWord("RHYNOR");
 const LINE_BOTTOM = smallWord("STUDIO");
+
+/** "STUDIO" em 29x5 (letras 4x5), embaixo do "RHYNOR" grande do letreiro */
+export const STUDIO_LETTERS: Bitmap = LINE_BOTTOM;
 
 /** "RHYNOR" / "STUDIO" em 29x12 (2 linhas de 5px e 2px entre elas) */
 export const STUDIO_PLAQUE: Bitmap = [

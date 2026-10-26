@@ -134,10 +134,8 @@ describe("plaquinha legível", () => {
     return (hi + 0.05) / (lo + 0.05);
   }
 
-  it("texto navy950 sobre a cor de cada papel tem contraste de pelo menos 4,5:1", () => {
-    for (const [papel, cor] of Object.entries(theme.roleColors)) {
-      const r = contraste(cor, palette.navy950);
-      assert.ok(r >= 4.5, `${papel} ${cor}: ${r.toFixed(2)}:1`);
-    }
+  it("plaquinha: texto névoa sobre ardósia tem contraste de pelo menos 4,5:1 (sem cor por papel)", () => {
+    const r = contraste(palette.white, palette.navy700);
+    assert.ok(r >= 4.5, `${r.toFixed(2)}:1`);
   });
 });

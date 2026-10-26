@@ -6,136 +6,159 @@
 // =====================================================================
 
 import { HAIR_COLORS, SKIN_TONES, type Personagem } from "../../shared/roster";
+import { comAlfa, cor, derivada, misturar, type NomeCor } from "./marca/cores";
+
+/** mistura de dois tokens (t = 0 é o primeiro) */
+const m = (a: NomeCor, b: NomeCor, t: number) => misturar(a, b, t);
 
 /**
- * Paleta herdada do motor upstream (troca pelos tokens Rhynor nas próximas etapas). Fonte única dos HEX:
- * as variáveis CSS em styles.css (:root) espelham estes valores — manter em sincronia.
- * navy900 (#051733) é a cor da marca, lida do fundo da logo horizontal.
+ * Paleta do canvas, toda derivada dos tokens da marca (web/src/marca/tokens.css): cada folha é lida
+ * na hora do uso (e memorizada até os tokens mudarem), então nada aqui roda antes do CSS carregar.
+ * Os nomes são os de sempre (o escritório lê `palette.white`, `palette.navy900`...); o comentário
+ * diz o papel de cada um.
  */
-export const palette = {
-  navy950: "#020B1C", // contorno, fundo da página, sapatos
-  suit: "#0A1428", // terno do líder
-  navy900: "#051733", // marca: placa, painel, lambril
-  navy850: "#0E2A57", // polo marinho
-  navy800: "#0B2550", // cards, calças, filete do tampo e moldura dos monitores
-  navy700: "#163768", // blazer do planejador, tapete
-  navy600: "#2A4F86", // botão secundário, bordas
-  navy600Hover: "#35609C", // hover do botão secundário
-  navy500: "#4A6FA5", // bordas e ícones (nunca texto sobre marinho)
-  navy300: "#8FA8CC", // texto secundário (7,3:1 sobre navy900)
-  navy100: "#D5DFEE", // balão de chat, ghost
-  line: "#1E3A66", // divisórias e bordas do painel
-  feedTime: "#6F86AB", // hora do feed (5,2:1 sobre navy950)
-  white: "#FFFFFF",
-  gray50: "#F4F6FA", // camisa branca
-  gray150: "#C9D3E2", // sombra da camisa branca
-  gray100: "#E6EAF0", // parede
-  gray200: "#CDD5E0",
-  gray300: "#AEB8C6", // passadeira
-  gray400: "#8A96A8",
-  gray500: "#5E6B7F",
-  gray600: "#4A5568", // cadeira, blazer do revisor
-  gray700: "#3A4250", // calça grafite
-  gray800: "#262D3A",
+const ESPEC = {
+  navy950: () => cor("rh-noite"), // contorno, sapatos, tinta escura
+  suit: () => m("rh-noite", "rh-ardosia", 0.45), // terno
+  navy900: () => cor("rh-superficie"), // placa, lambril, painéis
+  navy850: () => cor("rh-ardosia"), // polo escura
+  navy800: () => m("rh-superficie", "rh-ardosia", 0.5), // calças, filetes, moldura dos monitores
+  navy700: () => cor("rh-ardosia"), // blazer, tapete
+  navy600: () => cor("rh-borda"), // bordas
+  navy600Hover: () => m("rh-borda", "rh-aco", 0.25),
+  navy500: () => m("rh-borda", "rh-aco", 0.45), // ícones e detalhes
+  navy300: () => cor("rh-aco"), // texto secundário
+  navy100: () => cor("rh-nevoa"), // balão de chat
+  line: () => cor("rh-borda"),
+  feedTime: () => cor("rh-texto-suave"),
+  white: () => cor("rh-nevoa"),
+  gray50: () => cor("rh-nevoa"), // camisa clara
+  gray150: () => m("rh-nevoa", "rh-aco", 0.5), // sombra da camisa clara
+  gray100: () => m("rh-aco", "rh-nevoa", 0.45), // parede
+  gray200: () => m("rh-nevoa", "rh-aco", 0.35),
+  gray300: () => cor("rh-aco"),
+  gray400: () => m("rh-aco", "rh-borda", 0.35),
+  gray500: () => m("rh-aco", "rh-borda", 0.65),
+  gray600: () => m("rh-borda", "rh-aco", 0.2), // cadeira
+  gray700: () => m("rh-ardosia", "rh-noite", 0.3), // calça escura
+  gray800: () => m("rh-superficie", "rh-noite", 0.3),
   signal: {
-    /** exclusivo de "te esperando"; sempre dentro de selo marinho */
-    waiting: "#FF8A00",
+    /** exclusivo de "te esperando" */
+    waiting: () => cor("rh-aviso"),
     /** texto "esperando" sobre fundo claro */
-    waitingInk: "#8A4A00",
+    waitingInk: () => cor("rh-ardosia"),
     /** fundo do alerta "te esperando" no pico do pulse */
-    waitingPulseBg: "#10305F",
-    ok: "#3FBF86",
-    think: "#5AAEF0",
-    alert: "#EF5F7B",
-    craneLight: "#FF4D4D",
+    waitingPulseBg: () => cor("rh-elevado"),
+    ok: () => cor("rh-ok"),
+    think: () => cor("rh-aco"),
+    alert: () => cor("rh-alerta"),
+    /** brilho da mesa de quem está trabalhando agora (o único laranja do escritório) */
+    active: () => cor("rh-laranja"),
+    activeGlow: () => cor("rh-brasa"),
   },
-  /** céu por hora: topo e base, interpolados entre as chaves (desenhado em faixas) */
-  sky: [
-    { hour: 0, top: "#061230", bottom: "#1B2B55" }, // noite
-    { hour: 5, top: "#061230", bottom: "#1B2B55" },
-    { hour: 6, top: "#3B5C99", bottom: "#F6B48A" }, // amanhecer
-    { hour: 9, top: "#6FB7E8", bottom: "#CFEAFB" }, // manhã
-    { hour: 14, top: "#5AA6DE", bottom: "#BFE0F5" }, // tarde
-    { hour: 18, top: "#2E3F7A", bottom: "#F59E62" }, // entardecer
-    { hour: 20, top: "#061230", bottom: "#1B2B55" }, // noite
-    { hour: 24, top: "#061230", bottom: "#1B2B55" },
-  ],
+  /** céu por hora: topo e base, interpolados entre as chaves (dia nublado de aço e névoa, sem azul) */
+  sky: () => {
+    const noite = { top: cor("rh-noite"), bottom: m("rh-noite", "rh-ardosia", 0.6) };
+    const virada = { top: cor("rh-ardosia"), bottom: m("rh-aco", "rh-brasa", 0.18) };
+    const dia = { top: m("rh-aco", "rh-ardosia", 0.25), bottom: m("rh-nevoa", "rh-aco", 0.35) };
+    return [
+      { hour: 0, ...noite },
+      { hour: 5, ...noite },
+      { hour: 6, ...virada }, // amanhecer
+      { hour: 9, ...dia }, // manhã nublada
+      { hour: 14, ...dia },
+      { hour: 18, ...virada }, // entardecer
+      { hour: 20, ...noite },
+      { hour: 24, ...noite },
+    ];
+  },
   night: {
-    cityWindow: "#FFD27A",
-    star: "#DCE6FF",
-    moon: "#F4F0DC",
+    cityWindow: () => m("rh-aviso", "rh-nevoa", 0.35),
+    star: () => cor("rh-nevoa"),
+    moon: () => cor("rh-nevoa"),
     /** nuvem à noite (um pouco mais clara que o céu) */
-    cloud: "#2A3B66",
-    /** prédios, obra e guindaste escurecem em direção a esta cor */
-    shade: "#0A1A3C",
+    cloud: () => m("rh-superficie", "rh-ardosia", 0.6),
+    /** prédios da cidade escurecem em direção a esta cor */
+    shade: () => cor("rh-noite"),
     /** cores das luzes no lightmap (somadas com 'lighter', vezes a força da noite) */
-    monitorLight: "#4FA8FF",
-    warmLight: "#FFC27A",
-    ceilingLight: "#FFE0B0",
+    monitorLight: () => m("rh-aco", "rh-nevoa", 0.4),
+    warmLight: () => cor("rh-brasa"),
+    ceilingLight: () => m("rh-aviso", "rh-nevoa", 0.55),
   },
   /** objetos pequenos dos personagens */
   props: {
-    pencil: "#F2C14E",
-    pencilTip: "#3A4250",
-    watch: "#CDD5E0",
-    shadow: "rgba(2, 11, 28, 0.28)",
-    /** bochecha: rosa misturado com a pele (nunca o laranja de "te esperando") */
-    blush: "#F07C9A",
-    /** capacete de obra amarelo (amarelo, não laranja) */
-    helmetYellow: "#F2C200",
-    /** colete refletivo: lima com faixas prata */
-    vest: "#D7E84A",
-    vestStripe: "#E1E6EE",
+    pencil: () => cor("rh-aviso"),
+    pencilTip: () => cor("rh-ardosia"),
+    watch: () => cor("rh-aco"),
+    shadow: () => comAlfa("rh-noite", 0.28),
+    /** bochecha: misturada com a pele por quem desenha */
+    blush: () => cor("rh-alerta"),
+    helmetYellow: () => cor("rh-aviso"),
+    vest: () => m("rh-aviso", "rh-ok", 0.5),
+    vestStripe: () => cor("rh-nevoa"),
     /** raquete de ping-pong */
-    paddle: "#D9444F",
+    paddle: () => cor("rh-alerta"),
   },
-  /** cenário da parede: juntas, nuvens, quadros e rolos de projeto */
+  /** cenário da parede: juntas, nuvens, pôsteres e estante */
   decor: {
-    wallJoint: "#D8DEE7",
-    cloudFar: "#E8F3FB",
-    cloudShade: "#D6E8F6",
+    wallJoint: () => m("rh-aco", "rh-borda", 0.25),
+    cloudFar: () => cor("rh-nevoa"),
+    cloudShade: () => m("rh-nevoa", "rh-aco", 0.45),
     /** nuvem no amanhecer/entardecer (misturada pela força do "dusk") */
-    cloudDusk: "#F7B4A2",
-    craneLightOff: "#6E2A36",
-    paintingSky: "#CFE3F5",
-    paintingHaze: "#E4EFF9",
-    blueprint: "#BFD6F0",
-    /** base verde da maquete na mesa de reunião */
-    maquette: "#6FA06A",
-    maquetteShade: "#5A8756",
+    cloudDusk: () => m("rh-aco", "rh-brasa", 0.3),
+    craneLightOff: () => m("rh-alerta", "rh-noite", 0.6),
+    paintingSky: () => m("rh-aco", "rh-nevoa", 0.5),
+    paintingHaze: () => cor("rh-nevoa"),
+    blueprint: () => cor("rh-aco"),
+    /** base verde (vaso grande, detalhes) */
+    maquette: () => cor("rh-pixel-folha"),
+    maquetteShade: () => m("rh-pixel-folha", "rh-noite", 0.25),
   },
-  /** piso de porcelanato cinza-azulado */
+  /** piso em placas de ardósia */
   floor: {
-    tileA: "#D9DEE6",
-    tileB: "#CFD5DE",
-    joint: "#BAC2CE",
+    tileA: () => m("rh-ardosia", "rh-aco", 0.3),
+    tileB: () => m("rh-ardosia", "rh-aco", 0.24),
+    joint: () => m("rh-ardosia", "rh-noite", 0.15),
   },
-  /** mobília: tampo claro, madeira quente (só em detalhes), plantas e água do bebedouro */
+  /** mobília: tampos claros, madeira escura (ardósia), plantas e água do bebedouro */
   furniture: {
-    /** tampo claro das mesas (carvalho claro) */
-    oakLight: "#F0E2C8",
-    oak: "#E2CCA6",
-    oakShade: "#C7A97E",
-    /** madeira quente da porta e da mesa de reunião */
-    wood: "#8B5E3C",
-    woodShade: "#6B452A",
-    woodLight: "#A87650",
-    woodDark: "#3A2A1E",
-    leafDark: "#2F6B45",
-    leaf: "#3F8A55",
-    leafLight: "#66B26E",
-    water: "#8FD0F5",
-    waterLight: "#C4E8FB",
+    oakLight: () => cor("rh-nevoa"),
+    oak: () => m("rh-nevoa", "rh-aco", 0.4),
+    oakShade: () => cor("rh-aco"),
+    wood: () => m("rh-ardosia", "rh-aco", 0.25),
+    woodShade: () => cor("rh-ardosia"),
+    woodLight: () => m("rh-ardosia", "rh-aco", 0.45),
+    woodDark: () => cor("rh-superficie"),
+    leafDark: () => m("rh-pixel-folha", "rh-noite", 0.35),
+    leaf: () => cor("rh-pixel-folha"),
+    leafLight: () => m("rh-pixel-folha", "rh-nevoa", 0.3),
+    water: () => m("rh-aco", "rh-nevoa", 0.4),
+    waterLight: () => cor("rh-nevoa"),
   },
-} as const;
+};
+
+type Folha = () => unknown;
+type Arvore<T> = { readonly [K in keyof T]: T[K] extends Folha ? ReturnType<T[K]> : Arvore<T[K]> };
+
+/** objeto com getters memorizados (refeitos quando os tokens mudam) a partir da especificação */
+function arvore<T extends object>(espec: T): Arvore<T> {
+  const out = {};
+  for (const [k, v] of Object.entries(espec)) {
+    const get = typeof v === "function" ? derivada(v as Folha) : ((sub: unknown) => () => sub)(arvore(v as object));
+    Object.defineProperty(out, k, { get, enumerable: true });
+  }
+  return out as Arvore<T>;
+}
+
+export const palette = arvore(ESPEC);
 
 export type Palette = typeof palette;
 
-/** navy850 (#0E2A57) com alpha: sombras azuladas e tela de proteção */
-export const navyAlpha = (a: number) => `rgba(14, 42, 87, ${a})`;
+/** ardósia com alpha: sombras e tela de proteção */
+export const navyAlpha = (a: number) => comAlfa("rh-ardosia", a);
 
-/** navy950 (#020B1C) com alpha: fundo da etiqueta de nome */
-export const inkAlpha = (a: number) => `rgba(2, 11, 28, ${a})`;
+/** noite com alpha: fundo da etiqueta de nome */
+export const inkAlpha = (a: number) => comAlfa("rh-noite", a);
 
 /** polo e camisa levam a marquinha no peito; blazer e terno abrem em V mostrando a camisa (inner) */
 export type UniformKind = "polo" | "camisa" | "blazer" | "terno";
@@ -169,7 +192,7 @@ export interface Theme {
   subtitle: string;
   /**
    * caminho de uma imagem em assets/ (ex.: "/marca/logo.png"), reduzida para pixels duros
-   * (só marinho e branco) na placa da recepção. Vazio ou falha ao carregar = "RHYNOR" em pixel.
+   * (duas cores) na placa da recepção. Vazio ou falha ao carregar = "RHYNOR" em pixel.
    */
   logoUrl: string;
   colors: {
@@ -203,17 +226,11 @@ export interface Theme {
   deskLabels: Record<string, string>;
 }
 
-/** cor de cada papel: plaquinha da mesa, painel lateral e detalhes do uniforme */
-const ROLE_COLORS: Record<string, string> = {
-  lider: "#F2C14E",
-  planejador: "#9B82FF",
-  dev: palette.signal.ok,
-  testador: "#2EC4B6",
-  revisor: palette.signal.alert,
-  documentador: palette.signal.think,
-  pesquisador: "#E2BD3C",
-  convidado: "#A3A8B5",
-};
+/** papéis conhecidos (o painel e as plaquinhas não usam mais cor por papel: tudo em aço) */
+const PAPEIS = ["lider", "planejador", "dev", "testador", "revisor", "documentador", "pesquisador", "convidado"] as const;
+const roleColors = (): Record<string, string> => Object.fromEntries(PAPEIS.map((p) => [p, cor("rh-aco")]));
+/** cordão do crachá no sprite: laranja da marca */
+const CORDAO = () => cor("rh-laranja");
 
 const P = palette;
 const polo = (accent: string, trim?: Uniform["trim"]): Uniform => ({
@@ -248,55 +265,67 @@ const blazer = (shirt: string, shirtShade: string, accent: string, pants: string
   shoes: P.navy950,
 });
 
-export const theme: Theme = {
-  officeName: "Rhynor Studio",
-  subtitle: "Time de agentes do Claude Code",
-  logoUrl: "",
-
-  colors: {
+const colors = derivada(
+  (): Theme["colors"] => ({
     floorA: palette.floor.tileA,
     floorB: palette.floor.tileB,
     floorLine: palette.floor.joint,
-    rug: palette.navy100,
+    rug: m("rh-ardosia", "rh-noite", 0.25),
     rugBorder: palette.navy900,
     wall: palette.gray100,
     wallJoint: palette.decor.wallJoint,
     wainscot: palette.navy900,
     wainscotTop: palette.navy800,
-    trim: palette.white,
-    wallShadow: navyAlpha(0.16),
+    trim: cor("rh-aco"),
+    wallShadow: comAlfa("rh-noite", 0.16),
     wood: palette.furniture.wood,
     woodShade: palette.furniture.woodShade,
     woodLight: palette.furniture.woodLight,
-    sign: palette.navy900,
-    signText: palette.white,
+    sign: cor("rh-noite"),
+    signText: cor("rh-nevoa"),
     outline: palette.navy950,
-  },
+  }),
+);
 
-  uniforms: {
+const uniforms = derivada(
+  (): Record<string, Uniform> => ({
     lider: {
       kind: "terno",
       shirt: P.suit,
       shirtShade: P.navy900,
-      accent: ROLE_COLORS.lider,
+      accent: CORDAO(),
       inner: P.white,
-      tie: ROLE_COLORS.lider,
+      tie: cor("rh-aco"),
       logo: P.white,
       lapelBadge: true,
       pants: P.suit,
       shoes: P.navy950,
     },
-    planejador: blazer(P.navy700, P.navy800, ROLE_COLORS.planejador, P.gray700),
-    revisor: blazer(P.gray600, P.gray700, ROLE_COLORS.revisor, P.navy800),
-    pesquisador: polo(ROLE_COLORS.pesquisador, "gola"),
-    testador: polo(ROLE_COLORS.testador, "manga"),
-    dev: camisa(ROLE_COLORS.dev, "gola"),
-    documentador: camisa(ROLE_COLORS.documentador, "manga"),
-    convidado: { ...polo(ROLE_COLORS.convidado), visitor: true },
+    planejador: blazer(P.navy700, P.navy800, CORDAO(), P.gray700),
+    revisor: blazer(P.gray600, P.gray700, CORDAO(), P.navy800),
+    pesquisador: polo(CORDAO(), "gola"),
+    testador: polo(CORDAO(), "manga"),
+    dev: camisa(CORDAO(), "gola"),
+    documentador: camisa(CORDAO(), "manga"),
+    convidado: { ...polo(cor("rh-aco")), visitor: true },
+  }),
+);
+
+const roleColorsMemo = derivada(roleColors);
+
+export const theme: Theme = {
+  officeName: "Rhynor Studio",
+  subtitle: "Time de agentes do Claude Code",
+  logoUrl: "",
+  get colors() {
+    return colors();
   },
-
-  roleColors: ROLE_COLORS,
-
+  get uniforms() {
+    return uniforms();
+  },
+  get roleColors() {
+    return roleColorsMemo();
+  },
   deskLabels: {
     lider: "LÍDER",
     planejador: "PLANEJAMENTO",
@@ -320,11 +349,11 @@ export const roleColor = (role: string) => theme.roleColors[role] ?? theme.roleC
 export function uniformForPersonagem(ag: Personagem): Uniform {
   const base = theme.uniforms[ag.papel];
   const trim = base?.kind === ag.roupa ? base.trim : undefined;
-  const accent = ag.cordao;
+  const accent = ag.destaque === "cracha-visitante" ? cor("rh-aco") : CORDAO();
   let u: Uniform;
   switch (ag.roupa) {
     case "terno":
-      u = { ...theme.uniforms.lider, accent, tie: ag.destaque === "gravata-dourada" ? ROLE_COLORS.lider : P.navy900 };
+      u = { ...theme.uniforms.lider, accent, tie: ag.destaque === "gravata-dourada" ? cor("rh-aviso") : P.navy900 };
       break;
     case "blazer":
       u = ag.destaque === "blazer-cinza" ? blazer(P.gray600, P.gray700, accent, P.navy800) : blazer(P.navy700, P.navy800, accent, P.gray700);

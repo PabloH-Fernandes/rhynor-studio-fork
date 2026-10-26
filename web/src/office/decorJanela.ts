@@ -1,8 +1,8 @@
-// Cenário em pixel art: vista das janelas (céu, nuvens, guindaste, prédio em obra),
-// quadros (ponte, torre de transmissão), estante com rolos de projeto e a logo da placa em pixels duros.
+// Cenário em pixel art: vista das janelas (céu nublado de dia, cidade à noite com prédios e antena),
+// pôsteres de série, estante do estúdio (HDs, claquete, estojos) e a logo da placa em pixels duros.
 // Tudo em coordenadas inteiras da resolução base, sem arc/ellipse/gradiente.
 
-import { navyAlpha, palette } from "../theme";
+import { inkAlpha, palette } from "../theme";
 import { type Ctx, type Rect, fill, hexToRgb, line, mix } from "./decorBase";
 import { isReducedMotion } from "./motion";
 
@@ -23,11 +23,11 @@ export interface SkyColors {
   bottom: string;
 }
 
-/** céu de dia (hora 9): padrão quando ninguém passa a luz do momento */
-export const DAY_SKY: SkyColors = (() => {
+/** céu de dia (hora 9): padrão quando ninguém passa a luz do momento (lido na hora, dos tokens) */
+export function daySky(): SkyColors {
   const key = P.sky.find((s) => s.hour === 9) ?? P.sky[0];
   return { top: key.top, bottom: key.bottom };
-})();
+}
 
 /** luz do momento vista pela janela (vem de daylight.ts) */
 export interface WindowLight {
@@ -39,7 +39,14 @@ export interface WindowLight {
   stars: boolean;
 }
 
-export const DAY_LIGHT: WindowLight = { sky: DAY_SKY, night: 0, dusk: 0, stars: false };
+export const DAY_LIGHT: WindowLight = {
+  get sky() {
+    return daySky();
+  },
+  night: 0,
+  dusk: 0,
+  stars: false,
+};
 
 /**
  * mix com memo (t quantizado em 1/32): o cenário das janelas chama isso centenas de vezes
@@ -60,7 +67,7 @@ function mixQ(a: string, b: string, t: number): string {
   return v;
 }
 
-/** escurece uma cor do cenário de fora em direção ao marinho da noite */
+/** escurece uma cor do cenário de fora em direção à noite */
 const shade = (c: string, k: number) => mixQ(c, P.night.shade, k);
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -114,7 +121,7 @@ function drawMoon(ctx: Ctx, x: number, y: number, light: WindowLight) {
 /**
  * Nuvens em 2 camadas com parallax. As posições estão em coordenadas da parede inteira,
  * então a mesma nuvem atravessa uma janela e depois a seguinte.
- * No amanhecer/entardecer ficam rosadas; à noite, azuladas e escuras.
+ * No amanhecer/entardecer ficam quentes; à noite, escuras.
  */
 function drawClouds(ctx: Ctx, r: Rect, t: number, light: WindowLight) {
   const tint = (c: string) => mixQ(mixQ(c, P.decor.cloudDusk, light.dusk * 0.6), P.night.cloud, light.night * 0.85);
@@ -196,275 +203,127 @@ function drawSkyline(ctx: Ctx, r: Rect, seed: number, groundY: number, nearLayer
   }
 }
 
-/** chão do canteiro: faixa de terra/concreto e, opcionalmente, tapume branco com faixa marinho */
-function drawGround(ctx: Ctx, r: Rect, tapume: boolean, n: number) {
+/** calçada da rua lá embaixo: duas faixas de 1px */
+function drawGround(ctx: Ctx, r: Rect, n: number) {
   const gy = r.y + r.h - 2;
-  fill(ctx, r.x, gy, r.w, 1, shade(P.gray300, n * 0.75));
-  fill(ctx, r.x, gy + 1, r.w, 1, shade(P.gray400, n * 0.75));
-  if (tapume) {
-    fill(ctx, r.x, gy - 3, r.w, 3, shade(P.gray50, n * 0.7));
-    fill(ctx, r.x, gy - 1, r.w, 1, P.navy900);
-    for (let x = r.x + 3; x < r.x + r.w; x += 7) fill(ctx, x, gy - 3, 1, 2, shade(P.gray200, n * 0.7));
-  }
+  fill(ctx, r.x, gy, r.w, 1, shade(P.gray400, n * 0.75));
+  fill(ctx, r.x, gy + 1, r.w, 1, shade(P.gray500, n * 0.75));
 }
 
-// ---------------------------------------------------------------- guindaste
+// ---------------------------------------------------------------- prédios altos da cidade
 
 /**
- * Guindaste de torre: torre treliçada, lança que "gira" (o comprimento visível encolhe
- * pelo cosseno, ciclo de ~20 s), carrinho com gancho e carga subindo e descendo,
- * e a luz vermelha piscando no topo (com halo à noite).
+ * Prédio alto da frente: corpo em ardósia, coroa em degrau e grade de janelas de 1px.
+ * À noite escurece e uma parte das janelas acende (com troca lenta, como na skyline).
  */
-function drawCrane(ctx: Ctx, r: Rect, mastX: number, t: number, phase: number, n: number) {
-  // à noite vira silhueta escura contra a base clara do céu
-  const steel = mixQ(P.navy700, P.navy950, n * 0.75);
-  const steelDark = mixQ(P.navy800, P.navy950, n * 0.75);
-  const groundY = r.y + r.h - 2;
-  const mastTop = r.y + 9;
-  const cx = mastX + 1; // eixo da torre
-
-  // base de concreto
-  fill(ctx, mastX - 2, groundY - 2, 7, 2, shade(P.gray500, n * 0.6));
-  // torre treliçada (3px: dois montantes + travessas alternadas)
-  fill(ctx, mastX, mastTop, 1, groundY - 2 - mastTop, steel);
-  fill(ctx, mastX + 2, mastTop, 1, groundY - 2 - mastTop, steel);
-  for (let y = mastTop + 1; y < groundY - 2; y += 2) fill(ctx, mastX + 1, y, 1, 1, steelDark);
-
-  // giro: comprimento visível = L * cos(θ)
-  const theta = (t / 20_000) * Math.PI * 2 + phase;
-  const c = Math.cos(theta);
-  const jibY = mastTop - 1;
-  const jibEnd = cx + Math.round(17 * c);
-  const counterEnd = cx - Math.round(7 * c);
-
-  // contra-lança com contrapeso
-  line(ctx, cx, jibY, counterEnd, jibY, steel);
-  fill(ctx, counterEnd - 1, jibY + 1, 3, 2, shade(P.gray600, n * 0.6));
-  // lança (1px cheia + treliça pontilhada embaixo)
-  line(ctx, cx, jibY, jibEnd, jibY, steel);
-  const dir = jibEnd >= cx ? 1 : -1;
-  for (let x = cx; x !== jibEnd; x += dir) if ((x - cx) % 2 === 0) fill(ctx, x, jibY + 1, 1, 1, steelDark);
-  // torre do topo (pico) e tirantes
-  const apexY = mastTop - 5;
-  fill(ctx, cx, apexY, 1, jibY - apexY, steel);
-  line(ctx, cx, apexY, cx + Math.round(11 * c), jibY, steelDark);
-  line(ctx, cx, apexY, counterEnd, jibY, steelDark);
-  // cabine do operador (à noite com a janelinha acesa)
-  fill(ctx, mastX - 1, mastTop, 4, 3, shade(P.gray50, n * 0.7));
-  fill(ctx, mastX + (c >= 0 ? 2 : -1), mastTop + 1, 1, 1, n > 0.5 ? P.night.cityWindow : P.navy600);
-
-  // carrinho + cabo + gancho com carga
-  const along = 0.55 + 0.3 * Math.sin(t / 7_000 + phase);
-  const tx = cx + Math.round(17 * c * along);
-  const lift = (1 - Math.cos((t / 11_000) * Math.PI * 2 + phase)) / 2; // 0 em cima, 1 embaixo
-  const hookY = jibY + 3 + Math.round(lift * (groundY - 7 - (jibY + 3)));
-  fill(ctx, tx - 1, jibY + 1, 3, 1, shade(P.gray600, n * 0.6));
-  fill(ctx, tx, jibY + 2, 1, hookY - (jibY + 2), shade(P.gray800, n * 0.4));
-  fill(ctx, tx - 2, hookY, 5, 2, shade(P.gray400, n * 0.6)); // feixe de vigas
-  fill(ctx, tx - 2, hookY + 1, 5, 1, shade(P.gray500, n * 0.6));
-  // à noite, refletor de trabalho aceso no carrinho
-  if (n > 0.5) fill(ctx, tx, jibY + 1, 1, 1, P.night.cityWindow);
-
-  // luz de sinalização no topo (vermelha, pisca); à noite ganha um halo em cruz
-  // com reduced-motion fica acesa, sem piscar
-  const on = isReducedMotion() || Math.floor((t + phase * 1000) / 650) % 2 === 0;
-  if (on && n > 0.3) {
-    ctx.fillStyle = `rgba(255, 77, 77, ${(0.5 * n).toFixed(2)})`;
-    ctx.fillRect(cx - 1, apexY - 1, 1, 1);
-    ctx.fillRect(cx + 1, apexY - 1, 1, 1);
-    ctx.fillRect(cx, apexY - 2, 1, 1);
-    ctx.fillRect(cx, apexY, 1, 1);
-  }
-  fill(ctx, cx, apexY - 1, 1, 1, on ? P.signal.craneLight : P.decor.craneLightOff);
-}
-
-// ---------------------------------------------------------------- prédio em obra
-
-/**
- * Prédio em obra: andares prontos embaixo, tela de proteção no meio e só
- * pilares com ferragem em cima. `variant` muda proporção e detalhes.
- * À noite o concreto escurece e algumas janelas dos andares prontos acendem.
- */
-function drawConstruction(ctx: Ctx, r: Rect, variant: 0 | 1, t: number, n: number) {
-  const k = n * 0.65;
-  const concrete = shade(P.gray300, k);
-  const concreteShade = shade(P.gray500, k);
-  const rebar = shade(P.gray600, k);
-  const groundY = r.y + r.h - 5; // em cima do tapume
-  const floorH = variant === 0 ? 5 : 4;
-  const floors = variant === 0 ? 4 : 5;
-  const bw = variant === 0 ? 24 : 17;
-  const bx = variant === 0 ? r.x + 5 : r.x + 17;
-  const pillarStep = variant === 0 ? 7 : 8;
-  const top = groundY - floors * floorH;
-  const winDark = shade(P.navy500, n * 0.6);
-
-  for (let f = 0; f < floors; f++) {
-    const fy = groundY - (f + 1) * floorH; // laje do andar f (em cima)
-    const done = f < 2;
-    const screened = !done && f < floors - 1;
-    if (done) {
-      // fechado: alvenaria clara com janelas
-      fill(ctx, bx, fy + 1, bw, floorH - 1, shade(P.gray150, k));
-      for (let wx = bx + 2; wx < bx + bw - 2; wx += 4) {
-        const on = n > 0.5 && cityWindowLit(hash(r.x * 71 + wx * 13 + f * 5), t, 40);
-        fill(ctx, wx, fy + 2, 2, floorH - 3, on ? P.night.cityWindow : winDark);
-      }
+function drawTower(ctx: Ctx, r: Rect, x: number, w: number, h: number, seed: number, t: number, n: number) {
+  const base = r.y + r.h - 2;
+  const top = base - h;
+  const body = shade(mixQ(P.navy700, P.gray500, 0.35), n * 0.55);
+  const edge = shade(P.navy800, n * 0.4);
+  const lit = P.night.cityWindow;
+  fill(ctx, x, top, w, h, body);
+  fill(ctx, x, top, 1, h, edge);
+  // coroa em degrau
+  fill(ctx, x + 1, top - 1, w - 2, 1, body);
+  fill(ctx, x + 2, top - 2, Math.max(1, w - 4), 1, edge);
+  for (let wy = top + 2; wy < base - 1; wy += 2) {
+    for (let wx = x + 2; wx < x + w - 1; wx += 2) {
+      const on = n > 0.3 && cityWindowLit(hash(seed * 389 + wx * 97 + wy * 13), t, 40);
+      fill(ctx, wx, wy, 1, 1, on ? lit : shade(mixQ(body, P.white, 0.25), n * 0.6));
     }
-    // pilares
-    for (let px = bx; px <= bx + bw - 1; px += pillarStep) fill(ctx, px, fy + 1, 1, floorH - 1, concreteShade);
-    fill(ctx, bx + bw - 1, fy + 1, 1, floorH - 1, concreteShade);
-    if (screened) {
-      // tela de proteção marinho translúcida com trama de 2px
-      ctx.fillStyle = navyAlpha(0.6);
-      ctx.fillRect(bx, fy + 1, bw, floorH - 1);
-      const weave = `rgba(255,255,255,${(0.25 * (1 - n * 0.6)).toFixed(2)})`;
-      for (let sx = bx + (f % 2); sx < bx + bw; sx += 2) fill(ctx, sx, fy + 1 + (sx % 2), 1, 1, weave);
-    }
-    // laje
-    const slabW = f === floors - 1 ? Math.ceil(bw * (variant === 0 ? 0.6 : 0.7)) : bw;
-    const slabX = variant === 0 ? bx : bx + bw - slabW;
-    fill(ctx, slabX - 1, fy, slabW + 2, 1, concrete);
-    fill(ctx, slabX, fy + 1, slabW, 1, concreteShade);
-  }
-  // ferragem saindo dos pilares do último andar
-  for (let px = bx; px <= bx + bw - 1; px += pillarStep) fill(ctx, px, top - 2, 1, 2, rebar);
-  fill(ctx, bx + bw - 1, top - 2, 1, 2, rebar);
-
-  if (variant === 0) {
-    // elevador de obra (cremalheira) do lado direito, subindo e descendo
-    const mx = bx + bw + 3;
-    fill(ctx, mx, top - 1, 1, groundY - top + 1, rebar);
-    for (let y = top; y < groundY; y += 3) fill(ctx, mx - 1, y, 1, 1, concreteShade);
-    const kk = (1 - Math.cos((t / 9_000) * Math.PI * 2)) / 2;
-    const cy = top + Math.round(kk * (groundY - top - 4));
-    fill(ctx, mx + 1, cy, 3, 3, shade(P.gray50, k));
-    fill(ctx, mx + 2, cy + 1, 1, 1, n > 0.5 ? P.night.cityWindow : P.navy600);
-  } else {
-    // andaime treliçado do lado esquerdo
-    const sx = bx - 4;
-    const scaffold = shade(P.gray400, k);
-    for (let y = top; y < groundY; y += floorH) {
-      fill(ctx, sx, y, 3, 1, concreteShade);
-      line(ctx, sx, y + 1, sx + 2, y + floorH - 1, scaffold);
-    }
-    fill(ctx, sx, top, 1, groundY - top, concreteShade);
-    fill(ctx, sx + 2, top, 1, groundY - top, concreteShade);
-    // bandeirinha marinho no topo
-    fill(ctx, bx + bw - 1, top - 6, 1, 4, rebar);
-    fill(ctx, bx + bw, top - 6, 3, 2, P.navy900);
   }
 }
 
-// ---------------------------------------------------------------- vistas
+/** antena no topo de um prédio, com a luz de aviso piscando à noite (parada com reduced-motion) */
+function drawAntenna(ctx: Ctx, x: number, y: number, t: number, n: number) {
+  fill(ctx, x, y, 1, 5, shade(P.gray400, n * 0.5));
+  fill(ctx, x - 1, y + 3, 3, 1, shade(P.gray500, n * 0.5));
+  const on = isReducedMotion() || Math.floor(t / 900) % 2 === 0;
+  fill(ctx, x, y - 1, 1, 1, on && n > 0.2 ? P.signal.alert : P.decor.craneLightOff);
+}
 
-export type WindowView = ({ kind: "crane"; mast: number; phase: number } | { kind: "construction"; variant: 0 | 1 }) & {
+export type WindowView = {
+  kind: "cidade";
+  /** sorteio fixo dos prédios desta janela */
+  seed: number;
+  /** x (no vidro) da torre alta com antena, se houver */
+  antena?: number;
   /** posição da lua no vidro (só uma janela tem lua) */
   moon?: { x: number; y: number };
 };
 
-/** conteúdo do vidro (já recortado pelo chamador): céu, estrelas, lua, nuvens, cidade e a obra */
+/** conteúdo do vidro (já recortado pelo chamador): céu, estrelas, lua, nuvens e a cidade à noite */
 export function drawWindowView(ctx: Ctx, glass: Rect, view: WindowView, t: number, light: WindowLight = DAY_LIGHT) {
   const n = light.night;
   drawSky(ctx, glass, light.sky);
   if (light.stars) drawStars(ctx, glass, t, light);
   if (view.moon) drawMoon(ctx, glass.x + view.moon.x, glass.y + view.moon.y, light);
   drawClouds(ctx, glass, t, light);
-  const site = view.kind === "construction";
-  drawSkyline(ctx, glass, glass.x, glass.y + glass.h - (site ? 5 : 2), !site, t, light);
-  drawGround(ctx, glass, site, n);
-  if (view.kind === "crane") drawCrane(ctx, glass, glass.x + view.mast, t, view.phase, n);
-  else drawConstruction(ctx, glass, view.variant, t, n);
+  drawSkyline(ctx, glass, glass.x + view.seed, glass.y + glass.h - 2, true, t, light);
+  if (view.antena !== undefined) {
+    const tx = glass.x + view.antena;
+    const th = Math.floor(glass.h * 0.62);
+    drawTower(ctx, glass, tx, 9, th, view.seed + 1, t, n);
+    drawAntenna(ctx, tx + 4, glass.y + glass.h - 2 - th - 7, t, n);
+  } else {
+    const h = hash(view.seed * 17 + 5);
+    drawTower(ctx, glass, glass.x + 3 + (h % 6), 8, Math.floor(glass.h * 0.45), view.seed + 2, t, n);
+    drawTower(ctx, glass, glass.x + glass.w - 13 + ((h >>> 5) % 4), 9, Math.floor(glass.h * 0.55), view.seed + 3, t, n);
+  }
+  drawGround(ctx, glass, n);
 }
 
-// ===================================================================== quadros e estante
+// ===================================================================== pôsteres e estante
 
-/** moldura marinho com passe-partout branco e sombra de 1px; devolve a área da pintura */
+/** moldura escura com passe-partout claro e sombra de 1px; devolve a área da pintura */
 function frame(ctx: Ctx, x: number, y: number, w: number, h: number): Rect {
-  ctx.fillStyle = "rgba(2, 11, 28, 0.18)";
+  ctx.fillStyle = inkAlpha(0.18);
   ctx.fillRect(x + 1, y + h, w, 1);
   ctx.fillRect(x + w, y + 1, 1, h);
-  fill(ctx, x, y, w, h, P.navy900);
-  fill(ctx, x + 1, y + 1, w - 2, h - 2, P.gray50);
+  fill(ctx, x, y, w, h, P.navy950);
+  fill(ctx, x + 1, y + 1, w - 2, h - 2, P.navy800);
   return { x: x + 2, y: y + 2, w: w - 4, h: h - 4 };
 }
 
-/** quadro 24x18 com uma ponte estilizada em arco sobre a água */
-export function drawBridgePainting(ctx: Ctx, x: number, y: number) {
+/** pôster 24x18 de uma série: lua grande sobre a cidade, título em barras e a faixa de "temporada" */
+export function drawSeriesPosterCity(ctx: Ctx, x: number, y: number) {
   const a = frame(ctx, x, y, 24, 18);
-  // céu claro em 2 tons + água
-  fill(ctx, a.x, a.y, a.w, 5, P.decor.paintingSky);
-  fill(ctx, a.x, a.y + 5, a.w, a.h - 9, P.decor.paintingHaze);
-  const waterY = a.y + a.h - 4;
-  fill(ctx, a.x, waterY, a.w, 4, P.navy600);
-  fill(ctx, a.x + 2, waterY + 1, 3, 1, P.navy500);
-  fill(ctx, a.x + 11, waterY + 2, 4, 1, P.navy500);
-  // tabuleiro
-  const deckY = waterY - 3;
-  fill(ctx, a.x, deckY, a.w, 1, P.navy900);
-  fill(ctx, a.x, deckY + 1, a.w, 1, P.gray500);
-  // pilares nas pontas até a água
-  fill(ctx, a.x + 1, deckY + 2, 2, waterY - deckY - 2, P.gray500);
-  fill(ctx, a.x + a.w - 3, deckY + 2, 2, waterY - deckY - 2, P.gray500);
-  // arco parabólico em cima do tabuleiro, com pendurais
-  const x0 = a.x + 1;
-  const x1 = a.x + a.w - 2;
-  const mid = (x0 + x1) / 2;
-  const half = (x1 - x0) / 2;
-  const rise = 7;
-  let prev = deckY;
-  for (let i = x0; i <= x1; i++) {
-    const u = (i - mid) / half;
-    const ay = deckY - Math.round(rise * (1 - u * u));
-    // fecha buracos entre colunas vizinhas
-    fill(ctx, i, Math.min(ay, prev), 1, Math.abs(ay - prev) + 1, P.navy900);
-    if ((i - x0) % 3 === 0 && ay < deckY - 1) fill(ctx, i, ay + 1, 1, deckY - ay - 1, P.navy500);
-    prev = ay;
-  }
+  fill(ctx, a.x, a.y, a.w, a.h, P.navy700);
+  // lua
+  fill(ctx, a.x + 12, a.y + 2, 5, 1, P.gray200);
+  fill(ctx, a.x + 11, a.y + 3, 7, 3, P.gray200);
+  fill(ctx, a.x + 12, a.y + 6, 5, 1, P.gray200);
+  // silhueta de prédios
+  const tops = [5, 3, 6, 2, 4, 6, 3, 5, 2, 4];
+  tops.forEach((dt, i) => fill(ctx, a.x + i * 2, a.y + 5 + dt, 2, a.h - 9 - dt, P.navy950));
+  // título e subtítulo
+  fill(ctx, a.x + 2, a.y + a.h - 3, 12, 1, P.white);
+  fill(ctx, a.x + 2, a.y + a.h - 1, 7, 1, P.gray300);
+  fill(ctx, a.x + a.w - 5, a.y + a.h - 3, 3, 3, P.signal.alert);
 }
 
-/** quadro 24x18 com uma torre de transmissão estilizada num morro, cabos indo para os lados */
-export function drawTowerPainting(ctx: Ctx, x: number, y: number) {
+/** pôster 24x18 de outra série: tira de filme com 3 quadros e o título em barras */
+export function drawSeriesPosterFilm(ctx: Ctx, x: number, y: number) {
   const a = frame(ctx, x, y, 24, 18);
-  fill(ctx, a.x, a.y, a.w, 5, P.decor.paintingSky);
-  fill(ctx, a.x, a.y + 5, a.w, a.h - 5, P.decor.paintingHaze);
-  fill(ctx, a.x + 2, a.y + 3, 5, 1, P.white); // nuvem
-  fill(ctx, a.x + 3, a.y + 2, 2, 1, P.white);
-  // morro em degraus
-  const base = a.y + a.h - 2;
-  for (let i = 0; i < a.w; i++) {
-    const d = Math.abs(i - a.w / 2 + 0.5);
-    const hill = Math.max(0, 2 - Math.floor(d / 4));
-    fill(ctx, a.x + i, base - hill, 1, hill + 2, i < a.w / 2 ? P.gray300 : P.gray400);
+  fill(ctx, a.x, a.y, a.w, a.h, P.navy950);
+  // furinhos da película em cima e embaixo
+  for (let i = 1; i < a.w; i += 3) {
+    fill(ctx, a.x + i, a.y + 1, 1, 1, P.gray400);
+    fill(ctx, a.x + i, a.y + 10, 1, 1, P.gray400);
   }
-  // torre: pernas abrindo pra baixo, travessas, pico com 2 braços
-  const cx = a.x + Math.floor(a.w / 2);
-  const top = a.y + 1;
-  const foot = base - 1;
-  const steel = P.navy900;
-  line(ctx, cx - 1, top + 3, cx - 4, foot, steel);
-  line(ctx, cx, top + 3, cx + 3, foot, steel);
-  for (let yy = top + 5; yy < foot - 1; yy += 3) {
-    const spread = Math.round(((yy - top - 3) / (foot - top - 3)) * 3);
-    fill(ctx, cx - 1 - spread, yy, 2 + spread * 2, 1, P.navy600);
-  }
-  fill(ctx, cx - 1, top, 2, 3, steel); // pico
-  fill(ctx, cx - 6, top + 1, 12, 1, steel); // braço de cima
-  fill(ctx, cx - 4, top + 4, 8, 1, steel); // braço de baixo
-  // isoladores + cabos com catenária
-  for (const [ix, iy] of [
-    [cx - 6, top + 2],
-    [cx + 5, top + 2],
-    [cx - 4, top + 5],
-    [cx + 3, top + 5],
-  ]) fill(ctx, ix, iy, 1, 1, P.gray500);
-  const wire = P.gray500;
-  line(ctx, a.x, top + 5, cx - 7, top + 3, wire);
-  line(ctx, cx + 6, top + 3, a.x + a.w - 1, top + 5, wire);
+  // 3 quadros: céu, retrato, paisagem
+  const quadros = [P.decor.paintingSky, P.gray100, P.furniture.leaf];
+  quadros.forEach((c, i) => fill(ctx, a.x + 1 + i * 7, a.y + 3, 6, 6, c));
+  fill(ctx, a.x + 10, a.y + 4, 2, 2, P.navy700); // cabeça do retrato
+  fill(ctx, a.x + 9, a.y + 6, 4, 3, P.navy700); // ombros
+  // título
+  fill(ctx, a.x + 2, a.y + 12, 16, 1, P.white);
+  fill(ctx, a.x + 2, a.y + 14, 10, 1, P.gray300);
 }
 
-/** estante estreita com fichários, rolos de projeto deitados e rolos em pé num cesto */
-export function drawRollShelf(ctx: Ctx, x: number, y: number, w: number, h: number) {
+/** estante estreita do estúdio: HDs com LED, claquete e estojos de mídia */
+export function drawStudioShelf(ctx: Ctx, x: number, y: number, w: number, h: number, t = 0) {
   // corpo
   fill(ctx, x, y, w, h, P.navy950);
   fill(ctx, x + 1, y + 1, w - 2, h - 2, P.navy800);
@@ -478,54 +337,47 @@ export function drawRollShelf(ctx: Ctx, x: number, y: number, w: number, h: numb
     fill(ctx, innerX, c.y + c.h, innerW, 1, P.navy700); // prateleira
   }
 
-  // prateleira 1: fichários em pé (lombadas com etiqueta)
+  // prateleira 1: HDs empilhados, cada um com o LED (um pisca lento; parado com reduced-motion)
   {
     const c = cell(0);
-    const colors = [P.gray50, P.navy600, P.gray200, P.navy500, P.gray50];
-    let bx = innerX;
-    colors.forEach((col, i) => {
-      const bh = c.h - 1 - (i % 2);
-      fill(ctx, bx, c.y + c.h - bh, 3, bh, col);
-      fill(ctx, bx + 1, c.y + c.h - bh + 2, 1, 2, col === P.gray50 || col === P.gray200 ? P.navy600 : P.white);
-      bx += 4;
-    });
+    const blink = isReducedMotion() || Math.floor(t / 700) % 2 === 0;
+    for (let i = 0; i < 3; i++) {
+      const hy = c.y + c.h - 3 - i * 3;
+      fill(ctx, innerX + 1, hy, innerW - 2, 2, i % 2 ? P.gray600 : P.gray500);
+      fill(ctx, innerX + innerW - 3, hy, 1, 1, i === 1 && !blink ? P.gray700 : P.signal.ok);
+    }
   }
 
-  // prateleira 2: rolos deitados vistos de frente (pirâmide), papel branco e cópia azul
+  // prateleira 2: claquete (corpo escuro, régua listrada levantada)
   {
     const c = cell(1);
-    const roll = (rx: number, ry: number, blue: boolean) => {
-      const body = blue ? P.decor.blueprint : P.white;
-      fill(ctx, rx + 1, ry, 2, 1, body);
-      fill(ctx, rx, ry + 1, 4, 2, body);
-      fill(ctx, rx + 1, ry + 3, 2, 1, body);
-      fill(ctx, rx + 1, ry + 1, 2, 2, blue ? P.navy500 : P.gray300); // tubo oco
-    };
-    const by = c.y + c.h - 4;
-    for (let i = 0; i < 4; i++) roll(innerX + i * 5, by, i % 2 === 1);
-    for (let i = 0; i < 3; i++) roll(innerX + 2 + i * 5, by - 3, i === 1);
+    const bx = innerX + 3;
+    const by = c.y + c.h - 6;
+    fill(ctx, bx, by, 12, 6, P.navy950);
+    fill(ctx, bx + 1, by + 2, 10, 1, P.gray300); // linhas do quadro
+    fill(ctx, bx + 1, by + 4, 6, 1, P.gray300);
+    // régua aberta, inclinada em degraus
+    for (let i = 0; i < 12; i++) {
+      const ry = by - 2 - Math.floor(i / 4);
+      fill(ctx, bx + i, ry, 1, 2, Math.floor(i / 2) % 2 ? P.white : P.navy950);
+    }
   }
 
-  // prateleira 3: cesto com rolos em pé (com elástico)
+  // prateleira 3: estojos de mídia em pé (lombadas em tons de aço e ardósia)
   {
     const c = cell(2);
-    const tops = [3, 1, 4, 0, 2];
-    tops.forEach((dt, i) => {
-      const rx = innerX + 1 + i * 4;
-      const col = i % 2 ? P.decor.blueprint : P.gray50;
-      fill(ctx, rx, c.y + dt, 3, c.h - dt, col);
-      fill(ctx, rx, c.y + dt + 2, 3, 1, i % 2 ? P.navy600 : P.gray400);
+    const cores = [P.gray300, P.navy600, P.gray400, P.navy500, P.gray200];
+    const tops = [2, 0, 3, 1, 2];
+    cores.forEach((col, i) => {
+      const rx = innerX + i * 4;
+      fill(ctx, rx, c.y + tops[i], 3, c.h - tops[i], col);
+      fill(ctx, rx + 1, c.y + tops[i] + 2, 1, 2, P.navy900);
     });
-    fill(ctx, innerX + 1, c.y + c.h - 4, innerW - 2, 4, P.gray600); // cesto
-    fill(ctx, innerX + 1, c.y + c.h - 4, innerW - 2, 1, P.gray500);
   }
 }
 
 // ===================================================================== logo em pixels duros
 
-/** só estes dois tons saem do bake */
-const LOGO_DARK = hexToRgb(P.navy900);
-const LOGO_LIGHT: [number, number, number] = [255, 255, 255];
 
 export interface LogoCrop {
   sx: number;
@@ -537,7 +389,7 @@ export interface LogoCrop {
 /**
  * Reduz a logo para (wBase*k) x (hBase*k) pixels de dispositivo: corta pela metade em passos
  * (com suavização de alta qualidade, pra não perder traço fino) até perto do tamanho final e
- * aplica um limiar de luminância, então cada pixel vira só marinho (#051733) ou branco.
+ * aplica um limiar de luminância, então cada pixel vira só a cor da placa ou a do texto.
  */
 export function bakeLogo(img: HTMLImageElement, wBase: number, hBase: number, k: number, crop?: LogoCrop): HTMLCanvasElement {
   const tw = Math.max(1, Math.round(wBase * k));
@@ -569,6 +421,9 @@ export function bakeLogo(img: HTMLImageElement, wBase: number, hBase: number, k:
     sh = c.height;
   }
   const { c: out, g } = make(tw, th);
+  // só estes dois tons saem do bake (lidos dos tokens na hora)
+  const LOGO_DARK = hexToRgb(P.navy900);
+  const LOGO_LIGHT = hexToRgb(P.white);
   g.drawImage(src, sx, sy, sw, sh, 0, 0, tw, th);
 
   // em k=1 o traço fino da logo fica abaixo do meio-termo: limiar mais baixo pra não sumir

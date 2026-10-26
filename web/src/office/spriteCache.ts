@@ -1,3 +1,5 @@
+import { aoMudarCores } from "../marca/cores";
+
 // Cache dos bonecos: cada combinação de aparência + direção + quadro é desenhada uma vez
 // num canvas pequeno (1x, fora da tela) e depois só copiada com drawImage.
 // Sombra no chão, alpha e posição ficam fora do cache (quem desenha cuida disso).
@@ -67,10 +69,12 @@ export function cachedSprite(key: string, paint: (ctx: CanvasRenderingContext2D)
   return canvas;
 }
 
-/** elenco mudou (vestiário): joga fora os quadros desenhados */
+/** elenco mudou (vestiário) ou os tokens de cor mudaram (tema): joga fora os quadros desenhados */
 export function clearSpriteCache() {
   entries.clear();
 }
+
+aoMudarCores(clearSpriteCache);
 
 export function spriteCacheStats(): SpriteCacheStats {
   const total = hits + misses;
@@ -85,14 +89,14 @@ export function resetSpriteCacheStats() {
 
 declare global {
   interface Window {
-    /** debug: `__agSprites()` no console mostra acertos e erros do cache de bonecos */
-    __agSprites?: () => SpriteCacheStats;
-    __agSpritesReset?: () => void;
+    /** debug: `__studioSprites()` no console mostra acertos e erros do cache de bonecos */
+    __studioSprites?: () => SpriteCacheStats;
+    __studioSpritesReset?: () => void;
   }
 }
 
 // import.meta.env só existe no vite (os testes do motor importam este módulo no node)
 if (import.meta.env?.DEV && typeof window !== "undefined") {
-  window.__agSprites = spriteCacheStats;
-  window.__agSpritesReset = resetSpriteCacheStats;
+  window.__studioSprites = spriteCacheStats;
+  window.__studioSpritesReset = resetSpriteCacheStats;
 }

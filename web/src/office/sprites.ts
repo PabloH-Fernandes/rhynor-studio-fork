@@ -11,7 +11,6 @@
 import type { Acessorio } from "../../../shared/roster";
 import type { Uniform } from "../theme";
 import { palette, theme } from "../theme";
-import { AG_CHEST, bitmapRuns } from "./agMark";
 import { ACCESSORIES, HELMETS, cup, type AccessoryCtx, type AccessoryLayer, type Slot } from "./accessories";
 import { HEAD_H, HEAD_TOP_STAND, HEAD_W, LEG_H, SIT_DROP, TORSO_H, blend, type Part } from "./body";
 import { ANIM_STEPS, animLift, frameKey, frameOf, type ArmPose, type SpriteFrame } from "./frame";
@@ -299,11 +298,10 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   const hx = bx - HEAD_W / 2;
   const hy = ty - HEAD_H + headDy;
 
-  // colete por cima da camisa; logo, cordão e crachá por cima dele
+  // colete por cima da camisa; cordão e crachá por cima dele
   for (const a of layer("tronco")) ACCESSORIES[a].draw(accCtx(L));
 
   if (dir === "down") {
-    if (!tailored) for (const [lx, ly, w, h] of bitmapRuns(AG_CHEST, bx + 1, ty + 2)) L.push([lx, ly, w, h, u.logo]);
     if (u.lapelBadge) {
       // crachá preso na lapela
       L.push([bx + 2, ty + 3, 2, 2, palette.white]);

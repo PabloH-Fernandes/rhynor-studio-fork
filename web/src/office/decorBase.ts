@@ -65,7 +65,7 @@ export function oval(ctx: Ctx, cx: number, cy: number, rx: number, ry: number, c
 }
 
 export function hexToRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16);
+  const n = parseInt(hex.slice(1, 7), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 

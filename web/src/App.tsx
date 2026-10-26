@@ -18,6 +18,7 @@ import { personagemOf } from "./office/engine";
 import { ATA_JANELA_MS, QUADRO_ATA, reuniaoDeAta } from "./office/reuniaoAta";
 import { SpriteGallery } from "./SpriteGallery";
 import { GALLERY_ENABLED } from "./office/gallery";
+import { setCicloReal } from "./office/daylight";
 import { roleColor, theme } from "./theme";
 import { useHoje } from "./useHoje";
 import { useOffice } from "./useOffice";
@@ -105,6 +106,9 @@ export default function App() {
 
   // sons: o valor da preferência vai pro módulo sound.ts; o botão reflete o estado real do AudioContext
   const [somLigado, alternarSom] = usePreferencia("studio.painel.som", true);
+  // ciclo do dia: desligado, o escritório fica à noite (22h); ligado, segue a hora real
+  const [cicloLigado, alternarCiclo] = usePreferencia("studio.painel.ciclo", false);
+  useEffect(() => setCicloReal(cicloLigado), [cicloLigado]);
   const [somRodando, setSomRodando] = useState(false);
   useEffect(() => setSomAtivo(somLigado), [somLigado]);
   useEffect(() => instalarGestos(), []);
@@ -279,6 +283,9 @@ export default function App() {
               <span id="som-estado" className="sr-only">
                 {somLigado && !somRodando ? "Ligado, mas o navegador só libera o áudio depois de um clique na página." : somLigado ? "Ligado." : "Desligado."}
               </span>
+              <button type="button" className="btn-tecnico" aria-pressed={cicloLigado} onClick={alternarCiclo} title="Desligado, o escritório fica à noite">
+                {cicloLigado ? "Hora real" : "Noite"}
+              </button>
               <span className={`conn conn-${conn}`} title={`Servidor ${conn}`}>
                 <i /> {conn}
               </span>

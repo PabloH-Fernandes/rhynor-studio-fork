@@ -540,19 +540,19 @@ Dá para ver tudo sem ligar o Claude. Ela vive em `server/demo.ts`; **Limpar** i
 
 O produto se chama **Rhynor Studio** (nome no cabeçalho do painel, logo da Rhynor ao lado e favicon na aba). A fonte da verdade da marca (logos, cores, fontes e regras) é `referencias/rhynor-marca.md`; as logos oficiais ficam em `assets/marca/` e são servidas em `/marca/...`. Tudo no escritório é desenhado por código; nenhuma imagem gerada por IA.
 
-> Em transição: a paleta, o cenário e os uniformes ainda são os herdados do motor upstream. A troca pelos tokens, fontes e elenco da Rhynor vem nas próximas etapas da missão (`referencias/missao-studio-v1.md`).
+> Em transição: o elenco (roupas, pele e cabelo) ainda é o herdado do motor upstream; o elenco novo da Rhynor vem nas próximas etapas da missão (`referencias/missao-studio-v1.md`).
 
-**Cores com regra:**
-- **Laranja `#FF8A00`** é exclusivo do estado "te esperando" (o **!** e o alerta no painel). Nenhum cordão de crachá pode usar essa cor.
-- **Âmbar escuro** é o do "vence em até 2 dias" no painel.
-- **O testador é turquesa** (`#2EC4B6`) para não competir com o laranja.
-- Os HEX ficam em `palette` (`web/src/theme.ts`), a fonte única.
+**Cores e fontes.** Tudo sai dos tokens da marca em `web/src/marca/tokens.css` (cópia de `referencias/rhynor-marca/tokens.css`, com a seção de pixel art aprovada). O CSS usa `var(--rh-*)`; o canvas lê os mesmos tokens por `web/src/marca/cores.ts` (`cor`, `comAlfa`, `misturar`), então não há HEX solto no código da tela.
+- **Laranja** só no que está ativo: a mesa de quem trabalha agora (contorno de 1px e luz brasa), o agente selecionado, o botão principal, o cordão do crachá e o triângulo de "ao vivo".
+- **Aviso** (`--rh-aviso`) é exclusivo de "te esperando": o **!**, a etiqueta de nome e o alerta no painel.
+- **Sem cor por papel:** as plaquinhas das mesas são ardósia com texto névoa; o papel aparece pelo texto.
+- **Fontes:** Space Grotesk nos títulos, Inter no texto, JetBrains Mono em números e status, Silkscreen nos letreiros e no HUD, VT323 nos balões e nomes do escritório.
 
 **O que tem no escritório:**
-- Placa da recepção, balcão e plaquinha da ala com "RHYNOR" em pixel (provisório até o rinoceronte em pixel entrar).
-- Janelas com guindaste e prédio em obra (o céu muda com a hora).
-- Quadros de ponte e de torre, sofás, impressora, cabideiro com capacetes, credenza e plantas.
-- Maquete na mesa de reunião.
+- Letreiro "RHYNOR STUDIO" na recepção, balcão e plaquinha da ala em pixel (o rinoceronte em pixel entra depois).
+- Janelas com a cidade: prédios com janelas acesas à noite e uma antena com luz piscando; de dia, céu nublado de aço e névoa.
+- Pôsteres de série, estante do estúdio (HDs, claquete e estojos), arara de figurino, sofás, impressora, credenza e plantas.
+- Storyboard na mesa de reunião.
 
 **Uniformes por papel** (cada um tem a cor do papel no cordão do crachá, na gola, na manga ou no lenço):
 
@@ -569,7 +569,7 @@ O produto se chama **Rhynor Studio** (nome no cabeçalho do painel, logo da Rhyn
 
 Os acessórios (óculos, headset etc.) são do personagem, não do papel: veja o elenco acima.
 
-**Iluminação pela hora real.** O escritório acompanha o relógio do computador: manhã, tarde, entardecer e noite. Para ver uma hora específica, use `?hora=HH.MM` na URL:
+**Noite por padrão.** O escritório fica às 22h. O botão **Noite / Hora real** no topo do painel liga o ciclo do dia (lembrado no navegador em `studio.painel.ciclo`): aí ele acompanha o relógio do computador, com manhã e tarde nubladas, entardecer e noite. Para ver uma hora específica, use `?hora=HH.MM` na URL:
 
 ```
 http://localhost:5174/?hora=22      # noite
@@ -619,22 +619,22 @@ A ideia seria descartar as sessões de `claude -p` (modo não interativo). Não 
 4. O favicon é `/marca/favicon-64.png`, referenciado em `web/index.html`.
 
 ### Trocar cores
-1. Edite `palette` em `web/src/theme.ts` (ex.: `navy900` é a cor da marca).
-2. Atualize as variáveis do `:root` em `web/src/styles.css` com os mesmos HEX. O CSS não lê o TypeScript, então os dois **precisam ficar em sincronia** (o comentário no topo do arquivo lembra disso).
-3. `theme.colors` liga a paleta ao cenário. `palette.sky` define o céu por hora.
+1. As cores são os tokens de `web/src/marca/tokens.css` (a cópia da matriz `referencias/rhynor-marca/tokens.css`; as duas ficam iguais). Mude o token, não o código.
+2. O painel usa `var(--rh-*)` em `web/src/styles.css`; o canvas usa `palette` (`web/src/theme.ts`), que deriva cada cor dos tokens (com `misturar` para os tons intermediários).
+3. `theme.colors` liga a paleta ao cenário. `palette.sky` define o céu por hora; a luz ambiente fica em `web/src/office/daylight.ts`.
 
 ### Trocar uniformes
 - Em `theme.uniforms` cada papel é montado com uma destas funções: `polo(accent, trim)`, `camisa(accent, trim)`, `blazer(shirt, shirtShade, accent, pants)`; o líder é um objeto `terno` escrito à mão. Exemplo, o dev de polo com manga colorida:
   ```ts
-  dev: polo(ROLE_COLORS.dev, "manga"),
+  dev: polo(CORDAO(), "manga"),
   ```
 - `trim` é `"gola"`, `"manga"` ou `"lenco"`. Papéis sem entrada usam `uniforms.convidado`.
-- `ROLE_COLORS` (exposto como `theme.roleColors`) define a cor do papel: cordão, plaquinha da mesa e painel. `theme.deskLabels` define o texto da plaquinha.
+- Não há cor por papel: `theme.roleColors` é aço para todos e o cordão é sempre o laranja da marca. `theme.deskLabels` define o texto da plaquinha.
 - Tons de pele e cabelo: `SKIN_TONES` e `HAIR_COLORS` em `shared/roster.ts`. Estilos de cabelo: `EstiloCabelo`, desenhados em `web/src/office/sprites.ts`.
 - Regras de uniforme (quem pode usar terno, blazer etc.): `ROUPAS_PERMITIDAS` e `DESTAQUES_PERMITIDOS`.
 
 ### Layout e sprites
-Para mudar o layout, mexa em `DESKS` no `web/src/office/map.ts`. Os móveis ficam em `map.ts` e nos módulos `decorMoveis.ts` e `decorJanela.ts`, com os helpers de desenho em `decorBase.ts` (`decor.ts` só reexporta os três). Os personagens são desenhados com retângulos em `web/src/office/sprites.ts` (e nos módulos de corpo, cabelo e acessórios), então dá para mudar cabelo ou adicionar capacete sem mexer com imagens. Os sprites ficam em cache (`spriteCache.ts`). A luz do dia está em `web/src/office/daylight.ts`.
+Para mudar o layout, mexa em `DESKS` no `web/src/office/map.ts`. Os móveis ficam em `map.ts` e nos módulos `decorMoveis.ts` e `decorJanela.ts`, com os helpers de desenho em `decorBase.ts` (`decor.ts` só reexporta os três). Os personagens são desenhados com retângulos em `web/src/office/sprites.ts` (e nos módulos de corpo, cabelo e acessórios), então dá para mudar cabelo ou adicionar um acessório sem mexer com imagens. Os sprites ficam em cache (`spriteCache.ts`). A luz do dia está em `web/src/office/daylight.ts`.
 
 > A marca oficial (logos, cores, fontes e regras de uso) está em `referencias/rhynor-marca.md`.
 

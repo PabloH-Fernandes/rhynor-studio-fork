@@ -3,6 +3,7 @@
 // layout (bubbles.ts); aqui só se desenha, em coordenadas base inteiras.
 
 import { inkAlpha, palette } from "../theme";
+import { comAlfa } from "../marca/cores";
 import type { Placement } from "./bubbles";
 import { fill, type Rect } from "./decor";
 import type { Point } from "./map";
@@ -42,19 +43,21 @@ export const REST_H = 10;
 export const NAME_FONT = "7px VT323, monospace";
 export const NAME_SHIFTS = [0, -8, 8] as const;
 
-const BUBBLE_STYLE: Record<BubbleStyle, { bg: string; border: string; ink: string }> = {
-  trabalho: { bg: palette.white, border: palette.navy950, ink: palette.navy900 },
-  chat: { bg: palette.navy100, border: palette.navy950, ink: palette.navy900 },
-  // discreto: cinza claro, borda cinza e texto cinza (os de trabalho continuam mandando)
-  descanso: { bg: palette.gray100, border: palette.gray300, ink: palette.gray600 },
-};
+/** cores de cada balão (lidas na hora: vêm dos tokens) */
+const bubbleStyle = (style: BubbleStyle): { bg: string; border: string; ink: string } =>
+  style === "trabalho"
+    ? { bg: palette.white, border: palette.navy950, ink: palette.navy900 }
+    : style === "chat"
+      ? { bg: palette.gray200, border: palette.navy950, ink: palette.navy900 }
+      : // discreto: claro, borda de aço e texto ardósia (os de trabalho continuam mandando)
+        { bg: palette.gray100, border: palette.gray300, ink: palette.navy700 };
 
 /**
  * Balão no lugar que o layout escolheu: acima (rabinho embaixo, apontando pra cabeça) ou ao lado
  * (rabinho virado pra cabeça). O de descanso tem rabinho curto (2 px) e letra de 7 px.
  */
 export function drawBubbleAt(ctx: CanvasRenderingContext2D, p: Placement, lines: string[], style: BubbleStyle, cx: number, headY: number) {
-  const { bg, border, ink } = BUBBLE_STYLE[style];
+  const { bg, border, ink } = bubbleStyle(style);
   const { x, y, w, h } = p.box;
   const small = style === "descanso";
   roundBox(ctx, x, y, w, h, bg, border);
@@ -120,8 +123,8 @@ export function drawNameTag(ctx: CanvasRenderingContext2D, box: Rect, text: stri
 }
 
 /**
- * Selo marinho com borda e "!" laranja acima da cabeça de quem espera; a borda pisca entre
- * laranja e branco (com reduced-motion: parado e com a borda laranja fixa). Sempre visível.
+ * Selo escuro com borda e "!" na cor de aviso acima da cabeça de quem espera; a borda pisca entre
+ * aviso e névoa (com reduced-motion: parado e com a borda laranja fixa). Sempre visível.
  */
 export function drawWaitBadge(ctx: CanvasRenderingContext2D, head: Point, now: number, reduced: boolean) {
   const b = reduced ? 0 : Math.round(Math.sin(now / 150) * 1.5);
@@ -140,7 +143,7 @@ export function drawWaitBadge(ctx: CanvasRenderingContext2D, head: Point, now: n
 export function drawThinkDots(ctx: CanvasRenderingContext2D, head: Point, now: number, reduced = false) {
   const k = reduced ? 3 : Math.floor(now / 300) % 4;
   for (let i = 0; i < 3; i++) {
-    ctx.fillStyle = i < k ? palette.white : "rgba(255,255,255,0.35)";
+    ctx.fillStyle = i < k ? palette.white : comAlfa("rh-nevoa", 0.35);
     ctx.fillRect(Math.round(head.x - 5 + i * 4), Math.round(head.y - 6), 2, 2);
   }
 }

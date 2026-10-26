@@ -36,7 +36,7 @@ export const REST_WEIGHTS: Record<RestKind, number> = {
 export const REST_LABELS: Record<RestKind, string> = {
   cafe: "Tomando café",
   celular: "No celular",
-  maquete: "Olhando a maquete",
+  maquete: "Olhando o storyboard",
   bebedouro: "No bebedouro",
   regar: "Regando a planta",
   espreguicar: "Se espreguiçando",

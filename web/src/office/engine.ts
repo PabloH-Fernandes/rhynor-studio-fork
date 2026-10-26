@@ -46,7 +46,7 @@ import {
   PAPO_PLACES,
   PINGPONG,
   PINGPONG_SPOTS,
-  POCKET_PLAQUE,
+  STUDIO_PLAQUE_RECT,
   PROPS,
   REST_SPOTS,
   SIGN,
@@ -68,6 +68,7 @@ import {
   drawSign,
   drawSignGlow,
   monitorScreen,
+  deskTopRect,
   cupSurface,
   route,
   type BoardData,
@@ -77,6 +78,7 @@ import {
   type Spot,
 } from "./map";
 import { clearSpriteCache, spriteCacheStats } from "./spriteCache";
+import { aoMudarCores } from "../marca/cores";
 import {
   HAIR_STYLE_COUNT,
   HEAD_TOP_SIT,
@@ -94,7 +96,7 @@ import {
 const PROGRESSO_NADA: Progress = { fonte: "nada", etapa: 0, total: 0, concluidas: 0, titulo: "" };
 
 const SPEED = 3.4; // tiles por segundo
-/** as janelas são refeitas nesse intervalo (nuvens e guindaste andam menos de 1px nesse tempo) */
+/** as janelas são refeitas nesse intervalo (nuvens e luzes da cidade andam menos de 1px nesse tempo) */
 const WINDOW_FRAME_MS = 200;
 /** chave do cache da mesa de reunião */
 const MEETING_TABLE = {};
@@ -130,10 +132,10 @@ const FALAS_VISITANTE = ["Tudo certo por aí?", "Bora um café depois?", "Que se
 const PRI = { badge: 0, waiting: 0.5, work: 1, chat: 2, rest: 3, name: 4 } as const;
 
 /**
- * Onde os balões e nomes não podem ficar (com 1 px de folga): placa, quadro, plaquinha da ala, plaquinhas
+ * Onde os balões e nomes não podem ficar (com 1 px de folga): letreiro, quadro, plaquinha da ala, plaquinhas
  * e o tampo do ping-pong (o nome de quem joga embaixo cobria a bolinha).
  */
-const FORBIDDEN: Rect[] = [SIGN, BOARD, POCKET_PLAQUE, PINGPONG, ...DESKS.map((d) => deskPlateRect(d))].map((r) => ({
+const FORBIDDEN: Rect[] = [SIGN, BOARD, STUDIO_PLAQUE_RECT, PINGPONG, ...DESKS.map((d) => deskPlateRect(d))].map((r) => ({
   x: r.x - 1,
   y: r.y - 1,
   w: r.w + 2,
@@ -276,7 +278,7 @@ interface CupDecal {
   until: number;
 }
 
-/** linha do `__agRest()` (debug no console) */
+/** linha do `__studioRest()` (debug no console) */
 interface RestDebugRow {
   id: string;
   name: string;
@@ -297,13 +299,13 @@ interface RestDebugRow {
 declare global {
   interface Window {
     /** debug: quem está descansando, onde e em que fase */
-    __agRest?: () => RestDebugRow[];
+    __studioRest?: () => RestDebugRow[];
     /** debug: momento da partida de ping-pong (null sem partida) */
-    __agRally?: () => RallyFrame | null;
+    __studioRally?: () => RallyFrame | null;
     /** debug: balões e nomes do último quadro e as zonas proibidas (retângulos em px base) */
     /** debug: contadores de cache (assados, chaves de móveis, sprites) */
-    __agPerf?: () => { bakes: number; bakedByName: number; sprites: ReturnType<typeof spriteCacheStats> };
-    __agBubbles?: () => { placed: ({ id: string; side: string } & Rect)[]; forbidden: Rect[] };
+    __studioPerf?: () => { bakes: number; bakedByName: number; sprites: ReturnType<typeof spriteCacheStats> };
+    __studioBubbles?: () => { placed: ({ id: string; side: string } & Rect)[]; forbidden: Rect[] };
   }
 }
 
@@ -402,18 +404,25 @@ export class OfficeEngine {
   /** `restSeed`: semente do sorteio do descanso (os testes fixam; na tela é o relógio) */
   constructor(opts: { restSeed?: number } = {}) {
     this.rest = new RestScheduler(REST_SPOTS, { seed: opts.restSeed ?? Date.now() | 0, pingpong: PINGPONG_SPOTS, papoPlaces: PAPO_PLACES });
+    // tokens mudaram (tema): desenhos prontos e aparências saem com as cores antigas, então refaz
+    aoMudarCores(() => {
+      this.staticLayer = null;
+      this.baked = new WeakMap();
+      this.bakedByName.clear();
+      for (const v of this.visuals.values()) v.look = lookFor(v.agent, this.rosterData);
+    });
     // (Image e import.meta.env só existem no navegador/vite: os testes do motor rodam no node)
     if (theme.logoUrl && typeof Image !== "undefined") {
       const img = new Image();
       img.src = theme.logoUrl;
       this.logo = img;
     }
-    // debug (só no dev server): `__agRest()` no console lista quem está descansando, onde e em que fase
+    // debug (só no dev server): `__studioRest()` no console lista quem está descansando, onde e em que fase
     if (import.meta.env?.DEV && typeof window !== "undefined") {
-      window.__agRest = () => this.restDebug();
-      window.__agRally = () => this.rest.rally(performance.now());
-      window.__agPerf = () => ({ bakes: bakeCount(), bakedByName: this.bakedByName.size, sprites: spriteCacheStats() });
-      window.__agBubbles = () => ({ placed: this.lastPlaced.map((p) => ({ id: p.id, side: p.side, ...p.rect })), forbidden: FORBIDDEN });
+      window.__studioRest = () => this.restDebug();
+      window.__studioRally = () => this.rest.rally(performance.now());
+      window.__studioPerf = () => ({ bakes: bakeCount(), bakedByName: this.bakedByName.size, sprites: spriteCacheStats() });
+      window.__studioBubbles = () => ({ placed: this.lastPlaced.map((p) => ({ id: p.id, side: p.side, ...p.rect })), forbidden: FORBIDDEN });
     }
   }
 
@@ -822,10 +831,11 @@ export class OfficeEngine {
     const coffeeBusy = visuals.some((v) => v.at.id.startsWith("cafe:") && !v.path.length);
 
     // luz do momento (hora real ou ?hora=) e o mapa de luz, refeito ~4x por segundo
-    const scene: LightScene = { activeScreens: [], waitingScreens: [], coffeeBusy };
+    const scene: LightScene = { activeScreens: [], waitingScreens: [], coffeeBusy, activeDesks: [] };
     for (const d of DESKS) {
       const st = seatedAt.get(d.id)?.agent.status;
       if (st === "trabalhando" || st === "pensando") scene.activeScreens.push(monitorScreen(d));
+      if (st === "trabalhando") scene.activeDesks?.push(deskTopRect(d));
       else if (st === "esperando") scene.waitingScreens.push(monitorScreen(d));
     }
     this.lightmap.refresh(now, scene);
@@ -993,13 +1003,13 @@ export class OfficeEngine {
   }
 
   /**
-   * Janelas (céu, nuvens, guindaste): mexem devagar, então são refeitas numa camada a cada
+   * Janelas (céu, nuvens, cidade): mexem devagar, então são refeitas numa camada a cada
    * WINDOW_FRAME_MS (ou quando a escala muda) em vez de todo quadro.
    */
   private drawWindowLayer(ctx: CanvasRenderingContext2D, now: number, light: ReturnType<typeof windowLight>) {
     const k = this.scaleOf(ctx);
     // a camada continua sendo refeita a cada WINDOW_FRAME_MS (a luz do dia muda), mas com
-    // reduced-motion as nuvens, o guindaste e o elevador de obra ficam parados (tempo 0)
+    // reduced-motion as nuvens e as luzes da cidade ficam paradas (tempo 0)
     const slot = Math.floor(now / WINDOW_FRAME_MS);
     const t = isReducedMotion() ? 0 : now;
     if (this.windowLayer.scale !== k || this.windowSlot !== slot) {
@@ -1322,7 +1332,8 @@ export class OfficeEngine {
     const byId = new Map(items.map((it) => [it.id, it]));
     for (const p of names.values()) {
       const it = byId.get(p.id.slice(2));
-      if (it) drawNameTag(ctx, p.box, this.nameTexts(it.v.agent)[p.size], roleColor(it.v.agent.role));
+      // quem espera ganha a etiqueta na cor de aviso
+      if (it) drawNameTag(ctx, p.box, this.nameTexts(it.v.agent)[p.size], it.v.agent.status === "esperando" ? palette.signal.waiting : roleColor(it.v.agent.role));
     }
     for (const rank of ["descanso", "chat", "trabalho"] as const) {
       for (const it of items) {

@@ -47,9 +47,11 @@ export interface AccessoryDef extends AccessoryDraw {
 
 export const HELMETS = new Set<Acessorio>(["capacete-branco", "capacete-amarelo"]);
 
-function helmet(color: string, shade: string): AccessoryDraw {
+function helmet(colorOf: () => string, shadeOf: () => string): AccessoryDraw {
   return {
     draw: (c) => {
+      const color = colorOf();
+      const shade = shadeOf();
       // casco por cima do topo do cabelo (o cabelo de cima já foi cortado) e aba de 1px
       c.head(1, -3, 10, 1, color);
       c.head(0, -2, 12, 3, color);
@@ -62,7 +64,7 @@ function helmet(color: string, shade: string): AccessoryDraw {
 }
 
 export function cup(put: AccessoryCtx["put"], x: number, y: number) {
-  // copo do escritório nas animações: branco com faixa marinho
+  // copo do escritório nas animações: claro com faixa escura
   put(x, y, 3, 3, palette.white);
   put(x, y + 1, 3, 1, palette.navy900);
 }
@@ -99,8 +101,14 @@ const DESENHOS: Record<Acessorio, AccessoryDraw> = {
       }
     },
   },
-  "capacete-branco": helmet(palette.white, palette.gray200),
-  "capacete-amarelo": helmet(palette.props.helmetYellow, blend(palette.props.helmetYellow, palette.navy950, 0.25)),
+  "capacete-branco": helmet(
+    () => palette.white,
+    () => palette.gray200,
+  ),
+  "capacete-amarelo": helmet(
+    () => palette.props.helmetYellow,
+    () => blend(palette.props.helmetYellow, palette.navy950, 0.25),
+  ),
   oculos: {
     draw: (c) => {
       // cinza médio: contrasta com pele clara e escura
