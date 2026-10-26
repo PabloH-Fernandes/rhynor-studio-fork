@@ -7,6 +7,6 @@ data/*
 !data/agzinhos.example.json
 # minutos do "tempo economizado" (estimativa) e resumos exportados: o exemplo versionado é o padrão
 !data/estimativas.example.json
-referencias/*
 prints/
 /preview.png
+.env

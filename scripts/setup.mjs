@@ -29,7 +29,7 @@ export const MARCA_INICIO = "<!-- ag-pocket:inicio -->";
 export const MARCA_FIM = "<!-- ag-pocket:fim -->";
 export const MARCA_MEMORIA_INICIO = "<!-- ag-pocket:memoria:inicio -->";
 export const MARCA_MEMORIA_FIM = "<!-- ag-pocket:memoria:fim -->";
-const MARKER_HOOK = "--escritorio-ia";
+const MARKER_HOOK = "--rhynor-studio";
 // Mesmos eventos do scripts/install-hooks.mjs (ele roda no nível do módulo e não dá para importar).
 export const EVENTOS_HOOK = [
   "PreToolUse",

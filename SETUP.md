@@ -22,13 +22,13 @@ Para conferir, num terminal novo: `node --version` (precisa mostrar v20 ou maior
 ## 3. Instalação
 
 ```bash
-git clone https://github.com/PabloH-Fernandes/escritorio-ia.git
-cd escritorio-ia
+git clone https://github.com/PabloH-Fernandes/rhynor-studio.git
+cd rhynor-studio
 npm run setup
 npm start
 ```
 
-O `npm run setup` roda `npm install` sozinho. Ao fim, `npm start` sobe o escritório em http://127.0.0.1:4747. Abra uma sessão **nova** do Claude Code em qualquer projeto: o líder entra pela porta e, quando delegar, os outros chegam.
+O `npm run setup` roda `npm install` sozinho. Ao fim, `npm start` sobe o escritório em http://127.0.0.1:4848. Abra uma sessão **nova** do Claude Code em qualquer projeto: o líder entra pela porta e, quando delegar, os outros chegam.
 
 O setup é seguro para rodar de novo: o que já está em dia é pulado, e arquivos de configuração do Claude (`settings.json`, `CLAUDE.md`) ganham um backup `*.backup-*` antes de mudar.
 
@@ -243,9 +243,9 @@ O servidor **não herda** o `env` do `settings.json` do Claude Code. A única ex
 | `AGPOCKET_GRAVAR` | `1` grava cada evento dos hooks em `data/eventos/`. Guarda o prompt cru, inclusive a ata do `/reuniao` | Desligada |
 | `AG_SESSION_TIMEOUT_MIN` | Minutos sem nenhum evento até uma sessão sem sinal sair do escritório | 30 |
 | `AG_SETUP_TIMEOUT_S` | Segundos de espera por item do `npm run setup` | 300 |
-| `PORT` | Porta do servidor | 4747 |
+| `PORT` | Porta do servidor | 4848 |
 
-Se a porta 4747 já estiver em uso por outro programa, escolha outra com `PORT` (por exemplo `$env:PORT = "4800"; npm start`) e abra o endereço com essa porta.
+Se a porta 4848 já estiver em uso por outro programa, escolha outra com `PORT` (por exemplo `$env:PORT = "4800"; npm start`) e abra o endereço com essa porta.
 
 ## 12. Onde ficam os dados do painel
 

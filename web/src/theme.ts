@@ -250,7 +250,7 @@ const blazer = (shirt: string, shirtShade: string, accent: string, pants: string
 });
 
 export const theme: Theme = {
-  officeName: "AG Pocket",
+  officeName: "Rhynor Studio",
   subtitle: "Andrade Gutierrez · AGzinhos",
   logoUrl: "/logo-ag-horizontal.png",
 

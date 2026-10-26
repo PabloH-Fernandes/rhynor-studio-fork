@@ -30,7 +30,7 @@ import { ObservadorBusca, registrarBusca } from "./busca.ts";
 import { ResumoDia } from "./resumoDia.ts";
 import { registrarReplay } from "./replayRotas.ts";
 
-const PORT = Number(process.env.PORT ?? 4747);
+const PORT = Number(process.env.PORT ?? 4848);
 /** só na máquina local: os hooks e a tela rodam no mesmo computador */
 const HOST = "127.0.0.1";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -298,9 +298,9 @@ pendencias.subscribe(() => resultados.agendar());
 
 server.listen(PORT, HOST, () => {
   const hasUi = fs.existsSync(DIST);
-  console.log(`\n🏢 AG Pocket rodando`);
+  console.log(`\n🏢 Rhynor Studio rodando`);
   console.log(`   Hooks → http://${HOST}:${PORT}/api/hook`);
-  console.log(hasUi ? `   Tela  → http://${HOST}:${PORT}` : `   Tela  → http://localhost:5173 (npm run dev)`);
+  console.log(hasUi ? `   Tela  → http://${HOST}:${PORT}` : `   Tela  → http://localhost:5174 (npm run dev)`);
   console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (AG_SESSION_TIMEOUT_MIN)`);
   const vaultCaminho = resolverVault(process.env, os.homedir());
   console.log(vaultCaminho ? `   Vault → ${vaultCaminho}` : "   Vault não configurado (rode npm run setup)");

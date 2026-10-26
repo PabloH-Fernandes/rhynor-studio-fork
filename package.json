@@ -1,8 +1,8 @@
 {
-  "name": "escritorio-ia",
+  "name": "rhynor-studio",
   "version": "0.1.0",
   "private": true,
-  "description": "Escritório pixel art que mostra seus agentes do Claude Code trabalhando em tempo real",
+  "description": "Rhynor Studio: escritório pixel art que mostra seus agentes do Claude Code trabalhando em tempo real (fork do AG Pocket)",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n server,web -c blue,magenta \"tsx watch server/index.ts\" \"vite\"",

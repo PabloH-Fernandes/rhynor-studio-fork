@@ -1,0 +1,41 @@
+/* Rhynor Studio — tokens de marca. Única fonte de cores, fontes e raios do projeto. */
+:root {
+  /* Cores da logo (não alterar) */
+  --rh-laranja: #FF6500;   /* chifres e triângulo: destaque, ação, "ao vivo" */
+  --rh-ardosia: #263747;   /* corpo do rinoceronte */
+  --rh-aco: #A8B0B3;       /* sombra do rosto */
+  --rh-nevoa: #E2E5E7;     /* olho e brilho */
+
+  /* Interface (tema escuro padrão) */
+  --rh-noite: #0F1820;      /* fundo da página */
+  --rh-superficie: #18232E; /* painéis, crachás, cards */
+  --rh-elevado: #263747;    /* card em destaque, hover de painel */
+  --rh-borda: #2F4253;
+  --rh-texto: #E2E5E7;
+  --rh-texto-suave: #A8B0B3;
+  --rh-brasa: #FF8A3D;      /* hover do laranja */
+  --rh-ok: #3DDC97;         /* concluído, aprovado */
+  --rh-alerta: #FF4D4D;     /* erro, reprovado */
+  --rh-aviso: #FFC24D;      /* aguardando aprovação */
+
+  /* Tipografia (todas OFL, Google Fonts) */
+  --rh-fonte-titulo: "Space Grotesk", system-ui, sans-serif;
+  --rh-fonte-texto: "Inter", system-ui, sans-serif;
+  --rh-fonte-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Forma */
+  --rh-raio-sm: 6px;
+  --rh-raio: 12px;
+  --rh-raio-lg: 20px;
+  --rh-sombra: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Tema claro (opcional: relatórios, páginas públicas) */
+:root[data-theme="claro"] {
+  --rh-noite: #F5F6F7;
+  --rh-superficie: #FFFFFF;
+  --rh-elevado: #E2E5E7;
+  --rh-borda: #C9CED1;
+  --rh-texto: #263747;
+  --rh-texto-suave: #5A6670;
+}

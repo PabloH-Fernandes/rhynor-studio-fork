@@ -1,4 +1,6 @@
-# AG Pocket
+# Rhynor Studio
+
+> Fork do AG Pocket (remote `upstream`: escritorio-ia). A marca Rhynor entra na Etapa 1; por enquanto só nome, título e portas mudaram.
 
 > Instalando em outro PC? Veja o [SETUP.md](SETUP.md).
 
@@ -64,12 +66,12 @@ npm run install-hooks
 
 # 3. sobe o escritório
 npm run build
-npm start          # abre em http://127.0.0.1:4747
+npm start          # abre em http://127.0.0.1:4848
 ```
 
 Mudou o `model:` de algum agente em `agents/`? Rode `npm run install-agents` de novo. Até lá, o `npm run setup:check` avisa que os agentes estão desatualizados.
 
-O servidor escuta **só em `127.0.0.1`**: outras máquinas da rede não enxergam o escritório nem conseguem mandar eventos para ele. A porta padrão é 4747 (mude com a variável `PORT`).
+O servidor escuta **só em `127.0.0.1`**: outras máquinas da rede não enxergam o escritório nem conseguem mandar eventos para ele. A porta padrão é 4848 (mude com a variável `PORT`).
 
 Agora abra uma sessão **nova** do Claude Code em qualquer projeto e peça algo. O líder aparece entrando pela porta e, quando ele delegar, os outros chegam.
 
@@ -82,7 +84,7 @@ Rode `npm run setup`: ele coloca o bloco de `team/CLAUDE-time.md` no seu `~/.cla
 ### Desenvolvendo o escritório
 
 ```bash
-npm run dev        # servidor + Vite com hot reload em http://localhost:5173
+npm run dev        # servidor + Vite com hot reload em http://localhost:5174
 ```
 
 > **Dica:** se o time estiver editando o próprio AG Pocket, rode com `npm run build && npm start` em vez de `npm run dev`. O `tsx watch` reinicia o servidor a cada mudança em `server/` ou `shared/`. Com a persistência ninguém some, mas o último ~1 s antes do reinício pode se perder.
@@ -345,8 +347,8 @@ A justificativa completa está em [docs/agentes-modelos.md](docs/agentes-modelos
 
 Para mostrar o escritório a outras pessoas (reunião, projetor, gravação de tela):
 
-- **`http://localhost:4747/?apresentacao=1`**: tela cheia, escritório maior e painel simplificado, só com **Caixa de entrada**, **Pendências**, **Resultados** e o quadro de etapas. Time, Missões, feed, Transparência, Replay, Busca, vestiário, Limpar e os botões técnicos ficam escondidos. O modo é **só leitura**: nada é aprovado, concluído nem exportado por ali. O botão **Tela cheia** e a tecla **F** ligam e desligam a tela cheia (o navegador aceita só depois de um clique ou tecla). O modo normal (`/`) continua igual.
-- **`http://localhost:4747/?apresentacao=1&demo=1`**: roteiro automático de uns 3 minutos, em 5 passos (legenda "Passo n de 5" embaixo do escritório):
+- **`http://localhost:4848/?apresentacao=1`**: tela cheia, escritório maior e painel simplificado, só com **Caixa de entrada**, **Pendências**, **Resultados** e o quadro de etapas. Time, Missões, feed, Transparência, Replay, Busca, vestiário, Limpar e os botões técnicos ficam escondidos. O modo é **só leitura**: nada é aprovado, concluído nem exportado por ali. O botão **Tela cheia** e a tecla **F** ligam e desligam a tela cheia (o navegador aceita só depois de um clique ou tecla). O modo normal (`/`) continua igual.
+- **`http://localhost:4848/?apresentacao=1&demo=1`**: roteiro automático de uns 3 minutos, em 5 passos (legenda "Passo n de 5" embaixo do escritório):
   1. chega uma ata fictícia (a animação de ata nova);
   2. ela aparece na Caixa com as tarefas;
   3. duas tarefas são aprovadas para o time e o comando `/time` aparece pronto;
@@ -371,7 +373,7 @@ O servidor só ouve `127.0.0.1`, mas uma página aberta no navegador poderia ten
 - **Leituras** (`GET`) recusam `Host` que não seja `127.0.0.1:PORTA` ou `localhost:PORTA`. O WebSocket recusa `Origin` de outro site.
 - O id da reunião é validado (só letras, números e hífen; nunca um caminho). Os arquivos só são montados dentro de `10-Reunioes/` e `20-Missoes/`. A missão é gravada sem sobrescrever. A nota é regravada de forma segura, mantendo CRLF e BOM, e as aprovações rodam uma de cada vez.
 - A pendência só é regravada se a linha e a data do arquivo ainda forem as que o painel viu.
-- No `npm run dev`, o proxy do Vite troca o `Origin` (porta 5173) pelo do servidor, para o POST funcionar.
+- No `npm run dev`, o proxy do Vite troca o `Origin` (porta 5174) pelo do servidor, para o POST funcionar.
 - **Exceção conhecida:** `POST /api/demo` e `POST /api/reset` ainda **não** passam por essa checagem (não exigem JSON nem `Origin` do painel). O risco é só visual: a simulação e o "Limpar", que não mexem no vault. Fica para a próxima etapa.
 
 ### Privacidade
@@ -473,8 +475,8 @@ Regras de uniforme (o vestiário só oferece o que é permitido, e o servidor co
 
 **API:**
 ```bash
-curl http://127.0.0.1:4747/api/roster                 # lê o elenco
-curl -X PUT http://127.0.0.1:4747/api/roster \
+curl http://127.0.0.1:4848/api/roster                 # lê o elenco
+curl -X PUT http://127.0.0.1:4848/api/roster \
      -H "Content-Type: application/json" -d @elenco.json   # grava (valida antes)
 ```
 O `PUT` valida tudo e ignora tentativa de mexer em campo fixo.
@@ -570,8 +572,8 @@ Os acessórios (óculos, headset etc.) são do AGzinho, não do papel: veja o el
 **Iluminação pela hora real.** O escritório acompanha o relógio do computador: manhã, tarde, entardecer e noite. Para ver uma hora específica, use `?hora=HH.MM` na URL:
 
 ```
-http://localhost:5173/?hora=22      # noite
-http://localhost:5173/?hora=7.30    # 7h30 (formato HH.MM, não decimal: 7.5 seria 7h05)
+http://localhost:5174/?hora=22      # noite
+http://localhost:5174/?hora=7.30    # 7h30 (formato HH.MM, não decimal: 7.5 seria 7h05)
 ```
 
 Também aceita `HH:MM`. Valor inválido é ignorado e vale a hora real.

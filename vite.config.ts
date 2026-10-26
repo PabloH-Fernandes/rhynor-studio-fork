@@ -2,11 +2,11 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // 127.0.0.1 e não localhost: no Windows o localhost pode resolver para ::1 e o servidor só ouve IPv4
-const API = `http://127.0.0.1:${process.env.PORT ?? 4747}`;
+const API = `http://127.0.0.1:${process.env.PORT ?? 4848}`;
 
 // o servidor só aceita Origin dele mesmo (POST de aprovação e WebSocket): no dev o navegador manda o da porta
-// 5173, então o proxy troca só esse; qualquer outro Origin segue como veio e o servidor recusa
-const ORIGENS_DO_DEV = new Set(["http://localhost:5173", "http://127.0.0.1:5173"]);
+// 5174, então o proxy troca só esse; qualquer outro Origin segue como veio e o servidor recusa
+const ORIGENS_DO_DEV = new Set(["http://localhost:5174", "http://127.0.0.1:5174"]);
 
 function trocarOrigem(req: { getHeader(n: string): unknown; setHeader(n: string, v: string): unknown }) {
   const origem = req.getHeader("origin");
@@ -17,7 +17,8 @@ export default defineConfig({
   root: "web",
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 5174,
+    strictPort: true,
     proxy: {
       // changeOrigin: o Host chega como 127.0.0.1:PORT (o GET /api/caixa confere o Host)
       "/api": {

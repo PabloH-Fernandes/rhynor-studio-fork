@@ -2,7 +2,7 @@
 // Hook do Claude Code: pega o JSON do evento (stdin) e manda pro servidor do escritório.
 // Nunca falha e nunca segura o Claude: se o escritório estiver fechado, só ignora.
 
-const PORT = process.env.ESCRITORIO_PORT || "4747";
+const PORT = process.env.STUDIO_PORT || "4848";
 const URL = `http://127.0.0.1:${PORT}/api/hook`;
 
 const startedAt = Date.now(); // usado pelo servidor pra manter a ordem dos eventos

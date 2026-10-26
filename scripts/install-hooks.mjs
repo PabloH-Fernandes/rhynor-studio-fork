@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const MARKER = "--escritorio-ia";
+const MARKER = "--rhynor-studio";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HOOK = path.join(ROOT, "hooks", "hook.mjs");
 

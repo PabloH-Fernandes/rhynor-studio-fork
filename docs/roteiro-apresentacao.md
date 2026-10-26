@@ -2,7 +2,7 @@
 
 Demonstração automática do escritório, para quem não é de TI. Dura uns 3 minutos e 20 segundos.
 
-**Endereço:** `http://localhost:4747/?apresentacao=1&demo=1` (o servidor precisa estar rodando: `npm start`).
+**Endereço:** `http://localhost:4848/?apresentacao=1&demo=1` (o servidor precisa estar rodando: `npm start`).
 
 ## Antes de começar
 
