@@ -51,9 +51,11 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 
 Precisa de Node 20 ou mais novo e do Claude Code instalado e logado.
 
-**Jeito rápido:** `npm run setup` faz tudo de uma vez (dependências, agentes, hooks, vault do Obsidian, comandos `/time`, `/memoria` e `/reuniao`, Playwright, plugins e build). Depois é só `npm start`. Opções e detalhes no [SETUP.md](SETUP.md). `npm run setup -- --dry-run` mostra o que ele faria sem escrever nada.
+> **Estado atual (Etapa 1 da missão):** não rode o `npm run setup` ainda. Ele não foi adaptado ao Studio e duplicaria os blocos de time e de memória no `~/.claude/CLAUDE.md`. Use o passo manual abaixo.
 
-**Manual (alternativa):**
+**Jeito rápido (a partir da Etapa 3):** `npm run setup` faz tudo de uma vez (dependências, agentes, hooks, vault do Obsidian, comandos `/time`, `/memoria` e `/reuniao`, Playwright, plugins e build). Depois é só `npm start`. Opções e detalhes no [SETUP.md](SETUP.md). `npm run setup -- --dry-run` mostra o que ele faria sem escrever nada.
+
+**Manual (alternativa, use este agora):**
 
 ```bash
 npm install
@@ -71,7 +73,7 @@ npm start          # abre em http://127.0.0.1:4848
 
 Mudou o `model:` de algum agente em `agents/`? Rode `npm run install-agents` de novo. Até lá, o `npm run setup:check` avisa que os agentes estão desatualizados.
 
-O servidor escuta **só em `127.0.0.1`**: outras máquinas da rede não enxergam o escritório nem conseguem mandar eventos para ele. A porta padrão é 4848 (mude com a variável `PORT`).
+O servidor escuta **só em `127.0.0.1`**: outras máquinas da rede não enxergam o escritório nem conseguem mandar eventos para ele. A porta padrão é 4848 (mude com a variável `PORT`). O hook envia os eventos para `STUDIO_PORT`, que também vem 4848: se mudar uma, mude a outra.
 
 Agora abra uma sessão **nova** do Claude Code em qualquer projeto e peça algo. O líder aparece entrando pela porta e, quando ele delegar, os outros chegam.
 
@@ -119,6 +121,7 @@ ata da reunião → nota em 10-Reunioes → você escolhe as tarefas → notas e
   ```
 - Se uma pasta **acima** do vault novo já for um vault do Obsidian (tem `.obsidian/`), o setup avisa: os links `[[ ]]` podem ficar ambíguos até o vault antigo ser arquivado.
 - **O servidor** lê `STUDIO_VAULT` do ambiente e, se estiver vazia, do `env` do `~/.claude/settings.json` (o `npm start` não herda o env do Claude Code).
+- **Estado atual:** o `settings.json` deste PC ainda não tem `STUDIO_VAULT`, e o Studio só terá vault próprio na Etapa 3 da missão. Até lá, deixe `STUDIO_VAULT` vazio.
 
 ### Estrutura
 
@@ -310,7 +313,7 @@ Toca de novo o que o time fez num dia, num segundo escritório dentro do painel.
 - O feed usa frases simples, sem jargão ("Editando App.tsx" vira "mexendo num arquivo"). Repetidos são agrupados. Há destaques: 🙋 precisa de você, 🏁 etapa concluída, 🎉 trabalho concluído, ✅ terminou a parte.
 - O botão **Ver detalhes técnicos** troca as frases simples pelas técnicas; **Ver frases simples** volta.
 - **Som** (no topo, ao lado do indicador de conexão): sons sintetizados no navegador, em volume baixo. Um **bip duplo** quando alguém passa a te esperar (o **!**), um **ding** quando um personagem entrega uma tarefa e cliques leves de teclado enquanto alguém trabalha (no máximo ~4 por segundo). Vem **ligado**; o botão desliga e o navegador lembra. Navegadores só liberam áudio depois de um clique ou tecla na página. Ao abrir ou reconectar o painel, nada toca.
-- Visual de jogo em pixel: molduras em degrau, letras pixeladas e botões que afundam ao clicar.
+- Visual de jogo em pixel: molduras em degrau, letras pixeladas e botões que afundam ao clicar. As regras da marca estão em `referencias/rhynor-marca.md`.
 
 As frases ficam em `shared/frases.ts` (reexportadas por `server/frases.ts`). As fontes são locais, em `assets/fontes/` (licenças em `assets/fontes/LICENCAS.md`): Space Grotesk, Inter, JetBrains Mono, Silkscreen e VT323.
 
@@ -542,9 +545,7 @@ Dá para ver tudo sem ligar o Claude. Ela vive em `server/demo.ts`; **Limpar** i
 
 O produto se chama **Rhynor Studio** (nome no cabeçalho do painel, logo da Rhynor ao lado e favicon na aba). A fonte da verdade da marca (logos, cores, fontes e regras) é `referencias/rhynor-marca.md`; as logos oficiais ficam em `assets/marca/` e são servidas em `/marca/...`. Tudo no escritório é desenhado por código; nenhuma imagem gerada por IA.
 
-> Em transição: o elenco (roupas, pele e cabelo) ainda é o herdado do motor upstream; o elenco novo da Rhynor vem nas próximas etapas da missão (`referencias/missao-studio-v1.md`).
-
-**Cores e fontes.** Tudo sai dos tokens da marca em `web/src/marca/tokens.css` (cópia de `referencias/rhynor-marca/tokens.css`, com a seção de pixel art aprovada). O CSS usa `var(--rh-*)`; o canvas lê os mesmos tokens por `web/src/marca/cores.ts` (`cor`, `comAlfa`, `misturar`), então não há HEX solto no código da tela.
+**Cores e fontes.** Tudo sai dos tokens da marca em `web/src/marca/tokens.css` (cópia de `referencias/rhynor-marca/tokens.css`, com a seção de pixel art aprovada). O CSS usa `var(--rh-*)`; o canvas lê os mesmos tokens por `web/src/marca/cores.ts` (`cor`, `comAlfa`, `misturar`), então não há código de cor (hex) solto no código da tela. A regra "nenhum hex fora de `tokens.css`" é conferida pela guarda `scripts/marca.test.mjs`, que roda no `npm test`.
 - **Laranja** só no que está ativo: a mesa de quem trabalha agora (contorno de 1px e luz brasa), o agente selecionado, o botão principal, o cordão do crachá e o triângulo de "ao vivo".
 - **Aviso** (`--rh-aviso`) é exclusivo de "te esperando": o **!**, a etiqueta de nome e o alerta no painel.
 - **Sem cor por papel:** as plaquinhas das mesas são ardósia com texto névoa; o papel aparece pelo texto.
@@ -681,7 +682,9 @@ Os testes ficam ao lado do código que cobrem:
 - `web/src/demo/*.test.ts`, `web/src/privacidade.test.ts`: roteiro da demo, dados e privacidade da apresentação;
 - `web/src/office/deskLabel.test.ts`, `web/src/xp.test.ts`, `web/src/progresso.test.ts`: rótulos das mesas, barra de entregas e quadro na tela;
 - `web/src/office/camera.test.ts`, `web/src/office/activities.test.ts`, `bubbles.test.ts`, `overlay.test.ts`: câmera do zoom, atividades de descanso, balões e camadas;
-- `web/src/components/vestiarioLogic.test.ts`: lógica do vestiário.
+- `web/src/components/vestiarioLogic.test.ts`: lógica do vestiário;
+- `web/src/marca/cores.test.ts`: as cores do canvas saem dos tokens da marca;
+- `scripts/marca.test.mjs`: guarda de marca (sem hex fora de `tokens.css`, sem nomes antigos do produto, tokens iguais à matriz em `referencias/rhynor-marca/tokens.css` e ids de cor válidos no elenco).
 
 Alguns testes são pulados no Windows quando o sistema não permite criar links simbólicos (é preciso o Modo Desenvolvedor) ou quando o sistema de arquivos não aceita nomes com acento decomposto.
 

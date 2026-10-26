@@ -21,6 +21,10 @@ Para conferir, num terminal novo: `node --version` (precisa mostrar v20 ou maior
 
 ## 3. Instalação
 
+> **Estado atual (Etapa 1 da missão):** não rode o `npm run setup` ainda. Ele não foi adaptado ao Studio e duplicaria os blocos de time e de memória no `~/.claude/CLAUDE.md`. Até a Etapa 3, siga o passo manual do README ("Rodando") e deixe `STUDIO_VAULT` vazio.
+
+O fluxo abaixo é o da Etapa 3 em diante:
+
 ```bash
 git clone https://github.com/PabloH-Fernandes/rhynor-studio.git
 cd rhynor-studio
@@ -132,7 +136,7 @@ O `.gitignore` deixa de fora:
 | `data/escritorio.json` e `data/eventos/` | Estado do escritório e gravação de eventos (têm caminhos e prompts da sua máquina) | Não leve. Não compartilhe. |
 | `data/replay/`, `data/gasto/`, `data/transparencia/`, `data/exportacoes/` | Resumo do dia, contagem de tokens, log de acesso ao vault e cópias exportadas (têm nomes de arquivos e caminhos) | Não leve. Veja a seção 12. |
 | `data/estimativas.json` | Minutos usados na estimativa de tempo economizado (só números) | Pode copiar. Se não existir, vale o padrão. |
-| `referencias/` | Material de referência (logos, manual de marca etc.) | Copie à mão, por um canal que a empresa aprove. |
+| `referencias/` | Já vai pelo git: a marca (`rhynor-marca.md`, logos e tokens) e a missão atual | Já vem no clone. Se houver algum arquivo de referência fora do repositório, copie à mão, por um canal que a empresa aprove. |
 | `prints/` | Prints de conferência de quem desenvolveu | Opcional; não é necessário para rodar. |
 | `node_modules/` e `web/dist/` | Gerados pelo `npm install` e pelo build | O setup recria. |
 | O vault do Obsidian | Fica **fora** do repositório (só o modelo `vault-template/` vai pelo git) | Veja "O vault: outro PC e atualizações" na seção 5. Reuniões são confidenciais: só por canal que a empresa aprove. |
@@ -198,6 +202,8 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 - **Conteúdo de reunião em IA precisa de aprovação da TI/governança.** E lembre: com `STUDIO_GRAVAR=1` (desligado por padrão) o prompt cru, inclusive a ata colada no `/reuniao`, vai para `data/eventos/`.
 
 ## 10. Vault de teste e vault real
+
+> Até a Etapa 3 o Studio não tem vault próprio configurado: esta seção vale depois dela.
 
 Para testar sem mexer na memória de verdade, use um **vault de teste**, com dados inventados.
 
