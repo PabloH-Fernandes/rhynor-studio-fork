@@ -59,24 +59,58 @@ async function ambiente(opts: ObservadorBuscaOpcoes = {}, esperaIndiceMs?: numbe
   };
 }
 
+/**
+ * Crescimento linear sem depender da velocidade da máquina: compara o tempo com tamanho N e 2N
+ * (o menor de algumas medidas). Linear dá ~2x; quadrático daria ~4x. Só reprova a partir de 3,5x
+ * e quando o 2N já leva tempo mensurável (abaixo de PISO_MS o ruído do relógio manda).
+ */
+const RAZAO_MAX = 3.5;
+const PISO_MS = 25;
+/** teto absoluto só para pegar travamento de verdade (muito acima do normal, mesmo em máquina lenta) */
+const TETO_MS = 10_000;
+
+async function menorTempo(vezes: number, fazer: () => unknown | Promise<unknown>): Promise<number> {
+  let menor = Infinity;
+  for (let i = 0; i < vezes; i++) {
+    const t0 = performance.now();
+    await fazer();
+    menor = Math.min(menor, performance.now() - t0);
+  }
+  return menor;
+}
+
+function confereLinear(nome: string, tN: number, t2N: number) {
+  assert.ok(t2N < TETO_MS, `${nome}: ${t2N.toFixed(0)} ms com 2N (travou?)`);
+  if (t2N < PISO_MS) return;
+  const razao = t2N / Math.max(tN, 1);
+  assert.ok(razao < RAZAO_MAX, `${nome}: N levou ${tN.toFixed(1)} ms e 2N levou ${t2N.toFixed(1)} ms (${razao.toFixed(2)}x; linear seria ~2x)`);
+}
+
 test("regressão: cabeçalho e corpo só de '[[' não travam (linear)", async () => {
+  const cab = (n: number) => "# " + "[[".repeat(n) + "\n\ntexto\n";
+  const corpo = (n: number) => "[[".repeat(n);
+  const e = montarEntrada("Cab.md", cab(50000));
+  const e2 = montarEntrada("Corpo.md", corpo(100000));
+  assert.ok(e.cabsN.length <= 250);
+  assert.ok(e2.corpoN.length > 0);
+  const montar = (n: number) => () => {
+    montarEntrada("Cab.md", cab(n));
+    montarEntrada("Corpo.md", corpo(2 * n));
+  };
+  confereLinear("montarEntrada", await menorTempo(3, montar(25000)), await menorTempo(3, montar(50000)));
+
   const a = await ambiente();
   try {
-    const t0 = performance.now();
-    const e = montarEntrada("Cab.md", "# " + "[[".repeat(50000) + "\n\ntexto\n");
-    const e2 = montarEntrada("Corpo.md", "[[".repeat(100000));
-    assert.ok(performance.now() - t0 < 200, `montarEntrada demorou ${performance.now() - t0} ms`);
-    assert.ok(e.cabsN.length <= 250);
-    assert.ok(e2.corpoN.length > 0);
-
-    a.escrever("Cab.md", "# " + "[[".repeat(50000) + "\n\nfoguete\n");
-    a.escrever("Corpo.md", "[[".repeat(100000) + " foguete");
-    const t1 = performance.now();
-    await a.recarregar();
-    const r = await a.consultar("foguete");
-    assert.ok(performance.now() - t1 < 400, `indexar+buscar demorou ${performance.now() - t1} ms`);
-    assert.ok(r.ms < 200, `busca ${r.ms} ms`);
-    assert.equal(r.itens.length, 2);
+    const indexarEBuscar = (n: number) => async () => {
+      a.escrever("Cab.md", "# " + "[[".repeat(n) + "\n\nfoguete\n");
+      a.escrever("Corpo.md", "[[".repeat(2 * n) + " foguete");
+      await a.recarregar();
+      const r = await a.consultar("foguete");
+      assert.equal(r.itens.length, 2);
+    };
+    const tN = await menorTempo(2, indexarEBuscar(25000));
+    const t2N = await menorTempo(2, indexarEBuscar(50000));
+    confereLinear("indexar+buscar", tN, t2N);
   } finally {
     await a.fechar();
   }

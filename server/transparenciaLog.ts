@@ -212,7 +212,16 @@ export interface LogTransparenciaOpcoes {
   esperaMaxMs?: number;
   /** atas do mês (Resultados): entram no resumo, para a tela mostrar o mesmo número do GET e do export */
   atasDoMes?: (mes: string) => AtasDoMes;
+  /** agenda o envio atrasado do throttle (os testes passam um relógio falso; o padrão é o setTimeout) */
+  agendar?: (fn: () => void, ms: number) => { cancelar(): void };
 }
+
+/** agendamento real: setTimeout que não segura o processo vivo */
+const agendarReal = (fn: () => void, ms: number) => {
+  const t = setTimeout(fn, ms);
+  t.unref();
+  return { cancelar: () => clearTimeout(t) };
+};
 
 export class LogTransparencia {
   readonly dir: string;
@@ -227,7 +236,8 @@ export class LogTransparencia {
   private resumo: ResumoTransparencia;
   private ultimoAviso = 0;
   private ultimoEnvio = 0;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private timer: { cancelar(): void } | null = null;
+  private readonly agendar: (fn: () => void, ms: number) => { cancelar(): void };
   pronto: Promise<void> = Promise.resolve();
 
   constructor(contexto: () => ContextoTransparencia, opts: LogTransparenciaOpcoes = {}) {
@@ -238,6 +248,7 @@ export class LogTransparencia {
     this.pisoViolacaoMs = opts.pisoViolacaoMs ?? PISO_VIOLACAO_MS;
     this.esperaMaxMs = opts.esperaMaxMs ?? ESPERA_MAX_MS;
     this.atasDoMes = opts.atasDoMes ?? null;
+    this.agendar = opts.agendar ?? agendarReal;
     this.resumo = resumoVazio(mesDe(this.now()));
   }
 
@@ -256,7 +267,7 @@ export class LogTransparencia {
   }
 
   parar() {
-    if (this.timer) clearTimeout(this.timer);
+    if (this.timer) this.timer.cancelar();
     this.timer = null;
   }
 
@@ -425,17 +436,16 @@ export class LogTransparencia {
     }
     if (this.timer) {
       if (!urgente) return;
-      clearTimeout(this.timer); // a violação não espera o throttle comum: reagenda para o piso
+      this.timer.cancelar(); // a violação não espera o throttle comum: reagenda para o piso
     }
-    this.timer = setTimeout(() => {
+    this.timer = this.agendar(() => {
       this.timer = null;
       this.enviar();
     }, espera);
-    this.timer.unref();
   }
 
   private enviar() {
-    if (this.timer) clearTimeout(this.timer);
+    if (this.timer) this.timer.cancelar();
     this.timer = null;
     this.ultimoEnvio = this.now();
     const resumo = this.getResumo();

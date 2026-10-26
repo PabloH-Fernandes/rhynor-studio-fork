@@ -399,14 +399,31 @@ test("resumo e ws: conta por nível, guarda só as últimas e respeita o throttl
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "transp-"));
   let agora = AGORA.getTime();
   try {
-    const log = new LogTransparencia(() => contexto(v), { dir, now: () => agora, throttleMs: 1500, pisoViolacaoMs: 150 });
+    // relógio e agendamento falsos: o teste não depende de quanto o disco demora (antes, um disco
+    // lento deixava o setTimeout real disparar no meio da rajada e saía [1, 17])
+    const pendentes: { fn: () => void; ms: number; vivo: boolean }[] = [];
+    const agendar = (fn: () => void, ms: number) => {
+      const p = { fn, ms, vivo: true };
+      pendentes.push(p);
+      return { cancelar: () => void (p.vivo = false) };
+    };
+    const rodarPendentes = () => {
+      for (const p of pendentes.splice(0)) if (p.vivo) p.fn();
+    };
+    const log = new LogTransparencia(() => contexto(v), { dir, now: () => agora, throttleMs: 1500, pisoViolacaoMs: 150, agendar });
     const envios: number[] = [];
     log.subscribe((r) => envios.push(r.total));
     const arq = path.join(v.vault, "30-Projetos", "projeto-alfa.md");
     for (let i = 0; i < 30; i++) void log.registrar(pre("Read", { file_path: arq }));
     await log.esperarGravacoes();
     assert.deepEqual(envios, [1], "30 eventos seguidos: só o primeiro sai na hora");
-    await new Promise((r) => setTimeout(r, 1800));
+    assert.deepEqual(
+      pendentes.filter((p) => p.vivo).map((p) => p.ms),
+      [1500],
+      "um envio atrasado só, no fim do throttle",
+    );
+    agora += 1500;
+    rodarPendentes();
     // o último estado sempre sai (trailing)
     assert.deepEqual(envios, [1, 30]);
     assert.equal(log.getResumo().recentes.length, 20);
