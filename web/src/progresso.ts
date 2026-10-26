@@ -48,7 +48,7 @@ export function textoDoProgresso(p: Progress): TextoProgresso {
     };
   }
   if (p.fonte === "papel") {
-    return { estado: "papel", titulo: `Personagens em ${p.titulo}`, curto: `Em ${p.titulo}`, detalhe: "", valor: 0, max: 0 };
+    return { estado: "papel", titulo: `Time em ${p.titulo}`, curto: `Em ${p.titulo}`, detalhe: "", valor: 0, max: 0 };
   }
   return { estado: "nada", titulo: "Time de boa", curto: "De boa", detalhe: "", valor: 0, max: 0 };
 }

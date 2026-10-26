@@ -12,7 +12,7 @@ test("texto do quadro: etapa, concluído, papel e de boa", () => {
   assert.equal(fim.estado, "concluido");
   assert.equal(fim.titulo, "Time concluiu 5 de 5");
 
-  assert.equal(textoDoProgresso({ fonte: "papel", etapa: 0, total: 0, concluidas: 0, titulo: "Construção" }).titulo, "Personagens em Construção");
+  assert.equal(textoDoProgresso({ fonte: "papel", etapa: 0, total: 0, concluidas: 0, titulo: "Construção" }).titulo, "Time em Construção");
   assert.equal(textoDoProgresso({ fonte: "nada", etapa: 0, total: 0, concluidas: 0, titulo: "" }).titulo, "Time de boa");
 });
 

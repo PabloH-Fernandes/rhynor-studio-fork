@@ -46,7 +46,7 @@ export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, on
   const ag = personagemOf(agent, roster);
   const visitante = !ag;
   const nome = ag?.nome ?? agent.name;
-  const cargo = ag ? `${ag.cargo} · Personagem` : `Visitante · ${agent.name}`;
+  const cargo = ag ? ag.cargo : `Visitante · ${agent.name}`;
   // "O que eu faço": o do elenco; visitante extra (sem Personagem) usa o texto genérico do papel
   const funcao = ag ?? oQueFacoPadrao(agent.role);
   const sectionRef = useRef<HTMLElement>(null);
@@ -116,7 +116,9 @@ export function Cracha({ agent, roster, statusLabel, restLabel, gasto = null, on
   // o descanso só aparece pra quem está ocioso: trabalhando, o crachá não pode dizer "Tomando café"
   const agora = (agent.status === "ocioso" ? rest || activity : activity) || "Na mesa, aguardando tarefa";
 
-  const style = { "--cordao": ag?.cordao ?? "var(--cordao-visitante)" } as CSSProperties;
+  // cordão laranja da marca para todo o time; visitante (sem personagem ou com crachá de visitante) em aço
+  const cordaoVisitante = !ag || ag.destaque === "cracha-visitante";
+  const style = { "--cordao": cordaoVisitante ? "var(--cordao-visitante)" : "var(--rh-laranja)" } as CSSProperties;
 
   return (
     <section ref={sectionRef} className={`cracha${visitante ? " cracha-visitante" : ""}`} aria-labelledby={titleId} style={style}>

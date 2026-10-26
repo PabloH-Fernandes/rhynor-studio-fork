@@ -1,4 +1,4 @@
-// Persistência do elenco dos Personagens em data/elenco.json.
+// Persistência do elenco dos personagens em data/elenco.json.
 // Sem o arquivo o escritório usa o DEFAULT_ROSTER; com erros, saneia Personagem por Personagem.
 // A gravação é atômica (tmp + fsync + rename) e tenta de novo quando o OneDrive
 // ou o antivírus seguram o arquivo por um instante (EPERM/EBUSY/EACCES no Windows).
