@@ -1,4 +1,4 @@
-/* Tokens da identidade AG — manter em sincronia com palette em theme.ts */
+/* Tokens da interface — manter em sincronia com palette em theme.ts */
 :root {
   --bg: #020b1c; /* navy950 */
   --bg-2: #051733; /* navy900, cor da marca */

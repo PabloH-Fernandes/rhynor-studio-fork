@@ -253,7 +253,7 @@ export class Lightmap {
     g.fillStyle = `rgb(${br}, ${bg}, ${bb})`;
     g.fillRect(BOARD.x, BOARD.y, BOARD.w, BOARD.h);
     g.fillRect(BOARD_TRAY.x, BOARD_TRAY.y, BOARD_TRAY.w, BOARD_TRAY.h);
-    // plaquinha AG POCKET: o piso de antes (marinho com letra branca não precisa de mais)
+    // plaquinha RHYNOR STUDIO: o piso de antes (marinho com letra branca não precisa de mais)
     g.fillStyle = `rgb(${[200, 208, 228].map((v, i) => Math.max(v, d.ambient[i])).join(", ")})`;
     g.fillRect(POCKET_PLAQUE.x, POCKET_PLAQUE.y, POCKET_PLAQUE.w, POCKET_PLAQUE.h);
 
@@ -273,7 +273,7 @@ export class Lightmap {
     addLight(g, FLOOR_LAMP.x, FLOOR_LAMP.y - 34, LIGHT.lamp.r, LIGHT.lamp.color, LIGHT.lamp.power * n);
     for (const ax of SIGN_LAMP_X) addLight(g, ax, 12, LIGHT.sconce.r, LIGHT.sconce.color, LIGHT.sconce.power * n);
     if (scene.coffeeBusy) addLight(g, COFFEE_MACHINE.x, COFFEE_MACHINE.y, LIGHT.coffee.r, LIGHT.coffee.color, LIGHT.coffee.power * n);
-    // arandela sobre o balcão "AG" da recepção
+    // arandela sobre o balcão da recepção
     addLight(g, RECEPTION.x + (RECEPTION.w >> 1), RECEPTION.y - 24, LIGHT.reception.r, LIGHT.reception.color, LIGHT.reception.power * n);
   }
 

@@ -285,7 +285,7 @@ function exemplo(): Resultados {
 
 test("montarResumoMd traz números, período, 'estimativa' e a frase fixa", () => {
   const md = montarResumoMd(exemplo());
-  assert.match(md, /^# Resumo de resultados do AG Pocket/);
+  assert.match(md, /^# Resumo de resultados do Rhynor Studio/);
   assert.match(md, /Semana: 11\/10\/2026 a 17\/10\/2026/);
   assert.match(md, /\| Atas processadas \| 1 \| 2 \| 2 \|/);
   assert.match(md, /\| - lidas sem IA \| 1 \| 1 \| 1 \|/);

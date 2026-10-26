@@ -130,7 +130,7 @@ const FALAS_VISITANTE = ["Tudo certo por aí?", "Bora um café depois?", "Que se
 const PRI = { badge: 0, waiting: 0.5, work: 1, chat: 2, rest: 3, name: 4 } as const;
 
 /**
- * Onde os balões e nomes não podem ficar (com 1 px de folga): placa, quadro, AG POCKET, plaquinhas
+ * Onde os balões e nomes não podem ficar (com 1 px de folga): placa, quadro, plaquinha da ala, plaquinhas
  * e o tampo do ping-pong (o nome de quem joga embaixo cobria a bolinha).
  */
 const FORBIDDEN: Rect[] = [SIGN, BOARD, POCKET_PLAQUE, PINGPONG, ...DESKS.map((d) => deskPlateRect(d))].map((r) => ({
@@ -1282,7 +1282,7 @@ export class OfficeEngine {
 
   /**
    * Um passe de layout: "!" e pontinhos (fixos), pedido de permissão, balões de trabalho, chat,
-   * falas de descanso e, por último, os nomes. Nada cobre placa, quadro, AG POCKET, plaquinhas
+   * falas de descanso e, por último, os nomes. Nada cobre placa, quadro, plaquinha da ala, plaquinhas
    * ou outro balão; quem não cabe espera (descanso), vira só o nome (trabalho) ou some/encurta
    * pro primeiro nome (nome). Selecionado ou com o mouse em cima sempre mostra o nome.
    * O layout só é refeito quando muda algo que o afeta (assinatura barata por quadro).
@@ -1452,7 +1452,7 @@ export class OfficeEngine {
 // ------------------------------------------------------------------ helpers de desenho
 
 /**
- * Copo AG largado em cima de uma mesa: boca com café, corpo branco com faixa marinho, asa de 1px
+ * Copo do escritório largado em cima de uma mesa: boca com café, corpo branco com faixa marinho, asa de 1px
  * à direita e contorno só nas bordas (sem caixa em volta). (x, y) = canto de cima do corpo.
  */
 function drawCup(ctx: CanvasRenderingContext2D, x: number, y: number) {

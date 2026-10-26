@@ -37,7 +37,7 @@ export interface CaixaSomenteLeitura {
 }
 
 export function CaixaEntrada({ itens, somenteLeitura }: { itens: CaixaItem[] | null; somenteLeitura?: CaixaSomenteLeitura }) {
-  const [aberto, alternar] = usePreferencia("agpocket.painel.caixa", true);
+  const [aberto, alternar] = usePreferencia("studio.painel.caixa", true);
   const [escolhasLocais, setEscolhas] = useState<Record<string, Record<number, CaixaAcao>>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
   const [erros, setErros] = useState<Record<string, string>>({});

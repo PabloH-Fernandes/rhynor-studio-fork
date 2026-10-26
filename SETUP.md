@@ -1,8 +1,8 @@
-# Instalando o AG Pocket em outro PC
+# Instalando o Rhynor Studio em outro PC
 
 Guia para quem não conhece o projeto. Tempo estimado: 10 a 15 minutos (a maior parte é download).
 
-## 1. O que é o AG Pocket
+## 1. O que é o Rhynor Studio
 
 Um escritório pixel art que mostra, em tempo real, o seu time de agentes do Claude Code trabalhando: cada agente é um **AGzinho** que senta na mesa, digita, pede ajuda e descansa. O `npm run setup` deixa o PC pronto: instala o time de agentes, os hooks, o vault do Obsidian (a memória do time), os comandos `/time`, `/memoria` e `/reuniao`, o Playwright e as skills, e monta o escritório.
 
@@ -46,7 +46,7 @@ npm run setup -- --completo --browser=chrome
 | `--sem-plugins` | Pula marketplaces, plugins e skills. Útil em rede restrita. |
 | `--browser=NAV` | Navegador do Playwright: `chrome`, `msedge`, `firefox` ou `webkit`. Padrão: `msedge` no Windows e `chrome` nos outros sistemas. |
 | `--check` | Só confere (o mesmo que `npm run setup:check`). |
-| `--vault=PASTA` | Onde criar o vault (caminho completo ou começando com `~`). Só vale se `AGPOCKET_VAULT` ainda não estiver no settings.json; senão é ignorada, com aviso. Padrão: `AG-Cerebro` ao lado do repositório. |
+| `--vault=PASTA` | Onde criar o vault (caminho completo ou começando com `~`). Só vale se `STUDIO_VAULT` ainda não estiver no settings.json; senão é ignorada, com aviso. Padrão: `Studio-Cerebro` ao lado do repositório. |
 
 ## 4. Como conferir
 
@@ -74,21 +74,21 @@ Além do catálogo abaixo, o setup também faz estas coisas:
 | 6 agentes do time | `~/.claude/agents/` |
 | Hooks que mandam os eventos ao escritório | `~/.claude/settings.json` |
 | `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` (lista de tarefas, usada pelo quadro de etapas) | `~/.claude/settings.json`, em `env` |
-| Vault do Obsidian (segundo cérebro), copiado de `vault-template/` **só se a pasta ainda não existir**. Vault existente nunca é sobrescrito: o setup só confere a estrutura e avisa o que falta | `AG-Cerebro` ao lado do repositório, ou a pasta de `--vault=` (nunca dentro do repositório) |
-| `AGPOCKET_VAULT` com o caminho do vault (gravado depois que a pasta existe; se já houver um valor, não troca) | `~/.claude/settings.json`, em `env` |
-| Bloco do time (`team/CLAUDE-time.md`) entre `<!-- ag-pocket:inicio -->` e `<!-- ag-pocket:fim -->` | `~/.claude/CLAUDE.md` |
-| Bloco de memória (`team/CLAUDE-memoria.md`: o que ler no começo e no fim de missão e as regras de privacidade) entre `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`. Cópias antigas sem marcadores saem só se o setup reconhecer todas as linhas (com backup) | `~/.claude/CLAUDE.md` |
+| Vault do Obsidian (segundo cérebro), copiado de `vault-template/` **só se a pasta ainda não existir**. Vault existente nunca é sobrescrito: o setup só confere a estrutura e avisa o que falta | `Studio-Cerebro` ao lado do repositório, ou a pasta de `--vault=` (nunca dentro do repositório) |
+| `STUDIO_VAULT` com o caminho do vault (gravado depois que a pasta existe; se já houver um valor, não troca) | `~/.claude/settings.json`, em `env` |
+| Bloco do time (`team/CLAUDE-time.md`) entre `<!-- rhynor-studio:inicio -->` e `<!-- rhynor-studio:fim -->` | `~/.claude/CLAUDE.md` |
+| Bloco de memória (`team/CLAUDE-memoria.md`: o que ler no começo e no fim de missão e as regras de privacidade) entre `<!-- rhynor-studio:memoria:inicio -->` e `<!-- rhynor-studio:memoria:fim -->`. Cópias antigas sem marcadores saem só se o setup reconhecer todas as linhas (com backup) | `~/.claude/CLAUDE.md` |
 | Comandos: **todo** `commands/*.md` (hoje `/memoria`, `/reuniao` e `/time`). Arquivo diferente ganha backup antes de ser trocado | `~/.claude/commands/` |
 | Elenco inicial, copiado de `data/agzinhos.example.json` (se ainda não existir) | `data/agzinhos.json` |
 | Build do escritório | `web/dist/` |
 
 ### O vault: outro PC e atualizações
 
-- **Em outro PC** o setup cria um vault **novo e vazio** (só o modelo de `vault-template/`). Nada é migrado: reuniões, missões e memória do PC antigo ficam lá. Para levar, copie a pasta do vault à mão (ou use uma pasta sincronizada) e aponte o `AGPOCKET_VAULT` para ela **antes** de rodar o setup, ou use `--vault=`.
+- **Em outro PC** o setup cria um vault **novo e vazio** (só o modelo de `vault-template/`). Nada é migrado: reuniões, missões e memória do PC antigo ficam lá. Para levar, copie a pasta do vault à mão (ou use uma pasta sincronizada) e aponte o `STUDIO_VAULT` para ela **antes** de rodar o setup, ou use `--vault=`.
 - Se uma pasta acima do vault novo já tiver `.obsidian/` (outro vault), o setup avisa: os links `[[ ]]` podem ficar ambíguos até o vault antigo ser arquivado.
-- Se o vault existir mas estiver incompleto, o setup não mexe nele e **não grava** o `AGPOCKET_VAULT`: complete as pastas (ou escolha outra com `--vault=`) e rode de novo.
+- Se o vault existir mas estiver incompleto, o setup não mexe nele e **não grava** o `STUDIO_VAULT`: complete as pastas (ou escolha outra com `--vault=`) e rode de novo.
 - **Mudanças em `vault-template/` não chegam a um vault que já existe.** Depois de um `git pull` que mexa no modelo (templates, `_indice.md`, `LEIA-ME.md`), copie à mão o que quiser.
-- **Depois de atualizar** (`git pull` + `npm run setup`), reinicie o AG Pocket (`npm start` de novo) e abra uma sessão **nova** do Claude Code. O servidor lê o vault e monta as mensagens no momento em que sobe: um servidor antigo não conhece o `GET /api/missoes` nem as mensagens `missoes` e `reuniao`. A sessão nova carrega os comandos e o bloco de memória novos.
+- **Depois de atualizar** (`git pull` + `npm run setup`), reinicie o Studio (`npm start` de novo) e abra uma sessão **nova** do Claude Code. O servidor lê o vault e monta as mensagens no momento em que sobe: um servidor antigo não conhece o `GET /api/missoes` nem as mensagens `missoes` e `reuniao`. A sessão nova carrega os comandos e o bloco de memória novos.
 
 ### Essenciais (sempre instalados)
 
@@ -168,7 +168,7 @@ npm run setup -- --browser=chrome
 **Os comandos `claude` demoram e dão timeout** (PC lento, antivírus). O limite padrão é 300 segundos por item. Aumente:
 
 ```powershell
-$env:AG_SETUP_TIMEOUT_S="600"; npm run setup
+$env:STUDIO_SETUP_TIMEOUT_S="600"; npm run setup
 ```
 
 Se um item estourar o tempo, o setup avisa "tempo esgotado" e mostra o comando manual. No Windows, o processo filho (npx/node) pode continuar rodando em segundo plano mesmo assim; confira no Gerenciador de Tarefas antes de tentar de novo.
@@ -177,11 +177,11 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 
 ## 8. Como desinstalar
 
-1. Hooks: `npm run uninstall-hooks` (tira só as entradas do AG Pocket do `~/.claude/settings.json`).
+1. Hooks: `npm run uninstall-hooks` (tira só as entradas do Studio do `~/.claude/settings.json`).
 2. Agentes: apague de `~/.claude/agents/` os 6 arquivos `planejador.md`, `pesquisador.md`, `dev.md`, `testador.md`, `revisor.md` e `documentador.md`.
 3. Comandos: apague `~/.claude/commands/time.md`, `memoria.md` e `reuniao.md`.
-4. Blocos do time e de memória: abra `~/.claude/CLAUDE.md` e apague tudo entre `<!-- ag-pocket:inicio -->` e `<!-- ag-pocket:fim -->` e entre `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`, inclusive as linhas de marcador.
-5. Variáveis (opcional): remova `CLAUDE_CODE_ENABLE_TODO_TOOLS` e `AGPOCKET_VAULT` de `env` no `~/.claude/settings.json`. O vault em si **não** é apagado: guarde ou apague a pasta à mão.
+4. Blocos do time e de memória: abra `~/.claude/CLAUDE.md` e apague tudo entre `<!-- rhynor-studio:inicio -->` e `<!-- rhynor-studio:fim -->` e entre `<!-- rhynor-studio:memoria:inicio -->` e `<!-- rhynor-studio:memoria:fim -->`, inclusive as linhas de marcador.
+5. Variáveis (opcional): remova `CLAUDE_CODE_ENABLE_TODO_TOOLS` e `STUDIO_VAULT` de `env` no `~/.claude/settings.json`. O vault em si **não** é apagado: guarde ou apague a pasta à mão.
 6. Playwright: `claude mcp remove playwright --scope user`.
 7. Plugins e marketplaces, se quiser: `claude plugin uninstall <plugin>` e `claude plugin marketplace remove <nome>` (nomes na seção 5; o `superpowers` sai com `claude plugin uninstall superpowers@claude-plugins-official`, e os marketplaces extras se chamam `karpathy-skills` e `context-engineering-marketplace`), ou use `/plugin` dentro do Claude Code. Skills avulsas ficam em `~/.claude/skills/` (e `~/.agents/skills/`): apague a pasta da skill.
 8. Por fim, apague a pasta do projeto.
@@ -191,26 +191,26 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 - **O repositório é privado.** Ele guarda a identidade visual da empresa (logo e cores). Não torne público nem compartilhe fora da empresa.
 - **Antes de usar com dados da empresa**, confirme com a TI/segurança que os hooks, o servidor local e os plugins de terceiros são permitidos. Os hooks mandam cada evento do Claude Code (comandos, caminhos de arquivos, trechos de prompt) para o servidor local, que escuta só em `127.0.0.1`. O arquivo `data/escritorio.json` guarda esses caminhos e, em pasta sincronizada (OneDrive), sobe junto.
 - **Os extras são de terceiros e rodam com as suas permissões.** Use `--completo` só depois de revisar a lista da seção 5.
-- **O bloco de memória (Obsidian) não tem caminho pessoal.** O `team/CLAUDE-memoria.md` manda ler o vault da variável `AGPOCKET_VAULT` (`env` do `~/.claude/settings.json`), que o passo do vault grava.
+- **O bloco de memória (Obsidian) não tem caminho pessoal.** O `team/CLAUDE-memoria.md` manda ler o vault da variável `STUDIO_VAULT` (`env` do `~/.claude/settings.json`), que o passo do vault grava.
 - **Privacidade do vault:** nota com `confidencial: true` não é lida pelos agentes nem pelo painel; toda nota de reunião nasce confidencial; o painel recebe só títulos e a contagem de atas novas; o `/reuniao` troca nomes por papéis (revise a nota gerada). Nunca guarde senha, token, chave ou dado pessoal no vault. Regras completas no README ("Segundo cérebro").
-- **Conteúdo de reunião em IA precisa de aprovação da TI/governança.** E lembre: com `AGPOCKET_GRAVAR=1` (desligado por padrão) o prompt cru, inclusive a ata colada no `/reuniao`, vai para `data/eventos/`.
+- **Conteúdo de reunião em IA precisa de aprovação da TI/governança.** E lembre: com `STUDIO_GRAVAR=1` (desligado por padrão) o prompt cru, inclusive a ata colada no `/reuniao`, vai para `data/eventos/`.
 
 ## 10. Vault de teste e vault real
 
 Para testar sem mexer na memória de verdade, use um **vault de teste**, com dados inventados.
 
-1. Escolha uma pasta fora do repositório e fora do OneDrive da empresa, por exemplo `C:\Users\<voce>\dev\AG-Cerebro-teste`.
+1. Escolha uma pasta fora do repositório e fora do OneDrive da empresa, por exemplo `C:\Users\<voce>\dev\Studio-Cerebro-teste`.
 2. Aponte o setup para ela:
    ```powershell
-   npm run setup -- --vault=C:\Users\<voce>\dev\AG-Cerebro-teste
+   npm run setup -- --vault=C:\Users\<voce>\dev\Studio-Cerebro-teste
    ```
-   Se o `AGPOCKET_VAULT` já existir no `settings.json`, a flag é ignorada com aviso. Nesse caso, troque o valor à mão (veja abaixo).
+   Se o `STUDIO_VAULT` já existir no `settings.json`, a flag é ignorada com aviso. Nesse caso, troque o valor à mão (veja abaixo).
 3. Confira com `npm run setup:check`.
 4. Gere atas fictícias para testar a leitura: `npm run ata-ficticia -- --cenario=projeto-software`. Detalhes no README, em "Atas fictícias".
 
 **Apontar para o vault real depois:**
-- O setup **não troca** um `AGPOCKET_VAULT` que já existe. Para mudar, edite o valor à mão no `env` do `~/.claude/settings.json` (faça backup antes).
-- Se o terminal que sobe o `npm start` tiver `AGPOCKET_VAULT` definido, esse valor vence o do `settings.json`. Tire-o do terminal se for o caso.
+- O setup **não troca** um `STUDIO_VAULT` que já existe. Para mudar, edite o valor à mão no `env` do `~/.claude/settings.json` (faça backup antes).
+- Se o terminal que sobe o `npm start` tiver `STUDIO_VAULT` definido, esse valor vence o do `settings.json`. Tire-o do terminal se for o caso.
 - Depois, reinicie o `npm start` e abra uma sessão **nova** do Claude Code. Rode `npm run setup:check`.
 - Se o vault real estiver incompleto, o setup não grava o caminho e avisa o que falta.
 - Mantenha os dois separados: um vault de teste nunca deve apontar para a memória real, e vice-versa.
@@ -218,29 +218,29 @@ Para testar sem mexer na memória de verdade, use um **vault de teste**, com dad
 **Abrir o vault no Obsidian:**
 1. Instale o Obsidian (https://obsidian.md) se ainda não tiver.
 2. No Obsidian, escolha a opção de abrir uma **pasta como cofre** (vault).
-3. Escolha a pasta do vault (a que está em `AGPOCKET_VAULT`).
-4. No painel do AG Pocket, o botão "Abrir no Obsidian" da busca usa o **nome** dessa pasta. Dois vaults com o mesmo nome podem abrir o errado.
+3. Escolha a pasta do vault (a que está em `STUDIO_VAULT`).
+4. No painel do Studio, o botão "Abrir no Obsidian" da busca usa o **nome** dessa pasta. Dois vaults com o mesmo nome podem abrir o errado.
 
-## 11. Variáveis `AGPOCKET_*`
+## 11. Variáveis `STUDIO_*`
 
 Defina a variável no terminal antes de subir o servidor:
 
 ```powershell
-$env:AGPOCKET_INGESTAO = "0"; npm start
+$env:STUDIO_INGESTAO = "0"; npm start
 ```
 
-O servidor **não herda** o `env` do `settings.json` do Claude Code. A única exceção é `AGPOCKET_VAULT`, que ele lê de lá quando a variável do terminal está vazia. Por isso, as outras variáveis precisam estar no terminal que sobe o `npm start`.
+O servidor **não herda** o `env` do `settings.json` do Claude Code. A única exceção é `STUDIO_VAULT`, que ele lê de lá quando a variável do terminal está vazia. Por isso, as outras variáveis precisam estar no terminal que sobe o `npm start`.
 
 | Variável | Para que serve | Padrão |
 |---|---|---|
-| `AGPOCKET_VAULT` | Pasta do vault do Obsidian | Sem valor, o servidor lê o `env` do `~/.claude/settings.json` |
-| `AGPOCKET_INGESTAO` | `0` desliga a leitura automática das atas do `00-Inbox/` (o `/reuniao` continua funcionando) | Ligada |
-| `AGPOCKET_PROJETOS_DIR` | Pasta onde o Claude Code guarda as transcrições, usada na contagem de tokens. Serve sobretudo para testes | `~/.claude/projects` |
-| `AGPOCKET_REPLAY_DIR` | Pasta do replay do dia (caminho relativo à raiz do projeto) | `data/replay` |
-| `AGPOCKET_ESTADO` | Arquivo com o estado do escritório (caminho relativo à raiz do projeto) | `data/escritorio.json` |
-| `AGPOCKET_GRAVAR` | `1` grava cada evento dos hooks em `data/eventos/`. Guarda o prompt cru, inclusive a ata do `/reuniao` | Desligada |
-| `AG_SESSION_TIMEOUT_MIN` | Minutos sem nenhum evento até uma sessão sem sinal sair do escritório | 30 |
-| `AG_SETUP_TIMEOUT_S` | Segundos de espera por item do `npm run setup` | 300 |
+| `STUDIO_VAULT` | Pasta do vault do Obsidian | Sem valor, o servidor lê o `env` do `~/.claude/settings.json` |
+| `STUDIO_INGESTAO` | `0` desliga a leitura automática das atas do `00-Inbox/` (o `/reuniao` continua funcionando) | Ligada |
+| `STUDIO_PROJETOS_DIR` | Pasta onde o Claude Code guarda as transcrições, usada na contagem de tokens. Serve sobretudo para testes | `~/.claude/projects` |
+| `STUDIO_REPLAY_DIR` | Pasta do replay do dia (caminho relativo à raiz do projeto) | `data/replay` |
+| `STUDIO_ESTADO` | Arquivo com o estado do escritório (caminho relativo à raiz do projeto) | `data/escritorio.json` |
+| `STUDIO_GRAVAR` | `1` grava cada evento dos hooks em `data/eventos/`. Guarda o prompt cru, inclusive a ata do `/reuniao` | Desligada |
+| `STUDIO_SESSION_TIMEOUT_MIN` | Minutos sem nenhum evento até uma sessão sem sinal sair do escritório | 30 |
+| `STUDIO_SETUP_TIMEOUT_S` | Segundos de espera por item do `npm run setup` | 300 |
 | `PORT` | Porta do servidor | 4848 |
 | `STUDIO_PORT` | Porta para onde o `hooks/hook.mjs` manda os eventos. Se mudar `PORT`, defina `STUDIO_PORT` com o mesmo valor no ambiente do Claude Code | 4848 |
 
@@ -260,4 +260,4 @@ Tudo isso fica em `data/`, **fora do git**. Nenhum desses arquivos tem senha ou 
 | `data/escritorio.json` | Estado do escritório | Sim |
 
 - Os dados de `data/replay/`, `data/gasto/`, `data/transparencia/` e `data/exportacoes/` **não** devem ir para outro PC (veja a seção 6).
-- `AGPOCKET_ESTADO` troca só o `escritorio.json`. `data/gasto/` e `data/replay/` continuam na mesma pasta `data/`: dois servidores usando a mesma pasta misturam esses dados. Para testes em paralelo, use outra cópia do projeto.
+- `STUDIO_ESTADO` troca só o `escritorio.json`. `data/gasto/` e `data/replay/` continuam na mesma pasta `data/`: dois servidores usando a mesma pasta misturam esses dados. Para testes em paralelo, use outra cópia do projeto.

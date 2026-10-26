@@ -11,7 +11,7 @@ tags: [missao]
 confidencial: false
 ---
 <!--
-Valores válidos (o painel do AG Pocket lê este frontmatter):
+Valores válidos (o painel do Rhynor Studio lê este frontmatter):
 - projeto: nome da nota de 30-Projetos/ sem os colchetes do link, ou vazio
 - status: a fazer | em andamento | concluída (exatamente assim, com acento)
 - origem: reuniao (criada pelo /reuniao) | manual

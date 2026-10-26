@@ -37,7 +37,7 @@ export function expandeCaminho(bruto: string, home: string): string | null {
 }
 
 /**
- * Onde fica o vault: process.env.AGPOCKET_VAULT e, se vazio, ~/.claude/settings.json → env.AGPOCKET_VAULT
+ * Onde fica o vault: process.env.STUDIO_VAULT e, se vazio, ~/.claude/settings.json → env.STUDIO_VAULT
  * (o servidor não herda o env do settings.json). Qualquer problema devolve null.
  */
 export function resolverVault(
@@ -45,12 +45,12 @@ export function resolverVault(
   home: string,
   lerArquivo: (p: string) => string = (p) => fs.readFileSync(p, "utf8"),
 ): string | null {
-  let bruto = (env.AGPOCKET_VAULT ?? "").trim();
+  let bruto = (env.STUDIO_VAULT ?? "").trim();
   if (!bruto) {
     try {
       const json: unknown = JSON.parse(lerArquivo(path.join(home, ".claude", "settings.json")).replace(/^﻿/, ""));
       const e = (json as { env?: unknown } | null)?.env;
-      const v = e && typeof e === "object" ? (e as Record<string, unknown>).AGPOCKET_VAULT : undefined;
+      const v = e && typeof e === "object" ? (e as Record<string, unknown>).STUDIO_VAULT : undefined;
       if (typeof v === "string") bruto = v.trim();
     } catch {
       return null;

@@ -246,7 +246,7 @@ test("timeout de 30 min sem eventos manda embora (ocioso); com o arquivo velho, 
 });
 
 test("arquivo corrompido ou com formato estranho: começa vazio sem erro", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-estado-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "studio-estado-"));
   try {
     const file = path.join(dir, "escritorio.json");
     const state = new OfficeState({ sweepEveryMs: 0 });
@@ -265,7 +265,7 @@ test("arquivo corrompido ou com formato estranho: começa vazio sem erro", () =>
 });
 
 test("PersistenciaEstado: salva, carrega num estado novo e o limpar apaga o arquivo", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-estado-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "studio-estado-"));
   try {
     const file = path.join(dir, "escritorio.json");
     const { state } = reproduzir(trabalhando());

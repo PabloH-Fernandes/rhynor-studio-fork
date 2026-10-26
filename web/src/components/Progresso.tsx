@@ -1,5 +1,5 @@
 // Quadro de etapas no topo do painel: o mesmo do quadro branco da parede do escritório
-// ("AGzinhos na Etapa 4 de 7 · Construção de novas funções" e a barra de 10 segmentos).
+// ("Time na Etapa 4 de 7 · Construção de novas funções" e a barra de 10 segmentos).
 
 import type { Progress } from "../../../shared/types";
 import { IconeStatus } from "./IconePixel";

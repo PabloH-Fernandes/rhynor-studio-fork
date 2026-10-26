@@ -11,7 +11,7 @@ let file: string;
 const warn = console.warn;
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-roster-"));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), "studio-roster-"));
   file = path.join(dir, "agzinhos.json");
   console.warn = () => {}; // os avisos de saneamento são esperados aqui
 });

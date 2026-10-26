@@ -302,16 +302,16 @@ test("resolverVault: env, settings.json, ~, relativo e erro", () => {
   const semArquivo = () => {
     throw new Error("ENOENT");
   };
-  assert.equal(resolverVault({ AGPOCKET_VAULT: abs }, home, semArquivo), abs);
-  assert.equal(resolverVault({ AGPOCKET_VAULT: "~/cerebro" }, home, semArquivo), path.resolve(home, "cerebro"));
-  assert.equal(resolverVault({ AGPOCKET_VAULT: "relativo/x" }, home, semArquivo), null);
+  assert.equal(resolverVault({ STUDIO_VAULT: abs }, home, semArquivo), abs);
+  assert.equal(resolverVault({ STUDIO_VAULT: "~/cerebro" }, home, semArquivo), path.resolve(home, "cerebro"));
+  assert.equal(resolverVault({ STUDIO_VAULT: "relativo/x" }, home, semArquivo), null);
   assert.equal(resolverVault({}, home, semArquivo), null);
   const settings = (j: string) => (p: string) => {
     assert.equal(p, path.join(home, ".claude", "settings.json"));
     return j;
   };
-  assert.equal(resolverVault({ AGPOCKET_VAULT: " " }, home, settings(JSON.stringify({ env: { AGPOCKET_VAULT: abs } }))), abs);
-  assert.equal(resolverVault({}, home, settings("﻿" + JSON.stringify({ env: { AGPOCKET_VAULT: "~/v" } }))), path.resolve(home, "v"));
+  assert.equal(resolverVault({ STUDIO_VAULT: " " }, home, settings(JSON.stringify({ env: { STUDIO_VAULT: abs } }))), abs);
+  assert.equal(resolverVault({}, home, settings("﻿" + JSON.stringify({ env: { STUDIO_VAULT: "~/v" } }))), path.resolve(home, "v"));
   assert.equal(resolverVault({}, home, settings("{ quebrado")), null);
   assert.equal(resolverVault({}, home, settings(JSON.stringify({ env: null }))), null);
 });
@@ -319,7 +319,7 @@ test("resolverVault: env, settings.json, ~, relativo e erro", () => {
 // ---------------------------------------------------------------- pasta de verdade
 
 function montarVault() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-vault-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "studio-vault-"));
   fs.mkdirSync(path.join(dir, "20-Missoes"));
   fs.mkdirSync(path.join(dir, "00-Inbox", "processadas"), { recursive: true });
   fs.mkdirSync(path.join(dir, "10-Reunioes"));
@@ -468,7 +468,7 @@ test("observador: sem vault e sem pasta", async () => {
   assert.equal(sem.getInfo().vault, "sem-vault");
   assert.deepEqual(sem.getInfo().totais, { abertas: 0, concluidas: 0 });
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-vazio-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "studio-vazio-"));
   try {
     const obs = new ObservadorVault(() => dir, { intervaloMs: 0, semWatch: true });
     await obs.iniciar();

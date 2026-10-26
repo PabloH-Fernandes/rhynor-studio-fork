@@ -1,4 +1,4 @@
-// Resultados: quanto o AG Pocket já ajudou, contado SÓ das notas do vault (a fonte da verdade). Nada de contador
+// Resultados: quanto o Studio já ajudou, contado SÓ das notas do vault (a fonte da verdade). Nada de contador
 // solto em memória: se apagar uma nota, o número cai; se reiniciar o servidor, o número é o mesmo.
 //
 // O que conta (cada coisa tem a sua data):
@@ -199,7 +199,7 @@ export function montarResumoMd(r: Resultados): string {
   const linha = (rotulo: string, p: Periodos, f: (n: number) => string = String) => `| ${rotulo} | ${f(p.hoje)} | ${f(p.semana)} | ${f(p.total)} |`;
   const e = r.estimativas;
   const out = [
-    "# Resumo de resultados do AG Pocket",
+    "# Resumo de resultados do Rhynor Studio",
     "",
     `Dia: ${dataBrCurta(r.hoje)} · Semana: ${dataBrCurta(r.semanaDesde)} a ${dataBrCurta(r.hoje)} (últimos 7 dias)`,
     "",

@@ -1,9 +1,9 @@
 # Memória do time (vault do Obsidian)
 
-> O `npm run setup` instala este bloco no seu `~/.claude/CLAUDE.md` (entre os marcadores `ag-pocket:memoria`), logo depois do bloco do time ([[CLAUDE-time]]); sem o bloco do time, no fim do arquivo.
-> Não tem caminho pessoal: o vault é a pasta da variável `AGPOCKET_VAULT` (`env` do `~/.claude/settings.json`).
+> O `npm run setup` instala este bloco no seu `~/.claude/CLAUDE.md` (entre os marcadores `rhynor-studio:memoria`), logo depois do bloco do time ([[CLAUDE-time]]); sem o bloco do time, no fim do arquivo.
+> Não tem caminho pessoal: o vault é a pasta da variável `STUDIO_VAULT` (`env` do `~/.claude/settings.json`).
 
-O vault do time é a pasta da variável de ambiente `AGPOCKET_VAULT`. Leia o caminho dela; nunca use caminho fixo. Passe esse caminho aos agentes que usam o vault.
+O vault do time é a pasta da variável de ambiente `STUDIO_VAULT`. Leia o caminho dela; nunca use caminho fixo. Passe esse caminho aos agentes que usam o vault.
 
 **No começo** de missão (trabalho com mais de 2 etapas), leia só: `_indice.md`, a nota do projeto em `30-Projetos/` e, em `90-Memoria-do-time/`, os itens de `Decisões.md` e `Pendências.md` ligados ao projeto. Não leia o vault inteiro nem reabra decisão `aceita` sem motivo novo. O [[planejador]] consulta `Lições aprendidas.md` quando o assunto se repete.
 

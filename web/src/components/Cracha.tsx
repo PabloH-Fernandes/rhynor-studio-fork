@@ -1,5 +1,5 @@
-// Crachá AG do agente selecionado (no lugar do antigo "Detalhes"): cordão na cor do papel,
-// faixa marinho com o símbolo AG Pocket, retrato pixel art e o que ele está fazendo agora.
+// Crachá do agente selecionado (no lugar do antigo "Detalhes"): cordão na cor do papel,
+// faixa escura com a logo Rhynor, retrato pixel art e o que ele está fazendo agora.
 // Montado como ficha de personagem de jogo: retrato grande, nível e barrinha de "XP" das entregas do dia.
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";

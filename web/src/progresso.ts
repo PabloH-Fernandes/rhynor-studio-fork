@@ -6,7 +6,7 @@ export type EstadoProgresso = "tarefas" | "concluido" | "papel" | "nada";
 
 export interface TextoProgresso {
   estado: EstadoProgresso;
-  /** "AGzinhos na Etapa 4 de 7" */
+  /** "Time na Etapa 4 de 7" */
   titulo: string;
   /** versão curta, pra quando o título não cabe no quadro ("Etapa 4 de 7") */
   curto: string;
@@ -17,7 +17,7 @@ export interface TextoProgresso {
   max: number;
 }
 
-/** "AGzinhos na Etapa 2 de 6" vira frase "AGzinhos na Etapa " + contagem "2 de 6" (que não quebra no meio) */
+/** "Time na Etapa 2 de 6" vira frase "Time na Etapa " + contagem "2 de 6" (que não quebra no meio) */
 export function separarContagem(titulo: string): { frase: string; contagem: string } {
   const num = /^(.*?)(\d+ de \d+)$/.exec(titulo);
   return num ? { frase: num[1], contagem: num[2] } : { frase: titulo, contagem: "" };
@@ -40,7 +40,7 @@ export function textoDoProgresso(p: Progress): TextoProgresso {
     }
     return {
       estado: "tarefas",
-      titulo: `AGzinhos na Etapa ${p.etapa} de ${p.total}`,
+      titulo: `Time na Etapa ${p.etapa} de ${p.total}`,
       curto: `Etapa ${p.etapa} de ${p.total}`,
       detalhe: p.titulo,
       valor: p.etapa,

@@ -25,13 +25,13 @@ Regras gerais (valem para todos os passos):
 ## 1. Vault
 
 Rode o bloco de contexto. Ele confere o vault, mostra a pasta temporária (`TEMP`), a data de hoje, os projetos de `30-Projetos/` e as atas com `status: nova` na raiz de `00-Inbox/` (sem recursão, sem `LEIA-ME.md` e sem `processadas/`).
-- `SEM_VAULT`: avise que o vault não está configurado (rode `npm run setup` no escritorio-ia) e pare.
+- `SEM_VAULT`: avise que o vault não está configurado (rode `npm run setup` no Rhynor Studio) e pare.
 - `FALTA 10-Reunioes` ou `FALTA 20-Missoes`: avise que a pasta não existe no vault e pare.
 - `SEM_TEMP`: não deu para criar a pasta temporária; avise e pare.
 
 Ferramenta **PowerShell**:
 ```powershell
-$v = $env:AGPOCKET_VAULT
+$v = $env:STUDIO_VAULT
 if (-not $v) { 'SEM_VAULT' } else {
   foreach ($p in '10-Reunioes', '20-Missoes') { if (-not (Test-Path -LiteralPath (Join-Path $v $p) -PathType Container)) { "FALTA $p" } }
   "TEMP " + [IO.Path]::GetTempPath().TrimEnd('\')
@@ -53,7 +53,7 @@ if (-not $v) { 'SEM_VAULT' } else {
 
 Ferramenta **Bash**:
 ```bash
-v="$AGPOCKET_VAULT"
+v="$STUDIO_VAULT"
 if [ -z "$v" ]; then echo SEM_VAULT; else
   for p in 10-Reunioes 20-Missoes; do [ -d "$v/$p" ] || echo "FALTA $p"; done
   # pasta temporária própria e imprevisível (mktemp -d), não um nome fixo em /tmp
@@ -87,7 +87,7 @@ Ferramenta **PowerShell**:
 ```powershell
 $ErrorActionPreference = 'Stop'
 try {
-  $v = $env:AGPOCKET_VAULT
+  $v = $env:STUDIO_VAULT
   $f = Join-Path ([IO.Path]::GetTempPath()) 'reuniao-arquivo.txt'
   $e = @(Get-Content -LiteralPath $f -Encoding UTF8 -TotalCount 1)[0]
   Remove-Item -LiteralPath $f -Force
@@ -108,7 +108,7 @@ try {
 
 Ferramenta **Bash**:
 ```bash
-v="$AGPOCKET_VAULT"; tmp='<TEMP>'
+v="$STUDIO_VAULT"; tmp='<TEMP>'
 f="$tmp/reuniao-arquivo.txt"
 e=''; [ -f "$f" ] && IFS= read -r e < "$f"; rm -f -- "$f"
 e="${e%$'\r'}"
@@ -261,7 +261,7 @@ Ferramenta **PowerShell**:
 ```powershell
 $ErrorActionPreference = 'Stop'
 try {
-  $v = $env:AGPOCKET_VAULT
+  $v = $env:STUDIO_VAULT
   $f = Join-Path ([IO.Path]::GetTempPath()) 'reuniao-nomes.txt'
   $l = @(Get-Content -LiteralPath $f -Encoding UTF8)
   Remove-Item -LiteralPath $f -Force
@@ -288,7 +288,7 @@ try {
 Ferramenta **Bash**:
 ```bash
 # date -d é GNU (Git Bash, Linux). Em BSD/macOS ele falha e a data cai em "hoje": é o lado seguro.
-v="$AGPOCKET_VAULT"; tmp='<TEMP>'
+v="$STUDIO_VAULT"; tmp='<TEMP>'
 f="$tmp/reuniao-nomes.txt"
 if [ ! -f "$f" ]; then echo ERRO_ENTRADA; else
   dados=$(cat "$f"); rm -f -- "$f"
@@ -327,7 +327,7 @@ Ferramenta **PowerShell**:
 ```powershell
 $ErrorActionPreference = 'Stop'
 try {
-  $v = $env:AGPOCKET_VAULT
+  $v = $env:STUDIO_VAULT
   $f = Join-Path ([IO.Path]::GetTempPath()) 'reuniao-arquivar.txt'
   $l = @(Get-Content -LiteralPath $f -Encoding UTF8 -TotalCount 2)
   Remove-Item -LiteralPath $f -Force
@@ -382,7 +382,7 @@ try {
 Ferramenta **Bash**:
 ```bash
 # Mantém CRLF se a ata tinha (o BOM sai). Qualquer falha imprime RECUSADO e a ata não é movida.
-v="$AGPOCKET_VAULT"; tmp='<TEMP>'
+v="$STUDIO_VAULT"; tmp='<TEMP>'
 arquivar() {
   local f="$tmp/reuniao-arquivar.txt" arq nota inbox d tem cr alvo dest nome base ext k
   [ -f "$f" ] || return 1

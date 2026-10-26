@@ -32,7 +32,7 @@ export const TORSO_H = 7;
 export const LEG_H = 4;
 /**
  * Quanto o corpo desce ao sentar. Zero: o tampo da mesa (com o contorno) começa na 6ª linha
- * do tronco, então aparecem a cabeça, a gola, o cordão, a logo AG e o crachá inteiro.
+ * do tronco, então aparecem a cabeça, a gola, o cordão, a logo do peito e o crachá inteiro.
  */
 export const SIT_DROP = 0;
 /** topo da cabeça com o cabelo mais alto, relativo ao y dos pés (em pé e sentado) */

@@ -400,7 +400,7 @@ export function drawWindows(ctx: Ctx, t: number, light?: WindowLight) {
 //   janela 4–48 · janela 54–98 · quadro da ponte 106–130 · estante de rolos 136–160 ·
 //   relógio ~166–186 · placa da recepção 204–308 · quadro de etapas 318–404 (bandeja até y 39,
 //   acima do friso) · quadro da torre 410–434 · janela 440–484 ·
-//   janela 490–534 · plaquinha "AG POCKET" 539–574 (em cima da ala de descanso)
+//   janela 490–534 · plaquinha "RHYNOR STUDIO" 539–574 (em cima da ala de descanso)
 
 const WALL_H = WALL_ROWS * TILE; // 48
 /** friso branco (1px) e lambril marinho embaixo dele, até o chão */
@@ -688,7 +688,7 @@ export function linhaDaMissao(
   return { nome: cortaTexto(nome, textW, medir), espera: null };
 }
 
-/** copo AG (o mesmo das mesas) com vapor; (x, y) = canto de cima do corpo */
+/** copo do escritório (o mesmo das mesas) com vapor; (x, y) = canto de cima do corpo */
 function boardCup(ctx: Ctx, x: number, y: number) {
   const ink = palette.navy950;
   rect(ctx, x + 1, y - 2, 1, 1, palette.gray400); // vapor
@@ -699,7 +699,7 @@ function boardCup(ctx: Ctx, x: number, y: number) {
   rect(ctx, x, y + 4, 3, 1, ink); // fundo
   rect(ctx, x, y, 3, 1, palette.furniture.woodShade); // café
   rect(ctx, x, y + 1, 3, 3, palette.white);
-  rect(ctx, x, y + 2, 3, 1, palette.navy900); // faixa AG
+  rect(ctx, x, y + 2, 3, 1, palette.navy900); // faixa do copo
   rect(ctx, x + 4, y + 1, 1, 2, ink); // asa
 }
 
@@ -724,7 +724,7 @@ function boardCheck(ctx: Ctx, x: number, y: number) {
 }
 
 /**
- * Quadro de etapas: título ("AGzinhos na Etapa 4 de 7", "em Construção" ou "de boa" com xícara),
+ * Quadro de etapas: título ("Time na Etapa 4 de 7", "em Construção" ou "de boa" com xícara),
  * o que está sendo feito, barra de 10 segmentos com "4/7" e, embaixo, "TIME 5 · FAZENDO 2"
  * (e "ESPERA n" em waitingInk só quando há alguém esperando). Fica numa camada própria no motor,
  * redesenhada só quando o texto ou os contadores mudam.
@@ -946,7 +946,7 @@ export function drawCoffeeCorner(ctx: Ctx, t: number, busy: boolean, still = fal
     }
   }
   rect(ctx, x + 41, y - 3, 5, 4, palette.navy600);
-  // torre de copos AG pra quem vem tomar café (o bebedouro foi pra ala de descanso)
+  // torre de copos pra quem vem tomar café (o bebedouro foi pra ala de descanso)
   rect(ctx, x + 65, y - 10, 6, 11, palette.navy950);
   rect(ctx, x + 66, y - 9, 4, 9, palette.white);
   for (let cy = y - 7; cy < y; cy += 2) rect(ctx, x + 66, cy, 4, 1, palette.gray200);

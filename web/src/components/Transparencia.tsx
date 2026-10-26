@@ -45,7 +45,7 @@ function ItemLinha({ l }: { l: LinhaRecente }) {
 }
 
 export function Transparencia({ resumo }: { resumo: ResumoTransparencia | null }) {
-  const [aberto, alternar] = usePreferencia("agpocket.painel.transparencia", true);
+  const [aberto, alternar] = usePreferencia("studio.painel.transparencia", true);
   const [enviando, setEnviando] = useState(false);
   const [exportado, setExportado] = useState<Exportado | null>(null);
   const [aviso, setAviso] = useState("");

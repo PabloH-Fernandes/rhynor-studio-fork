@@ -40,7 +40,7 @@ export function ReplayDia({ roster }: { roster: Roster | null }) {
 }
 
 function ReplayPainel({ roster }: { roster: Roster | null }) {
-  const [aberto, alternar] = usePreferencia("agpocket.painel.replay", false);
+  const [aberto, alternar] = usePreferencia("studio.painel.replay", false);
   const [dias, setDias] = useState<Dias>({ tipo: "carregando" });
   const [data, setData] = useState<string>("");
   const [carregado, setCarregado] = useState<DiaCarregado>({ tipo: "nada" });

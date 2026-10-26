@@ -1,5 +1,5 @@
 // Quadro de etapas: transforma a lista de tarefas do Claude Code (TodoWrite ou TaskCreate/TaskUpdate,
-// que chegam pelos hooks) no "AGzinhos na Etapa X de Y". Sem lista, deduz a fase pelo papel de quem
+// que chegam pelos hooks) no "Time na Etapa X de Y". Sem lista, deduz a fase pelo papel de quem
 // está trabalhando; sem ninguém trabalhando, o time está de boa.
 //
 // Formato real dos eventos (capturado com os hooks, ver server/fixtures/):

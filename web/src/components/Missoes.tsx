@@ -26,8 +26,8 @@ import { usePreferencia, usePreferenciaTexto } from "../usePreferencia";
 const ROTULO_ABA: Record<AbaMissoes, string> = { abertas: "Abertas", concluidas: "Concluídas" };
 
 export function Missoes({ info }: { info: MissoesInfo | null }) {
-  const [aberto, alternar] = usePreferencia("agpocket.painel.missoes", true);
-  const [abaSalva, gravarAba] = usePreferenciaTexto("agpocket.painel.missoes.aba", "abertas");
+  const [aberto, alternar] = usePreferencia("studio.painel.missoes", true);
+  const [abaSalva, gravarAba] = usePreferenciaTexto("studio.painel.missoes.aba", "abertas");
   const aba = abaValida(abaSalva);
   const [aberta, setAberta] = useState<string | null>(null);
   const abasRef = useRef<Partial<Record<AbaMissoes, HTMLButtonElement | null>>>({});

@@ -25,8 +25,8 @@ import { usePreferencia, usePreferenciaTexto } from "../usePreferencia";
 
 /** somenteLeitura (modo apresentação): sem o botão Concluir, nada é gravado no vault */
 export function Pendencias({ itens, somenteLeitura = false }: { itens: Pendencia[] | null; somenteLeitura?: boolean }) {
-  const [aberto, alternar] = usePreferencia("agpocket.painel.pendencias", true);
-  const [filtroSalvo, setFiltro] = usePreferenciaTexto("agpocket.painel.pendencias.filtro", "minhas");
+  const [aberto, alternar] = usePreferencia("studio.painel.pendencias", true);
+  const [filtroSalvo, setFiltro] = usePreferenciaTexto("studio.painel.pendencias.filtro", "minhas");
   const filtro = filtroValido(filtroSalvo);
   const hoje = useHoje();
   const [enviando, setEnviando] = useState<string | null>(null);

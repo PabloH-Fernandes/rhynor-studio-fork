@@ -1,4 +1,4 @@
-// Gravador de eventos crus dos hooks: com AGPOCKET_GRAVAR=1, cada POST /api/hook vira uma linha
+// Gravador de eventos crus dos hooks: com STUDIO_GRAVAR=1, cada POST /api/hook vira uma linha
 // em data/eventos/AAAA-MM-DD.jsonl (data local), no formato que o server/replay.ts reproduz:
 //   {"chegada": <ms>, "hookTs": <x-hook-ts ou null>, "evento": <corpo cru>}
 //   {"chegada": <ms>, "marcador": "servidor_iniciou"}

@@ -1,6 +1,6 @@
 # Rhynor Studio
 
-> Fork do AG Pocket (remote `upstream`: escritorio-ia). A marca Rhynor entra na Etapa 1; por enquanto só nome, título e portas mudaram.
+> Construído sobre um motor upstream (remote `upstream`). A marca oficial da Rhynor está em `referencias/rhynor-marca.md`.
 
 > Instalando em outro PC? Veja o [SETUP.md](SETUP.md).
 
@@ -15,7 +15,7 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 - **Missões:** as missões do vault, com status e de qual reunião vieram.
 - **Caixa de entrada:** reuniões lidas que esperam você decidir o que o time faz e o que fica com você.
 - **Pendências:** tarefas em aberto, com prazo e responsável.
-- **Resultados:** quanto o AG Pocket já ajudou (com o tempo economizado sempre como estimativa).
+- **Resultados:** quanto o Studio já ajudou (com o tempo economizado sempre como estimativa).
 - **Transparência:** quais arquivos do vault os agentes abriram.
 - **Buscar no cérebro:** procura texto nas notas do vault, sem IA.
 - **Replay do dia:** toca de novo o que o time fez num dia.
@@ -27,7 +27,7 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 |---|---|
 | `agents/` | Os 6 subagentes do time ([[planejador]], [[pesquisador]], [[dev]], [[testador]], [[revisor]], [[documentador]]) |
 | `team/CLAUDE-time.md` | Instruções para o Claude principal saber quando chamar cada agente e montar a lista de tarefas ([[CLAUDE-time]]) |
-| `team/CLAUDE-memoria.md` | Bloco de memória no Obsidian; o vault vem de `AGPOCKET_VAULT` e o setup instala ([[CLAUDE-memoria]]) |
+| `team/CLAUDE-memoria.md` | Bloco de memória no Obsidian; o vault vem de `STUDIO_VAULT` e o setup instala ([[CLAUDE-memoria]]) |
 | `hooks/hook.mjs` | O hook: pega cada evento do Claude Code e manda para o servidor |
 | `server/` | Recebe os eventos, traduz em "quem está fazendo o quê", guarda o elenco, lê o vault e transmite tudo para a tela |
 | `shared/roster.ts` | Elenco padrão dos AGzinhos e as regras de validação (roda no servidor e no navegador) |
@@ -85,7 +85,7 @@ Rode `npm run setup`: ele coloca o bloco de `team/CLAUDE-time.md` no seu `~/.cla
 npm run dev        # servidor + Vite com hot reload em http://localhost:5174
 ```
 
-> **Dica:** se o time estiver editando o próprio AG Pocket, rode com `npm run build && npm start` em vez de `npm run dev`. O `tsx watch` reinicia o servidor a cada mudança em `server/` ou `shared/`. Com a persistência ninguém some, mas o último ~1 s antes do reinício pode se perder.
+> **Dica:** se o time estiver editando o próprio Studio, rode com `npm run build && npm start` em vez de `npm run dev`. O `tsx watch` reinicia o servidor a cada mudança em `server/` ou `shared/`. Com a persistência ninguém some, mas o último ~1 s antes do reinício pode se perder.
 
 ### Desligando
 
@@ -109,14 +109,14 @@ ata da reunião → nota em 10-Reunioes → você escolhe as tarefas → notas e
 ### Onde fica o vault
 
 - **Sempre fora do repositório.** O setup recusa um vault dentro da pasta do código.
-- **Um lugar só:** `AGPOCKET_VAULT` no `env` do `~/.claude/settings.json`. Agentes, comandos e servidor leem dali; nenhum arquivo do projeto tem caminho fixo.
+- **Um lugar só:** `STUDIO_VAULT` no `env` do `~/.claude/settings.json`. Agentes, comandos e servidor leem dali; nenhum arquivo do projeto tem caminho fixo.
 - **O `npm run setup` cria o vault** a partir de `vault-template/`, se a pasta ainda não existir. **Nunca sobrescreve** um vault que já existe: só confere a estrutura e avisa o que falta.
-- **Onde ele cria:** primeiro o `AGPOCKET_VAULT` que já estiver no settings.json; depois a flag `--vault=<pasta>`; e, se nada disso existir, a pasta `AG-Cerebro` ao lado do repositório.
+- **Onde ele cria:** primeiro o `STUDIO_VAULT` que já estiver no settings.json; depois a flag `--vault=<pasta>`; e, se nada disso existir, a pasta `Studio-Cerebro` ao lado do repositório.
   ```bash
-  npm run setup -- --vault=~/Documentos/AG-Cerebro
+  npm run setup -- --vault=~/Documentos/Studio-Cerebro
   ```
 - Se uma pasta **acima** do vault novo já for um vault do Obsidian (tem `.obsidian/`), o setup avisa: os links `[[ ]]` podem ficar ambíguos até o vault antigo ser arquivado.
-- **O servidor** lê `AGPOCKET_VAULT` do ambiente e, se estiver vazia, do `env` do `~/.claude/settings.json` (o `npm start` não herda o env do Claude Code).
+- **O servidor** lê `STUDIO_VAULT` do ambiente e, se estiver vazia, do `env` do `~/.claude/settings.json` (o `npm start` não herda o env do Claude Code).
 
 ### Estrutura
 
@@ -137,7 +137,7 @@ Toda nota tem o mesmo cabeçalho (frontmatter), e as notas se ligam por `[[ ]]`:
 ```yaml
 ---
 tipo: missao          # reuniao, missao, ata, indice...
-projeto: escritorio-ia
+projeto: rhynor-studio
 data: 2026-10-13
 status: a fazer
 origem: reuniao       # facilitator, power-automate, manual...
@@ -148,7 +148,7 @@ confidencial: false
 
 ### Regras de memória do time
 
-O setup instala um bloco de memória (`team/CLAUDE-memoria.md`) no seu `~/.claude/CLAUDE.md`, entre os marcadores `<!-- ag-pocket:memoria:inicio -->` e `<!-- ag-pocket:memoria:fim -->`:
+O setup instala um bloco de memória (`team/CLAUDE-memoria.md`) no seu `~/.claude/CLAUDE.md`, entre os marcadores `<!-- rhynor-studio:memoria:inicio -->` e `<!-- rhynor-studio:memoria:fim -->`:
 
 - **Começo de missão:** o líder lê `_indice.md`, depois **só** a nota do projeto em `30-Projetos/` e os itens de Decisões e Pendências ligados a ele. Nada de ler o vault inteiro.
 - **Fim de missão:** o documentador atualiza a nota da missão (status, commits, o que mudou), a do projeto e a memória do time. Notas curtas, sem código nem logs.
@@ -165,7 +165,7 @@ O setup instala um bloco de memória (`team/CLAUDE-memoria.md`) no seu `~/.claud
 
 ### Atas que entram sozinhas (leitura automática, sem IA)
 
-Com o servidor ligado, toda ata `.md` que cair na **raiz** de `00-Inbox/` é lida pelo próprio AG Pocket, **sem chamar o Claude**:
+Com o servidor ligado, toda ata `.md` que cair na **raiz** de `00-Inbox/` é lida pelo próprio Studio, **sem chamar o Claude**:
 
 - Ele espera o arquivo ficar quieto (~2 s), extrai título, data, notas, decisões e tarefas (com responsável e prazo, quando houver), grava a nota em `10-Reunioes/` e move a ata bruta para `00-Inbox/processadas/`. Nada é apagado.
 - A nota nasce com `confidencial: true`, `origem: leitura-automatica` e `processamento: sem-ia`. Os nomes de responsáveis e de quem falou viram "Responsável A, B..." (o nome original fica só na ata arquivada).
@@ -173,7 +173,7 @@ Com o servidor ligado, toda ata `.md` que cair na **raiz** de `00-Inbox/` é lid
 - Rodar de novo não duplica: a mesma ata (mesma fonte com o mesmo hash, ou mesmo `reuniao_id`) não vira duas notas.
 - Ata **fora do formato** (transcrição, sem cabeçalho fechado, sem seções) não é tocada: fica no Inbox e o painel mostra "precisa do /reuniao".
 - Ao subir o servidor, atas boas que já estavam no Inbox são lidas na hora, sem o aviso de "ata nova".
-- `AGPOCKET_INGESTAO=0` desliga a leitura automática. Vale só no terminal que sobe o servidor, porque o servidor não lê esse valor do `settings.json`.
+- `STUDIO_INGESTAO=0` desliga a leitura automática. Vale só no terminal que sobe o servidor, porque o servidor não lê esse valor do `settings.json`.
 - O formato da ata está em [docs/power-automate-reunioes.md](docs/power-automate-reunioes.md). **O fluxo do Power Automate ainda não existe** e nada disso foi testado com ele.
 
 ### Usando `/reuniao` passo a passo
@@ -246,7 +246,7 @@ As tarefas em aberto com prazo, de duas fontes:
 
 ### Resultados (estimativa)
 
-Quanto o AG Pocket já ajudou, **contado das notas do vault**. A nota é a fonte da verdade: apagar uma nota derruba o número, e reiniciar o servidor não muda nada (não existe contador guardado em memória). O painel mostra **hoje**, **semana** (últimos 7 dias, contando hoje) e **total** de:
+Quanto o Studio já ajudou, **contado das notas do vault**. A nota é a fonte da verdade: apagar uma nota derruba o número, e reiniciar o servidor não muda nada (não existe contador guardado em memória). O painel mostra **hoje**, **semana** (últimos 7 dias, contando hoje) e **total** de:
 
 - **Atas processadas**, separadas em **sem IA** (a leitura automática; data = `processada_em`) e **com IA** (`/reuniao`; data = data da reunião). Reunião escrita à mão, sem esse marcador, **não conta** como ata.
 - **Tarefas aprovadas** (das missões criadas pela Caixa, pela data `aprovada_em`). A tarefa "Time faz" existe na reunião e na missão, mas conta **uma vez só**.
@@ -294,7 +294,7 @@ Campo **Buscar no cérebro** no alto do painel: procura texto nas notas do vault
 Toca de novo o que o time fez num dia, num segundo escritório dentro do painel. O escritório ao vivo continua por trás, e o replay nunca escreve nele.
 
 - **Como usar:** abra a seção, escolha o dia, aperte **Tocar** e escolha **10x, 30x ou 60x**. Arraste a barra para ir a qualquer hora. Sem dias gravados, aparece "Ligue o servidor durante o dia para ter replay."
-- **Onde fica:** `data/replay/AAAA-MM-DD.jsonl` (dia local, fora do git). `AGPOCKET_REPLAY_DIR` troca a pasta (relativa à raiz do projeto). Fica sempre ligado, sem precisar do gravador.
+- **Onde fica:** `data/replay/AAAA-MM-DD.jsonl` (dia local, fora do git). `STUDIO_REPLAY_DIR` troca a pasta (relativa à raiz do projeto). Fica sempre ligado, sem precisar do gravador.
 - **O que guarda:** a hora de cada evento, o tipo, os ids da sessão e do agente, o tipo do agente (`dev`, `revisor`), o nome da ferramenta, o status e a estrutura das listas de tarefas. Caminhos viram `arquivo-N.ext` e a pasta vira `/projeto`.
 - **O que NÃO guarda:** prompts, a ata do `/reuniao`, mensagens entre agentes, comandos, buscas, URLs, respostas das ferramentas, caminhos reais e texto livre. Por isso o replay mostra o que cada AGzinho fazia (trabalhando, pensando, esperando), mas não o assunto.
 - **Limites:** cerca de 5 MB por dia (passou disso, o dia para de gravar e o terminal avisa uma vez) e 30 dias de retenção (os mais antigos são apagados quando o servidor sobe). Dia com mais de 20 mil mudanças mostra só as mudanças de status.
@@ -383,7 +383,7 @@ O servidor só ouve `127.0.0.1`, mas uma página aberta no navegador poderia ten
 - O painel recebe só o necessário: título neutro da reunião, dados da missão, a contagem de atas novas, e na Caixa e nas Pendências o título, a data, o texto, o responsável e o prazo das tarefas (reuniões: só as suas, `classe: eu`). Pauta, decisões e dúvidas das notas nunca vão para o painel.
 - Nomes de arquivo podem ser sensíveis: eles aparecem na Transparência e nos logs de `data/`.
 - Nunca guarde senha, token, chave ou dado pessoal no vault.
-- `AGPOCKET_GRAVAR=1` (desligado por padrão) grava o prompt cru em `data/eventos/`, **inclusive a ata colada no `/reuniao`**. Veja "Gravador de eventos".
+- `STUDIO_GRAVAR=1` (desligado por padrão) grava o prompt cru em `data/eventos/`, **inclusive a ata colada no `/reuniao`**. Veja "Gravador de eventos".
 - Conteúdo de reunião em IA precisa de **aprovação da TI e da governança** antes do uso com dados reais.
 
 ### Power Automate (próximo passo)
@@ -424,17 +424,17 @@ Como a escalação funciona:
 - **"Trabalhando" só vale com ferramenta em andamento ou evento recente.** O servidor guarda, por agente, as ferramentas que começaram (`PreToolUse`) e ainda não terminaram (`PostToolUse` ou falha). Sem nenhum evento por **2 min** (`TRABALHANDO_EXPIRA_MS`), ou **10 min** se a ferramenta em andamento for o `Bash` ou um `Agent`/`Task` (`TRABALHANDO_BASH_MS`), o agente volta para "De boa". "Pensando" expira em **5 min** (`PENSANDO_EXPIRA_MS`): o Esc no prompt não dispara `Stop`. Ferramenta em andamento há mais de 10 min é descartada. Entregar o resultado (`SubagentHandback`) e perguntar a você (`AskUserQuestion`) não contam como trabalho; "esperando" (!) nunca expira.
 - O `Stop` do líder faz todo mundo **daquela sessão** voltar para "de boa" (visitantes sem ferramenta em andamento saem; quem espera você continua esperando). Evento atrasado de quem acabou de dar `SubagentStop` (até ~5 s, `JANELA_TARDIO_MS`) não o traz de volta.
 - **Ao restaurar, ninguém volta trabalhando.** `trabalhando` e `pensando` do `data/escritorio.json` viram "De boa" (o líder, "Esperando seu próximo pedido"); o próximo evento de verdade põe o agente para trabalhar de novo.
-- **Reiniciar não manda ninguém embora.** O estado fica em `data/escritorio.json` (fora do git), salvo ~1 s depois de cada mudança e ao desligar o servidor. Mude o caminho com `AGPOCKET_ESTADO`. O arquivo guarda as atividades **com caminhos de arquivos**: se o projeto estiver numa pasta sincronizada (OneDrive, por exemplo), ele sobe junto. Atenção.
+- **Reiniciar não manda ninguém embora.** O estado fica em `data/escritorio.json` (fora do git), salvo ~1 s depois de cada mudança e ao desligar o servidor. Mude o caminho com `STUDIO_ESTADO`. O arquivo guarda as atividades **com caminhos de arquivos**: se o projeto estiver numa pasta sincronizada (OneDrive, por exemplo), ele sobe junto. Atenção.
 - **`/compact` e `/resume` mantêm o time.** O `/clear` **transfere** o time para a conversa nova (mesmo projeto, em até 30 s).
-- **Sessão sem sinal expira.** Se o Claude Code fechar sem mandar o `SessionEnd` (terminal fechado na marra, queda de energia), a sessão sai sozinha depois de `AG_SESSION_TIMEOUT_MIN` minutos sem nenhum evento (padrão: **30**). Quem está esperando você (o **!**) nunca expira, e a sessão com ferramenta em andamento espera 4x mais.
+- **Sessão sem sinal expira.** Se o Claude Code fechar sem mandar o `SessionEnd` (terminal fechado na marra, queda de energia), a sessão sai sozinha depois de `STUDIO_SESSION_TIMEOUT_MIN` minutos sem nenhum evento (padrão: **30**). Quem está esperando você (o **!**) nunca expira, e a sessão com ferramenta em andamento espera 4x mais.
 
   ```powershell
   # PowerShell
-  $env:AG_SESSION_TIMEOUT_MIN = "60"; npm start
+  $env:STUDIO_SESSION_TIMEOUT_MIN = "60"; npm start
   ```
   ```bash
   # bash
-  AG_SESSION_TIMEOUT_MIN=60 npm start
+  STUDIO_SESSION_TIMEOUT_MIN=60 npm start
   ```
   Valor vazio usa o padrão; valor inválido (zero, negativo, texto) avisa no console e também usa o padrão.
 - **Sessão real vence a simulação.** O Guto da simulação não disputa com o Guto de uma sessão real: se uma sessão de verdade está rodando, ela fica com o papel de líder.
@@ -479,9 +479,9 @@ curl -X PUT http://127.0.0.1:4848/api/roster \
 ```
 O `PUT` valida tudo e ignora tentativa de mexer em campo fixo.
 
-## Quadro "AGzinhos na Etapa X"
+## Quadro "Time na Etapa X"
 
-No topo do painel, o quadro mostra em que etapa o trabalho está ("AGzinhos na Etapa 3 de 6") e quem está nela. Ele pega os dados nesta ordem:
+No topo do painel, o quadro mostra em que etapa o trabalho está ("Time na Etapa 3 de 6") e quem está nela. Ele pega os dados nesta ordem:
 
 1. **A lista de tarefas do Claude Code**: `TaskCreate`/`TaskUpdate` ou `TodoWrite` (`server/progress.ts`). A tarefa `in_progress` é a etapa atual.
 2. **A reserva por papel**: sem lista de tarefas, o quadro deduz a fase pelos papéis que estão trabalhando.
@@ -512,10 +512,10 @@ Fontes: https://code.claude.com/docs/en/agent-sdk/todo-tracking e https://code.c
 
 ## Gravador de eventos (para investigar)
 
-`AGPOCKET_GRAVAR=1` grava **cada evento** que chega dos hooks em `data/eventos/AAAA-MM-DD.jsonl`, para investigar o que aconteceu numa sessão real. Desligado por padrão e fora do git. (`AG_HOOK_LOG=1` ainda funciona, mas está obsoleto.)
+`STUDIO_GRAVAR=1` grava **cada evento** que chega dos hooks em `data/eventos/AAAA-MM-DD.jsonl`, para investigar o que aconteceu numa sessão real. Desligado por padrão e fora do git.
 
 ```powershell
-$env:AGPOCKET_GRAVAR = "1"; npm start
+$env:STUDIO_GRAVAR = "1"; npm start
 npm run replay -- data/eventos/2026-10-05.jsonl                            # linha do tempo e estado final
 npm run replay -- --anonimizar data/eventos/2026-10-05.jsonl saida.jsonl   # cópia sem dados pessoais
 ```
@@ -538,31 +538,33 @@ Dá para ver tudo sem ligar o Claude. Ela vive em `server/demo.ts`; **Limpar** i
 
 ## Identidade
 
-O produto se chama **AG Pocket** (nome no cabeçalho do painel e no favicon). O escritório segue a identidade visual da Andrade Gutierrez: a placa da recepção tem a logo da empresa. Marinho `#051733` + branco; o marinho foi lido direto do pixel do fundo da logo oficial. Tudo é desenhado por código; nenhuma imagem gerada por IA.
+O produto se chama **Rhynor Studio** (nome no cabeçalho do painel, logo da Rhynor ao lado e favicon na aba). A fonte da verdade da marca (logos, cores, fontes e regras) é `referencias/rhynor-marca.md`; as logos oficiais ficam em `assets/marca/` e são servidas em `/marca/...`. Tudo no escritório é desenhado por código; nenhuma imagem gerada por IA.
+
+> Em transição: a paleta, o cenário e os uniformes ainda são os herdados do motor upstream. A troca pelos tokens, fontes e elenco da Rhynor vem nas próximas etapas da missão (`referencias/missao-studio-v1.md`).
 
 **Cores com regra:**
-- **Laranja de obra `#FF8A00`** é exclusivo do estado "te esperando" (o **!** e o alerta no painel), e sempre aparece sobre marinho. Nenhum cordão de crachá pode usar essa cor.
+- **Laranja `#FF8A00`** é exclusivo do estado "te esperando" (o **!** e o alerta no painel). Nenhum cordão de crachá pode usar essa cor.
 - **Âmbar escuro** é o do "vence em até 2 dias" no painel.
 - **O testador é turquesa** (`#2EC4B6`) para não competir com o laranja.
 - Os HEX ficam em `palette` (`web/src/theme.ts`), a fonte única.
 
 **O que tem no escritório:**
-- Placa da recepção com a logo oficial em pixels duros (a PNG é reduzida e vira só marinho e branco).
+- Placa da recepção, balcão e plaquinha da ala com "RHYNOR" em pixel (provisório até o rinoceronte em pixel entrar).
 - Janelas com guindaste e prédio em obra (o céu muda com a hora).
-- Quadros de ponte e de torre, sofás, impressora, cabideiro com capacetes, balcão "AG", credenza e plantas.
-- Maquete de obra na mesa de reunião.
+- Quadros de ponte e de torre, sofás, impressora, cabideiro com capacetes, credenza e plantas.
+- Maquete na mesa de reunião.
 
 **Uniformes por papel** (cada um tem a cor do papel no cordão do crachá, na gola, na manga ou no lenço):
 
 | Papel | Uniforme | Detalhe na cor do papel |
 |---|---|---|
-| Líder | terno marinho escuro + gravata dourada, crachá AG na lapela | gravata |
-| Planejador | blazer marinho | lenço de bolso |
+| Líder | terno escuro + gravata dourada, crachá na lapela | gravata |
+| Planejador | blazer escuro | lenço de bolso |
 | Revisor | blazer cinza | lenço de bolso |
-| Pesquisador | polo marinho, logo AG branca no peito | gola |
-| Testador | polo marinho, logo AG branca no peito | manga |
-| Dev | camisa branca, logo AG marinha no peito | gola |
-| Documentador | camisa branca, logo AG marinha no peito | manga |
+| Pesquisador | polo escura, marquinha branca no peito | gola |
+| Testador | polo escura, marquinha branca no peito | manga |
+| Dev | camisa branca, marquinha escura no peito | gola |
+| Documentador | camisa branca, marquinha escura no peito | manga |
 | Convidado | polo ou camisa + crachá cinza "visitante" | só o crachá |
 
 Os acessórios (óculos, headset etc.) são do AGzinho, não do papel: veja o elenco acima.
@@ -602,23 +604,19 @@ Os passos estão no comentário de `web/src/office/accessories.ts`:
 O TypeScript reclama se faltar o passo 2 ou o 3.
 
 ### Tempo de sessão
-`AG_SESSION_TIMEOUT_MIN` (minutos, padrão 30). Veja "Ciclo de vida".
+`STUDIO_SESSION_TIMEOUT_MIN` (minutos, padrão 30). Veja "Ciclo de vida".
 
 ### Várias sessões e projetos
 Cada sessão do Claude Code mostra o **projeto** (nome da pasta do `cwd`) na etiqueta do líder no mapa e no crachá; os subagentes herdam o projeto do líder. Com mais de um projeto aberto, o painel mostra **Mostrar: todas as sessões / só o projeto X**. O projeto é só o **nome da pasta**: duas pastas com o mesmo nome em lugares diferentes se misturam no filtro. O navegador lembra a escolha. O aviso "te esperando" olha **todos** os agentes, mesmo com filtro, e diz quantos estão em outro projeto. A lógica fica em `web/src/projetoLogic.ts`.
 
-### `AGPOCKET_IGNORAR_PRINT`: não implementado (de propósito)
+### `STUDIO_IGNORAR_PRINT`: não implementado (de propósito)
 A ideia seria descartar as sessões de `claude -p` (modo não interativo). Não dá para identificá-las pelos eventos: o JSON dos hooks não diz como o Claude foi iniciado (conferido na documentação de hooks, https://code.claude.com/docs/en/hooks, e em `HookInput` em `server/state.ts`). `permission_mode` é o modo de permissão, não o de execução. Como também não há sinal confiável, não foi criada heurística: ela esconderia sessões de verdade. Se a Anthropic passar a mandar esse campo, é só descartar o `session_id` em `server/index.ts` antes da fila.
 
 ### Trocar a logo
-1. Coloque a nova PNG em `web/public/` (ex.: `logo-minha-empresa.png`).
-2. Aponte para ela em `theme.logoUrl`:
-   ```ts
-   logoUrl: "/logo-minha-empresa.png",
-   ```
-3. A placa da recepção reduz a imagem para pixels duros e aplica um **limiar marinho/branco**: só existem essas duas cores na placa, então logos coloridas perdem a cor. Prefira logo de alto contraste.
-4. Se `logoUrl` for vazio ou a imagem falhar ao carregar, a placa cai para o "AG" em pixels de `web/src/office/agMark.ts` (`AG_LETTERS`, e `AG_CHEST` para o peito do uniforme).
-5. O favicon é `web/public/favicon-agpocket.svg`, referenciado em `web/index.html`.
+1. As logos ficam em `assets/marca/` (pasta pública do Vite: `assets/marca/x.png` vira `/marca/x.png`).
+2. O cabeçalho do painel e o crachá usam `/marca/rhynor-logo-fundo-escuro.png` (`web/src/App.tsx` e `web/src/components/Cracha.tsx`). Respeite as regras de `referencias/rhynor-marca.md`: sem recolorir nem esticar, no mínimo 32 px de altura e respiro de 1/4 da largura.
+3. A placa da recepção usa `theme.logoUrl` (hoje vazio). Vazio ou imagem que falha ao carregar = "RHYNOR" em pixels de `web/src/office/agMark.ts` (`RHYNOR_LETTERS`).
+4. O favicon é `/marca/favicon-64.png`, referenciado em `web/index.html`.
 
 ### Trocar cores
 1. Edite `palette` em `web/src/theme.ts` (ex.: `navy900` é a cor da marca).
@@ -638,7 +636,7 @@ A ideia seria descartar as sessões de `claude -p` (modo não interativo). Não 
 ### Layout e sprites
 Para mudar o layout, mexa em `DESKS` no `web/src/office/map.ts`. Os móveis ficam em `map.ts` e nos módulos `decorMoveis.ts` e `decorJanela.ts`, com os helpers de desenho em `decorBase.ts` (`decor.ts` só reexporta os três). Os personagens são desenhados com retângulos em `web/src/office/sprites.ts` (e nos módulos de corpo, cabelo e acessórios), então dá para mudar cabelo ou adicionar capacete sem mexer com imagens. Os sprites ficam em cache (`spriteCache.ts`). A luz do dia está em `web/src/office/daylight.ts`.
 
-> Para usar a marca oficial: peça a logo e o manual de marca ao time de comunicação e mantenha o repositório privado.
+> A marca oficial (logos, cores, fontes e regras de uso) está em `referencias/rhynor-marca.md`.
 
 ## Como funciona por dentro
 
@@ -701,45 +699,9 @@ Alguns testes são pulados no Windows quando o sistema não permite criar links 
 
 ## Como o time construiu isso
 
-A identidade AG foi feita pelo próprio time de agentes, em três fases. Depois veio a missão v2, que deu vida aos AGzinhos.
+O motor upstream foi construído pelo próprio time de agentes, em missões. Cada etapa segue o mesmo ciclo: o planejador quebra o pedido, o dev implementa e roda typecheck, build e testes, o testador confere (com Playwright quando há tela), o revisor revisa o diff e o que voltar vira ajuste antes do commit. Os prints de conferência ficam em `prints/` (fora do git).
 
-### Fase 1: descoberta (em paralelo)
-- **Líder:** leu o HEX exato dos PNGs (`#051733` na logo horizontal, `#01102F` no símbolo) e fechou 4 decisões com o usuário: editar só favicon e title do `index.html`; laranja de obra para o estado de espera; porcelanato cinza-azulado; logo PNG em pixels duros. Testador em turquesa e commits só de código.
-- **Pesquisador:** trouxe técnicas de pixel art 3/4, lightmap com `multiply` + `lighter`, paletas com hue shift (Lospec Apollo, Sweetie16, Endesga32), animações e o método de "assar" a logo em pixels duros.
-- **Planejador:** mapeou a arquitetura (lanes, faixas livres, eventos que disparam animações) e escreveu a proposta com paleta, uniformes, cenário e 6 etapas.
-
-### Fase 2: 6 etapas
-Cada etapa seguiu o ciclo: dev implementa, roda typecheck e build e tira prints com Playwright, testador, revisor, ajustes, commit. Os prints de conferência ficam em `prints/` (não versionados).
-
-1. **Paleta e painel:** tokens, tema e painel lateral. Voltou: subtítulo quebrando e HEX soltos no código.
-2. **Uniformes AG e personagens:** Voltou: cordão de lado parecia gravata, crachá sumia na camisa branca, "!" do monitor ainda amarelo; a logo do peito virou forma de "A".
-3. **Parede de recepção:** logo AG na placa e janelas com obra. Voltou: cache da falha do bake, translação, limiar só em k=1.
-4. **Piso, mobília e detalhes marinho:** Voltou: anel de hover invisível, tapete escuro escondia uniformes marinho, metade de baixo desequilibrada (entrou a credenza), vapor do café.
-5. **Animações de espreguiçar e comemorar:** Voltou: espreguiçar parecia capuz, o líder comemorava no `SessionEnd`, confete branco sumia.
-6. **Iluminação pela hora real:** Voltou: quadro ilegível à noite, luzes de teto fortes, 18h salmão competindo com o laranja, luar como manchas, personagens virando silhueta.
-
-### Fase 3: documentação
-O documentador escreveu este README.
-
-### Missão v2: os AGzinhos ganham vida
-
-**Fase 1: descoberta e plano.** O pesquisador e o planejador leram as referências. O usuário aprovou o elenco e decidiu: mapa de 36 colunas, líder também no descanso, servidor só em `127.0.0.1`, quadro de etapas no lugar dos contadores, "AG Pocket" como nome, testador turquesa e escala sempre inteira.
-
-**Fase 2: 9 etapas.** Mesmo ciclo da v1 (dev, testador, revisor, ajustes, commit). O que entrou e o que testador e revisor devolveram ao dev:
-
-1. **Elenco e persistência** (`8fb3295`): `shared/roster.ts`, `data/agzinhos.json` e `GET/PUT /api/roster`. Voltou: o PUT precisava normalizar igual ao load; saneamento por AGzinho.
-2. **Ficar até o fim da sessão** (`ce52c0c`): mesmo papel volta como a mesma pessoa, AGzinhos "de boa" até o `SessionEnd`, timeout de sessão, "Limpar" cancelando a simulação. Voltou: o timeout derrubava quem estava esperando, extras se acumulavam, a simulação disputava o Guto, líder fantasma.
-3. **AGzinhos chibi e cache de sprites** (`9aea82b`): cabeça maior, olhos com brilho, piscar e respirar, animações novas, acessórios por camada, galeria em `?galeria=1`. Voltou: o coque da Marina ficava invisível.
-4. **Ala de descanso e agendador** (`0624cb3`): 36 colunas, mesa de ping-pong, bebedouro, café, sofá, maquete, regar, interrupção por trabalho. Voltou: escala não inteira, FPS, fantasmas depois do `SessionEnd`, copo indo para a mesa errada, ping-pong parecendo armário.
-5. **Ping-pong, bate-papo e balões sem sobreposição** (`bf06014`). Voltou: AGzinho trabalhando em pé no ping-pong, ligadura "fi" no nome (Sofia virava "Soña").
-6. **Crachá AG no lugar de "Detalhes"** (`92587b6`). Voltou: foco e acessibilidade do crachá.
-7. **Vestiário** (`c501278`, com ajuste de rodapé em `64b6835`). Voltou: corrida entre salvar e o WebSocket, Esc repetido, PUT burlando campos fixos, barba + óculos.
-8. **Quadro "AGzinhos na Etapa X"** (`0e6aad1`). Voltou: TodoWrite de subagente apagando a lista do líder, simulação presa em "1 de 1".
-9. **Simulação nova, 2 devs em paralelo e reduced-motion** (`7948e76`). Voltou: dois devs seguidos sem descrição.
-
-**Skills usadas:** *brainstorming* (fase 1); *frontend-design*, *web-design-guidelines* e *theme-factory*. **Não usadas:** geração de imagem, *brand-guidelines*, *superpowers* e *agent-browser*. Os prints de conferência ficam em `prints/` (fora do git).
-
-**Resultado da v1:** *brainstorming*, *frontend-design*, *web-design-guidelines*, *theme-factory* e Playwright para os prints; sem geração de imagem por IA (as referências da AG não saem da máquina). O testador mediu cerca de 115 a 144 FPS (limitado pelo vsync) e nenhuma regressão no fluxo.
+O Rhynor Studio segue o mesmo ciclo. A missão atual está em `referencias/missao-studio-v1.md`.
 
 ## Limitações conhecidas
 
@@ -769,7 +731,7 @@ O documentador escreveu este README.
 - **Replay:** cerca de 5 MB por dia e 30 dias de retenção.
 - **Tokens:** a nota da missão é aproximada (pode subcontar se o servidor cair).
 - **Transparência:** leituras feitas por comandos de shell não são vistas.
-- **`data/` é compartilhada** entre servidores: `AGPOCKET_ESTADO` isola só o `escritorio.json`, não o `data/gasto` nem o `data/replay`.
+- **`data/` é compartilhada** entre servidores: `STUDIO_ESTADO` isola só o `escritorio.json`, não o `data/gasto` nem o `data/replay`.
 
 **Apresentação**
 - **Privacidade da apresentação é melhor esforço.** Os dados reais chegam ao navegador (aparecem na aba Rede das ferramentas) e texto livre fora dos rótulos pode passar. Para apresentar de verdade, use um vault fictício.

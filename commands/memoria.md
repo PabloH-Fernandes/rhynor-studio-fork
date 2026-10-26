@@ -8,13 +8,13 @@ Responda a pergunta abaixo usando só o que está escrito no vault do time. Não
 Pergunta: $ARGUMENTS
 
 Passos:
-1. Leia o caminho do vault em `$env:AGPOCKET_VAULT` (PowerShell) ou `$AGPOCKET_VAULT` (bash). Se estiver vazio, avise que o vault não está configurado (rode `npm run setup` no escritorio-ia) e pare.
+1. Leia o caminho do vault em `$env:STUDIO_VAULT` (PowerShell) ou `$STUDIO_VAULT` (bash). Se estiver vazio, avise que o vault não está configurado (rode `npm run setup` no Rhynor Studio) e pare.
 2. Leia `<vault>/_indice.md`.
 3. Busque no shell, NUNCA com Glob ou Grep (no OneDrive eles estouram o tempo). Escolha de 2 a 4 palavras-chave da pergunta e troque `termo1|termo2` por elas, com classes para acento e variações (ex.: `decis[aã]o|upload`; no bash, se o acento falhar, use `.` no lugar da letra: `decis.{1,2}o`).
    O comando já tira `.obsidian/`, `Templates/`, `00-Inbox/` (atas brutas) e toda nota confidencial: nota sem frontmatter legível, com `confidencial: true` (também `"true"`, `True` ou com `# comentário`) e nota de `10-Reunioes/` sem `confidencial: false` explícito.
    - Na ferramenta **PowerShell**, rode este bloco como está (`-Encoding UTF8` é obrigatório no PS 5.1). Nunca rode via `powershell -Command` de dentro do Bash:
      ```powershell
-     $v = $env:AGPOCKET_VAULT
+     $v = $env:STUDIO_VAULT
      function Liberada($f) {
        $l = @(Get-Content -LiteralPath $f.FullName -Encoding UTF8 -TotalCount 200)
        if ($l.Count -lt 2 -or $l[0].Trim() -ne '---') { return $false }
@@ -41,7 +41,7 @@ Passos:
        l ~ /^confidencial:[ \t]*["\047]?false["\047]?[ \t]*(#.*)?$/ { livre = 1 }
        END { fecha() }
      '
-     cd "$AGPOCKET_VAULT" && find . -type f -name '*.md' -not -path './.obsidian/*' -not -path '*/Templates/*' -not -path './00-Inbox/*' -print0 |
+     cd "$STUDIO_VAULT" && find . -type f -name '*.md' -not -path './.obsidian/*' -not -path '*/Templates/*' -not -path './00-Inbox/*' -print0 |
        xargs -0 -r awk "$liberadas" |
        xargs -0 -r env LC_ALL=C.UTF-8 grep -cHiE 'termo1|termo2' -- |
        awk -F: '$NF > 0 { c = $NF; sub(/:[0-9]+$/, ""); print c "\t" $(0) }' | sort -nr | head -8

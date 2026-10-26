@@ -36,7 +36,7 @@ export function ResumoResultados({ resultados }: { resultados: DadosResultados |
 
 /** somenteLeitura (modo apresentação): sem o botão Exportar, nada é gravado no computador */
 export function Resultados({ resultados, somenteLeitura = false }: { resultados: DadosResultados | null; somenteLeitura?: boolean }) {
-  const [aberto, alternar] = usePreferencia("agpocket.painel.resultados", true);
+  const [aberto, alternar] = usePreferencia("studio.painel.resultados", true);
   const [enviando, setEnviando] = useState(false);
   const [exportado, setExportado] = useState<Exportado | null>(null);
   const [aviso, setAviso] = useState("");

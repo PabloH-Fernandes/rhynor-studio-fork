@@ -1,11 +1,11 @@
-// Gerador de atas FICTÍCIAS para testar e apresentar o AG Pocket (npm run ata-ficticia).
+// Gerador de atas FICTÍCIAS para testar e apresentar o Rhynor Studio (npm run ata-ficticia).
 // Gera o mesmo formato que o fluxo do Power Automate vai gravar (docs/power-automate-reunioes.md) e salva
-// em <vault>/00-Inbox/. Nomes, empresas e projetos são todos inventados; nenhum dado real da AG.
+// em <vault>/00-Inbox/. Nomes, empresas e projetos são todos inventados; nenhum dado real.
 //
 // Uso:
 //   npm run ata-ficticia                                 (cenário aleatório, vault configurado)
 //   npm run ata-ficticia -- --cenario=alinhamento-bi
-//   npm run ata-ficticia -- --vault=C:\caminho\do\vault  (senão usa AGPOCKET_VAULT ou o settings.json)
+//   npm run ata-ficticia -- --vault=C:\caminho\do\vault  (senão usa STUDIO_VAULT ou o settings.json)
 //   npm run ata-ficticia -- --sem-gravar                 (só mostra o texto)
 //
 // Cenários: projeto-software, alinhamento-bi, so-decisoes, tarefas-sem-prazo e bagunçado
@@ -319,8 +319,8 @@ async function cli(argv: string[]): Promise<number> {
   if (!vault) {
     console.error(
       args.vault
-        ? "O caminho do --vault precisa ser absoluto (ex.: C:\\Users\\voce\\AG-Cerebro-teste)."
-        : "Vault não configurado. Rode npm run setup, defina AGPOCKET_VAULT ou passe --vault=<caminho>.",
+        ? "O caminho do --vault precisa ser absoluto (ex.: C:\\Users\\voce\\Studio-Cerebro-teste)."
+        : "Vault não configurado. Rode npm run setup, defina STUDIO_VAULT ou passe --vault=<caminho>.",
     );
     return 1;
   }

@@ -37,20 +37,19 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = path.join(ROOT, "web", "dist");
 
 /** minutos sem nenhum evento até a sessão ser encerrada (terminal fechado à força, sem SessionEnd) */
-const SESSION_TIMEOUT_MIN = parseTimeoutMin(process.env.AG_SESSION_TIMEOUT_MIN);
+const SESSION_TIMEOUT_MIN = parseTimeoutMin(process.env.STUDIO_SESSION_TIMEOUT_MIN);
 
 /**
- * AGPOCKET_GRAVAR=1 grava todo evento cru dos hooks em data/eventos/AAAA-MM-DD.jsonl, para
- * reproduzir depois com `npm run replay`. AG_HOOK_LOG=1 (antigo) vira sinônimo, com aviso.
+ * STUDIO_GRAVAR=1 grava todo evento cru dos hooks em data/eventos/AAAA-MM-DD.jsonl, para
+ * reproduzir depois com `npm run replay`.
  */
-const HOOK_LOG_OBSOLETO = process.env.AG_HOOK_LOG === "1";
-const GRAVAR = process.env.AGPOCKET_GRAVAR === "1" || HOOK_LOG_OBSOLETO;
+const GRAVAR = process.env.STUDIO_GRAVAR === "1";
 const gravador = GRAVAR ? new Gravador(path.join(ROOT, "data", "eventos")) : null;
 gravador?.servidorIniciou();
 
 // Replay do dia: resumo LEVE (sem prompt, comando nem texto livre) em data/replay/AAAA-MM-DD.jsonl, sempre ligado.
-// AGPOCKET_REPLAY_DIR troca a pasta (testes isolados); relativo à raiz do projeto. Guarda ~30 dias (limpeza no boot).
-const REPLAY_DIR = process.env.AGPOCKET_REPLAY_DIR?.trim() ? path.resolve(ROOT, process.env.AGPOCKET_REPLAY_DIR.trim()) : path.join(ROOT, "data", "replay");
+// STUDIO_REPLAY_DIR troca a pasta (testes isolados); relativo à raiz do projeto. Guarda ~30 dias (limpeza no boot).
+const REPLAY_DIR = process.env.STUDIO_REPLAY_DIR?.trim() ? path.resolve(ROOT, process.env.STUDIO_REPLAY_DIR.trim()) : path.join(ROOT, "data", "replay");
 const resumoDia = new ResumoDia(REPLAY_DIR);
 void resumoDia.limpar();
 resumoDia.servidorIniciou();
@@ -60,8 +59,8 @@ observarDemo((ev) => resumoDia.evento(ev, null));
 const state = new OfficeState({ sessionTimeoutMs: SESSION_TIMEOUT_MIN * 60_000 });
 state.setRoster(loadRoster());
 // o time de antes do reinício (tsx watch reinicia quando o time edita server/) volta direto pra mesa
-// AGPOCKET_ESTADO troca o arquivo (ex.: testes isolados); relativo à raiz do projeto
-const ESTADO = process.env.AGPOCKET_ESTADO?.trim() ? path.resolve(ROOT, process.env.AGPOCKET_ESTADO.trim()) : ESTADO_FILE;
+// STUDIO_ESTADO troca o arquivo (ex.: testes isolados); relativo à raiz do projeto
+const ESTADO = process.env.STUDIO_ESTADO?.trim() ? path.resolve(ROOT, process.env.STUDIO_ESTADO.trim()) : ESTADO_FILE;
 const persistencia = new PersistenciaEstado(state, ESTADO);
 const restaurados = persistencia.carregar();
 persistencia.ligar();
@@ -115,9 +114,9 @@ const gasto = new GastoTokens({
   vault: () => resolverVault(process.env, os.homedir()),
 });
 void gasto.iniciar();
-// leitura das atas do Inbox sem IA (AGPOCKET_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
+// leitura das atas do Inbox sem IA (STUDIO_INGESTAO=0 desliga): nota em 10-Reunioes e ata arquivada em processadas/
 const ingestao =
-  process.env.AGPOCKET_INGESTAO?.trim() === "0"
+  process.env.STUDIO_INGESTAO?.trim() === "0"
     ? null
     : new IngestaoInbox(() => resolverVault(process.env, os.homedir()), {
         aoIngerir: (ata) => {
@@ -301,14 +300,11 @@ server.listen(PORT, HOST, () => {
   console.log(`\n🏢 Rhynor Studio rodando`);
   console.log(`   Hooks → http://${HOST}:${PORT}/api/hook`);
   console.log(hasUi ? `   Tela  → http://${HOST}:${PORT}` : `   Tela  → http://localhost:5174 (npm run dev)`);
-  console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (AG_SESSION_TIMEOUT_MIN)`);
+  console.log(`   Sessão sem sinal sai em ${SESSION_TIMEOUT_MIN} min (STUDIO_SESSION_TIMEOUT_MIN)`);
   const vaultCaminho = resolverVault(process.env, os.homedir());
   console.log(vaultCaminho ? `   Vault → ${vaultCaminho}` : "   Vault não configurado (rode npm run setup)");
   if (restaurados) console.log(`   Estado restaurado: ${restaurados} AGzinho(s) de volta`);
   console.log("");
-  if (HOOK_LOG_OBSOLETO) {
-    console.warn("   AG_HOOK_LOG está obsoleto: use AGPOCKET_GRAVAR=1 (por enquanto liga o mesmo gravador)");
-  }
   if (GRAVAR) {
     console.warn(
       "   Gravador ligado: todo evento cru vai para data/eventos/AAAA-MM-DD.jsonl. O arquivo contém seus prompts,\n" +
@@ -347,11 +343,11 @@ process.once("SIGTERM", () => void desligar(143));
 process.once("SIGHUP", () => void desligar(129));
 process.once("beforeExit", () => persistencia.salvarSync());
 
-/** AG_SESSION_TIMEOUT_MIN: minutos (> 0); vazio usa o padrão, inválido avisa e usa o padrão */
+/** STUDIO_SESSION_TIMEOUT_MIN: minutos (> 0); vazio usa o padrão, inválido avisa e usa o padrão */
 function parseTimeoutMin(raw: string | undefined): number {
   if (raw === undefined || raw.trim() === "") return DEFAULT_SESSION_TIMEOUT_MIN;
   const n = Number(raw);
   if (Number.isFinite(n) && n > 0) return n;
-  console.warn(`[config] AG_SESSION_TIMEOUT_MIN="${raw}" inválido, usando ${DEFAULT_SESSION_TIMEOUT_MIN} min`);
+  console.warn(`[config] STUDIO_SESSION_TIMEOUT_MIN="${raw}" inválido, usando ${DEFAULT_SESSION_TIMEOUT_MIN} min`);
   return DEFAULT_SESSION_TIMEOUT_MIN;
 }

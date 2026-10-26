@@ -36,7 +36,7 @@ export const NOME_ACESSORIO: Record<Acessorio, string> = {
   oculos: "Óculos",
   colete: "Colete refletivo",
   prancheta: "Prancheta",
-  caneca: "Caneca AG",
+  caneca: "Caneca",
   lapis: "Lápis na orelha",
   relogio: "Relógio",
   barba: "Barba",

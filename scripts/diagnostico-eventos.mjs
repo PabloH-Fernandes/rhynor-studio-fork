@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Diagnóstico dos eventos gravados (data/eventos/AAAA-MM-DD.jsonl, gerado com AGPOCKET_GRAVAR=1).
+// Diagnóstico dos eventos gravados (data/eventos/AAAA-MM-DD.jsonl, gerado com STUDIO_GRAVAR=1).
 // Uso: npm run diagnostico [-- arquivo.jsonl]   (sem argumento, usa o .jsonl mais recente)
 //
 // Imprime só metadados (ids, nomes de evento, cwd, horas). Nunca imprime prompt, comando nem
@@ -198,7 +198,7 @@ function main() {
   const arquivo = arg ? path.resolve(arg) : arquivoMaisRecente();
   if (!arquivo || !fs.existsSync(arquivo)) {
     console.error(
-      "Nenhum arquivo de eventos. Suba o servidor com AGPOCKET_GRAVAR=1 (veja o README) e rode de novo, ou passe o caminho do .jsonl.",
+      "Nenhum arquivo de eventos. Suba o servidor com STUDIO_GRAVAR=1 (veja o README) e rode de novo, ou passe o caminho do .jsonl.",
     );
     process.exit(1);
   }

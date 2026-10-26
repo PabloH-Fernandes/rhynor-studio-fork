@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Instala o AG Pocket num PC novo: time de agentes, hooks, configuração global do Claude Code,
+// Instala o Rhynor Studio num PC novo: time de agentes, hooks, configuração global do Claude Code,
 // comandos globais (commands/*.md: /memoria, /reuniao, /time), Playwright MCP, plugins e skills, e deixa o escritório
 // pronto para `npm start`.
 //
@@ -9,9 +9,9 @@
 //   npm run setup:check            → só confere (não instala nem escreve nada)
 //   --sem-plugins                  → pula marketplaces, plugins e skills (rede restrita)
 //   --browser=chrome|msedge|firefox|webkit  → navegador do Playwright MCP
-//   --vault=<pasta>                → onde criar o vault (se AGPOCKET_VAULT ainda não estiver no settings.json)
+//   --vault=<pasta>                → onde criar o vault (se STUDIO_VAULT ainda não estiver no settings.json)
 //
-// Vault (segundo cérebro): o caminho fica em env.AGPOCKET_VAULT do ~/.claude/settings.json. Se a pasta não
+// Vault (segundo cérebro): o caminho fica em env.STUDIO_VAULT do ~/.claude/settings.json. Se a pasta não
 // existir, é criada a partir de vault-template/; se já existir, só é conferida (nunca sobrescrita).
 //
 // Node puro, sem dependência. Idempotente: rodar de novo não duplica nem reinstala o que já está em dia.
@@ -25,10 +25,10 @@ import { fileURLToPath } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-export const MARCA_INICIO = "<!-- ag-pocket:inicio -->";
-export const MARCA_FIM = "<!-- ag-pocket:fim -->";
-export const MARCA_MEMORIA_INICIO = "<!-- ag-pocket:memoria:inicio -->";
-export const MARCA_MEMORIA_FIM = "<!-- ag-pocket:memoria:fim -->";
+export const MARCA_INICIO = "<!-- rhynor-studio:inicio -->";
+export const MARCA_FIM = "<!-- rhynor-studio:fim -->";
+export const MARCA_MEMORIA_INICIO = "<!-- rhynor-studio:memoria:inicio -->";
+export const MARCA_MEMORIA_FIM = "<!-- rhynor-studio:memoria:fim -->";
 const MARKER_HOOK = "--rhynor-studio";
 // Mesmos eventos do scripts/install-hooks.mjs (ele roda no nível do módulo e não dá para importar).
 export const EVENTOS_HOOK = [
@@ -48,7 +48,7 @@ export const EVENTOS_HOOK = [
 export const NAVEGADORES = ["chrome", "msedge", "firefox", "webkit"];
 const TIPOS_ITEM = ["marketplace", "plugin", "mcp", "skill", "skill-manual"];
 // Cada comando de instalação tem um tempo limite (stdin ignorado). Em PCs lentos/com antivírus, 120 s não basta: padrão 300 s, ajustável.
-const TIMEOUT_ITEM_MS = (Number(process.env.AG_SETUP_TIMEOUT_S) || 300) * 1000;
+const TIMEOUT_ITEM_MS = (Number(process.env.STUDIO_SETUP_TIMEOUT_S) || 300) * 1000;
 const TIMEOUT_LONGO_MS = 600_000;
 
 // ───────────────────────── funções puras (testáveis) ─────────────────────────
@@ -118,7 +118,7 @@ export function montaBlocoTime(fonte) {
   const t = normalizaLf(fonte);
   const i = t.indexOf("Você é o **líder**");
   if (i < 0) throw new Error('team/CLAUDE-time.md não tem o trecho "Você é o **líder**"');
-  return `# Time de AGzinhos\n\n${t.slice(i).trim()}`;
+  return `# Time do Studio\n\n${t.slice(i).trim()}`;
 }
 
 /** Texto do bloco de memória a partir de team/CLAUDE-memoria.md (sem o cabeçalho de explicação). */
@@ -137,7 +137,7 @@ export function montaBlocoMemoria(fonte) {
 export function aplicaBloco(
   textoAtual,
   bloco,
-  { inicio = MARCA_INICIO, fim: marcaFim = MARCA_FIM, tituloAntigo = "Time de AGzinhos", depoisDe = null } = {},
+  { inicio = MARCA_INICIO, fim: marcaFim = MARCA_FIM, tituloAntigo = "Time do Studio", depoisDe = null } = {},
 ) {
   const secao = `${inicio}\n${normalizaLf(bloco).trim()}\n${marcaFim}`;
   if (textoAtual === null || textoAtual === undefined) return { acao: "criar", texto: `${secao}\n` };
@@ -199,7 +199,7 @@ const nivelTitulo = (l) => /^(#{1,6})\s/.exec(l)?.[1].length ?? 0;
 const chaveTitulo = (t) => t.replace(/^﻿/, "").replace(/^#+\s*/, "").trim();
 
 /**
- * Tira do CLAUDE.md as cópias SEM marcadores dos blocos do AG Pocket (coladas à mão antes do setup).
+ * Tira do CLAUDE.md as cópias SEM marcadores dos blocos do Studio (coladas à mão antes do setup).
  * Uma seção vai do título (`legados[].titulo`) até o próximo título de nível igual ou maior (`#` encerra
  * `##`), o próximo título que também é legado conhecido, um marcador ou o fim do arquivo. Ela só sai se TODA
  * linha não vazia for conhecida (`legados[].linhas`: textos exatos ou regex). Com uma linha que não
@@ -257,14 +257,14 @@ const TITULO_MEMORIA_ANTIGA = "## Memória (vault do Obsidian)";
  * O CLAUDE.md global inteiro como o setup deixa: sem as cópias antigas sem marcadores, com o bloco do
  * time e o bloco de memória (cada um entre os seus marcadores). O de memória entra logo depois do
  * marcador de fim do time; sem ele, no fim do arquivo. A memória antiga (caminho fixo) só sai com
- * `vaultConfigurado` (AGPOCKET_VAULT no settings.json, ou gravado agora pelo passo do vault).
+ * `vaultConfigurado` (STUDIO_VAULT no settings.json, ou gravado agora pelo passo do vault).
  * `textoAtual` é null se o arquivo não existe.
  * Retorna { acao: "criar" | "igual" | "atualizar" | "erro", texto, partes, avisos, mensagem? }.
  */
 export function aplicaClaudeMd(textoAtual, blocoTime, blocoMemoria, { vaultConfigurado = true } = {}) {
   const linhasDe = (b) => normalizaLf(b).split("\n").filter((x) => x.trim());
   const legados = [
-    { titulo: "# Time de AGzinhos", linhas: linhasDe(blocoTime) },
+    { titulo: "# Time do Studio", linhas: linhasDe(blocoTime) },
     { titulo: TITULO_MEMORIA_ANTIGA, linhas: MEMORIA_LEGADA, soAvisa: !vaultConfigurado },
     { titulo: "# Memória do time", linhas: linhasDe(blocoMemoria) },
     // cópias coladas direto das fontes em team/ (com o cabeçalho de explicação): só aviso
@@ -287,12 +287,12 @@ export function aplicaClaudeMd(textoAtual, blocoTime, blocoMemoria, { vaultConfi
       const caminho = r.linhas.map((x) => /vault `([^`]+)`, pasta `memoria\/`/.exec(x)?.[1]).find(Boolean);
       if (caminho) {
         const sep = caminho.includes("\\") ? "\\" : "/";
-        avisa(`${TITULO_MEMORIA_ANTIGA} (caminho)`, `a memória antiga apontava para ${caminho.replace(/[\\/]+$/, "")}${sep}memoria; migre o que faltar para o vault novo (AGPOCKET_VAULT)`);
+        avisa(`${TITULO_MEMORIA_ANTIGA} (caminho)`, `a memória antiga apontava para ${caminho.replace(/[\\/]+$/, "")}${sep}memoria; migre o que faltar para o vault novo (STUDIO_VAULT)`);
       }
     }
     for (const m of limpo.mantidas) {
       if (m.titulo === TITULO_MEMORIA_ANTIGA && !vaultConfigurado) {
-        avisa(m.titulo, `mantive a seção "${m.titulo}" (caminho fixo): AGPOCKET_VAULT ainda não está no settings.json. Configure o vault e rode o setup de novo.`);
+        avisa(m.titulo, `mantive a seção "${m.titulo}" (caminho fixo): STUDIO_VAULT ainda não está no settings.json. Configure o vault e rode o setup de novo.`);
       } else if (m.motivo === "soAvisa") {
         avisa(m.titulo, `o CLAUDE.md tem uma seção "${m.titulo}" sem marcadores (cópia colada de team/?): deixei como está. O setup já instala esse bloco entre marcadores; apague a cópia à mão.`);
       } else {
@@ -309,7 +309,7 @@ export function aplicaClaudeMd(textoAtual, blocoTime, blocoMemoria, { vaultConfi
     depoisDe: MARCA_FIM,
   });
   if (memoria.acao === "erro") return { acao: "erro", texto: textoAtual, mensagem: memoria.mensagem, avisos: [...avisos.values()] };
-  if (time.aviso) avisa("Time de AGzinhos", time.aviso);
+  if (time.aviso) avisa("Time do Studio", time.aviso);
   if (memoria.aviso) avisa(TITULO_MEMORIA_ANTIGA, memoria.aviso);
   const partes = { removidas, time: time.acao, memoria: memoria.acao };
   const lista = [...avisos.values()];
@@ -327,7 +327,7 @@ export function aplicaEnv(settings) {
   return { mudou: true, settings: { ...settings, env: { ...(env ?? {}), CLAUDE_CODE_ENABLE_TODO_TOOLS: "1" } } };
 }
 
-/** Pastas e arquivos que um vault do AG Pocket precisa ter (conferência leve, nunca altera nada). */
+/** Pastas e arquivos que um vault do Studio precisa ter (conferência leve, nunca altera nada). */
 export const ESTRUTURA_VAULT = ["_indice.md", "00-Inbox", "10-Reunioes", "20-Missoes", "30-Projetos", "40-Conhecimento", "50-Time", "90-Memoria-do-time", "Templates"];
 
 /** O caminho real (resolve links/junções e a caixa das letras) quando ele existe; senão só o path.resolve. */
@@ -358,22 +358,22 @@ export function expandeCaminho(p, home) {
 }
 
 /**
- * Onde fica o vault: AGPOCKET_VAULT do env do settings.json manda; senão a flag --vault; senão a pasta
- * "AG-Cerebro" ao lado do repositório. Nunca dentro do repositório. Não escreve no disco.
+ * Onde fica o vault: STUDIO_VAULT do env do settings.json manda; senão a flag --vault; senão a pasta
+ * "Studio-Cerebro" ao lado do repositório. Nunca dentro do repositório. Não escreve no disco.
  */
 export function resolveVault(settings, flagVault, root, { home = os.homedir(), plataforma = process.platform } = {}) {
   const env = settings?.env;
   if (env !== undefined && (env === null || typeof env !== "object" || Array.isArray(env))) {
     return { erro: 'o campo "env" do settings.json não é um objeto' };
   }
-  const doSettings = typeof env?.AGPOCKET_VAULT === "string" ? env.AGPOCKET_VAULT.trim() : "";
+  const doSettings = typeof env?.STUDIO_VAULT === "string" ? env.STUDIO_VAULT.trim() : "";
   let bruto;
   let origem;
   if (doSettings) [bruto, origem] = [doSettings, "settings"];
   else if (flagVault) [bruto, origem] = [flagVault, "flag"];
-  else [bruto, origem] = [path.join(path.dirname(root), "AG-Cerebro"), "padrao"];
+  else [bruto, origem] = [path.join(path.dirname(root), "Studio-Cerebro"), "padrao"];
   const e = expandeCaminho(bruto, home);
-  if (e.erro) return { erro: `${origem === "settings" ? "AGPOCKET_VAULT" : "--vault"}: ${e.erro}` };
+  if (e.erro) return { erro: `${origem === "settings" ? "STUDIO_VAULT" : "--vault"}: ${e.erro}` };
   const caminho = e.caminho;
   if (estaDentro(caminho, root, plataforma)) {
     return { erro: `o vault não pode ficar dentro do repositório (${caminho}). Use --vault=<outra pasta>` };
@@ -397,14 +397,14 @@ export function obsidianAcima(caminho) {
   }
 }
 
-/** Grava env.AGPOCKET_VAULT sem mexer no resto. Se já houver um valor, não troca (o settings manda). */
+/** Grava env.STUDIO_VAULT sem mexer no resto. Se já houver um valor, não troca (o settings manda). */
 export function aplicaVaultEnv(settings, caminho) {
   const env = settings.env;
   if (env !== undefined && (env === null || typeof env !== "object" || Array.isArray(env))) {
     return { erro: 'o campo "env" do settings.json não é um objeto' };
   }
-  if (typeof env?.AGPOCKET_VAULT === "string" && env.AGPOCKET_VAULT.trim()) return { mudou: false, settings };
-  return { mudou: true, settings: { ...settings, env: { ...(env ?? {}), AGPOCKET_VAULT: caminho } } };
+  if (typeof env?.STUDIO_VAULT === "string" && env.STUDIO_VAULT.trim()) return { mudou: false, settings };
+  return { mudou: true, settings: { ...settings, env: { ...(env ?? {}), STUDIO_VAULT: caminho } } };
 }
 
 /** Estado da pasta do vault: "ausente", "arquivo" (é um arquivo, não pasta), "ok" ou "incompleto" (com a lista do que falta). */
@@ -788,7 +788,7 @@ function passoHooks(ctx, L) {
     return true;
   }
   if (ctx.flags.dryRun) {
-    L.faria("instalar os hooks (substituindo versões antigas do AG Pocket, com backup do settings.json)");
+    L.faria("instalar os hooks (substituindo versões antigas do Studio, com backup do settings.json)");
     return true;
   }
   const r = rodar(process.execPath, [path.join(ROOT, "scripts", "install-hooks.mjs")], { plataforma: ctx.plataforma });
@@ -831,7 +831,7 @@ function gravaSettings(ctx, s, novo) {
 }
 
 export function passoVault(ctx, L) {
-  L.titulo("6. Vault (segundo cérebro, AGPOCKET_VAULT)");
+  L.titulo("6. Vault (segundo cérebro, STUDIO_VAULT)");
   const s = leJson(ctx.settingsFile);
   if (s.erro) {
     L.falta(`${ctx.settingsFile} tem JSON inválido. Corrija o arquivo e rode de novo (nada foi alterado).`);
@@ -842,7 +842,7 @@ export function passoVault(ctx, L) {
     L.falta(`${v.erro}.`);
     return false;
   }
-  const origem = { settings: "AGPOCKET_VAULT do settings.json", flag: "--vault", padrao: "padrão (AG-Cerebro ao lado do repositório)" }[v.origem];
+  const origem = { settings: "STUDIO_VAULT do settings.json", flag: "--vault", padrao: "padrão (Studio-Cerebro ao lado do repositório)" }[v.origem];
   out(`  Vault: ${v.caminho} [${origem}]`);
   if (v.diverge) L.aviso(`--vault ignorado: o settings.json já aponta para outro vault (${v.caminho})`);
   const pai = obsidianAcima(v.caminho);
@@ -887,16 +887,16 @@ export function passoVault(ctx, L) {
     L.falta(`${r.erro}. Corrija à mão e rode de novo (nada foi alterado).`);
     return false;
   }
-  if (!r.mudou) L.ja("env.AGPOCKET_VAULT");
-  else if (c.estado === "incompleto") L.aviso("não gravei env.AGPOCKET_VAULT: complete o vault (ou escolha outro com --vault=) e rode de novo");
-  else if (ctx.flags.check) L.falta("falta env.AGPOCKET_VAULT no settings.json");
+  if (!r.mudou) L.ja("env.STUDIO_VAULT");
+  else if (c.estado === "incompleto") L.aviso("não gravei env.STUDIO_VAULT: complete o vault (ou escolha outro com --vault=) e rode de novo");
+  else if (ctx.flags.check) L.falta("falta env.STUDIO_VAULT no settings.json");
   else if (ctx.flags.dryRun) {
-    L.faria(`gravar env.AGPOCKET_VAULT=${v.caminho} no settings.json (com backup)`);
+    L.faria(`gravar env.STUDIO_VAULT=${v.caminho} no settings.json (com backup)`);
     ctx.vaultEnvPendente = true; // o passo do CLAUDE.md simula o que faria com o vault já configurado
   }
   else {
     gravaSettings(ctx, s, r.settings);
-    L.instalou("env.AGPOCKET_VAULT");
+    L.instalou("env.STUDIO_VAULT");
   }
   return true;
 }
@@ -919,7 +919,7 @@ export function passoClaudeMd(ctx, L) {
   // a memória antiga (caminho fixo) só sai quando o vault novo está configurado: no settings.json, ou
   // gravado agora pelo passo do vault (em --dry-run, quando ele gravaria)
   const s = leJson(ctx.settingsFile);
-  const vaultEnv = s.dados?.env?.AGPOCKET_VAULT;
+  const vaultEnv = s.dados?.env?.STUDIO_VAULT;
   const vaultConfigurado = (typeof vaultEnv === "string" && vaultEnv.trim() !== "") || ctx.vaultEnvPendente === true;
   const r = aplicaClaudeMd(atual, blocoTime, blocoMemoria, { vaultConfigurado });
   if (r.acao === "erro") {
@@ -1141,8 +1141,8 @@ const AJUDA = `Uso: npm run setup -- [opções]
   --completo       instala também os extras (skills/plugins de terceiros)
   --sem-plugins    pula marketplaces, plugins e skills
   --browser=NAV    navegador do Playwright MCP: ${NAVEGADORES.join(" | ")}
-  --vault=PASTA    onde criar o vault (só vale se AGPOCKET_VAULT ainda não estiver no settings.json;
-                   padrão: AG-Cerebro ao lado do repositório). Vault existente nunca é sobrescrito.`;
+  --vault=PASTA    onde criar o vault (só vale se STUDIO_VAULT ainda não estiver no settings.json;
+                   padrão: Studio-Cerebro ao lado do repositório). Vault existente nunca é sobrescrito.`;
 
 /** Roda o setup e devolve o código de saída. */
 export function setup(argv, { home = os.homedir(), plataforma = process.platform } = {}) {
@@ -1159,7 +1159,7 @@ export function setup(argv, { home = os.homedir(), plataforma = process.platform
   const ctx = criaContexto(flags, home, plataforma);
   const L = logs(ctx);
   const modo = flags.check ? "conferência (nada é escrito)" : flags.dryRun ? "dry-run (nada é escrito)" : "instalação";
-  out(`AG Pocket — setup: ${modo}${flags.completo ? ", com extras" : ""}`);
+  out(`Rhynor Studio — setup: ${modo}${flags.completo ? ", com extras" : ""}`);
   out(`Pasta do projeto: ${ROOT}\nPasta do Claude:  ${ctx.claudeDir}`);
 
   let cat;

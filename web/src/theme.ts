@@ -1,15 +1,14 @@
 // =====================================================================
 //  TEMA DO ESCRITÓRIO — é aqui que você personaliza tudo.
 //
-//  Pra versão da empresa: troque officeName, coloque a logo oficial em
-//  web/public/logo.png (fundo transparente fica melhor) e ajuste as cores
-//  dos uniformes pra bater com o manual de marca.
+//  A marca fica em assets/marca (servida em /marca) e a fonte da verdade
+//  é referencias/rhynor-marca.md.
 // =====================================================================
 
 import { HAIR_COLORS, SKIN_TONES, type AGzinho } from "../../shared/roster";
 
 /**
- * Paleta da identidade AG (marinho + branco). Fonte única dos HEX:
+ * Paleta herdada do motor upstream (troca pelos tokens Rhynor nas próximas etapas). Fonte única dos HEX:
  * as variáveis CSS em styles.css (:root) espelham estes valores — manter em sincronia.
  * navy900 (#051733) é a cor da marca, lida do fundo da logo horizontal.
  */
@@ -138,7 +137,7 @@ export const navyAlpha = (a: number) => `rgba(14, 42, 87, ${a})`;
 /** navy950 (#020B1C) com alpha: fundo da etiqueta de nome */
 export const inkAlpha = (a: number) => `rgba(2, 11, 28, ${a})`;
 
-/** polo e camisa levam a logo AG no peito; blazer e terno abrem em V mostrando a camisa (inner) */
+/** polo e camisa levam a marquinha no peito; blazer e terno abrem em V mostrando a camisa (inner) */
 export type UniformKind = "polo" | "camisa" | "blazer" | "terno";
 
 export interface Uniform {
@@ -155,9 +154,9 @@ export interface Uniform {
   inner?: string;
   /** gravata 1x4 (só o terno) */
   tie?: string;
-  /** cor da logo AG 3x2 no peito (polo/camisa) */
+  /** cor da marquinha 3x2 no peito (polo/camisa) */
   logo: string;
-  /** sem cordão: crachá AG preso na lapela (líder) */
+  /** sem cordão: crachá preso na lapela (líder) */
   lapelBadge?: boolean;
   /** crachá de visitante: todo na cor do accent (cinza do convidado) */
   visitor?: boolean;
@@ -169,8 +168,8 @@ export interface Theme {
   officeName: string;
   subtitle: string;
   /**
-   * caminho de uma imagem em web/public (ex.: "/logo.png"), reduzida para pixels duros
-   * (só marinho e branco) na placa da recepção. Vazio ou falha ao carregar = "AG" em pixel.
+   * caminho de uma imagem em assets/ (ex.: "/marca/logo.png"), reduzida para pixels duros
+   * (só marinho e branco) na placa da recepção. Vazio ou falha ao carregar = "RHYNOR" em pixel.
    */
   logoUrl: string;
   colors: {

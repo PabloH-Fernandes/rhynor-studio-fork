@@ -104,7 +104,7 @@ export default function App() {
   }, []);
 
   // sons: o valor da preferência vai pro módulo sound.ts; o botão reflete o estado real do AudioContext
-  const [somLigado, alternarSom] = usePreferencia("agpocket.painel.som", true);
+  const [somLigado, alternarSom] = usePreferencia("studio.painel.som", true);
   const [somRodando, setSomRodando] = useState(false);
   useEffect(() => setSomAtivo(somLigado), [somLigado]);
   useEffect(() => instalarGestos(), []);
@@ -146,7 +146,7 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [somLigado]);
 
-  const [tecnicoSalvo, alternarTecnico] = usePreferencia("agpocket.painel.tecnico", false);
+  const [tecnicoSalvo, alternarTecnico] = usePreferencia("studio.painel.tecnico", false);
   // na apresentação só a versão simples (a técnica mostra mais detalhe do que a privacidade cobre)
   const tecnico = tecnicoSalvo && !APRESENTACAO;
   // balão, crachá e lista do time falam a atividade sem jargão; a técnica só com "Ver detalhes técnicos"
@@ -158,7 +158,7 @@ export default function App() {
     [agents, tecnico, mascarado],
   );
   // filtro por projeto (vale para o painel, o mapa e o quadro); o salvo que sumiu vira "todas" sem apagar a preferência
-  const [projetoSalvo, setProjetoSalvo] = usePreferenciaTexto("agpocket.painel.projeto", TODAS);
+  const [projetoSalvo, setProjetoSalvo] = usePreferenciaTexto("studio.painel.projeto", TODAS);
   const projetos = useMemo(() => projetosDe(list), [list]);
   // na apresentação não há seletor de projeto: um filtro salvo de antes não pode esconder o time
   const projeto = APRESENTACAO ? TODAS : projetoEfetivo(projetoSalvo, projetos);
@@ -184,9 +184,9 @@ export default function App() {
   useEffect(() => {
     if (selectedId && (!agents[selectedId] || (projeto !== TODAS && agents[selectedId].project !== projeto))) setSelectedId(null);
   }, [agents, selectedId, projeto]);
-  const [timeAberto, alternarTime] = usePreferencia("agpocket.painel.time", true);
-  const [visitantesAberto, alternarVisitantes] = usePreferencia("agpocket.painel.visitantes", false);
-  const [feedAberto, alternarFeed] = usePreferencia("agpocket.painel.feed", true);
+  const [timeAberto, alternarTime] = usePreferencia("studio.painel.time", true);
+  const [visitantesAberto, alternarVisitantes] = usePreferencia("studio.painel.visitantes", false);
+  const [feedAberto, alternarFeed] = usePreferencia("studio.painel.feed", true);
   const feedVisivel = useMemo(() => feed.filter((f) => !selectedId || f.agentId === selectedId), [feed, selectedId]);
   // modo simples: repetições seguidas do mesmo AGzinho viram uma linha só, a mais nova em cima
   const linhasSimples = useMemo(() => agruparFeed(feedVisivel).reverse().slice(0, 80), [feedVisivel]);

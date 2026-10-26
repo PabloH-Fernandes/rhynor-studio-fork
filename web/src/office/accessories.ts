@@ -62,7 +62,7 @@ function helmet(color: string, shade: string): AccessoryDraw {
 }
 
 export function cup(put: AccessoryCtx["put"], x: number, y: number) {
-  // copo AG das animações: branco com faixa marinho
+  // copo do escritório nas animações: branco com faixa marinho
   put(x, y, 3, 3, palette.white);
   put(x, y + 1, 3, 1, palette.navy900);
 }
@@ -155,7 +155,7 @@ const DESENHOS: Record<Acessorio, AccessoryDraw> = {
     draw: (c) => {
       const h = c.slot;
       if (!h) return;
-      // caneca AG: corpo branco 3x4 com faixa marinho e alça de 1px pra fora
+      // caneca: corpo branco 3x4 com faixa marinho e alça de 1px pra fora
       const x = h.s > 0 ? h.x + 2 : h.x - 3;
       const y = h.y - 2;
       c.put(x, y, 3, 4, palette.white);

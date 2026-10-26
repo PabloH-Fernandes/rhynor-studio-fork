@@ -99,7 +99,7 @@ export interface FeedItem {
 }
 
 /**
- * Andamento do trabalho para o quadro de etapas ("AGzinhos na Etapa 4 de 7").
+ * Andamento do trabalho para o quadro de etapas ("Time na Etapa 4 de 7").
  * - tarefas: veio da lista de tarefas do líder (TodoWrite ou TaskCreate/TaskUpdate);
  *   concluidas === total > 0 é a lista inteira feita ("concluíram N de N");
  * - papel: sem lista, a fase pelo papel ativo (titulo = "Construção", "Testes"...; sem número);
@@ -142,7 +142,7 @@ export interface Missao {
 }
 
 export interface MissoesInfo {
-  /** ok = pasta 20-Missoes lida; sem-vault = AGPOCKET_VAULT não configurado; sem-pasta = vault sem 20-Missoes */
+  /** ok = pasta 20-Missoes lida; sem-vault = STUDIO_VAULT não configurado; sem-pasta = vault sem 20-Missoes */
   vault: "ok" | "sem-vault" | "sem-pasta";
   missoes: Missao[];
   /** só a contagem de atas novas na raiz de 00-Inbox: nada do conteúdo nem dos nomes */

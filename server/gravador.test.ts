@@ -7,7 +7,7 @@ import { Gravador, arquivoDoDia, lerHookTs } from "./gravador.ts";
 import { lerJsonl } from "./replay.ts";
 
 test("gravador acrescenta marcador e eventos em ordem, no arquivo do dia, no formato do replay", async () => {
-  const pasta = fs.mkdtempSync(path.join(os.tmpdir(), "agpocket-gravador-"));
+  const pasta = fs.mkdtempSync(path.join(os.tmpdir(), "studio-gravador-"));
   try {
     let t = new Date(2026, 9, 5, 10, 0, 0).getTime();
     const g = new Gravador(pasta, () => t);

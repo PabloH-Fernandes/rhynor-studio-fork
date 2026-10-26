@@ -81,7 +81,7 @@ test("montaComando aspa argumentos com espaço", () => {
 });
 
 test("aplicaBloco: criar, igual, atualizar, anexar, erro", () => {
-  const bloco = "# Time de AGzinhos\n\ncorpo v1";
+  const bloco = "# Time do Studio\n\ncorpo v1";
   const criado = aplicaBloco(null, bloco);
   assert.equal(criado.acao, "criar");
   assert.ok(criado.texto.startsWith(MARCA_INICIO) && criado.texto.trimEnd().endsWith(MARCA_FIM));
@@ -89,7 +89,7 @@ test("aplicaBloco: criar, igual, atualizar, anexar, erro", () => {
   assert.equal(aplicaBloco(criado.texto, bloco).acao, "igual");
   assert.equal(aplicaBloco(criado.texto.replace(/\n/g, "\r\n"), bloco).acao, "igual");
 
-  const novo = aplicaBloco(`antes\n\n${criado.texto}\ndepois\n`, "# Time de AGzinhos\n\ncorpo v2");
+  const novo = aplicaBloco(`antes\n\n${criado.texto}\ndepois\n`, "# Time do Studio\n\ncorpo v2");
   assert.equal(novo.acao, "atualizar");
   assert.match(novo.texto, /^antes\n\n/);
   assert.match(novo.texto, /corpo v2/);
@@ -102,10 +102,10 @@ test("aplicaBloco: criar, igual, atualizar, anexar, erro", () => {
   assert.ok(crlf.texto.startsWith("# meu\r\ntexto\r\n\r\n"));
   assert.ok(!/[^\r]\n/.test(crlf.texto));
 
-  const dup = aplicaBloco("# Time de AGzinhos\n\nvelho\n", bloco);
+  const dup = aplicaBloco("# Time do Studio\n\nvelho\n", bloco);
   assert.equal(dup.acao, "anexar");
   assert.ok(dup.aviso);
-  assert.match(dup.texto, /^# Time de AGzinhos\n\nvelho\n/);
+  assert.match(dup.texto, /^# Time do Studio\n\nvelho\n/);
 
   for (const t of [`x ${MARCA_INICIO} y`, `x ${MARCA_FIM} y`, `${MARCA_FIM}\n${MARCA_INICIO}`]) {
     const r = aplicaBloco(t, bloco);
@@ -117,7 +117,7 @@ test("aplicaBloco: criar, igual, atualizar, anexar, erro", () => {
 test("montaBlocoTime descarta o cabeçalho e usa o título novo", () => {
   const fonte = fs.readFileSync(path.join(ROOT, "team", "CLAUDE-time.md"), "utf8");
   const b = montaBlocoTime(fonte);
-  assert.ok(b.startsWith("# Time de AGzinhos\n\nVocê é o **líder**"));
+  assert.ok(b.startsWith("# Time do Studio\n\nVocê é o **líder**"));
   assert.ok(!b.includes("Cole este bloco") && !b.includes("vault"));
 });
 
@@ -187,30 +187,30 @@ test("parseFlags: --vault com caminho e vazio", () => {
   assert.equal(parseFlags(["--vault="]).erros.length, 1);
 });
 
-test("resolveVault: settings manda, depois a flag, depois AG-Cerebro irmão do repositório", () => {
-  const root = path.resolve(os.tmpdir(), "Área de Trabalho", "AG-Project", "escritorio-ia");
-  const irmao = path.resolve(os.tmpdir(), "Área de Trabalho", "AG-Project", "AG-Cerebro");
+test("resolveVault: settings manda, depois a flag, depois Studio-Cerebro irmão do repositório", () => {
+  const root = path.resolve(os.tmpdir(), "Área de Trabalho", "Studio-Project", "rhynor-studio");
+  const irmao = path.resolve(os.tmpdir(), "Área de Trabalho", "Studio-Project", "Studio-Cerebro");
   assert.deepEqual(resolveVault({}, null, root), { caminho: irmao, origem: "padrao", diverge: false });
   const flag = path.resolve(os.tmpdir(), "Outro Cérebro");
   assert.equal(resolveVault({ env: {} }, flag, root).origem, "flag");
   assert.equal(resolveVault({ env: {} }, flag, root).caminho, flag);
   const doSettings = path.resolve(os.tmpdir(), "Já Configurado");
-  const s = resolveVault({ env: { AGPOCKET_VAULT: doSettings } }, flag, root);
+  const s = resolveVault({ env: { STUDIO_VAULT: doSettings } }, flag, root);
   assert.equal(s.caminho, doSettings);
   assert.equal(s.origem, "settings");
   assert.equal(s.diverge, true);
-  assert.equal(resolveVault({ env: { AGPOCKET_VAULT: doSettings } }, doSettings, root).diverge, false);
-  assert.equal(resolveVault({ env: { AGPOCKET_VAULT: "  " } }, null, root).origem, "padrao");
+  assert.equal(resolveVault({ env: { STUDIO_VAULT: doSettings } }, doSettings, root).diverge, false);
+  assert.equal(resolveVault({ env: { STUDIO_VAULT: "  " } }, null, root).origem, "padrao");
   assert.ok(resolveVault({ env: "oops" }, null, root).erro);
   // dentro do repositório: recusado
   assert.ok(resolveVault({}, path.join(root, "vault"), root).erro);
-  assert.ok(resolveVault({ env: { AGPOCKET_VAULT: root } }, null, root).erro);
+  assert.ok(resolveVault({ env: { STUDIO_VAULT: root } }, null, root).erro);
   // "~" vira a pasta do usuário; relativo sem ~ é recusado (flag e env)
   const home = path.resolve(os.tmpdir(), "Usuário Teste");
   assert.equal(resolveVault({}, "~/Meu Cérebro", root, { home }).caminho, path.join(home, "Meu Cérebro"));
-  assert.equal(resolveVault({ env: { AGPOCKET_VAULT: "~\\Cérebro" } }, null, root, { home }).caminho, path.join(home, "Cérebro"));
+  assert.equal(resolveVault({ env: { STUDIO_VAULT: "~\\Cérebro" } }, null, root, { home }).caminho, path.join(home, "Cérebro"));
   assert.match(resolveVault({}, "cerebro", root, { home }).erro, /--vault: caminho relativo/);
-  assert.match(resolveVault({ env: { AGPOCKET_VAULT: "./x" } }, null, root, { home }).erro, /AGPOCKET_VAULT: caminho relativo/);
+  assert.match(resolveVault({ env: { STUDIO_VAULT: "./x" } }, null, root, { home }).erro, /STUDIO_VAULT: caminho relativo/);
 });
 
 test("expandeCaminho", () => {
@@ -225,8 +225,8 @@ test("expandeCaminho", () => {
 test("obsidianAcima: acha o vault antigo acima do caminho, mas não o próprio", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agp-obs-"));
   try {
-    const antigo = path.join(tmp, "AG Projeto");
-    const novo = path.join(antigo, "AG-Cerebro");
+    const antigo = path.join(tmp, "Studio Projeto");
+    const novo = path.join(antigo, "Studio-Cerebro");
     fs.mkdirSync(path.join(novo, ".obsidian"), { recursive: true });
     assert.equal(obsidianAcima(novo), null);
     fs.mkdirSync(path.join(antigo, ".obsidian"));
@@ -247,16 +247,16 @@ test("estaDentro: Windows sem diferenciar maiúsculas; pasta irmã com prefixo i
 });
 
 test("aplicaVaultEnv preserva o resto, não troca valor existente e é idempotente", () => {
-  const caminho = "C:\\Users\\fulano\\Área de Trabalho\\AG-Cerebro";
+  const caminho = "C:\\Users\\fulano\\Área de Trabalho\\Studio-Cerebro";
   const base = { model: "x", env: { CLAUDE_CODE_ENABLE_TODO_TOOLS: "1" }, hooks: { Stop: [] } };
   const r = aplicaVaultEnv(base, caminho);
   assert.equal(r.mudou, true);
-  assert.deepEqual(r.settings, { ...base, env: { CLAUDE_CODE_ENABLE_TODO_TOOLS: "1", AGPOCKET_VAULT: caminho } });
-  assert.equal(base.env.AGPOCKET_VAULT, undefined, "não muta a entrada");
+  assert.deepEqual(r.settings, { ...base, env: { CLAUDE_CODE_ENABLE_TODO_TOOLS: "1", STUDIO_VAULT: caminho } });
+  assert.equal(base.env.STUDIO_VAULT, undefined, "não muta a entrada");
   assert.equal(aplicaVaultEnv(r.settings, caminho).mudou, false);
   assert.equal(aplicaVaultEnv(r.settings, "D:\\outro").mudou, false);
   // sobrevive à ida e volta pelo JSON (espaço e acento)
-  assert.equal(JSON.parse(JSON.stringify(r.settings)).env.AGPOCKET_VAULT, caminho);
+  assert.equal(JSON.parse(JSON.stringify(r.settings)).env.STUDIO_VAULT, caminho);
   assert.equal(aplicaVaultEnv({}, caminho).mudou, true);
   assert.ok(aplicaVaultEnv({ env: [] }, caminho).erro);
 });
@@ -373,7 +373,7 @@ test("passoVault em --dry-run e --check: diz o que faria e não cria vault nem s
     const d = rodaPassoVault({ dryRun: true, vault }, home);
     assert.equal(d.ok, true);
     assert.match(d.stdout, /criar o vault em .*Cérebro Teste/);
-    assert.match(d.stdout, /gravar env\.AGPOCKET_VAULT=/);
+    assert.match(d.stdout, /gravar env\.STUDIO_VAULT=/);
     const c = rodaPassoVault({ check: true, vault }, home);
     assert.match(c.stdout, /o vault ainda não existe em .*Cérebro Teste/);
     assert.ok(c.ctx.erros > 0);
@@ -396,7 +396,7 @@ test("passoVault: instala de verdade num home temporário, depois fica idempoten
     assert.equal(r1.ok, true);
     assert.deepEqual(confereVault(vault), { estado: "ok", faltando: [] });
     const s1 = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
-    assert.deepEqual(s1, { model: "x", env: { A: "1", AGPOCKET_VAULT: vault } });
+    assert.deepEqual(s1, { model: "x", env: { A: "1", STUDIO_VAULT: vault } });
     const indice = path.join(vault, "_indice.md");
     fs.writeFileSync(indice, "editado");
     const r2 = rodaPassoVault({}, home);
@@ -404,12 +404,12 @@ test("passoVault: instala de verdade num home temporário, depois fica idempoten
     assert.equal(fs.readFileSync(indice, "utf8"), "editado");
     assert.equal(fs.readdirSync(path.dirname(settingsFile)).filter((f) => f.includes(".backup-")).length, 1);
 
-    // vault incompleto num settings sem AGPOCKET_VAULT: avisa e não grava
+    // vault incompleto num settings sem STUDIO_VAULT: avisa e não grava
     const outroHome = path.join(home, "outro");
     const incompleto = path.join(home, "vault velho");
     fs.mkdirSync(incompleto);
     const r3 = rodaPassoVault({ vault: incompleto }, outroHome);
-    assert.match(r3.stdout, /não gravei env\.AGPOCKET_VAULT/);
+    assert.match(r3.stdout, /não gravei env\.STUDIO_VAULT/);
     assert.equal(fs.existsSync(path.join(outroHome, ".claude", "settings.json")), false);
     assert.deepEqual(fs.readdirSync(incompleto), []);
   } finally {
@@ -570,11 +570,11 @@ test("passoVault: segunda rodada não muda nada (settings, vault, sem .tmp nem n
   });
 });
 
-test("passoVault: AGPOCKET_VAULT do settings manda sobre --vault e não é trocado", () => {
+test("passoVault: STUDIO_VAULT do settings manda sobre --vault e não é trocado", () => {
   comHome((home, settings) => {
     const [v1, v2] = [path.join(home, "v1"), path.join(home, "v2")];
     fs.mkdirSync(path.dirname(settings), { recursive: true });
-    fs.writeFileSync(settings, JSON.stringify({ env: { AGPOCKET_VAULT: v1 } }));
+    fs.writeFileSync(settings, JSON.stringify({ env: { STUDIO_VAULT: v1 } }));
     const antes = fs.readFileSync(settings);
     const r = rodaPassoVault({ vault: v2 }, home);
     assert.match(r.stdout, /--vault ignorado/);
@@ -593,7 +593,7 @@ test("passoVault: recusa vault dentro do repositório (flag e settings), sem cri
     }
     assert.equal(fs.existsSync(path.join(ROOT, "meu-vault")), false);
     fs.mkdirSync(path.dirname(settings), { recursive: true });
-    fs.writeFileSync(settings, JSON.stringify({ env: { AGPOCKET_VAULT: path.join(ROOT, "z") } }));
+    fs.writeFileSync(settings, JSON.stringify({ env: { STUDIO_VAULT: path.join(ROOT, "z") } }));
     assert.equal(rodaPassoVault({}, home).ok, false);
     assert.equal(fs.existsSync(path.join(ROOT, "z")), false);
   });
@@ -605,7 +605,7 @@ test("passoVault: settings com BOM é lido e preservado; JSON inválido ou não-
     fs.writeFileSync(settings, `\uFEFF${JSON.stringify({ model: "m", env: { B: "2" } })}`);
     const v = path.join(home, "v bom");
     assert.equal(rodaPassoVault({ vault: v }, home).ok, true);
-    assert.deepEqual(JSON.parse(fs.readFileSync(settings, "utf8")), { model: "m", env: { B: "2", AGPOCKET_VAULT: v } });
+    assert.deepEqual(JSON.parse(fs.readFileSync(settings, "utf8")), { model: "m", env: { B: "2", STUDIO_VAULT: v } });
   });
   for (const ruim of ["{ quebrado", "[]", "null", "123", JSON.stringify({ env: [] })]) {
     comHome((home, settings) => {
@@ -624,7 +624,7 @@ test("passoVault: ~ expande para o home; caminho relativo é recusado (flag e se
   comHome((home, settings) => {
     assert.equal(rodaPassoVault({ vault: "~/Meu Vault" }, home).ok, true);
     assert.ok(fs.existsSync(path.join(home, "Meu Vault", "_indice.md")));
-    assert.equal(JSON.parse(fs.readFileSync(settings, "utf8")).env.AGPOCKET_VAULT, path.join(home, "Meu Vault"));
+    assert.equal(JSON.parse(fs.readFileSync(settings, "utf8")).env.STUDIO_VAULT, path.join(home, "Meu Vault"));
   });
   for (const rel of ["vault-rel", "./vault-rel", "..\vault-rel", "~vault-rel"]) {
     comHome((home, settings) => {
@@ -635,10 +635,10 @@ test("passoVault: ~ expande para o home; caminho relativo é recusado (flag e se
   }
   comHome((home, settings) => {
     fs.mkdirSync(path.dirname(settings), { recursive: true });
-    fs.writeFileSync(settings, JSON.stringify({ env: { AGPOCKET_VAULT: "relativo/v" } }));
+    fs.writeFileSync(settings, JSON.stringify({ env: { STUDIO_VAULT: "relativo/v" } }));
     const r = rodaPassoVault({}, home);
     assert.equal(r.ok, false);
-    assert.match(r.stdout, /AGPOCKET_VAULT/);
+    assert.match(r.stdout, /STUDIO_VAULT/);
   });
 });
 
@@ -684,13 +684,13 @@ const TIME_ANTIGO = `${BLOCO_TIME.split("\n").filter((l) => !l.startsWith("- Em 
 const MARCADO_TIME = `${MARCA_INICIO}\n${BLOCO_TIME}\n${MARCA_FIM}\n`;
 const conta = (texto, trecho) => texto.split(trecho).length - 1;
 
-test("montaBlocoMemoria: curto, sem caminho fixo, aponta para a estrutura nova e para AGPOCKET_VAULT", () => {
+test("montaBlocoMemoria: curto, sem caminho fixo, aponta para a estrutura nova e para STUDIO_VAULT", () => {
   const b = BLOCO_MEMORIA;
   assert.ok(b.startsWith("# Memória do time\n\nO vault do time é a pasta"));
   assert.ok(b.length < 1200, `bloco grande demais (${b.length} caracteres)`);
   assert.doesNotMatch(b, /[A-Za-z]:\\|\/Users\/|\/home\/|pablo/i, "não pode ter caminho fixo");
   assert.doesNotMatch(b, /`memoria\/|`templates\//, "nada da estrutura antiga");
-  for (const t of ["AGPOCKET_VAULT", "_indice.md", "30-Projetos/", "90-Memoria-do-time/", "Decisões.md", "Pendências.md", "Lições aprendidas.md", "Templates/Sessão.md", "confidencial: true", "[[documentador]]", "20-Missoes/"]) {
+  for (const t of ["STUDIO_VAULT", "_indice.md", "30-Projetos/", "90-Memoria-do-time/", "Decisões.md", "Pendências.md", "Lições aprendidas.md", "Templates/Sessão.md", "confidencial: true", "[[documentador]]", "20-Missoes/"]) {
     assert.ok(b.includes(t), `falta "${t}"`);
   }
   assert.doesNotMatch(b, /2 sessões mais recentes/, "a leitura inicial não inclui mais as últimas sessões");
@@ -716,15 +716,15 @@ test("aplicaClaudeMd: caso real (cópia antiga do time + memória antiga + bloco
   const atual = `${TIME_ANTIGO}${MEMORIA_ANTIGA}\n${MARCADO_TIME}`.replace(/\n/g, "\r\n");
   const r = aplicaClaudeMd(atual, BLOCO_TIME, BLOCO_MEMORIA);
   assert.equal(r.acao, "atualizar");
-  assert.deepEqual(r.partes, { removidas: ["# Time de AGzinhos", "## Memória (vault do Obsidian)"], time: "igual", memoria: "anexar" });
-  assert.deepEqual(r.avisos, ["a memória antiga apontava para D:\\Qualquer Pasta\\Cérebro\\memoria; migre o que faltar para o vault novo (AGPOCKET_VAULT)"]);
-  assert.equal(conta(r.texto, "# Time de AGzinhos"), 1);
+  assert.deepEqual(r.partes, { removidas: ["# Time do Studio", "## Memória (vault do Obsidian)"], time: "igual", memoria: "anexar" });
+  assert.deepEqual(r.avisos, ["a memória antiga apontava para D:\\Qualquer Pasta\\Cérebro\\memoria; migre o que faltar para o vault novo (STUDIO_VAULT)"]);
+  assert.equal(conta(r.texto, "# Time do Studio"), 1);
   assert.equal(conta(r.texto, "# Memória do time"), 1);
   assert.doesNotMatch(r.texto, /`memoria\/|Qualquer Pasta/);
   assert.ok(r.texto.indexOf(MARCA_FIM) < r.texto.indexOf(MARCA_MEMORIA_INICIO), "memória depois do time");
   assert.ok(!/[^\r]\n/.test(r.texto), "mantém CRLF");
   assert.deepEqual(descreveClaudeMd(r.partes), [
-    'tirar a cópia antiga sem marcadores "# Time de AGzinhos"',
+    'tirar a cópia antiga sem marcadores "# Time do Studio"',
     'tirar a cópia antiga sem marcadores "## Memória (vault do Obsidian)"',
     "anexar o bloco de memória",
   ]);
@@ -739,12 +739,12 @@ test("aplicaClaudeMd: nada escrito à mão se perde", () => {
   const r = aplicaClaudeMd(`${meu}${TIME_ANTIGO}${MEMORIA_ANTIGA}${depois}`, BLOCO_TIME, BLOCO_MEMORIA);
   assert.ok(r.texto.startsWith(meu), "texto antes fica");
   assert.ok(r.texto.includes("## Atalhos meus\n\n- gs = git status\n"), "texto depois fica");
-  assert.equal(conta(r.texto, "# Time de AGzinhos"), 1);
+  assert.equal(conta(r.texto, "# Time do Studio"), 1);
 
   // uma linha que o setup não conhece dentro da cópia antiga: a seção fica inteira e vira aviso
   const editada = MEMORIA_ANTIGA.replace("**No fim**", "Minha nota pessoal sobre o vault.\n\n**No fim**");
   const k = aplicaClaudeMd(`${TIME_ANTIGO}${editada}`, BLOCO_TIME, BLOCO_MEMORIA);
-  assert.deepEqual(k.partes.removidas, ["# Time de AGzinhos"]);
+  assert.deepEqual(k.partes.removidas, ["# Time do Studio"]);
   assert.ok(k.texto.includes(editada.trimEnd()), "a seção editada fica byte a byte");
   assert.equal(k.avisos.length, 1);
   assert.match(k.avisos[0], /Memória \(vault do Obsidian\).*não reconheço/);
@@ -755,27 +755,27 @@ test("aplicaClaudeMd: nada escrito à mão se perde", () => {
   assert.ok(t.texto.includes("- Sempre rode o lint antes."));
   assert.equal(t.partes.removidas.length, 0);
   assert.equal(t.avisos.length, 1, "um aviso só por seção (remoção e aplicaBloco juntos, sem duplicata)");
-  assert.match(t.avisos[0], /Time de AGzinhos.*não reconheço/);
+  assert.match(t.avisos[0], /Time do Studio.*não reconheço/);
 
   // subtítulo escrito à mão dentro da cópia antiga do time: faz parte da seção, então ela fica inteira
   const comSub = `${TIME_ANTIGO}## Minhas notas\n\n- nunca use any\n\n${MEMORIA_ANTIGA}`;
   const s = aplicaClaudeMd(comSub, BLOCO_TIME, BLOCO_MEMORIA);
   assert.ok(s.texto.includes(`${TIME_ANTIGO}## Minhas notas\n\n- nunca use any\n`), "título e subtítulo ficam juntos");
   assert.deepEqual(s.partes.removidas, ["## Memória (vault do Obsidian)"], "a memória antiga continua sendo uma seção separada");
-  assert.match(s.avisos.join(" "), /Time de AGzinhos.*não reconheço/);
+  assert.match(s.avisos.join(" "), /Time do Studio.*não reconheço/);
 });
 
-test("aplicaClaudeMd: memória antiga só sai com AGPOCKET_VAULT configurado", () => {
+test("aplicaClaudeMd: memória antiga só sai com STUDIO_VAULT configurado", () => {
   const atual = `${TIME_ANTIGO}${MEMORIA_ANTIGA}\n${MARCADO_TIME}`;
   const sem = aplicaClaudeMd(atual, BLOCO_TIME, BLOCO_MEMORIA, { vaultConfigurado: false });
-  assert.deepEqual(sem.partes.removidas, ["# Time de AGzinhos"]);
+  assert.deepEqual(sem.partes.removidas, ["# Time do Studio"]);
   assert.ok(sem.texto.includes(MEMORIA_ANTIGA.trimEnd()), "a seção antiga fica byte a byte");
   assert.ok(sem.texto.includes(MARCA_MEMORIA_INICIO), "o bloco novo entra mesmo assim");
   assert.equal(sem.avisos.length, 1);
-  assert.match(sem.avisos[0], /mantive a seção "## Memória \(vault do Obsidian\)".*AGPOCKET_VAULT ainda não está/);
+  assert.match(sem.avisos[0], /mantive a seção "## Memória \(vault do Obsidian\)".*STUDIO_VAULT ainda não está/);
 
   const com = aplicaClaudeMd(atual, BLOCO_TIME, BLOCO_MEMORIA, { vaultConfigurado: true });
-  assert.deepEqual(com.partes.removidas, ["# Time de AGzinhos", "## Memória (vault do Obsidian)"]);
+  assert.deepEqual(com.partes.removidas, ["# Time do Studio", "## Memória (vault do Obsidian)"]);
   assert.match(com.avisos.join(" "), /apontava para D:\\Qualquer Pasta\\Cérebro\\memoria/);
 });
 
@@ -830,8 +830,8 @@ test("aplicaClaudeMd: criar do zero, marcadores quebrados e trechos marcados nun
   assert.equal(e.texto, quebrado);
 
   // um título igual ao legado DENTRO dos marcadores não é cópia antiga
-  const dentro = `${MARCA_INICIO}\n# Time de AGzinhos\n\nvelho\n${MARCA_FIM}\n`;
-  const x = removeCopiasAntigas(dentro, [{ titulo: "# Time de AGzinhos", linhas: ["# Time de AGzinhos", "velho"] }]);
+  const dentro = `${MARCA_INICIO}\n# Time do Studio\n\nvelho\n${MARCA_FIM}\n`;
+  const x = removeCopiasAntigas(dentro, [{ titulo: "# Time do Studio", linhas: ["# Time do Studio", "velho"] }]);
   assert.equal(x.texto, dentro);
   assert.deepEqual(x.removidas, []);
 });
@@ -853,7 +853,7 @@ test("passoClaudeMd: --dry-run e --check não escrevem; instalação faz backup 
   comHome((home, settings) => {
     const arquivo = path.join(home, ".claude", "CLAUDE.md");
     fs.mkdirSync(path.dirname(arquivo), { recursive: true });
-    fs.writeFileSync(settings, JSON.stringify({ env: { AGPOCKET_VAULT: path.join(home, "Cérebro") } }));
+    fs.writeFileSync(settings, JSON.stringify({ env: { STUDIO_VAULT: path.join(home, "Cérebro") } }));
     const original = `${TIME_ANTIGO}${MEMORIA_ANTIGA}\n${MARCADO_TIME}`.replace(/\n/g, "\r\n");
     fs.writeFileSync(arquivo, original);
 
@@ -874,7 +874,7 @@ test("passoClaudeMd: --dry-run e --check não escrevem; instalação faz backup 
     assert.equal(backups.length, 1);
     assert.equal(fs.readFileSync(path.join(path.dirname(arquivo), backups[0]), "utf8"), original);
     const instalado = fs.readFileSync(arquivo, "utf8");
-    assert.ok(instalado.includes(MARCA_MEMORIA_INICIO) && conta(instalado, "# Time de AGzinhos") === 1);
+    assert.ok(instalado.includes(MARCA_MEMORIA_INICIO) && conta(instalado, "# Time do Studio") === 1);
 
     const j = rodaPassoClaudeMd({}, home);
     assert.match(j.stdout, /já existia, iguais/);
@@ -884,7 +884,7 @@ test("passoClaudeMd: --dry-run e --check não escrevem; instalação faz backup 
   });
 });
 
-test("passoClaudeMd: sem AGPOCKET_VAULT mantém a memória antiga; o --dry-run do vault conta como configurado", () => {
+test("passoClaudeMd: sem STUDIO_VAULT mantém a memória antiga; o --dry-run do vault conta como configurado", () => {
   comHome((home) => {
     const arquivo = path.join(home, ".claude", "CLAUDE.md");
     fs.mkdirSync(path.dirname(arquivo), { recursive: true });
@@ -896,7 +896,7 @@ test("passoClaudeMd: sem AGPOCKET_VAULT mantém a memória antiga; o --dry-run d
     const instalado = fs.readFileSync(arquivo, "utf8");
     assert.ok(instalado.includes(MEMORIA_ANTIGA.trimEnd()) && instalado.includes(MARCA_MEMORIA_INICIO));
 
-    // o passo do vault em --dry-run diria que grava AGPOCKET_VAULT: a simulação do CLAUDE.md já tira a seção
+    // o passo do vault em --dry-run diria que grava STUDIO_VAULT: a simulação do CLAUDE.md já tira a seção
     const ctx = criaContexto({ ...parseFlags([]), dryRun: true }, home, process.platform);
     ctx.vaultEnvPendente = true;
     const linhas = [];
@@ -977,10 +977,10 @@ test("passoComandos: dry-run não cria nada; instala os comandos, fica idempoten
 test("conteúdo: /memoria, pesquisador e documentador seguem as regras do vault", () => {
   const le = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
   const memoria = le("commands", "memoria.md");
-  for (const t of ["$ARGUMENTS", "AGPOCKET_VAULT", "confidencial: true", "[[", "Não achei"]) {
+  for (const t of ["$ARGUMENTS", "STUDIO_VAULT", "confidencial: true", "[[", "Não achei"]) {
     assert.ok(memoria.includes(t), `memoria.md sem "${t}"`);
   }
-  assert.doesNotMatch(memoria, /[A-Z]:\\(Users|Área)|\/Users\/|\/home\/|pablo|AG-Cerebro/i, "memoria.md não pode ter caminho fixo");
+  assert.doesNotMatch(memoria, /[A-Z]:\\(Users|Área)|\/Users\/|\/home\/|pablo|Studio-Cerebro/i, "memoria.md não pode ter caminho fixo");
   assert.doesNotMatch(memoria, /^allowed-tools:/m);
 
   const pesquisador = le("agents", "pesquisador.md");
@@ -994,13 +994,13 @@ test("conteúdo: /memoria, pesquisador e documentador seguem as regras do vault"
 
 test("conteúdo: /reuniao segue as regras do vault e nunca começa nada sozinho", () => {
   const r = fs.readFileSync(path.join(ROOT, "commands", "reuniao.md"), "utf8");
-  for (const t of ["$ARGUMENTS", "AGPOCKET_VAULT", "00-Inbox", "10-Reunioes/", "20-Missoes/", "confidencial: true", "origem: facilitator", "🤖", "🙋", "❓", "/time ", "a fazer", "processadas"]) {
+  for (const t of ["$ARGUMENTS", "STUDIO_VAULT", "00-Inbox", "10-Reunioes/", "20-Missoes/", "confidencial: true", "origem: facilitator", "🤖", "🙋", "❓", "/time ", "a fazer", "processadas"]) {
     assert.ok(r.includes(t), `reuniao.md sem "${t}"`);
   }
   assert.match(r, /NUNCA use Glob nem Grep/);
   assert.match(r, /nunca comece nada sozinho/i);
   assert.match(r, /^argument-hint: "\[texto colado \| caminho em 00-Inbox\]"$/m);
-  assert.doesNotMatch(r, /[A-Z]:\\(Users|Área)|\/Users\/|\/home\/|pablo|AG-Cerebro/i, "reuniao.md não pode ter caminho fixo");
+  assert.doesNotMatch(r, /[A-Z]:\\(Users|Área)|\/Users\/|\/home\/|pablo|Studio-Cerebro/i, "reuniao.md não pode ter caminho fixo");
   assert.doesNotMatch(r, /^allowed-tools:/m);
   assert.doesNotMatch(r, /\$\d/, "$ seguido de dígito vira argumento no Claude Code");
   const n = normalizaLf(r);
@@ -1128,7 +1128,7 @@ test("/memoria: o bloco PowerShell não vaza nota confidencial", { skip: process
     const codigo = blocoDe("powershell").replace("'termo1|termo2'", "'decis[aã]o'").trimEnd() + " | ForEach-Object { $_.Name }\n";
     fs.writeFileSync(script, `\uFEFF${codigo}`);
     const r = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script], {
-      env: { ...process.env, AGPOCKET_VAULT: v },
+      env: { ...process.env, STUDIO_VAULT: v },
       encoding: "utf8",
     });
     assert.equal(r.status, 0, r.stderr);
@@ -1144,7 +1144,7 @@ test("/memoria: o bloco bash não vaza nota confidencial", { skip: !bash && "sem
   const v = vaultDeConfidenciais();
   try {
     const codigo = blocoDe("bash").replace("'termo1|termo2'", "'decis.{1,2}o'");
-    const r = spawnSync(bash, ["-c", codigo], { env: { ...process.env, AGPOCKET_VAULT: v.replace(/\\/g, "/") }, encoding: "utf8" });
+    const r = spawnSync(bash, ["-c", codigo], { env: { ...process.env, STUDIO_VAULT: v.replace(/\\/g, "/") }, encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr);
     const achadas = r.stdout.split(/\r?\n/).filter(Boolean).map((l) => path.basename(l.split("\t")[1])).sort();
     assert.deepEqual(achadas, ESPERADAS, r.stdout);
@@ -1165,7 +1165,7 @@ test("/memoria: o bloco bash usa um awk só e filtra ~100 notas em menos de 20 s
     }
     const inicio = Date.now();
     const codigo = blocoDe("bash").replace("'termo1|termo2'", "'decis.{1,2}o'").replace("head -8", "cat");
-    const r = spawnSync(bash, ["-c", codigo], { env: { ...process.env, AGPOCKET_VAULT: v.replace(/\\/g, "/") }, encoding: "utf8" });
+    const r = spawnSync(bash, ["-c", codigo], { env: { ...process.env, STUDIO_VAULT: v.replace(/\\/g, "/") }, encoding: "utf8" });
     const ms = Date.now() - inicio;
     assert.equal(r.status, 0, r.stderr);
     const achadas = r.stdout.split(/\r?\n/).filter(Boolean).map((l) => path.basename(l.split("\t")[1]));
@@ -1219,13 +1219,13 @@ function ambienteReuniao() {
       const script = path.join(raiz, `b${Math.random().toString(36).slice(2)}.ps1`);
       fs.writeFileSync(script, `\uFEFF${codigo}`);
       return spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script], {
-        env: { ...process.env, AGPOCKET_VAULT: v, TEMP: tmp, TMP: tmp },
+        env: { ...process.env, STUDIO_VAULT: v, TEMP: tmp, TMP: tmp },
         encoding: "utf8",
       });
     }
     // no bash, o modelo troca <TEMP> pelo caminho que o bloco de contexto imprimiu (mktemp -d)
     return spawnSync(bash, ["-c", codigo.replace("tmp='<TEMP>'", `tmp='${tmp.replace(/\\/g, "/")}'`)], {
-      env: { ...process.env, AGPOCKET_VAULT: v.replace(/\\/g, "/"), TMPDIR: tmp.replace(/\\/g, "/") },
+      env: { ...process.env, STUDIO_VAULT: v.replace(/\\/g, "/"), TMPDIR: tmp.replace(/\\/g, "/") },
       encoding: "utf8",
     });
   };

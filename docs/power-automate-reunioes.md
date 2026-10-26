@@ -6,7 +6,7 @@ Guia para quem vai montar o fluxo. **O fluxo ainda não existe e nada aqui foi t
 
 O fluxo pega o resumo que o Facilitator/Copilot do Teams gera ao fim de uma reunião e salva como um arquivo `.md` na **raiz** de `00-Inbox/` do vault. Dali em diante:
 
-1. O servidor do AG Pocket **lê a ata sozinho, sem IA** (leitura determinística, sem chamar o Claude): título, data, notas, decisões e tarefas com responsável e prazo.
+1. O servidor do Rhynor Studio **lê a ata sozinho, sem IA** (leitura determinística, sem chamar o Claude): título, data, notas, decisões e tarefas com responsável e prazo.
 2. Grava a nota em `10-Reunioes/` (`confidencial: true`, com os nomes trocados por "Responsável A, B...") e move a ata bruta para `00-Inbox/processadas/`.
 3. Se a ata vier **fora do formato** (por exemplo, só a transcrição), ela **fica no Inbox** e o painel mostra "precisa do /reuniao". Só nesse caso a pessoa roda `/reuniao`, que usa IA e só com a aprovação dela.
 
@@ -66,7 +66,7 @@ Regras:
 
 ## 4. Onde salvar
 
-- Uma pasta do OneDrive **sincronizada com o vault**: o caminho é o da variável `AGPOCKET_VAULT` (não escreva caminho pessoal no fluxo nem na documentação). O fluxo grava em `<vault>/00-Inbox/`.
+- Uma pasta do OneDrive **sincronizada com o vault**: o caminho é o da variável `STUDIO_VAULT` (não escreva caminho pessoal no fluxo nem na documentação). O fluxo grava em `<vault>/00-Inbox/`.
 - Espere a sincronização do OneDrive: o arquivo precisa já estar na máquina para a leitura automática (e o `/reuniao`) enxergá-lo.
 - **Risco de ata incompleta:** se o arquivo for lido enquanto ainda está sendo escrito, a ata chega pela metade. Sugestão: gravar com nome temporário (ex.: `ata-....md.tmp`, extensão que a leitura automática e o `/reuniao` ignoram) e **renomear para `.md` no fim**. A leitura automática ainda espera o arquivo ficar ~2 s sem mudar de tamanho antes de ler.
 - Não sobrescrever: se o nome já existir, acrescentar `-2`.
@@ -93,7 +93,7 @@ Sugestão: começar pela **transcrição/resumo disponível** e, se não der, us
 ## 7. Governança
 
 - Conteúdo de reunião enviado a IA **externa** exige aprovação formal antes (jurídico/segurança/TI).
-- O vault é local (pasta sincronizada com o OneDrive). A leitura automática roda no servidor do AG Pocket (127.0.0.1, na máquina da pessoa) **sem IA**: nenhum conteúdo de reunião vai para o Claude antes da aprovação. O `/reuniao` (com IA) só roda quando a pessoa manda.
+- O vault é local (pasta sincronizada com o OneDrive). A leitura automática roda no servidor do Rhynor Studio (127.0.0.1, na máquina da pessoa) **sem IA**: nenhum conteúdo de reunião vai para o Claude antes da aprovação. O `/reuniao` (com IA) só roda quando a pessoa manda.
 - Notas de reunião nascem `confidencial: true`; só a pessoa muda para `false`, depois de conferir.
 - O painel mostra só título e contagem, nunca o conteúdo. A nota feita sem IA tem `origem: leitura-automatica` e `processamento: sem-ia`.
 - A ata bruta nunca é apagada: vai para `00-Inbox/processadas/`.

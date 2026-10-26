@@ -305,7 +305,7 @@ export function renderSprite(ctx: CanvasRenderingContext2D, bx: number, by: numb
   if (dir === "down") {
     if (!tailored) for (const [lx, ly, w, h] of bitmapRuns(AG_CHEST, bx + 1, ty + 2)) L.push([lx, ly, w, h, u.logo]);
     if (u.lapelBadge) {
-      // crachá AG preso na lapela
+      // crachá preso na lapela
       L.push([bx + 2, ty + 3, 2, 2, palette.white]);
       L.push([bx + 2, ty + 3, 2, 1, palette.navy900]);
     } else {

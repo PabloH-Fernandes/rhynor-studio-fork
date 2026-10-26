@@ -9,7 +9,7 @@
 //   linha completa. O registro é gravado de forma assíncrona e pode atrasar: relê ~1,5 s após o Stop e no próximo evento.
 // - O dia vem do `timestamp` da linha (dia local).
 // - Segurança: /api/hook é aberto e o caminho vem do corpo; só vale arquivo .jsonl, que NÃO seja link simbólico, dentro de
-//   ~/.claude/projects (AGPOCKET_PROJETOS_DIR troca a pasta nos testes). A checagem do caminho é LÉXICA, antes de tocar no
+//   ~/.claude/projects (STUDIO_PROJETOS_DIR troca a pasta nos testes). A checagem do caminho é LÉXICA, antes de tocar no
 //   disco (nada de UNC, \\?\ nem \\.\: evita acesso de rede a host arbitrário). Fora disso: ignora em silêncio.
 // - Registro grande (>= 50 MB): lê só os últimos 50 MB (alinhado à próxima quebra de linha) e avisa uma vez no log; o que
 //   veio antes disso não entra na conta (subconta conhecida, documentada no README).
@@ -68,7 +68,7 @@ interface Alvo {
 export interface OpcoesGasto {
   /** pasta data/gasto */
   dir: string;
-  /** pasta dos registros do Claude (padrão: ~/.claude/projects ou AGPOCKET_PROJETOS_DIR) */
+  /** pasta dos registros do Claude (padrão: ~/.claude/projects ou STUDIO_PROJETOS_DIR) */
   projetosDir?: () => string;
   agora?: () => number;
   esperaMs?: number;
@@ -82,7 +82,7 @@ export interface OpcoesGasto {
 }
 
 export function projetosDirPadrao(env: NodeJS.ProcessEnv = process.env, home = os.homedir()): string {
-  const c = env.AGPOCKET_PROJETOS_DIR?.trim();
+  const c = env.STUDIO_PROJETOS_DIR?.trim();
   return c ? path.resolve(c) : path.join(home, ".claude", "projects");
 }
 
