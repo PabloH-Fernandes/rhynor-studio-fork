@@ -244,6 +244,7 @@ O servidor **não herda** o `env` do `settings.json` do Claude Code. A única ex
 | `AG_SESSION_TIMEOUT_MIN` | Minutos sem nenhum evento até uma sessão sem sinal sair do escritório | 30 |
 | `AG_SETUP_TIMEOUT_S` | Segundos de espera por item do `npm run setup` | 300 |
 | `PORT` | Porta do servidor | 4848 |
+| `STUDIO_PORT` | Porta para onde o `hooks/hook.mjs` manda os eventos. Se mudar `PORT`, defina `STUDIO_PORT` com o mesmo valor no ambiente do Claude Code | 4848 |
 
 Se a porta 4848 já estiver em uso por outro programa, escolha outra com `PORT` (por exemplo `$env:PORT = "4800"; npm start`) e abra o endereço com essa porta.
 
