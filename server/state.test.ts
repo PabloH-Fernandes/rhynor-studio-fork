@@ -791,6 +791,9 @@ test("Stop do líder: visitante da sessão sai", () => {
   hook("SubagentStart", { agent_id: "x1", agent_type: "agente-de-fora" });
   const visitante = subs().find((a) => a.id !== "p:dev");
   assert.ok(visitante);
+  // ocioso: não segue mais em background (sem isso, um agent_id vivo sem SubagentStop fica)
+  hook("TeammateIdle", { agent_id: "x1", agent_type: "agente-de-fora" });
+  assert.equal(byId(visitante.id)?.status, "ocioso");
   hook("Stop");
   assert.equal(byId(visitante.id)?.status, "saindo");
   assert.equal(byId("p:dev")!.status, "ocioso");
@@ -943,6 +946,8 @@ test("Stop do líder não expulsa visitante com ferramenta em andamento; sem fer
   const visitantes = subs().filter((a) => a.id !== "p:dev");
   assert.equal(visitantes.length, 2);
   hook("PreToolUse", { agent_id: "x1", agent_type: "agente-de-fora", tool_name: "Bash", tool_use_id: "v1", tool_input: { command: "npm test" } });
+  // o x2 ficou ocioso: não segue mais em background
+  hook("TeammateIdle", { agent_id: "x2", agent_type: "outro-de-fora" });
   hook("Stop");
   const x1 = byId("p:extra:x1") ?? visitantes.map((a) => byId(a.id)).find((a) => a?.status === "trabalhando");
   assert.equal(x1?.status, "trabalhando", "o visitante em background segue trabalhando");
@@ -957,7 +962,47 @@ test("Stop do líder não expulsa visitante com ferramenta em andamento; sem fer
   assert.ok(privado().retired.size > 0, "a entrega é saída definitiva");
 });
 
-test("visitante em background sem ferramenta e ocioso sai no Stop; sem Stop ainda cai nos 3 min", () => {
+test("Stop do líder não expulsa visitante em background sem ferramenta que ainda não entregou; o SubagentStop depois vale", () => {
+  hook("SessionStart");
+  hook("SubagentStart", { agent_id: "x1", agent_type: "agente-de-fora" });
+  const visitante = subs()[0];
+  assert.ok(visitante);
+  hook("Stop");
+  assert.notEqual(byId(visitante.id)?.status, "saindo", "sem SubagentStop ele segue vivo em background");
+  hook("SubagentStop", { agent_id: "x1", agent_type: "agente-de-fora" });
+  assert.equal(byId(visitante.id)?.status, "saindo");
+  const snap = state.snapshot();
+  const feed = snap.type === "snapshot" ? snap.feed : [];
+  const dele = feed.filter((f) => f.agentId === visitante.id).map((f) => f.text);
+  assert.equal(dele.at(-1), "entregou o trabalho");
+  assert.ok(!dele.includes("foi embora"), JSON.stringify(dele));
+});
+
+test("Stop do líder segura o visitante vivo sem ferramenta, mas os 3 min sem evento o tiram (sem sinal)", () => {
+  hook("SessionStart");
+  hook("SubagentStart", { agent_id: "x1", agent_type: "agente-de-fora" });
+  const visitante = subs()[0];
+  assert.ok(visitante);
+  hook("Stop");
+  assert.notEqual(byId(visitante.id)?.status, "saindo", "sem SubagentStop ele segue vivo em background");
+  // a passagem automática chegando → pensando (12 s) também conta como evento: os 3 min contam dali
+  advance(3 * MIN + 13_000);
+  assert.equal(byId(visitante.id)?.status, "saindo", "sem SubagentStop nem evento, os 3 min cobrem a saída");
+  assert.equal(byId(visitante.id)?.activity, "Saiu (sem sinal)");
+});
+
+test("visitante só do fallback (t:, sem SubagentStart) e sem ferramenta sai no Stop do líder", () => {
+  hook("SessionStart");
+  hook("PreToolUse", { tool_name: "Agent", tool_use_id: "tu1", tool_input: { subagent_type: "Explore", description: "Procurar" } });
+  advance(1500); // FALLBACK_SPAWN_MS: o boneco aparece pelo tool_use_id
+  const visitante = subs()[0];
+  assert.ok(visitante, "o fallback criou o visitante");
+  assert.notEqual(visitante.status, "saindo");
+  hook("Stop");
+  assert.equal(byId(visitante.id)?.status, "saindo", "sem agent_id real, não há o que segurar em background");
+});
+
+test("visitante com Bash em andamento segue depois do Stop; sem evento, sai nos 3 min", () => {
   hook("SessionStart");
   hook("SubagentStart", { agent_id: "x1", agent_type: "agente-de-fora" });
   hook("PreToolUse", { agent_id: "x1", agent_type: "agente-de-fora", tool_name: "Bash", tool_use_id: "v1", tool_input: { command: "sleep 9" } });

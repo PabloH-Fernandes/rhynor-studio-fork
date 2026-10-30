@@ -802,6 +802,12 @@ export class OfficeState {
     return this.ferramentasAtivas(agentId).length > 0;
   }
 
+  /** ligado a um agent_id real (veio SubagentStart) que ainda não entregou: segue vivo em background */
+  private vivoEmBackground(a: Agent): boolean {
+    const b = this.bindings.get(a.id);
+    return !!b && !b.alias.startsWith("t:") && this.aliases.get(b.alias) === a.id && !this.stopped.has(b.alias);
+  }
+
   /**
    * limite sem evento para "trabalhando"/"pensando": 10 min com Bash ou Agent/Task em andamento;
    * senão 5 min "pensando" e 2 min "trabalhando"
@@ -842,7 +848,9 @@ export class OfficeState {
 
   /**
    * Stop do líder: acabou a vez da sessão. Ninguém dela continua "trabalhando"/"pensando": volta a
-   * "de boa"; visitantes saem; quem espera você continua esperando. Só mexe nos agentes desta sessão.
+   * "de boa"; visitantes saem, menos quem segue em background (ferramenta em andamento ou agent_id
+   * vivo que ainda não deu SubagentStop); quem espera você continua esperando. Só mexe nos agentes
+   * desta sessão.
    */
   private encerrarVez(sessionId: string) {
     for (const a of [...this.agents.values()]) {
@@ -852,8 +860,9 @@ export class OfficeState {
         continue;
       }
       if (ehVisitante(a)) {
-        // visitante com ferramenta em andamento segue em background: SubagentStop e os 3 min cobrem a saída
-        if (this.temFerramenta(a.id) && a.status !== "ocioso") continue;
+        // visitante com ferramenta em andamento ou ainda sem entregar (Agent em background) segue vivo:
+        // SubagentStop e os 3 min sem evento cobrem a saída
+        if ((this.temFerramenta(a.id) || this.vivoEmBackground(a)) && a.status !== "ocioso") continue;
         this.sairVisitante(a, "Foi embora", { definitiva: false });
         continue;
       }
