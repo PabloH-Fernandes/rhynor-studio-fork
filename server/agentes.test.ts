@@ -41,3 +41,56 @@ test(".claude/agents/ tem a cópia exata dos 6 agentes de construção de agents
     assert.equal(ler(copia), ler(origem), `.claude/agents/${nome}.md difere de agents/${nome}.md`);
   }
 });
+
+// Equipe de produção (Etapa 2): só o showrunner chama, e cada um tem ferramentas e modelo fixos.
+const PRODUCAO: Record<string, { tools: string[]; model: string }> = {
+  roteirista: { tools: ["Read", "Write"], model: "sonnet" },
+  continuista: { tools: ["Read", "Grep", "Glob"], model: "haiku" },
+  "diretor-arte": { tools: ["Read", "Write", "Edit", "Bash"], model: "sonnet" },
+  "diretor-dublagem": { tools: ["Read", "Write", "Bash"], model: "haiku" },
+  montador: { tools: ["Read", "Write", "Edit", "Bash"], model: "sonnet" },
+  "revisor-conteudo": { tools: ["Read", "Bash"], model: "sonnet" },
+  apurador: { tools: ["Read", "Write", "Bash"], model: "haiku" },
+  "social-media": { tools: ["Read", "Write", "Bash"], model: "haiku" },
+  arquivista: { tools: ["Read", "Write", "Edit"], model: "haiku" },
+};
+const campo = (fm: string, nome: string): string | undefined => new RegExp(`^${nome}:\\s*(.*?)\\s*$`, "m").exec(fm)?.[1];
+const ESCREVE_NO_VAULT = /único (agente )?que escreve no vault/i;
+
+for (const [nome, esperado] of Object.entries(PRODUCAO)) {
+  test(`agente de produção ${nome}: frontmatter, seções e regra do vault`, () => {
+    const arquivo = path.join(PASTA_PROJETO, `${nome}.md`);
+    assert.ok(fs.existsSync(arquivo), `falta .claude/agents/${nome}.md`);
+    const texto = ler(arquivo);
+    const fm = frontmatter(texto);
+    const corpo = texto.slice(texto.indexOf("\n---", 3) + 4);
+
+    assert.equal(campo(fm, "name"), nome);
+    const tools = (campo(fm, "tools") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+    assert.deepEqual(new Set(tools), new Set(esperado.tools), `${nome}: tools`);
+    assert.equal(tools.length, esperado.tools.length, `${nome}: tools repetida`);
+    assert.equal(campo(fm, "model"), esperado.model, `${nome}: model`);
+
+    const descricao = campo(fm, "description") ?? "";
+    assert.ok(descricao.startsWith("Só chamado pelo showrunner"), `${nome}: description deve começar com "Só chamado pelo showrunner"`);
+    assert.doesNotMatch(texto, /PROATIVAMENTE/i, `${nome}: não pode pedir uso proativo`);
+
+    for (const titulo of ["Quando o showrunner me chama", "O que entrego", "O que NÃO faço"]) {
+      assert.match(corpo, new RegExp(`^## ${titulo}\\s*$`, "m"), `${nome}: falta a seção "${titulo}"`);
+    }
+
+    if (nome === "arquivista") {
+      assert.match(corpo, ESCREVE_NO_VAULT, "arquivista deve ter a regra de ser o único que escreve no vault");
+      assert.doesNotMatch(corpo, /não escrevo no vault/i);
+    } else {
+      assert.doesNotMatch(texto, ESCREVE_NO_VAULT, `${nome}: só o arquivista escreve no vault`);
+      assert.match(corpo, /não escrevo no vault/i, `${nome}: falta a regra "Não escrevo no vault"`);
+    }
+  });
+}
+
+test("diretor-arte e revisor de .claude/agents citam referencias/rhynor-marca.md", () => {
+  for (const nome of ["diretor-arte", "revisor"]) {
+    assert.match(ler(path.join(PASTA_PROJETO, `${nome}.md`)), /referencias\/rhynor-marca\.md/, `${nome} não cita a marca`);
+  }
+});
