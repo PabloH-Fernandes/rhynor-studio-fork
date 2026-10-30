@@ -62,13 +62,20 @@ Todas têm licença OFL (Google Fonts). Hospedar localmente em `assets/fontes/` 
 - O motivo gráfico da marca é o **triângulo/facetado** da logo: usar em divisores, marcadores de etapa e no indicador de "ao vivo" (um triângulo laranja). Sem gradientes coloridos.
 - Ícones em pixel (16 px), cor Aço; laranja só no ativo.
 
+## Interface x mundo (Studio 2.0)
+
+A marca vale de dois jeitos diferentes:
+
+- **Interface** (Mesa do Showrunner, painéis, crachás, botões, feed): segue esta marca à risca. Paleta da Rhynor, laranja como único destaque, estilo pixel.
+- **Mundo** (o galpão desenhado no canvas): o laranja da Rhynor é a cor principal e o neon mais forte (letreiro, escultura do rinoceronte, luz ON AIR, destaques). Fora isso, o galpão é **livre e colorido**, como um lugar criativo deve ser: tijolo, madeira, plantas, tecidos estampados, objetos de várias culturas e neons de várias cores (ciano, magenta, violeta, verde). A única regra no mundo é não deixar outra cor competir com o laranja nos pontos de destaque.
+
 ## Aplicação no escritório (pixel art)
 
-- **Ambiente:** escritório noturno de estúdio, fundo Noite, janelas com a cidade e luz de monitor. Dia/noite continua existindo, mas o padrão é noite.
-- **Paleta do pixel art:** derivar sombras e luzes das cores da marca (Ardósia para móveis e paredes, Aço para metais, Névoa para luzes, laranja para luminárias, LED de "gravando", tapete e detalhes). Evite tons que não conversem com a paleta.
+- **Ambiente:** galpão criativo industrial com neon (ver `plano-studio-2.md`, seções O Galpão e Ambientação). Dia e noite pelas claraboias; à noite o neon domina.
+- **Paleta do pixel art:** livre no mundo (seção acima). Sem brilhos borrados nem gradientes suaves: luz em pixel, com 2 ou 3 tons em degrau ou dithering.
+- **Logo no galpão:** no máximo dois lugares (o letreiro principal e a escultura do átrio). Nada de repetir a logo em placas pela parede.
 - **Elenco:** roupas casuais e variadas, sem uniforme e sem logo no peito. A identidade aparece em detalhes: crachá com o rinoceronte e cordão laranja.
 - **Agente trabalhando:** contorno ou brilho laranja suave na mesa. Ocioso: sem destaque. Aguardando sua aprovação: etiqueta Aviso.
-- **Logo no escritório:** um quadro/letreiro na parede da recepção com a versão de fundo escuro, e o favicon na aba.
 - **Crachá:** fundo Superfície, faixa superior Ardósia com o rinoceronte, nome em Space Grotesk, função e estatísticas em JetBrains Mono.
 
 ## Estilo pixel em tudo
