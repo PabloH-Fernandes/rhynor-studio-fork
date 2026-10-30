@@ -5,6 +5,7 @@
 //  é referencias/rhynor-marca.md.
 // =====================================================================
 
+import { PAPEIS_DE_PRODUCAO, ehProducao } from "../../shared/producao";
 import { CORES_ROUPA, HAIR_COLORS, ROUPAS_ABERTAS, SKIN_TONES, tokenDe, type Personagem, type Roupa, type Swatch } from "../../shared/roster";
 import { comAlfa, cor, derivada, misturar, type NomeCor } from "./marca/cores";
 
@@ -256,6 +257,8 @@ export const theme: Theme = {
     documentador: "DOCUMENTAÇÃO",
     pesquisador: "PESQUISA",
     convidado: "CONVIDADO",
+    // equipe de produção: plaquinha da função, mas continuam visitantes (visualPadrao)
+    ...Object.fromEntries(Object.entries(PAPEIS_DE_PRODUCAO).map(([papel, p]) => [papel, p.plaquinha])),
   },
 };
 
@@ -295,10 +298,11 @@ const ROUPAS_SORTEIO: readonly [Roupa, string, string][] = [
   ["sueter", "creme", "ardosia"],
 ];
 
-/** Visual padrão por papel e hash (convidado sem elenco ganha o crachá de visitante). */
+/** Visual padrão por papel e hash (convidado sem elenco e equipe de produção ganham o crachá de visitante). */
 export function visualPadrao(role: string, h: number): Visual {
   const [roupa, corRoupa, corCalca] = ROUPAS_SORTEIO[h % ROUPAS_SORTEIO.length];
-  return visual(roupa, corRoupa, corCalca, undefined, role === "convidado" || !Object.hasOwn(theme.deskLabels, role));
+  const visitante = role === "convidado" || ehProducao(role) || !Object.hasOwn(theme.deskLabels, role);
+  return visual(roupa, corRoupa, corCalca, undefined, visitante);
 }
 
 /** tons de pele e cabelo de quem não está no elenco, sorteados pelo hash do id (as listas moram em shared/roster.ts) */

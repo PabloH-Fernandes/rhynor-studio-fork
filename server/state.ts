@@ -10,6 +10,7 @@
 import path from "node:path";
 import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ReuniaoAtiva, ServerMessage } from "../shared/types.ts";
 import { DEFAULT_ROSTER, personagemDoPapel, type Personagem, type Roster } from "../shared/roster.ts";
+import { PAPEIS_DE_PRODUCAO, ehProducao } from "../shared/producao.ts";
 import { MAX_VISITANTES_NA_TELA, ehVisitante } from "../shared/visitante.ts";
 import { PROGRESS_NADA, ProgressTracker, sameProgress, type TarefasSalvas } from "./progress.ts";
 import { ehComandoReuniao } from "./vault.ts";
@@ -1141,6 +1142,8 @@ export class OfficeState {
   /**
    * Personagens que podem atender um tipo, na ordem de preferência:
    * - papel do time (dev, pesquisador...): o principal e as variações dele (dev-2);
+   * - papel da equipe de produção (roteirista...): ninguém; vira visitante extra (p:extra:<id>)
+   *   com o nome da função, sem tomar Diego, Cida nem Ícaro;
    * - outro tipo: o convidado que atende o tipo (sem diferenciar maiúsculas), o curinga "*"
    *   e depois qualquer convidado.
    * O líder cai nos convidados, na ordem do elenco, quando o "lider" já tem dono (2ª sessão).
@@ -1148,6 +1151,7 @@ export class OfficeState {
   private candidates(type: string, leader: boolean): Personagem[] {
     const list = this.roster.personagens;
     const role = normalizeRole(type);
+    if (ehProducao(role)) return [];
     const guests = list.filter((a) => a.papel === "convidado");
     const serves = (a: Personagem, t: string) => (a.agentTypes ?? []).some((x) => x.toLowerCase() === t);
     const guestOrder = [...new Set([...guests.filter((a) => serves(a, role)), ...guests.filter((a) => serves(a, "*")), ...guests])];
@@ -1661,6 +1665,7 @@ export function normalizeRole(type: string): string {
 export function prettyRole(type: string): string {
   const role = normalizeRole(type);
   if (ROLE_NAMES[role]) return ROLE_NAMES[role];
+  if (ehProducao(role)) return PAPEIS_DE_PRODUCAO[role].nome;
   return role
     .split(/[-_\s]+/)
     .filter(Boolean)

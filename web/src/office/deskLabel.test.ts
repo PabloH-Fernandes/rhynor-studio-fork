@@ -1,8 +1,9 @@
 // Testes do texto da plaquinha da mesa (sem canvas): npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { PAPEIS_DE_PRODUCAO } from "../../../shared/producao";
 import { DEFAULT_ROSTER } from "../../../shared/roster";
-import { palette, theme } from "../theme";
+import { palette, theme, visualPadrao } from "../theme";
 import { MAX_APERTO, numeroNoPapel, rotuloDaMesa, rotuloQueCabe, rotulosDasMesas } from "./deskLabel";
 
 /** largura da VT323 a 7px: 2,8 px por caractere (medido no navegador) */
@@ -32,6 +33,18 @@ describe("rotuloDaMesa", () => {
 
   it("visitante extra (tipo sem papel no time) é CONVIDADO", () => {
     assert.equal(rotuloDaMesa("convidado", { papel: "statusline-setup" }), "CONVIDADO");
+  });
+
+  it("equipe de produção mostra a plaquinha da função", () => {
+    assert.equal(rotuloDaMesa("convidado", { papel: "roteirista" }), "ROTEIRO");
+    assert.equal(rotuloDaMesa("convidado", { papel: "diretor-arte" }), "ARTE");
+    assert.equal(rotuloDaMesa("convidado", { papel: "revisor-conteudo" }), "CONTEÚDO");
+    for (const [papel, p] of Object.entries(PAPEIS_DE_PRODUCAO)) assert.equal(rotuloDaMesa("convidado", { papel }), p.plaquinha);
+  });
+
+  it("produção continua com crachá de visitante", () => {
+    for (const papel of Object.keys(PAPEIS_DE_PRODUCAO)) assert.equal(visualPadrao(papel, 3).visitor, true, papel);
+    assert.equal(visualPadrao("dev", 3).visitor, false);
   });
 });
 
@@ -114,6 +127,8 @@ describe("plaquinha legível", () => {
       ...Object.values(theme.deskLabels).flatMap((f) => [f, `${f} 2`, `${f} 3`]),
     ];
     assert.ok(rotulos.includes("DOCUMENTAÇÃO 2") && rotulos.includes("CONVIDADO 3"));
+    // as plaquinhas da produção entram na mesma conta (CONTINUIDADE é a mais longa)
+    assert.ok(rotulos.includes("ROTEIRO") && rotulos.includes("CONTINUIDADE 3"));
     for (const maxW of LARGURAS) {
       for (const r of rotulos) {
         const final = rotuloQueCabe(r, maxW, vt323);

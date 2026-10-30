@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, mock, test } from "node:test";
 import { DEFAULT_ROSTER } from "../shared/roster.ts";
 import type { Agent } from "../shared/types.ts";
+import { ehVisitante } from "../shared/visitante.ts";
 import { DEMO_END_AFTER_STOP_MS, cancelDemo, runDemo } from "./demo.ts";
-import { OfficeState, VISITANTE_RETIRE_MS, type HookInput } from "./state.ts";
+import { OfficeState, VISITANTE_RETIRE_MS, prettyRole, type HookInput } from "./state.ts";
 
 const S1 = "sessao-1";
 const S2 = "sessao-2";
@@ -123,6 +124,33 @@ test("convidados: Explore → Diego, Plan e tipo desconhecido → Ícaro, genera
   start("x1", "superpowers:code-reviewer");
   assert.equal(byId("p:curinga")?.status, "chegando", "o tipo desconhecido usa o Ícaro livre");
   assert.equal(subs().length, 3);
+});
+
+test("equipe de produção: visitante extra com nome da função, sem tomar Diego, Cida nem Ícaro", () => {
+  start("r1", "roteirista");
+  const rot = byId("p:extra:r1");
+  assert.ok(rot, "roteirista vira p:extra:<id>");
+  assert.equal(rot.name, "Roteirista");
+  assert.equal(rot.role, "roteirista");
+  assert.equal(rot.personagem, undefined);
+  assert.ok(ehVisitante(rot), "produção é visitante");
+  assert.equal(byId("p:curinga"), undefined, "o Ícaro (curinga) fica livre");
+
+  // com namespace de plugin também cai na tabela
+  start("m1", "studio:montador");
+  assert.equal(byId("p:extra:m1")?.name, "Montagem");
+
+  // o curinga livre continua atendendo tipo desconhecido (teste do code-reviewer de sempre)
+  start("x1", "superpowers:code-reviewer");
+  assert.equal(byId("p:curinga")?.name, "Ícaro Lins");
+});
+
+test("líder chamando a produção: 'Coordenando: chamou Direção de arte'", () => {
+  hook("PreToolUse", { tool_name: "Agent", tool_use_id: "tu1", tool_input: { subagent_type: "diretor-arte", description: "cenário da praça" } });
+  const lider = agents().find((a) => !a.parentId)!;
+  assert.equal(lider.activity, "Coordenando: chamou Direção de arte");
+  assert.equal(prettyRole("revisor-conteudo"), "Revisão de conteúdo");
+  assert.equal(prettyRole("continuista"), "Continuísta");
 });
 
 test("visitante (Diego, Cida, Ícaro) sai andando ao SubagentStop; nunca fica de boa", () => {
