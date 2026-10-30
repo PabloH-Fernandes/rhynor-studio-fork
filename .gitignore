@@ -10,3 +10,5 @@ data/*
 prints/
 /preview.png
 .env
+# config local do Claude Code (a pasta .claude/agents é versionada)
+.claude/settings.local.json
