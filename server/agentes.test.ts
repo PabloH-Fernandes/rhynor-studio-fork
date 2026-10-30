@@ -94,3 +94,26 @@ test("diretor-arte e revisor de .claude/agents citam referencias/rhynor-marca.md
     assert.match(ler(path.join(PASTA_PROJETO, `${nome}.md`)), /referencias\/rhynor-marca\.md/, `${nome} não cita a marca`);
   }
 });
+
+test("team/CLAUDE-studio.md tem as regras do showrunner e a ordem do episódio", () => {
+  const texto = ler(path.join(ROOT, "team", "CLAUDE-studio.md"));
+  for (const trecho of ["Topologia em estrela", "Agente decide, script executa", "APROVAÇÃO DO ROTEIRO", "APROVAÇÃO DO VÍDEO", "STUDIO_VAULT", "caminhos absolutos"]) {
+    assert.ok(texto.includes(trecho), `CLAUDE-studio.md sem "${trecho}"`);
+  }
+  assert.match(texto, /arquivista\*\* é o único que escreve no vault das séries/);
+  // os 9 aparecem na ordem do fluxo
+  const ordem = ["apurador", "roteirista", "continuista", "revisor-conteudo", "APROVAÇÃO DO ROTEIRO", "diretor-arte", "montador", "APROVAÇÃO DO VÍDEO", "social-media", "arquivista"];
+  const fluxo = texto.slice(texto.indexOf("## Ordem de um episódio"));
+  const posicoes = ordem.map((p) => fluxo.indexOf(p));
+  assert.ok(posicoes.every((p) => p >= 0), `falta etapa no fluxo: ${ordem.filter((_, i) => posicoes[i] < 0).join(", ")}`);
+  assert.deepEqual([...posicoes].sort((a, b) => a - b), posicoes, "ordem do episódio fora do lugar");
+  assert.ok(fluxo.includes("diretor-dublagem"));
+  for (const nome of Object.keys(PRODUCAO)) assert.ok(texto.includes(nome), `CLAUDE-studio.md não cita ${nome}`);
+});
+
+test("CLAUDE.md da raiz explica os dois modos, a marca, as portas e a regra de memória", () => {
+  const texto = ler(path.join(ROOT, "CLAUDE.md"));
+  for (const trecho of ["`/time`", "showrunner", "team/CLAUDE-studio.md", "referencias/rhynor-marca.md", "--rh-*", "npm test", "4848", "STUDIO_PORT", "20-Producao/Construcao/"]) {
+    assert.ok(texto.includes(trecho), `CLAUDE.md sem "${trecho}"`);
+  }
+});
