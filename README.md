@@ -27,7 +27,10 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 
 | Pasta | O que é |
 |---|---|
-| `agents/` | Os 6 subagentes do time ([[planejador]], [[pesquisador]], [[dev]], [[testador]], [[revisor]], [[documentador]]) |
+| `agents/` | Os 6 subagentes do time ([[planejador]], [[pesquisador]], [[dev]], [[testador]], [[revisor]], [[documentador]]); fonte das cópias de `.claude/agents/` |
+| `.claude/agents/` | Os agentes que o Claude Code lê neste projeto: os 6 do time (cópias) e os 9 de produção (veja "Equipe de produção") |
+| `CLAUDE.md` | Instruções da raiz: os dois modos (`/time` e showrunner) |
+| `team/CLAUDE-studio.md` | Modo showrunner: fluxo do episódio e as duas aprovações do Pablo |
 | `team/CLAUDE-time.md` | Instruções para o Claude principal saber quando chamar cada agente e montar a lista de tarefas ([[CLAUDE-time]]) |
 | `team/CLAUDE-memoria.md` | Bloco de memória no Obsidian; o vault vem de `STUDIO_VAULT` e o setup instala ([[CLAUDE-memoria]]) |
 | `hooks/hook.mjs` | O hook: pega cada evento do Claude Code e manda para o servidor |
@@ -51,27 +54,28 @@ Claude Code ──hooks──▶ servidor Node (Express) ──WebSocket──�
 
 Precisa de Node 20 ou mais novo e do Claude Code instalado e logado.
 
-> **Estado atual (Etapa 1 da missão):** não rode o `npm run setup` ainda. Ele não foi adaptado ao Studio e duplicaria os blocos de time e de memória no `~/.claude/CLAUDE.md`. Use o passo manual abaixo.
+> **Estado atual (Etapa 2 da missão):** não rode o `npm run setup` nem o passo global (`install-agents` e `install-hooks` sem `--project`). Eles escrevem em `~/.claude` e não foram adaptados ao Studio. Nesta fase, o hook e os agentes ficam só neste projeto (abaixo).
 
 **Jeito rápido (a partir da Etapa 3):** `npm run setup` faz tudo de uma vez (dependências, agentes, hooks, vault do Obsidian, comandos `/time`, `/memoria` e `/reuniao`, Playwright, plugins e build). Depois é só `npm start`. Opções e detalhes no [SETUP.md](SETUP.md). `npm run setup -- --dry-run` mostra o que ele faria sem escrever nada.
 
-**Manual (alternativa, use este agora):**
+**Passo a passo (use este agora, só neste projeto):**
 
 ```bash
 npm install
 
-# 1. instala os 6 agentes em ~/.claude/agents (ficam disponíveis em todos os projetos)
-npm run install-agents
+# 1. liga o hook só neste projeto: grava .claude/settings.local.json (fora do Git)
+node scripts/install-hooks.mjs --project .
 
-# 2. liga os hooks em ~/.claude/settings.json (faz backup antes)
-npm run install-hooks
-
-# 3. sobe o escritório
+# 2. sobe o escritório
 npm run build
 npm start          # abre em http://127.0.0.1:4848
 ```
 
-Mudou o `model:` de algum agente em `agents/`? Rode `npm run install-agents` de novo. Até lá, o `npm run setup:check` avisa que os agentes estão desatualizados.
+Os agentes do projeto já estão versionados em `.claude/agents/` (6 do time e 9 de produção). Não precisa instalar nada em `~/.claude/agents`.
+
+- **Sessões do Claude Code precisam ser reiniciadas** para carregar hooks e agentes novos. Sessão aberta antes da mudança não recebe nada.
+- Mudou o `model:` ou o texto de um dos 6 agentes do time em `agents/`? Copie de novo para o projeto: `node scripts/install-agents.mjs --project .`. Esse comando mexe só nos 6 do time; os 9 de produção são editados direto em `.claude/agents/`.
+- **Se o setup global do Studio rodar um dia**, remova antes o hook deste projeto (`node scripts/install-hooks.mjs --project . --remove`), para o mesmo evento não chegar duas vezes.
 
 O servidor escuta **só em `127.0.0.1`**: outras máquinas da rede não enxergam o escritório nem conseguem mandar eventos para ele. A porta padrão é 4848 (mude com a variável `PORT`). O hook envia os eventos para `STUDIO_PORT`, que também vem 4848: se mudar uma, mude a outra.
 
@@ -81,7 +85,7 @@ Quer ver antes de ligar no Claude? Clique em **Rodar simulação** na tela.
 
 ### Fazendo o Claude usar o time
 
-Rode `npm run setup`: ele coloca o bloco de `team/CLAUDE-time.md` no seu `~/.claude/CLAUDE.md`, entre marcadores. Ou copie o conteúdo à mão. Você também pode pedir direto: *"usa o planejador pra quebrar isso e depois o dev implementa"*. Dentro do Claude Code, `/agents` lista os agentes instalados.
+Neste projeto, o `CLAUDE.md` da raiz já liga os dois modos (veja a seção abaixo). Fora dele, o bloco de `team/CLAUDE-time.md` vai para o seu `~/.claude/CLAUDE.md`: o `npm run setup` faz isso, mas só a partir da Etapa 3; até lá, não rode. Você também pode pedir direto: *"usa o planejador pra quebrar isso e depois o dev implementa"*. Dentro do Claude Code, `/agents` lista os agentes do projeto.
 
 ### Desenvolvendo o escritório
 
@@ -94,12 +98,52 @@ npm run dev        # servidor + Vite com hot reload em http://localhost:5174
 ### Desligando
 
 ```bash
-npm run uninstall-hooks
+node scripts/install-hooks.mjs --project . --remove   # só este projeto (nesta fase)
+npm run uninstall-hooks                                # global, tira os hooks de ~/.claude/settings.json
 ```
 
 Com o servidor desligado os hooks não atrapalham nada: eles rodam em segundo plano e ignoram o erro de conexão.
 
-Só quer em um projeto específico? Use `npm run install-hooks -- --project C:\caminho\do\projeto` (e o mesmo para `install-agents`).
+Para tirar só o hook deste projeto: `node scripts/install-hooks.mjs --project . --remove` (o `.claude/settings.local.json` continua no disco, sem o bloco do Studio, e fica fora do Git).
+
+## Dois modos: `/time` e showrunner
+
+O `CLAUDE.md` da raiz do projeto descreve os dois modos:
+
+- **`/time`: construir e manter o Studio.** Fluxo planejador → (pesquisador) → dev → testador → revisor → documentador. Usa os 6 agentes do time, que estão em `.claude/agents/` (cópias de `agents/`).
+- **Modo showrunner: produzir séries.** Liga na v2. Coordena a equipe de produção de um episódio (seção abaixo). O `/time` não delega a esses agentes.
+
+As regras do showrunner estão em [team/CLAUDE-studio.md](team/CLAUDE-studio.md).
+
+## Equipe de produção
+
+Nove agentes produzem os episódios. Todos respondem só ao showrunner: nenhum fala com outro e nenhum tem a ferramenta `Agent`. Os arquivos estão em `.claude/agents/`.
+
+| Arquivo | Papel | Ferramentas | Modelo |
+|---|---|---|---|
+| `roteirista.md` | Escreve o roteiro do episódio (cenas, falas e a pergunta de voto) | Read, Write | sonnet |
+| `continuista.md` | Confere o roteiro contra o cânone e lista os furos | Read, Grep, Glob | haiku |
+| `revisor-conteudo.md` | Revisa roteiro, vídeo e post antes de chegar ao Pablo | Read, Bash | sonnet |
+| `diretor-arte.md` | Cria e ajusta personagens, cenários e objetos, sempre pela marca | Read, Write, Edit, Bash | sonnet |
+| `diretor-dublagem.md` | Gera as vozes das falas aprovadas | Read, Write, Bash | haiku |
+| `montador.md` | Monta e renderiza o vídeo pelo script do projeto | Read, Write, Edit, Bash | sonnet |
+| `social-media.md` | Prepara o post (1ª chamada) e posta depois da aprovação (2ª) | Read, Write, Bash | haiku |
+| `apurador.md` | Apura os votos e escolhe os comentários | Read, Write, Bash | haiku |
+| `arquivista.md` | Registra o episódio e o cânone no vault das séries (é o único que escreve lá) | Read, Write, Edit | haiku |
+
+**Fluxo de um episódio** (o detalhe está em [team/CLAUDE-studio.md](team/CLAUDE-studio.md)):
+
+1. `apurador` apura os votos do episódio anterior.
+2. `roteirista` escreve; `continuista` confere o cânone (furo volta ao roteirista); `revisor-conteudo` revisa.
+3. **Aprovação do roteiro (Pablo).** Nada de arte, voz ou montagem antes disso.
+4. `diretor-arte` e `diretor-dublagem`, em paralelo; depois `montador` renderiza.
+5. `social-media` prepara o `post.md` (sem postar); `revisor-conteudo` revisa o vídeo e o post.
+6. **Aprovação do vídeo e do post (Pablo).** Nada vai ao ar antes disso.
+7. `social-media` posta e confere a visibilidade; `arquivista` registra o episódio.
+
+Voz, render e postagem são sempre scripts do projeto. Nenhum agente improvisa ffmpeg, TTS ou postagem na mão. Se o script ainda não existe, o agente para e avisa.
+
+**Como aparecem no escritório (até a v3):** cada agente de produção entra como **visitante**, com o nome do papel na etiqueta (Roteirista, Continuísta, Direção de arte, Dublagem, Montagem, Revisão de conteúdo, Apuração, Social media, Arquivista) e a plaquinha da função na mesa (ROTEIRO, CONTINUIDADE, ARTE, DUBLAGEM, MONTAGEM, CONTEÚDO, APURAÇÃO, SOCIAL, ARQUIVO). Como todo visitante, não conta no TIME da parede, sai pela porta quando termina. Vale o limite geral de **3 visitantes** na tela ao mesmo tempo, somando os de produção com os outros visitantes (o 4º espera a vaga). Os nomes e as plaquinhas estão em `shared/producao.ts`.
 
 ## Segundo cérebro (vault do Obsidian) e reuniões
 
@@ -319,7 +363,7 @@ As frases ficam em `shared/frases.ts` (reexportadas por `server/frases.ts`). As 
 
 ## Modelos por função e gasto de tokens
 
-**Modelo por função.** Cada agente em `agents/*.md` tem um campo `model`:
+**Modelo por função.** Cada agente do time em `agents/*.md` tem um campo `model` (os de produção estão na tabela da seção "Equipe de produção"):
 
 | Agente | Modelo | Por quê |
 |---|---|---|
@@ -330,7 +374,7 @@ As frases ficam em `shared/frases.ts` (reexportadas por `server/frases.ts`). As 
 | Documentador | `haiku` | Texto curto e direto: o modelo mais leve basta |
 | Pesquisador | `haiku` | Busca e resume informação. Lê a web: se a qualidade cair, volte para `sonnet` |
 
-A justificativa completa está em [docs/agentes-modelos.md](docs/agentes-modelos.md). Depois de mudar `agents/`, rode `npm run install-agents`. Se a variável `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` estiver definida no seu computador, ela ignora esse campo para todos os subagentes.
+A justificativa completa está em [docs/agentes-modelos.md](docs/agentes-modelos.md). Depois de mudar `agents/`, rode `node scripts/install-agents.mjs --project .` (copia os 6 para `.claude/agents/`) e reinicie a sessão do Claude Code. Se a variável `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` estiver definida no seu computador, ela ignora esse campo para todos os subagentes.
 
 **Gasto de tokens.** O escritório lê o registro (transcript) que o próprio Claude Code grava e soma os **tokens de hoje por função**. Aparece em "Tokens hoje" no topo do painel e no crachá de cada personagem (o cache lido vem à parte). Quando a missão atual vem de uma reunião, o total também vai para a nota dela (`tokens_total` e `tokens_atualizado_em`, no máximo 1 vez por minuto e ao fim da sessão).
 

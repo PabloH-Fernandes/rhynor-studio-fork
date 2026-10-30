@@ -21,7 +21,7 @@ Para conferir, num terminal novo: `node --version` (precisa mostrar v20 ou maior
 
 ## 3. Instalação
 
-> **Estado atual (Etapa 1 da missão):** não rode o `npm run setup` ainda. Ele não foi adaptado ao Studio e duplicaria os blocos de time e de memória no `~/.claude/CLAUDE.md`. Até a Etapa 3, siga o passo manual do README ("Rodando") e deixe `STUDIO_VAULT` vazio.
+> **Estado atual (Etapa 2 da missão):** não rode o `npm run setup` nem o passo global (`install-agents` e `install-hooks` sem `--project`): eles escrevem em `~/.claude` e não foram adaptados ao Studio. Até a Etapa 3, use só o que está no projeto (abaixo, em "Hook e agentes só deste projeto") e deixe `STUDIO_VAULT` vazio.
 
 O fluxo abaixo é o da Etapa 3 em diante:
 
@@ -35,6 +35,20 @@ npm start
 O `npm run setup` roda `npm install` sozinho. Ao fim, `npm start` sobe o escritório em http://127.0.0.1:4848. Abra uma sessão **nova** do Claude Code em qualquer projeto: o líder entra pela porta e, quando delegar, os outros chegam.
 
 O setup é seguro para rodar de novo: o que já está em dia é pulado, e arquivos de configuração do Claude (`settings.json`, `CLAUDE.md`) ganham um backup `*.backup-*` antes de mudar.
+
+### Hook e agentes só deste projeto (Etapa 2)
+
+Nesta fase, o hook e os agentes ficam dentro da pasta do projeto. Nada é escrito em `~/.claude`. Rode os comandos **na raiz** do repositório (o `--project .` usa a pasta atual):
+
+```bash
+node scripts/install-hooks.mjs --project .            # liga o hook: grava .claude/settings.local.json
+node scripts/install-hooks.mjs --project . --remove   # desliga: tira só os hooks do Studio
+```
+
+- O `.claude/settings.local.json` fica fora do Git (está no `.gitignore`). Os agentes do projeto (`.claude/agents/`) já vêm no clone: 6 do time e 9 de produção.
+- **Reinicie as sessões do Claude Code** depois de ligar ou desligar o hook, e depois de qualquer mudança em agente. A sessão só lê hooks e agentes ao abrir.
+- **Não duplique:** se um dia o setup global rodar (`npm run setup` ou `npm run install-hooks` sem `--project`), remova antes o hook deste projeto com `--remove`. Senão o mesmo evento chega duas vezes ao escritório.
+- Mudou um agente do time em `agents/`? Copie de novo: `node scripts/install-agents.mjs --project .`. Esse comando mexe só nos 6 do time.
 
 ### Opções (flags)
 
@@ -60,13 +74,12 @@ npm run setup -- --completo --browser=chrome
 npm run setup:check
 ```
 
-Não instala nem escreve nada: lista o que está em dia e o que falta. Dentro do Claude Code, `/agents` deve listar os 6 agentes (planejador, pesquisador, dev, testador, revisor, documentador) e `/time`, `/memoria` e `/reuniao` devem existir como comandos. Para testar a memória, rode `/memoria o que tem no vault?`.
+Não instala nem escreve nada: lista o que está em dia e o que falta. Dentro do Claude Code, aberto na pasta do projeto, `/agents` deve listar os 15 agentes de `.claude/agents/`: os 6 do time (planejador, pesquisador, dev, testador, revisor, documentador) e os 9 de produção (roteirista, continuista, revisor-conteudo, diretor-arte, diretor-dublagem, montador, social-media, apurador, arquivista). Os comandos `/memoria` e `/reuniao` e a memória do vault chegam com o setup, na Etapa 3.
 
-**Mudou o `model:` de um agente em `agents/`?** Rode `npm run install-agents` antes de qualquer outra coisa. Até lá, o `npm run setup:check` acusa os agentes como "desatualizados" (isso é esperado, não é erro do setup).
+**Mudou o `model:` de um agente do time em `agents/`?** Copie de novo para o projeto (`node scripts/install-agents.mjs --project .`) e reinicie a sessão. O `npm run setup:check` só confere a instalação global da Etapa 3 em diante.
 
 ```bash
-npm run install-agents
-npm run setup:check      # deve ficar verde
+node scripts/install-agents.mjs --project .
 ```
 
 ## 5. O que é instalado
@@ -136,6 +149,7 @@ O `.gitignore` deixa de fora:
 | `data/escritorio.json` e `data/eventos/` | Estado do escritório e gravação de eventos (têm caminhos e prompts da sua máquina) | Não leve. Não compartilhe. |
 | `data/replay/`, `data/gasto/`, `data/transparencia/`, `data/exportacoes/` | Resumo do dia, contagem de tokens, log de acesso ao vault e cópias exportadas (têm nomes de arquivos e caminhos) | Não leve. Veja a seção 12. |
 | `data/estimativas.json` | Minutos usados na estimativa de tempo economizado (só números) | Pode copiar. Se não existir, vale o padrão. |
+| `.claude/settings.local.json` | Hook ligado só neste projeto (Etapa 2), com o caminho da sua máquina | Não leve. Recrie com `node scripts/install-hooks.mjs --project .` |
 | `referencias/` | Já vai pelo git: a marca (`rhynor-marca.md`, logos e tokens) e a missão atual | Já vem no clone. Se houver algum arquivo de referência fora do repositório, copie à mão, por um canal que a empresa aprove. |
 | `prints/` | Prints de conferência de quem desenvolveu | Opcional; não é necessário para rodar. |
 | `node_modules/` e `web/dist/` | Gerados pelo `npm install` e pelo build | O setup recria. |
@@ -183,7 +197,7 @@ Se algum item falhar, o setup mostra o comando manual equivalente e segue com os
 
 ## 8. Como desinstalar
 
-1. Hooks: `npm run uninstall-hooks` (tira só as entradas do Studio do `~/.claude/settings.json`).
+1. Hooks deste projeto: `node scripts/install-hooks.mjs --project . --remove` (tira só as entradas do Studio do `.claude/settings.local.json`). Hooks globais: `npm run uninstall-hooks` (tira só as entradas do Studio do `~/.claude/settings.json`).
 2. Agentes: apague de `~/.claude/agents/` os 6 arquivos `planejador.md`, `pesquisador.md`, `dev.md`, `testador.md`, `revisor.md` e `documentador.md`.
 3. Comandos: apague `~/.claude/commands/time.md`, `memoria.md` e `reuniao.md`.
 4. Blocos do time e de memória: abra `~/.claude/CLAUDE.md` e apague tudo entre `<!-- rhynor-studio:inicio -->` e `<!-- rhynor-studio:fim -->` e entre `<!-- rhynor-studio:memoria:inicio -->` e `<!-- rhynor-studio:memoria:fim -->`, inclusive as linhas de marcador.
