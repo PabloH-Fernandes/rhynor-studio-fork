@@ -27,6 +27,7 @@ import { destravarSom, eventoDoLote, instalarGestos, observarSom, setAtivo as se
 import { usePreferencia, usePreferenciaTexto } from "./usePreferencia";
 import { TODAS, esperandoDe, filtrarPorProjeto, progressoDoFiltro, projetoEfetivo, projetosDe, textoEspera } from "./projetoLogic";
 import { nomeCurto } from "../../shared/frases";
+import { PAPEIS_DE_PRODUCAO, curtoDeProducao, ehProducao } from "../../shared/producao";
 import { ehVisitante } from "../../shared/visitante";
 import { textoAtaNova } from "./missoesLogic";
 import { agruparFeed, destaqueDe, fraseDaLinha, iconeDe, type LinhaFeed } from "./feedLogic";
@@ -468,9 +469,10 @@ export default function App() {
 
 function AgentRow({ agent, roster, selected, onClick }: { agent: Agent; roster: Roster | null; selected: boolean; onClick: () => void }) {
   const pers = personagemOf(agent, roster);
-  const cargo = pers?.cargo ?? "Visitante";
+  // equipe de produção: a função ("Roteirista") no lugar de "Visitante"
+  const cargo = pers?.cargo ?? (ehProducao(agent.role) ? PAPEIS_DE_PRODUCAO[agent.role].nome : "Visitante");
   // o mesmo nome curto do feed ("Kauã"); o nome completo fica no crachá e no leitor de tela
-  const curto = nomeCurto(agent.name, pers?.apelido);
+  const curto = nomeCurto(agent.name, pers?.apelido ?? curtoDeProducao(agent.role));
   return (
     <li>
       <button

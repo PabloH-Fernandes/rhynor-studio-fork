@@ -19,7 +19,7 @@ Escritório pixel art que mostra os agentes do Claude Code trabalhando em tempo 
 - Não rode o setup global (`npm run setup`, `npm run install-hooks` sem `--project`): nada de escrever em `~/.claude`. O hook deste projeto fica só em `.claude/settings.local.json` (fora do git).
 
 ## Memória (vale neste projeto no lugar da memória do time global)
-- O time de construção **não** escreve no vault do motor antigo.
-- Até a Etapa 3, sem notas de vault. A partir da Etapa 3, os registros de construção vão para uma pasta própria do `STUDIO_VAULT` (ex.: `20-Producao/Construcao/`).
+- Neste projeto, **ignore a seção "Memória do time" do `CLAUDE.md` global**: não leia nem escreva no vault apontado pela variável de vault do motor upstream, e não passe caminho de vault ao pesquisador nem ao documentador até a Etapa 3.
+- A partir da Etapa 3, os registros de construção vão para uma pasta própria: passe sempre o caminho absoluto de `<STUDIO_VAULT>/20-Producao/Construcao/` (nunca a raiz do vault das séries).
 - A regra "o arquivista é o único que escreve no vault" vale só para o conteúdo das séries.
 - Nunca guarde senha, token, chave nem dado pessoal em nota.

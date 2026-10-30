@@ -10,7 +10,7 @@
 import path from "node:path";
 import type { Agent, AgentStatus, FeedItem, OfficeConfig, Progress, ReuniaoAtiva, ServerMessage } from "../shared/types.ts";
 import { DEFAULT_ROSTER, personagemDoPapel, type Personagem, type Roster } from "../shared/roster.ts";
-import { PAPEIS_DE_PRODUCAO, ehProducao } from "../shared/producao.ts";
+import { PAPEIS_DE_PRODUCAO, curtoDeProducao, ehProducao } from "../shared/producao.ts";
 import { MAX_VISITANTES_NA_TELA, ehVisitante } from "../shared/visitante.ts";
 import { PROGRESS_NADA, ProgressTracker, sameProgress, type TarefasSalvas } from "./progress.ts";
 import { ehComandoReuniao } from "./vault.ts";
@@ -1535,10 +1535,10 @@ export class OfficeState {
 
   // ---------------------------------------------------------------- feed
 
-  /** Nome curto do feed simples: o apelido do Personagem ("Helô") ou o primeiro nome. */
+  /** Nome curto do feed simples: o apelido do Personagem ("Helô"), o curto da produção ("Arte") ou o primeiro nome. */
   private nomeCurto(agent: Agent): string {
     const pers = agent.personagem ? this.findPersonagem(agent.personagem) : undefined;
-    return nomeCurto(agent.name, pers?.apelido);
+    return nomeCurto(agent.name, pers?.apelido ?? curtoDeProducao(agent.role));
   }
 
   /** `text` é a versão técnica; `assunto` gera a versão simples (server/frases.ts). */
@@ -1555,7 +1555,7 @@ export class OfficeState {
       text,
       kind,
       simples: frase.simples,
-      quem: nomeCurto(agent.name, pers?.apelido),
+      quem: nomeCurto(agent.name, pers?.apelido ?? curtoDeProducao(agent.role)),
       categoria: frase.categoria,
       ...(frase.contaComo ? { contaComo: frase.contaComo } : {}),
     };

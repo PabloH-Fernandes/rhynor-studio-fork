@@ -101,13 +101,35 @@ test("team/CLAUDE-studio.md tem as regras do showrunner e a ordem do episódio",
     assert.ok(texto.includes(trecho), `CLAUDE-studio.md sem "${trecho}"`);
   }
   assert.match(texto, /arquivista\*\* é o único que escreve no vault das séries/);
-  // os 9 aparecem na ordem do fluxo
-  const ordem = ["apurador", "roteirista", "continuista", "revisor-conteudo", "APROVAÇÃO DO ROTEIRO", "diretor-arte", "montador", "APROVAÇÃO DO VÍDEO", "social-media", "arquivista"];
+  // os passos aparecem na ordem do fluxo; social-media e revisor-conteudo aparecem duas vezes cada:
+  // o post é preparado (sem postar) ANTES da revisão final e da aprovação, e só postado depois
+  const ordem = [
+    "apurador",
+    "roteirista",
+    "continuista",
+    "revisor-conteudo",
+    "APROVAÇÃO DO ROTEIRO",
+    "diretor-arte",
+    "montador",
+    "social-media",
+    "revisor-conteudo",
+    "APROVAÇÃO DO VÍDEO",
+    "social-media",
+    "arquivista",
+  ];
   const fluxo = texto.slice(texto.indexOf("## Ordem de um episódio"));
-  const posicoes = ordem.map((p) => fluxo.indexOf(p));
-  assert.ok(posicoes.every((p) => p >= 0), `falta etapa no fluxo: ${ordem.filter((_, i) => posicoes[i] < 0).join(", ")}`);
-  assert.deepEqual([...posicoes].sort((a, b) => a - b), posicoes, "ordem do episódio fora do lugar");
+  let pos = -1;
+  for (const passo of ordem) {
+    const achou = fluxo.indexOf(passo, pos + 1);
+    assert.ok(achou > pos, `ordem do episódio: "${passo}" falta ou está fora do lugar`);
+    pos = achou;
+  }
   assert.ok(fluxo.includes("diretor-dublagem"));
+  const linhas = fluxo.split("\n");
+  const prepara = linhas.find((l) => l.includes("`social-media`") && l.includes("post.md"));
+  assert.ok(prepara && /sem postar/.test(prepara), "1ª chamada do social-media prepara o post.md sem postar");
+  const revisaFinal = linhas.find((l) => l.includes("`revisor-conteudo`") && l.includes("post.md"));
+  assert.ok(revisaFinal && /vídeo/.test(revisaFinal), "revisão final cobre vídeo e post.md");
   for (const nome of Object.keys(PRODUCAO)) assert.ok(texto.includes(nome), `CLAUDE-studio.md não cita ${nome}`);
 });
 
@@ -115,5 +137,30 @@ test("CLAUDE.md da raiz explica os dois modos, a marca, as portas e a regra de m
   const texto = ler(path.join(ROOT, "CLAUDE.md"));
   for (const trecho of ["`/time`", "showrunner", "team/CLAUDE-studio.md", "referencias/rhynor-marca.md", "--rh-*", "npm test", "4848", "STUDIO_PORT", "20-Producao/Construcao/"]) {
     assert.ok(texto.includes(trecho), `CLAUDE.md sem "${trecho}"`);
+  }
+  // memória: o global fica de fora; nada do vault antigo; depois só a pasta de construção, nunca a raiz
+  const memoria = texto.slice(texto.indexOf("## Memória"));
+  assert.match(memoria, /ignore a seção "Memória do time"/);
+  assert.match(memoria, /não leia nem escreva no vault apontado pela variável de vault do motor upstream/);
+  assert.match(memoria, /não passe caminho de vault ao pesquisador nem ao documentador até a Etapa 3/);
+  assert.match(memoria, /<STUDIO_VAULT>\/20-Producao\/Construcao\/` \(nunca a raiz do vault das séries\)/);
+});
+
+test("social-media em duas chamadas e revisor-conteudo revisando vídeo + post.md", () => {
+  const social = ler(path.join(PASTA_PROJETO, "social-media.md"));
+  assert.match(social, /1ª chamada \(preparar\)/);
+  assert.match(social, /\*\*não posto\*\*/);
+  assert.match(social, /2ª chamada \(postar\)/);
+  const revisor = ler(path.join(PASTA_PROJETO, "revisor-conteudo.md"));
+  assert.match(revisor, /vídeo renderizado \*\*e\*\* o `post\.md`/);
+  assert.match(revisor, /Bash só para comandos de leitura \(ffprobe, scripts de leitura do projeto\)/);
+  assert.ok(revisor.includes("<raiz do projeto>/referencias/rhynor-marca.md"));
+});
+
+test("quem lê o vault não lê nota confidencial", () => {
+  for (const nome of ["roteirista", "continuista", "diretor-arte", "diretor-dublagem", "apurador", "arquivista"]) {
+    const corpo = ler(path.join(PASTA_PROJETO, `${nome}.md`));
+    const naoFaco = corpo.slice(corpo.indexOf("## O que NÃO faço"), corpo.indexOf("## Regras"));
+    assert.ok(naoFaco.includes("Não leio nota com `confidencial: true`."), `${nome}: falta a regra de nota confidencial em "O que NÃO faço"`);
   }
 });

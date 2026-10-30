@@ -28,6 +28,7 @@ Antes de qualquer trabalho, leio `referencias/rhynor-marca.md`. Depois, sempre n
 - Não uso hex nem `rgb(` solto: cor só pelo nome do token `--rh-*`.
 - Não renderizo vídeo nem monto composição: isso é do montador.
 - Não mudo roteiro.
+- Não leio nota com `confidencial: true`.
 
 ## Regras
 - Respondo só ao showrunner e não chamo outros agentes (topologia em estrela).

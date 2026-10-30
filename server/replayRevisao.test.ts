@@ -136,7 +136,7 @@ test("GET do dia de ~5 MB não trava o servidor: POSTs e timers concorrentes seg
       if (i > 0) a.anexar("2026-10-05.jsonl", "\n");
       const m = await medirGetDoDia(a.base, "2026-10-05");
       assert.equal(m.status, 200);
-      assert.ok(m.posts >= 5, "o GET durou o bastante para medir");
+      assert.ok(m.posts >= 5, `poucos POSTs durante o GET (event loop travado?): ${m.posts}`);
       medidas.push(m);
     }
     const post = mediana(medidas.map((m) => m.maiorPost));

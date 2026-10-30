@@ -153,6 +153,18 @@ test("líder chamando a produção: 'Coordenando: chamou Direção de arte'", ()
   assert.equal(prettyRole("continuista"), "Continuísta");
 });
 
+test("feed da produção: nome curto próprio (Direção de arte → Arte), senão a primeira palavra", () => {
+  start("d1", "diretor-arte");
+  hook("PreToolUse", { agent_id: "d1", agent_type: "diretor-arte", tool_name: "Read", tool_input: { file_path: "cena.tsx" } });
+  start("r1", "roteirista");
+  hook("PreToolUse", { agent_id: "r1", agent_type: "roteirista", tool_name: "Read", tool_input: { file_path: "biblia.md" } });
+  const snap = state.snapshot();
+  const feed = snap.type === "snapshot" ? snap.feed : [];
+  const quem = (id: string) => feed.filter((f) => f.agentId === id).map((f) => f.quem);
+  assert.ok(quem("p:extra:d1").length > 0 && quem("p:extra:d1").every((q) => q === "Arte"), JSON.stringify(quem("p:extra:d1")));
+  assert.ok(quem("p:extra:r1").length > 0 && quem("p:extra:r1").every((q) => q === "Roteirista"));
+});
+
 test("visitante (Diego, Cida, Ícaro) sai andando ao SubagentStop; nunca fica de boa", () => {
   start("e1", "Explore");
   start("g1", "general-purpose");
