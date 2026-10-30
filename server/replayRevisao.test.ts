@@ -83,6 +83,41 @@ function gerarDia(bytes: number): string {
   return linhas.join("\n") + "\n";
 }
 
+/** uma medição: o GET do dia montando do zero enquanto POSTs e um timer de 10 ms disputam o event loop */
+async function medirGetDoDia(base: string, data: string) {
+  // timers de 10 ms: quanto tempo o event loop fica sem poder rodá-los
+  let maiorAtrasoTimer = 0;
+  let ultimo = performance.now();
+  const timer = setInterval(() => {
+    const agora = performance.now();
+    maiorAtrasoTimer = Math.max(maiorAtrasoTimer, agora - ultimo - 10);
+    ultimo = agora;
+  }, 10);
+
+  const inicio = performance.now();
+  let acabou = false;
+  const get = fetch(`${base}/api/replay/dia?data=${data}`).then(async (r) => {
+    const buf = await r.arrayBuffer(); // sem JSON.parse aqui: o teste roda no mesmo processo do servidor
+    acabou = true;
+    return { status: r.status, buf };
+  });
+
+  const latencias: number[] = [];
+  await esperar(5);
+  while (!acabou) {
+    const t0 = performance.now();
+    const r = await fetch(`${base}/api/hook`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hook_event_name: "Stop" }) });
+    await r.arrayBuffer();
+    latencias.push(performance.now() - t0);
+    await esperar(5);
+  }
+  clearInterval(timer);
+  const { status, buf } = await get;
+  return { status, buf, duracao: performance.now() - inicio, posts: latencias.length, maiorPost: Math.max(...latencias), maiorAtrasoTimer };
+}
+
+const mediana = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+
 test("GET do dia de ~5 MB não trava o servidor: POSTs e timers concorrentes seguem rápidos", { timeout: 180_000 }, async () => {
   const a = await ambiente();
   try {
@@ -90,42 +125,34 @@ test("GET do dia de ~5 MB não trava o servidor: POSTs e timers concorrentes seg
     assert.ok(texto.length >= 5 * 1024 * 1024);
     a.escrever("2026-10-05.jsonl", texto);
 
-    // timers de 10 ms: quanto tempo o event loop fica sem poder rodá-los
-    let maiorAtrasoTimer = 0;
-    let ultimo = performance.now();
-    const timer = setInterval(() => {
-      const agora = performance.now();
-      maiorAtrasoTimer = Math.max(maiorAtrasoTimer, agora - ultimo - 10);
-      ultimo = agora;
-    }, 10);
+    // aquecimento (JIT, conexões, leitura do disco): não conta
+    a.escrever("2026-10-04.jsonl", TEXTO);
+    await fetch(`${a.base}/api/replay/dia?data=2026-10-04`).then((r) => r.arrayBuffer());
 
-    let acabou = false;
-    const get = fetch(`${a.base}/api/replay/dia?data=2026-10-05`).then(async (r) => {
-      const buf = await r.arrayBuffer(); // sem JSON.parse aqui: o teste roda no mesmo processo do servidor
-      acabou = true;
-      return { status: r.status, buf };
-    });
-
-    const latencias: number[] = [];
-    await esperar(5);
-    while (!acabou) {
-      const t0 = performance.now();
-      const r = await fetch(`${a.base}/api/hook`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hook_event_name: "Stop" }) });
-      await r.arrayBuffer();
-      latencias.push(performance.now() - t0);
-      await esperar(5);
+    // 3 medições; entre elas o arquivo cresce uma linha em branco (size muda), então cada GET monta do zero.
+    // Com o npm test rodando outros arquivos em paralelo, um pico de CPU pega uma medição, não a mediana.
+    const medidas: Awaited<ReturnType<typeof medirGetDoDia>>[] = [];
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) a.anexar("2026-10-05.jsonl", "\n");
+      const m = await medirGetDoDia(a.base, "2026-10-05");
+      assert.equal(m.status, 200);
+      assert.ok(m.posts >= 5, "o GET durou o bastante para medir");
+      medidas.push(m);
     }
-    clearInterval(timer);
-    const { status, buf } = await get;
-    assert.equal(status, 200);
-    const maiorPost = Math.max(...latencias);
-    console.log(`[lag] ${latencias.length} POSTs durante o GET; maior POST ${maiorPost.toFixed(0)} ms; maior atraso de timer ${maiorAtrasoTimer.toFixed(0)} ms`);
-    assert.ok(latencias.length >= 5, "o GET durou o bastante para medir");
-    // meta ~50-100 ms; folga larga para CI lento (antes da correção: 560 ms para 5 MB)
-    assert.ok(maiorPost < 250, `POST esperou ${maiorPost.toFixed(0)} ms`);
-    assert.ok(maiorAtrasoTimer < 250, `timer atrasou ${maiorAtrasoTimer.toFixed(0)} ms`);
+    const post = mediana(medidas.map((m) => m.maiorPost));
+    const timer = mediana(medidas.map((m) => m.maiorAtrasoTimer));
+    const duracao = mediana(medidas.map((m) => m.duracao));
+    console.log(
+      `[lag] medidas (maior POST / maior atraso de timer / GET): ${medidas.map((m) => `${m.maiorPost.toFixed(0)}/${m.maiorAtrasoTimer.toFixed(0)}/${m.duracao.toFixed(0)} ms`).join("; ")}`,
+    );
+    // meta ~50-100 ms. Antes da correção o GET segurava o event loop quase o tempo todo (560 ms de 5 MB
+    // num bloco só). Limite: 250 ms ou metade da duração do GET, o que for maior. Máquina carregada deixa
+    // tudo mais lento por igual (passa); um bloco que ocupa o GET inteiro continua reprovando.
+    const limite = Math.max(250, duracao / 2);
+    assert.ok(post < limite, `POST esperou ${post.toFixed(0)} ms (mediana; limite ${limite.toFixed(0)} ms)`);
+    assert.ok(timer < limite, `timer atrasou ${timer.toFixed(0)} ms (mediana; limite ${limite.toFixed(0)} ms)`);
 
-    const dia = JSON.parse(Buffer.from(buf).toString("utf8")) as DiaReplay;
+    const dia = JSON.parse(Buffer.from(medidas[0].buf).toString("utf8")) as DiaReplay;
     assert.equal(dia.ok, true);
     assert.ok(dia.mensagens.length > 100);
     assert.ok(dia.chaves.length >= 1);

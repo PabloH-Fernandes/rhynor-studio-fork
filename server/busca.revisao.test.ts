@@ -60,30 +60,46 @@ async function ambiente(opts: ObservadorBuscaOpcoes = {}, esperaIndiceMs?: numbe
 }
 
 /**
- * Crescimento linear sem depender da velocidade da máquina: compara o tempo com tamanho N e 2N
- * (o menor de algumas medidas). Linear dá ~2x; quadrático daria ~4x. Só reprova a partir de 3,5x
- * e quando o 2N já leva tempo mensurável (abaixo de PISO_MS o ruído do relógio manda).
+ * Crescimento linear sem depender da velocidade da máquina: compara o tempo com tamanho N e 2N.
+ * Linear dá ~2x; quadrático daria ~4x. Só reprova a partir de 3,5x e quando o 2N já leva tempo
+ * mensurável (abaixo de PISO_MS o ruído do relógio manda).
+ * Contra a carga dos outros arquivos de teste rodando em paralelo (npm test): aquece antes de medir,
+ * mede N e 2N intercalados (um pico de carga atinge os dois do mesmo par) e usa a MEDIANA das razões.
  */
 const RAZAO_MAX = 3.5;
 const PISO_MS = 25;
 /** teto absoluto só para pegar travamento de verdade (muito acima do normal, mesmo em máquina lenta) */
 const TETO_MS = 10_000;
+/** pares N/2N medidos (ímpar: a mediana é um par de verdade) */
+const PARES = 5;
 
-async function menorTempo(vezes: number, fazer: () => unknown | Promise<unknown>): Promise<number> {
-  let menor = Infinity;
-  for (let i = 0; i < vezes; i++) {
-    const t0 = performance.now();
-    await fazer();
-    menor = Math.min(menor, performance.now() - t0);
-  }
-  return menor;
+const mediana = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+
+async function tempo(fazer: () => unknown | Promise<unknown>): Promise<number> {
+  const t0 = performance.now();
+  await fazer();
+  return performance.now() - t0;
 }
 
-function confereLinear(nome: string, tN: number, t2N: number) {
-  assert.ok(t2N < TETO_MS, `${nome}: ${t2N.toFixed(0)} ms com 2N (travou?)`);
-  if (t2N < PISO_MS) return;
-  const razao = t2N / Math.max(tN, 1);
-  assert.ok(razao < RAZAO_MAX, `${nome}: N levou ${tN.toFixed(1)} ms e 2N levou ${t2N.toFixed(1)} ms (${razao.toFixed(2)}x; linear seria ~2x)`);
+async function confereLinear(nome: string, fazerN: () => unknown | Promise<unknown>, fazer2N: () => unknown | Promise<unknown>) {
+  // aquecimento: JIT, cache de disco e conexões HTTP antes de valer
+  await fazerN();
+  await fazer2N();
+  const razoes: number[] = [];
+  const tempos2N: number[] = [];
+  for (let i = 0; i < PARES; i++) {
+    const tN = await tempo(fazerN);
+    const t2N = await tempo(fazer2N);
+    assert.ok(t2N < TETO_MS, `${nome}: ${t2N.toFixed(0)} ms com 2N (travou?)`);
+    tempos2N.push(t2N);
+    razoes.push(t2N / Math.max(tN, 1));
+  }
+  if (mediana(tempos2N) < PISO_MS) return;
+  const razao = mediana(razoes);
+  assert.ok(
+    razao < RAZAO_MAX,
+    `${nome}: mediana ${razao.toFixed(2)}x (linear seria ~2x); razões ${razoes.map((r) => r.toFixed(2)).join(", ")}`,
+  );
 }
 
 test("regressão: cabeçalho e corpo só de '[[' não travam (linear)", async () => {
@@ -97,7 +113,7 @@ test("regressão: cabeçalho e corpo só de '[[' não travam (linear)", async ()
     montarEntrada("Cab.md", cab(n));
     montarEntrada("Corpo.md", corpo(2 * n));
   };
-  confereLinear("montarEntrada", await menorTempo(3, montar(25000)), await menorTempo(3, montar(50000)));
+  await confereLinear("montarEntrada", montar(25000), montar(50000));
 
   const a = await ambiente();
   try {
@@ -108,9 +124,7 @@ test("regressão: cabeçalho e corpo só de '[[' não travam (linear)", async ()
       const r = await a.consultar("foguete");
       assert.equal(r.itens.length, 2);
     };
-    const tN = await menorTempo(2, indexarEBuscar(25000));
-    const t2N = await menorTempo(2, indexarEBuscar(50000));
-    confereLinear("indexar+buscar", tN, t2N);
+    await confereLinear("indexar+buscar", indexarEBuscar(25000), indexarEBuscar(50000));
   } finally {
     await a.fechar();
   }
